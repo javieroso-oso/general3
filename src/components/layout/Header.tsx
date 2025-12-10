@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/', label: 'Generator' },
+  { path: '/custom', label: 'Custom' },
   { path: '/about', label: 'About' },
   { path: '/gallery', label: 'Gallery' },
   { path: '/contact', label: 'Contact' },
