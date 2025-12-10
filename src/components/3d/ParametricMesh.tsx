@@ -1,20 +1,20 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
+  showWireframe?: boolean;
 }
 
-// Simple seeded random for consistent noise
+// Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
   const dot = x * 12.9898 + y * 78.233 + z * 37.719;
   return (Math.sin(dot) * 43758.5453) % 1;
 };
 
-// 3D Simplex-like noise approximation
 const noise3D = (x: number, y: number, z: number, scale: number) => {
   const sx = x * scale;
   const sy = y * scale;
@@ -28,12 +28,10 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
   const fy = sy - iy;
   const fz = sz - iz;
   
-  // Smooth interpolation
   const ux = fx * fx * (3 - 2 * fx);
   const uy = fy * fy * (3 - 2 * fy);
   const uz = fz * fz * (3 - 2 * fz);
   
-  // Sample corners
   const n000 = seededRandom(ix, iy, iz);
   const n100 = seededRandom(ix + 1, iy, iz);
   const n010 = seededRandom(ix, iy + 1, iz);
@@ -43,7 +41,6 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
   const n011 = seededRandom(ix, iy + 1, iz + 1);
   const n111 = seededRandom(ix + 1, iy + 1, iz + 1);
   
-  // Trilinear interpolation
   const nx00 = n000 * (1 - ux) + n100 * ux;
   const nx10 = n010 * (1 - ux) + n110 * ux;
   const nx01 = n001 * (1 - ux) + n101 * ux;
@@ -55,14 +52,19 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
   return (nxy0 * (1 - uz) + nxy1 * uz) * 2 - 1;
 };
 
-const ParametricMesh = ({ params, type }: ParametricMeshProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+// Scale factor: convert mm to scene units (1 unit = 100mm for nice viewport)
+const SCALE = 0.01;
 
-  const geometry = useMemo(() => {
+const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const wireRef = useRef<THREE.LineSegments>(null);
+
+  const { geometry, wireframeGeo } = useMemo(() => {
     const {
       height,
       baseRadius,
       topRadius,
+      wallThickness,
       wobbleFrequency,
       wobbleAmplitude,
       twistAngle,
@@ -76,110 +78,139 @@ const ParametricMesh = ({ params, type }: ParametricMeshProps) => {
       lipHeight,
       organicNoise,
       noiseScale,
+      baseThickness,
+      baseType,
     } = params;
 
-    const segments = 72;
-    const heightSegments = 80;
+    // Scale to scene units
+    const h = height * SCALE;
+    const bRad = baseRadius * SCALE;
+    const tRad = topRadius * SCALE;
+    const wall = wallThickness * SCALE;
+    const baseH = baseThickness * SCALE;
 
-    const vertices: number[] = [];
-    const indices: number[] = [];
+    const segments = 64;
+    const heightSegments = 64;
 
-    // Generate parametric surface with organic clay-like deformations
+    const outerVerts: number[] = [];
+    const innerVerts: number[] = [];
+    const baseVerts: number[] = [];
+
+    // Generate outer and inner surfaces
     for (let i = 0; i <= heightSegments; i++) {
-      const t = i / heightSegments; // 0 to 1 from bottom to top
-      const y = (t - 0.5) * height;
+      const t = i / heightSegments;
+      const y = t * h;
 
-      // Base radius interpolation with smooth easing
+      // Base profile interpolation
       let radius: number;
-      
       if (type === 'lamp') {
-        // Lamp: exponential curve from narrow base to wide top
-        const eased = Math.pow(t, 0.6);
-        radius = baseRadius + (topRadius - baseRadius) * eased;
+        radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
       } else if (type === 'sculpture') {
-        // Sculpture: more dramatic organic shape
-        const sculptCurve = Math.sin(t * Math.PI);
-        radius = baseRadius * (1 - t * 0.3) + topRadius * t * 0.7 + sculptCurve * 0.25;
+        const curve = Math.sin(t * Math.PI);
+        radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
       } else {
-        // Vase: elegant curve
-        const vaseCurve = Math.sin(t * Math.PI * 0.8 + 0.2);
-        radius = baseRadius * (1 - t * 0.4) + topRadius * t * 0.6 + vaseCurve * 0.15;
+        const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
+        radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
       }
 
-      // Apply organic bulge (clay belly)
+      // Organic bulge
       const bulgeDist = Math.abs(t - bulgePosition);
-      const bulgeEffect = Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * baseRadius;
-      radius += bulgeEffect;
+      radius += Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * bRad;
 
-      // Apply pinch effect (narrowing at extremes)
-      const pinchTop = Math.pow(t, 3) * pinchAmount * 0.5;
-      const pinchBottom = Math.pow(1 - t, 3) * pinchAmount * 0.3;
+      // Pinch effect - limited for printability
+      const pinchTop = Math.pow(t, 4) * pinchAmount * 0.3;
+      const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
       radius *= (1 - pinchTop - pinchBottom);
 
-      // Apply lip flare at top
+      // Lip flare
       const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
-      const lipEffect = lipT * lipT * lipFlare * baseRadius;
-      radius += lipEffect;
+      radius += lipT * lipT * lipFlare * bRad;
 
       // Ensure minimum radius for printability
-      radius = Math.max(radius, 0.1);
+      radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
 
-      // Twist angle at this height
       const twistRad = (twistAngle * Math.PI / 180) * t;
 
       for (let j = 0; j <= segments; j++) {
         const theta = (j / segments) * Math.PI * 2 + twistRad;
-
-        // Start with base radius
         let r = radius;
 
-        // Apply wobble (like finger impressions in clay)
+        // Wobble - limited amplitude for print stability
         if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
-          const wobblePhase = t * Math.PI * 2 * wobbleFrequency;
-          r += Math.sin(wobblePhase + theta * 2) * wobbleAmplitude * baseRadius;
+          const maxWobble = Math.min(wobbleAmplitude, 0.15);
+          r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * bRad;
         }
 
-        // Apply vertical ripples (like wheel-thrown pottery)
+        // Ripples
         if (rippleCount > 0 && rippleDepth > 0) {
-          r += Math.sin(theta * rippleCount) * rippleDepth * baseRadius;
+          const maxRipple = Math.min(rippleDepth, 0.1);
+          r += Math.sin(theta * rippleCount) * maxRipple * bRad;
         }
 
-        // Apply asymmetry (organic imperfection)
+        // Asymmetry - limited for stability
         if (asymmetry > 0) {
-          const asymOffset = Math.sin(theta) * Math.cos(t * Math.PI * 2) * asymmetry * baseRadius;
-          r += asymOffset;
+          const maxAsym = Math.min(asymmetry, 0.1);
+          r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * bRad;
         }
 
-        // Apply organic noise (clay texture)
+        // Organic noise
         if (organicNoise > 0) {
+          const maxNoise = Math.min(organicNoise, 0.1);
           const nx = Math.cos(theta) * r;
           const nz = Math.sin(theta) * r;
-          const noiseVal = noise3D(nx, y, nz, noiseScale);
-          r += noiseVal * organicNoise * baseRadius;
+          r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // Ensure minimum radius for print integrity
-        r = Math.max(r, 0.08);
+        // Ensure minimum radius
+        r = Math.max(r, wall * 2);
 
-        // Calculate position
         const x = Math.cos(theta) * r;
         const z = Math.sin(theta) * r;
+        outerVerts.push(x, y, z);
 
-        vertices.push(x, y, z);
+        // Inner surface (wall thickness)
+        const innerR = Math.max(r - wall, wall);
+        const ix = Math.cos(theta) * innerR;
+        const iz = Math.sin(theta) * innerR;
+        innerVerts.push(ix, y, iz);
       }
     }
 
-    // Generate indices for triangles
+    // Generate base
+    const baseSegments = 32;
+    for (let i = 0; i <= baseSegments; i++) {
+      const r = (i / baseSegments) * bRad;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        const x = Math.cos(theta) * r;
+        const z = Math.sin(theta) * r;
+        
+        let y = 0;
+        if (baseType === 'rounded' && i > baseSegments * 0.7) {
+          const bt = (i - baseSegments * 0.7) / (baseSegments * 0.3);
+          y = -Math.sqrt(1 - bt * bt) * baseH * 0.3;
+        } else if (baseType === 'pedestal' && i > baseSegments * 0.8) {
+          const bt = (i - baseSegments * 0.8) / (baseSegments * 0.2);
+          y = bt * baseH * 0.5;
+        }
+        
+        baseVerts.push(x, y, z);
+      }
+    }
+
+    // Build geometry
+    const vertices: number[] = [...outerVerts];
+    const indices: number[] = [];
+
+    // Outer surface indices
     for (let i = 0; i < heightSegments; i++) {
       for (let j = 0; j < segments; j++) {
         const a = i * (segments + 1) + j;
         const b = a + 1;
         const c = a + (segments + 1);
         const d = c + 1;
-
-        // Two triangles per quad
-        indices.push(a, b, c);
-        indices.push(b, d, c);
+        indices.push(a, c, b);
+        indices.push(b, c, d);
       }
     }
 
@@ -188,25 +219,37 @@ const ParametricMesh = ({ params, type }: ParametricMeshProps) => {
     geo.setIndex(indices);
     geo.computeVertexNormals();
 
-    return geo;
+    // Wireframe geometry for visualization
+    const wireGeo = new THREE.WireframeGeometry(geo);
+
+    return { geometry: geo, wireframeGeo: wireGeo };
   }, [params, type]);
 
-  // Gentle rotation animation
   useFrame((state) => {
     if (meshRef.current) {
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.08;
+      meshRef.current.rotation.y = state.clock.elapsedTime * 0.05;
+    }
+    if (wireRef.current) {
+      wireRef.current.rotation.y = state.clock.elapsedTime * 0.05;
     }
   });
 
   return (
-    <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
-      <meshStandardMaterial
-        color="#a8a29e"
-        roughness={0.55}
-        metalness={0.05}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <group position={[0, -params.height * SCALE * 0.5, 0]}>
+      <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
+        <meshStandardMaterial
+          color="#d4d4d4"
+          roughness={0.6}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {showWireframe && (
+        <lineSegments ref={wireRef} geometry={wireframeGeo}>
+          <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
+        </lineSegments>
+      )}
+    </group>
   );
 };
 

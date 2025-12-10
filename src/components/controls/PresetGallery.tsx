@@ -36,9 +36,13 @@ const PresetGallery = ({ type, currentParams, onSelect }: PresetGalleryProps) =>
   const filteredPresets = presets.filter((preset) => preset.type === type);
 
   const isActive = (preset: Preset) => {
-    // Check if most key params match
-    const keys: (keyof ParametricParams)[] = ['bulgeAmount', 'twistAngle', 'wobbleFrequency', 'asymmetry'];
-    return keys.every(key => Math.abs(preset.params[key] - currentParams[key]) < 0.01);
+    // Check if most key numeric params match
+    const numericKeys = ['bulgeAmount', 'twistAngle', 'wobbleFrequency', 'asymmetry'] as const;
+    return numericKeys.every(key => {
+      const presetVal = preset.params[key] as number;
+      const currentVal = currentParams[key] as number;
+      return Math.abs(presetVal - currentVal) < 0.01;
+    });
   };
 
   return (
