@@ -29,6 +29,34 @@ export interface BulbDimensions {
   heatZoneRadius: number; // mm - heat dissipation zone
 }
 
+// Style-specific mounting parameters
+export interface MountingParams {
+  // Pendant - canopy at top
+  canopyDiameter: number;      // mm
+  canopyHeight: number;        // mm
+  cordChannelDiameter: number; // mm
+  
+  // Table lamp - base and stem
+  baseWidth: number;           // mm
+  baseHeight: number;          // mm
+  stemDiameter: number;        // mm
+  stemHeight: number;          // mm
+  
+  // Wall sconce - backplate and arm
+  backplateWidth: number;      // mm
+  backplateHeight: number;     // mm
+  armLength: number;           // mm
+  armAngle: number;            // degrees
+  
+  // Floor lamp - pole adapter
+  poleAdapterDiameter: number; // mm (fits standard poles)
+  poleAdapterHeight: number;   // mm
+  
+  // Clip-on - rim clip
+  clipWidth: number;           // mm
+  clipDepth: number;           // mm
+}
+
 export interface LampHardware {
   socketType: SocketType;
   bulbShape: BulbShape;
@@ -42,6 +70,9 @@ export interface LampParams extends ParametricParams {
   // Socket mounting
   socketMountingHeight: number;  // mm from bottom (usually near top)
   socketHoleDiameter: number;    // mm - hole for socket
+  
+  // Mounting parameters (style-specific)
+  mounting: MountingParams;
   
   // Ventilation
   ventilationSlots: boolean;
@@ -111,6 +142,30 @@ export interface LampPreset {
   thumbnail?: string;
 }
 
+// Default mounting params
+export const defaultMountingParams: MountingParams = {
+  // Pendant
+  canopyDiameter: 100,
+  canopyHeight: 15,
+  cordChannelDiameter: 8,
+  // Table
+  baseWidth: 120,
+  baseHeight: 20,
+  stemDiameter: 20,
+  stemHeight: 80,
+  // Wall sconce
+  backplateWidth: 80,
+  backplateHeight: 120,
+  armLength: 60,
+  armAngle: 15,
+  // Floor
+  poleAdapterDiameter: 30,
+  poleAdapterHeight: 40,
+  // Clip-on
+  clipWidth: 30,
+  clipDepth: 25,
+};
+
 // Default lamp hardware
 export const defaultLampHardware: LampHardware = {
   socketType: 'E26',
@@ -140,12 +195,13 @@ export const defaultLampParams: LampParams = {
   lipHeight: 0.03,
   organicNoise: 0,
   noiseScale: 1,
-  baseThickness: 0,          // Lamps typically have open bottom
+  baseThickness: 0,
   baseType: 'flat',
   
   // Lamp-specific
-  socketMountingHeight: 145, // Near top
+  socketMountingHeight: 145,
   socketHoleDiameter: 40,
+  mounting: defaultMountingParams,
   ventilationSlots: false,
   ventSlotCount: 6,
   ventSlotWidth: 5,
