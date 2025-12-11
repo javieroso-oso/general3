@@ -50,7 +50,7 @@ export function smoothProfile(
   return smoothed;
 }
 
-// Generate lathe geometry from profile points
+// Generate watertight lathe geometry from profile points
 export function generateLatheMesh(
   profile: ProfilePoint[],
   settings: ProfileSettings
@@ -65,137 +65,109 @@ export function generateLatheMesh(
   // Ensure profile starts from bottom
   const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
   
-  // Generate outer and inner wall points
-  const outerPoints: THREE.Vector2[] = [];
-  const innerPoints: THREE.Vector2[] = [];
+  if (sortedProfile.length < 2) {
+    return new THREE.BufferGeometry();
+  }
   
-  sortedProfile.forEach(p => {
-    outerPoints.push(new THREE.Vector2(p.x, p.y));
-    innerPoints.push(new THREE.Vector2(Math.max(0.1, p.x - wallThickness), p.y));
-  });
-  
-  // Create lathe geometry for outer wall
-  const outerGeometry = new THREE.LatheGeometry(outerPoints, segments);
-  
-  // Create lathe geometry for inner wall (inverted normals)
-  const innerGeometry = new THREE.LatheGeometry(innerPoints, segments);
-  
-  // Merge geometries
   const positions: number[] = [];
-  const normals: number[] = [];
   const indices: number[] = [];
   
-  // Add outer wall
-  const outerPos = outerGeometry.getAttribute('position');
-  const outerNorm = outerGeometry.getAttribute('normal');
-  const outerIdx = outerGeometry.getIndex();
+  const profileCount = sortedProfile.length;
+  const angleStep = (Math.PI * 2) / segments;
   
-  for (let i = 0; i < outerPos.count; i++) {
-    positions.push(outerPos.getX(i), outerPos.getY(i), outerPos.getZ(i));
-    normals.push(outerNorm.getX(i), outerNorm.getY(i), outerNorm.getZ(i));
-  }
+  // Generate vertices for outer and inner walls
+  // Layout: for each profile point, we have (segments+1) outer vertices, then (segments+1) inner vertices
+  // Total vertices per profile point: (segments+1) * 2
   
-  if (outerIdx) {
-    for (let i = 0; i < outerIdx.count; i++) {
-      indices.push(outerIdx.getX(i));
+  for (let p = 0; p < profileCount; p++) {
+    const outerRadius = sortedProfile[p].x;
+    const innerRadius = Math.max(0.1, outerRadius - wallThickness);
+    const y = sortedProfile[p].y;
+    
+    // Outer ring
+    for (let s = 0; s <= segments; s++) {
+      const angle = s * angleStep;
+      positions.push(
+        outerRadius * Math.cos(angle),
+        y,
+        outerRadius * Math.sin(angle)
+      );
     }
-  }
-  
-  // Add inner wall (with inverted normals)
-  const innerPos = innerGeometry.getAttribute('position');
-  const innerNorm = innerGeometry.getAttribute('normal');
-  const innerIdx = innerGeometry.getIndex();
-  const offset = outerPos.count;
-  
-  for (let i = 0; i < innerPos.count; i++) {
-    positions.push(innerPos.getX(i), innerPos.getY(i), innerPos.getZ(i));
-    // Invert normals for inner wall
-    normals.push(-innerNorm.getX(i), -innerNorm.getY(i), -innerNorm.getZ(i));
-  }
-  
-  if (innerIdx) {
-    // Reverse winding order for inner wall
-    for (let i = 0; i < innerIdx.count; i += 3) {
-      indices.push(
-        innerIdx.getX(i) + offset,
-        innerIdx.getX(i + 2) + offset,
-        innerIdx.getX(i + 1) + offset
+    
+    // Inner ring
+    for (let s = 0; s <= segments; s++) {
+      const angle = s * angleStep;
+      positions.push(
+        innerRadius * Math.cos(angle),
+        y,
+        innerRadius * Math.sin(angle)
       );
     }
   }
   
-  // Add bottom cap (solid base)
-  const baseY = sortedProfile[0].y;
-  const baseOuterRadius = sortedProfile[0].x;
-  const baseInnerRadius = Math.max(0, baseOuterRadius - wallThickness);
+  const vertsPerRing = segments + 1;
+  const vertsPerProfile = vertsPerRing * 2; // outer + inner
   
-  // Bottom ring vertices
-  const bottomOffset = positions.length / 3;
-  for (let i = 0; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2;
-    const cos = Math.cos(theta);
-    const sin = Math.sin(theta);
-    
-    // Outer ring
-    positions.push(baseOuterRadius * cos, baseY, baseOuterRadius * sin);
-    normals.push(0, -1, 0);
-    
-    // Inner ring (or center if solid)
-    positions.push(baseInnerRadius * cos, baseY, baseInnerRadius * sin);
-    normals.push(0, -1, 0);
+  // Generate faces for outer wall (between profile levels)
+  for (let p = 0; p < profileCount - 1; p++) {
+    for (let s = 0; s < segments; s++) {
+      const curr = p * vertsPerProfile + s;
+      const next = p * vertsPerProfile + s + 1;
+      const currUp = (p + 1) * vertsPerProfile + s;
+      const nextUp = (p + 1) * vertsPerProfile + s + 1;
+      
+      // Two triangles for outer wall quad (facing outward)
+      indices.push(curr, currUp, next);
+      indices.push(next, currUp, nextUp);
+    }
   }
   
-  // Bottom faces
-  for (let i = 0; i < segments; i++) {
-    const a = bottomOffset + i * 2;
-    const b = bottomOffset + i * 2 + 1;
-    const c = bottomOffset + (i + 1) * 2;
-    const d = bottomOffset + (i + 1) * 2 + 1;
-    
-    indices.push(a, c, b);
-    indices.push(b, c, d);
+  // Generate faces for inner wall (between profile levels)
+  for (let p = 0; p < profileCount - 1; p++) {
+    const innerOffset = vertsPerRing;
+    for (let s = 0; s < segments; s++) {
+      const curr = p * vertsPerProfile + innerOffset + s;
+      const next = p * vertsPerProfile + innerOffset + s + 1;
+      const currUp = (p + 1) * vertsPerProfile + innerOffset + s;
+      const nextUp = (p + 1) * vertsPerProfile + innerOffset + s + 1;
+      
+      // Two triangles for inner wall quad (facing inward - reversed winding)
+      indices.push(curr, next, currUp);
+      indices.push(next, nextUp, currUp);
+    }
   }
   
-  // Add top rim
-  const topY = sortedProfile[sortedProfile.length - 1].y;
-  const topOuterRadius = sortedProfile[sortedProfile.length - 1].x;
-  const topInnerRadius = Math.max(0, topOuterRadius - wallThickness);
-  
-  const topOffset = positions.length / 3;
-  for (let i = 0; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2;
-    const cos = Math.cos(theta);
-    const sin = Math.sin(theta);
+  // Bottom cap - connects outer ring to inner ring at bottom profile level
+  const bottomProfile = 0;
+  for (let s = 0; s < segments; s++) {
+    const outerCurr = bottomProfile * vertsPerProfile + s;
+    const outerNext = bottomProfile * vertsPerProfile + s + 1;
+    const innerCurr = bottomProfile * vertsPerProfile + vertsPerRing + s;
+    const innerNext = bottomProfile * vertsPerProfile + vertsPerRing + s + 1;
     
-    // Outer ring
-    positions.push(topOuterRadius * cos, topY, topOuterRadius * sin);
-    normals.push(0, 1, 0);
-    
-    // Inner ring
-    positions.push(topInnerRadius * cos, topY, topInnerRadius * sin);
-    normals.push(0, 1, 0);
+    // Two triangles (facing down - reversed winding for bottom)
+    indices.push(outerCurr, innerCurr, outerNext);
+    indices.push(outerNext, innerCurr, innerNext);
   }
   
-  // Top faces
-  for (let i = 0; i < segments; i++) {
-    const a = topOffset + i * 2;
-    const b = topOffset + i * 2 + 1;
-    const c = topOffset + (i + 1) * 2;
-    const d = topOffset + (i + 1) * 2 + 1;
+  // Top rim - connects outer ring to inner ring at top profile level
+  const topProfile = profileCount - 1;
+  for (let s = 0; s < segments; s++) {
+    const outerCurr = topProfile * vertsPerProfile + s;
+    const outerNext = topProfile * vertsPerProfile + s + 1;
+    const innerCurr = topProfile * vertsPerProfile + vertsPerRing + s;
+    const innerNext = topProfile * vertsPerProfile + vertsPerRing + s + 1;
     
-    indices.push(a, b, c);
-    indices.push(b, d, c);
+    // Two triangles (facing up)
+    indices.push(outerCurr, outerNext, innerCurr);
+    indices.push(outerNext, innerNext, innerCurr);
   }
   
-  // Create final geometry
+  // Create geometry
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
-  
-  outerGeometry.dispose();
-  innerGeometry.dispose();
   
   return geometry;
 }
