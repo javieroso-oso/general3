@@ -88,7 +88,10 @@ const CustomGenerator = () => {
               </CardHeader>
               <CardContent>
                 {activeTab === 'draw' ? (
-                  <ProfileCanvas onProfileChange={setProfile} />
+                  <ProfileCanvas 
+                    onProfileChange={setProfile} 
+                    overhangPoints={settings.generationMode === 'lathe' ? validation.overhangPoints : []}
+                  />
                 ) : (
                   <ImageProcessor onProfileChange={setProfile} />
                 )}
