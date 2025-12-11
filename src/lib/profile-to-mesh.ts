@@ -203,12 +203,14 @@ export function generateLatheMesh(
   return geometry;
 }
 
-// Generate extrusion geometry with hollow walls - linear extrusion along Z axis
+// Generate extrusion geometry with hollow walls
+// Vertical: profile defines X-Z silhouette (stands up from floor), extruded along Y
+// Horizontal: profile defines X-Y silhouette, extruded along Z
 export function generateExtrudeMesh(
   profile: ProfilePoint[],
   settings: ProfileSettings
 ): THREE.BufferGeometry {
-  const { extrusionDepth, smoothing, wallThickness } = settings;
+  const { extrusionDepth, smoothing, wallThickness, extrusionDirection } = settings;
   
   // Smooth the profile
   const smoothedProfile = smoothing > 0 
@@ -282,9 +284,17 @@ export function generateExtrudeMesh(
   
   const geometry = new THREE.ExtrudeGeometry(outerShape, extrudeSettings);
   
+  // Transform based on direction
+  if (extrusionDirection === 'vertical') {
+    // Rotate so shape stands up from floor (Y becomes Z, Z becomes Y)
+    // Original: Shape in XY plane, extruded along Z
+    // Target: Shape in XZ plane (standing up), extruded along Y (giving depth)
+    geometry.rotateX(-Math.PI / 2);
+  }
+  
   // Center the geometry
   geometry.center();
-  
+
   return geometry;
 }
 
