@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
+import { ProfilePoint, ProfileSettings, GenerationMode } from '@/types/custom-profile';
 import { PrintSettings } from '@/types/parametric';
 
 // Smooth profile points using Catmull-Rom spline interpolation
@@ -200,12 +200,139 @@ export function generateLatheMesh(
   return geometry;
 }
 
+// Generate extrusion geometry - linear extrusion along Z axis
+export function generateExtrudeMesh(
+  profile: ProfilePoint[],
+  settings: ProfileSettings
+): THREE.BufferGeometry {
+  const { extrusionDepth, smoothing } = settings;
+  
+  // Smooth the profile
+  const smoothedProfile = smoothing > 0 
+    ? smoothProfile(profile, Math.floor(profile.length * (1 + smoothing * 10)))
+    : profile;
+  
+  // Sort by Y to create proper shape
+  const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
+  
+  // Create 2D shape from profile points
+  const shape = new THREE.Shape();
+  
+  if (sortedProfile.length > 0) {
+    shape.moveTo(sortedProfile[0].x, sortedProfile[0].y);
+    
+    for (let i = 1; i < sortedProfile.length; i++) {
+      shape.lineTo(sortedProfile[i].x, sortedProfile[i].y);
+    }
+    
+    // Close the shape by going back down the inner edge
+    const lastPoint = sortedProfile[sortedProfile.length - 1];
+    shape.lineTo(lastPoint.x, lastPoint.y);
+    
+    // Mirror back to close
+    for (let i = sortedProfile.length - 1; i >= 0; i--) {
+      shape.lineTo(-sortedProfile[i].x, sortedProfile[i].y);
+    }
+    
+    shape.closePath();
+  }
+  
+  // Extrude settings
+  const extrudeSettings = {
+    steps: Math.max(1, Math.floor(extrusionDepth / 2)),
+    depth: extrusionDepth,
+    bevelEnabled: false,
+  };
+  
+  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  
+  // Center the geometry
+  geometry.center();
+  
+  return geometry;
+}
+
+// Generate path mesh - profile as spine with cross-section
+export function generatePathMesh(
+  profile: ProfilePoint[],
+  settings: ProfileSettings
+): THREE.BufferGeometry {
+  const { crossSectionSize, pathCrossSection, smoothing } = settings;
+  
+  // Smooth the profile path
+  const smoothedProfile = smoothing > 0 
+    ? smoothProfile(profile, Math.floor(profile.length * (1 + smoothing * 10)))
+    : profile;
+  
+  if (smoothedProfile.length < 2) {
+    return new THREE.BufferGeometry();
+  }
+  
+  // Create the path curve from profile points (use X,Y as path in XY plane)
+  const pathPoints: THREE.Vector3[] = smoothedProfile.map(
+    p => new THREE.Vector3(p.x, p.y, 0)
+  );
+  
+  const curve = new THREE.CatmullRomCurve3(pathPoints);
+  
+  // Create cross-section shape
+  let crossSection: THREE.Shape;
+  const radius = crossSectionSize / 2;
+  
+  if (pathCrossSection === 'circle') {
+    crossSection = new THREE.Shape();
+    const segments = 16;
+    crossSection.moveTo(radius, 0);
+    for (let i = 1; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      crossSection.lineTo(radius * Math.cos(theta), radius * Math.sin(theta));
+    }
+  } else {
+    // Square cross-section
+    crossSection = new THREE.Shape();
+    crossSection.moveTo(-radius, -radius);
+    crossSection.lineTo(radius, -radius);
+    crossSection.lineTo(radius, radius);
+    crossSection.lineTo(-radius, radius);
+    crossSection.closePath();
+  }
+  
+  // Create tube geometry following the path
+  const extrudeSettings = {
+    steps: Math.max(smoothedProfile.length * 4, 50),
+    bevelEnabled: false,
+    extrudePath: curve,
+  };
+  
+  const geometry = new THREE.ExtrudeGeometry(crossSection, extrudeSettings);
+  geometry.center();
+  
+  return geometry;
+}
+
+// Main mesh generation function based on mode
+export function generateMesh(
+  profile: ProfilePoint[],
+  settings: ProfileSettings
+): THREE.BufferGeometry {
+  switch (settings.generationMode) {
+    case 'lathe':
+      return generateLatheMesh(profile, settings);
+    case 'extrude':
+      return generateExtrudeMesh(profile, settings);
+    case 'path':
+      return generatePathMesh(profile, settings);
+    default:
+      return generateLatheMesh(profile, settings);
+  }
+}
+
 // Export profile mesh to STL
 export function exportProfileToSTL(
   profile: ProfilePoint[],
   settings: ProfileSettings
 ): Blob {
-  const geometry = generateLatheMesh(profile, settings);
+  const geometry = generateMesh(profile, settings);
   const mesh = new THREE.Mesh(geometry);
   
   const exporter = new STLExporter();
@@ -245,54 +372,86 @@ export function generateProfileGCodeLayers(
   const sortedProfile = [...profile].sort((a, b) => a.y - b.y);
   const layers: ProfileGCodeLayer[] = [];
   
-  const minY = sortedProfile[0].y;
-  const maxY = sortedProfile[sortedProfile.length - 1].y;
-  const layerCount = Math.ceil((maxY - minY) / printSettings.layerHeight);
-  
-  for (let layer = 0; layer <= layerCount; layer++) {
-    const z = minY + layer * printSettings.layerHeight;
+  // For lathe mode, generate circular layers
+  if (settings.generationMode === 'lathe') {
+    const minY = sortedProfile[0].y;
+    const maxY = sortedProfile[sortedProfile.length - 1].y;
+    const layerCount = Math.ceil((maxY - minY) / printSettings.layerHeight);
     
-    // Find radius at this height by interpolating profile
-    let radius = 0;
-    for (let i = 1; i < sortedProfile.length; i++) {
-      if (sortedProfile[i].y >= z && sortedProfile[i - 1].y <= z) {
-        const t = (z - sortedProfile[i - 1].y) / (sortedProfile[i].y - sortedProfile[i - 1].y);
-        radius = sortedProfile[i - 1].x + t * (sortedProfile[i].x - sortedProfile[i - 1].x);
-        break;
+    for (let layer = 0; layer <= layerCount; layer++) {
+      const z = minY + layer * printSettings.layerHeight;
+      
+      let radius = 0;
+      for (let i = 1; i < sortedProfile.length; i++) {
+        if (sortedProfile[i].y >= z && sortedProfile[i - 1].y <= z) {
+          const t = (z - sortedProfile[i - 1].y) / (sortedProfile[i].y - sortedProfile[i - 1].y);
+          radius = sortedProfile[i - 1].x + t * (sortedProfile[i].x - sortedProfile[i - 1].x);
+          break;
+        }
       }
-    }
-    
-    if (radius <= 0) continue;
-    
-    const innerRadius = Math.max(0, radius - settings.wallThickness);
-    const paths: { x: number; y: number }[][] = [];
-    
-    // Outer perimeter
-    const outerPath: { x: number; y: number }[] = [];
-    const segments = 64;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      outerPath.push({
-        x: radius * Math.cos(theta),
-        y: radius * Math.sin(theta),
-      });
-    }
-    paths.push(outerPath);
-    
-    // Inner perimeter
-    if (innerRadius > 0) {
-      const innerPath: { x: number; y: number }[] = [];
+      
+      if (radius <= 0) continue;
+      
+      const innerRadius = Math.max(0, radius - settings.wallThickness);
+      const paths: { x: number; y: number }[][] = [];
+      
+      const outerPath: { x: number; y: number }[] = [];
+      const segments = 64;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
-        innerPath.push({
-          x: innerRadius * Math.cos(theta),
-          y: innerRadius * Math.sin(theta),
+        outerPath.push({
+          x: radius * Math.cos(theta),
+          y: radius * Math.sin(theta),
         });
       }
-      paths.push(innerPath);
+      paths.push(outerPath);
+      
+      if (innerRadius > 0) {
+        const innerPath: { x: number; y: number }[] = [];
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          innerPath.push({
+            x: innerRadius * Math.cos(theta),
+            y: innerRadius * Math.sin(theta),
+          });
+        }
+        paths.push(innerPath);
+      }
+      
+      layers.push({ z, paths });
     }
+  } else if (settings.generationMode === 'extrude') {
+    // For extrude mode, generate layers along Z
+    const layerCount = Math.ceil(settings.extrusionDepth / printSettings.layerHeight);
     
-    layers.push({ z, paths });
+    for (let layer = 0; layer <= layerCount; layer++) {
+      const z = layer * printSettings.layerHeight;
+      const paths: { x: number; y: number }[][] = [];
+      
+      // Create path from profile
+      const path: { x: number; y: number }[] = sortedProfile.map(p => ({ x: p.x, y: p.y }));
+      // Mirror for closed shape
+      const mirroredPath = [...path, ...sortedProfile.reverse().map(p => ({ x: -p.x, y: p.y }))];
+      mirroredPath.push(mirroredPath[0]); // Close
+      
+      paths.push(mirroredPath);
+      layers.push({ z, paths });
+    }
+  } else if (settings.generationMode === 'path') {
+    // For path mode, follow the profile as path
+    const radius = settings.crossSectionSize / 2;
+    const layerCount = Math.ceil(settings.crossSectionSize / printSettings.layerHeight);
+    
+    for (let layer = 0; layer <= layerCount; layer++) {
+      const z = layer * printSettings.layerHeight;
+      const paths: { x: number; y: number }[][] = [];
+      
+      // Path following profile
+      const path: { x: number; y: number }[] = sortedProfile.map(p => ({ x: p.x, y: p.y }));
+      paths.push(path);
+      
+      layers.push({ z, paths });
+    }
   }
   
   return layers;
@@ -317,6 +476,7 @@ export function generateProfileGCode(
   
   let gcode = '';
   gcode += '; Custom Profile G-code\n';
+  gcode += `; Generation Mode: ${settings.generationMode}\n`;
   gcode += `; Material: ${printSettings.material}\n`;
   gcode += `; Layer Height: ${printSettings.layerHeight}mm\n`;
   gcode += '\n; Start G-code\n';
@@ -338,10 +498,8 @@ export function generateProfileGCode(
     layer.paths.forEach(path => {
       if (path.length === 0) return;
       
-      // Move to start
       gcode += `G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F${printSettings.printSpeed * 60}\n`;
       
-      // Extrude along path
       for (let i = 1; i < path.length; i++) {
         const dx = path[i].x - path[i - 1].x;
         const dy = path[i].y - path[i - 1].y;

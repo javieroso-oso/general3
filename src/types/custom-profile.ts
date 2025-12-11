@@ -9,6 +9,8 @@ export interface ProfilePoint {
   c2y?: number;  // Bezier control point 2 y
 }
 
+export type GenerationMode = 'lathe' | 'extrude' | 'path';
+
 export interface CustomProfile {
   id: string;
   name: string;
@@ -23,6 +25,10 @@ export interface ProfileSettings {
   smoothing: number;      // 0-1, amount of bezier smoothing
   baseThickness: number;  // mm
   scale: number;          // Scale factor for the profile
+  generationMode: GenerationMode;  // How to generate the 3D mesh
+  extrusionDepth: number;  // mm - for extrude mode
+  pathCrossSection: 'circle' | 'square';  // for path mode
+  crossSectionSize: number;  // mm - size of cross-section for path mode
 }
 
 export const defaultProfileSettings: ProfileSettings = {
@@ -31,6 +37,10 @@ export const defaultProfileSettings: ProfileSettings = {
   smoothing: 0.5,
   baseThickness: 2,
   scale: 1,
+  generationMode: 'lathe',
+  extrusionDepth: 20,
+  pathCrossSection: 'circle',
+  crossSectionSize: 5,
 };
 
 export interface ProfileValidation {
@@ -80,27 +90,48 @@ export function validateProfile(
     });
   }
 
-  // Check for very thin sections
-  if (minRadius < 3) {
-    warnings.push({
-      type: 'warning',
-      message: 'Very narrow profile section may be difficult to print',
-    });
+  // Mode-specific validations
+  if (settings.generationMode === 'lathe') {
+    // Check for very thin sections
+    if (minRadius < 3) {
+      warnings.push({
+        type: 'warning',
+        message: 'Very narrow profile section may be difficult to print',
+      });
+    }
+
+    // Check overhang angles
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      if (dy !== 0) {
+        const angle = Math.abs(Math.atan2(dx, dy) * 180 / Math.PI);
+        if (angle > 45 && dx < 0) {
+          warnings.push({
+            type: 'warning',
+            message: `Steep overhang (${angle.toFixed(0)}°) at point ${i} may need supports`,
+            pointIndex: i,
+          });
+        }
+      }
+    }
   }
 
-  // Check overhang angles
-  for (let i = 1; i < points.length; i++) {
-    const dx = points[i].x - points[i - 1].x;
-    const dy = points[i].y - points[i - 1].y;
-    if (dy !== 0) {
-      const angle = Math.abs(Math.atan2(dx, dy) * 180 / Math.PI);
-      if (angle > 45 && dx < 0) {
-        warnings.push({
-          type: 'warning',
-          message: `Steep overhang (${angle.toFixed(0)}°) at point ${i} may need supports`,
-          pointIndex: i,
-        });
-      }
+  if (settings.generationMode === 'extrude') {
+    if (settings.extrusionDepth < 5) {
+      warnings.push({
+        type: 'warning',
+        message: 'Extrusion depth below 5mm may be too thin',
+      });
+    }
+  }
+
+  if (settings.generationMode === 'path') {
+    if (settings.crossSectionSize < 2) {
+      warnings.push({
+        type: 'warning',
+        message: 'Cross-section size below 2mm may be fragile',
+      });
     }
   }
 
@@ -112,14 +143,32 @@ export function validateProfile(
     });
   }
 
-  // Estimate volume (rough calculation)
+  // Estimate volume based on mode
   let volume = 0;
-  for (let i = 1; i < points.length; i++) {
-    const r1 = points[i - 1].x;
-    const r2 = points[i].x;
-    const h = Math.abs(points[i].y - points[i - 1].y);
-    // Volume of frustum
-    volume += (Math.PI * h / 3) * (r1 * r1 + r1 * r2 + r2 * r2);
+  
+  if (settings.generationMode === 'lathe') {
+    for (let i = 1; i < points.length; i++) {
+      const r1 = points[i - 1].x;
+      const r2 = points[i].x;
+      const h = Math.abs(points[i].y - points[i - 1].y);
+      volume += (Math.PI * h / 3) * (r1 * r1 + r1 * r2 + r2 * r2);
+    }
+  } else if (settings.generationMode === 'extrude') {
+    // Approximate as bounding box area * depth
+    const width = maxRadius - minRadius;
+    volume = width * height * settings.extrusionDepth;
+  } else if (settings.generationMode === 'path') {
+    // Approximate as path length * cross-section area
+    let pathLength = 0;
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      pathLength += Math.sqrt(dx * dx + dy * dy);
+    }
+    const crossArea = settings.pathCrossSection === 'circle'
+      ? Math.PI * (settings.crossSectionSize / 2) ** 2
+      : settings.crossSectionSize ** 2;
+    volume = pathLength * crossArea;
   }
 
   return {

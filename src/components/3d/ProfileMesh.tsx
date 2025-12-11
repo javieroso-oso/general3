@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
-import { generateLatheMesh } from '@/lib/profile-to-mesh';
+import { generateMesh } from '@/lib/profile-to-mesh';
 
 interface ProfileMeshProps {
   profile: ProfilePoint[];
@@ -14,7 +14,7 @@ const ProfileMesh = ({ profile, settings, wireframe = false }: ProfileMeshProps)
     if (profile.length < 2) return null;
     
     try {
-      return generateLatheMesh(profile, settings);
+      return generateMesh(profile, settings);
     } catch (error) {
       console.error('Error generating mesh:', error);
       return null;
@@ -27,7 +27,7 @@ const ProfileMesh = ({ profile, settings, wireframe = false }: ProfileMeshProps)
       <mesh>
         <cylinderGeometry args={[20, 25, 50, 32]} />
         <meshStandardMaterial 
-          color="hsl(var(--muted))" 
+          color="#a1a1aa"
           transparent 
           opacity={0.3}
           wireframe
@@ -39,7 +39,7 @@ const ProfileMesh = ({ profile, settings, wireframe = false }: ProfileMeshProps)
   return (
     <mesh geometry={geometry} scale={[0.01, 0.01, 0.01]}>
       <meshStandardMaterial
-        color="hsl(217, 91%, 60%)"
+        color="#3b82f6"
         metalness={0.1}
         roughness={0.4}
         wireframe={wireframe}
