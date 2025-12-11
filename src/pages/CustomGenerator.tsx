@@ -9,13 +9,13 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Download, AlertTriangle, CheckCircle, Pen, Image, RotateCcw, ArrowRight, Spline, Shield, ShieldAlert, ArrowUp, ArrowRightFromLine } from 'lucide-react';
+import { Download, AlertTriangle, CheckCircle, Pen, Image, RotateCcw, ArrowRight, Spline, Shield, ShieldAlert, ArrowUp, ArrowRightFromLine, FlipHorizontal, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/layout/Layout';
 import ProfileCanvas from '@/components/drawing/ProfileCanvas';
 import ImageProcessor from '@/components/drawing/ImageProcessor';
 import ProfileMesh from '@/components/3d/ProfileMesh';
-import { ProfilePoint, ProfileSettings, defaultProfileSettings, validateProfile, GenerationMode, ExtrusionDirection } from '@/types/custom-profile';
+import { ProfilePoint, ProfileSettings, defaultProfileSettings, validateProfile, GenerationMode, ExtrusionDirection, ExtrusionShapeMode } from '@/types/custom-profile';
 import { defaultPrintSettings, PrintSettings } from '@/types/parametric';
 import { downloadProfileSTL, downloadProfileGCode } from '@/lib/profile-to-mesh';
 
@@ -205,6 +205,36 @@ const CustomGenerator = () => {
                 {/* Extrude-specific settings */}
                 {settings.generationMode === 'extrude' && (
                   <>
+                    <div className="space-y-2">
+                      <Label>Shape Mode</Label>
+                      <RadioGroup
+                        value={settings.extrusionShapeMode}
+                        onValueChange={(v) => setSettings({ ...settings, extrusionShapeMode: v as 'mirrored' | 'direct' })}
+                        className="grid grid-cols-2 gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="mirrored" id="mirrored" />
+                          <Label htmlFor="mirrored" className="flex items-center gap-2 cursor-pointer">
+                            <FlipHorizontal className="w-4 h-4" />
+                            <div>
+                              <div className="font-medium">Mirrored</div>
+                              <div className="text-xs text-muted-foreground">Symmetric shape</div>
+                            </div>
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="direct" id="direct" />
+                          <Label htmlFor="direct" className="flex items-center gap-2 cursor-pointer">
+                            <Pencil className="w-4 h-4" />
+                            <div>
+                              <div className="font-medium">Direct</div>
+                              <div className="text-xs text-muted-foreground">Exact drawn shape</div>
+                            </div>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Extrusion Direction</Label>
                       <RadioGroup

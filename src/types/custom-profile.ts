@@ -11,6 +11,7 @@ export interface ProfilePoint {
 
 export type GenerationMode = 'lathe' | 'extrude' | 'path';
 export type ExtrusionDirection = 'vertical' | 'horizontal';
+export type ExtrusionShapeMode = 'mirrored' | 'direct';
 export interface CustomProfile {
   id: string;
   name: string;
@@ -28,6 +29,7 @@ export interface ProfileSettings {
   generationMode: GenerationMode;  // How to generate the 3D mesh
   extrusionDepth: number;  // mm - for extrude mode
   extrusionDirection: ExtrusionDirection;  // vertical (floor up) or horizontal (from front)
+  extrusionShapeMode: ExtrusionShapeMode;  // mirrored (symmetric) or direct (exact shape)
   pathCrossSection: 'circle' | 'square';  // for path mode
   crossSectionSize: number;  // mm - size of cross-section for path mode
 }
@@ -41,6 +43,7 @@ export const defaultProfileSettings: ProfileSettings = {
   generationMode: 'lathe',
   extrusionDepth: 20,
   extrusionDirection: 'vertical',
+  extrusionShapeMode: 'mirrored',
   pathCrossSection: 'circle',
   crossSectionSize: 5,
 };
