@@ -43,13 +43,7 @@ export const defaultProfileSettings: ProfileSettings = {
   crossSectionSize: 5,
 };
 
-export interface OverhangPoint {
-  index: number;
-  angle: number;
-  severity: 'minor' | 'moderate' | 'severe';
-  x: number;
-  y: number;
-}
+export type SupportSeverity = 'none' | 'recommended' | 'required';
 
 export interface ProfileValidation {
   isValid: boolean;
@@ -58,7 +52,9 @@ export interface ProfileValidation {
   maxRadius: number;
   height: number;
   estimatedVolume: number;
-  overhangPoints: OverhangPoint[];
+  supportsRequired: boolean;
+  supportsSeverity: SupportSeverity;
+  maxOverhangAngle: number;
 }
 
 export interface ProfileWarning {
@@ -67,20 +63,13 @@ export interface ProfileWarning {
   pointIndex?: number;
 }
 
-// Get overhang severity based on angle
-function getOverhangSeverity(angle: number): 'minor' | 'moderate' | 'severe' {
-  if (angle > 75) return 'severe';
-  if (angle > 60) return 'moderate';
-  return 'minor';
-}
-
 // Validate profile for printability
 export function validateProfile(
   points: ProfilePoint[],
   settings: ProfileSettings
 ): ProfileValidation {
   const warnings: ProfileWarning[] = [];
-  const overhangPoints: OverhangPoint[] = [];
+  let maxOverhangAngle = 0;
   
   if (points.length < 2) {
     return {
@@ -90,7 +79,9 @@ export function validateProfile(
       maxRadius: 0,
       height: 0,
       estimatedVolume: 0,
-      overhangPoints: [],
+      supportsRequired: false,
+      supportsSeverity: 'none',
+      maxOverhangAngle: 0,
     };
   }
 
@@ -118,42 +109,16 @@ export function validateProfile(
       });
     }
 
-    // Collect overhang points instead of creating individual warnings
+    // Check for overhangs and track max angle
     for (let i = 1; i < points.length; i++) {
       const dx = points[i].x - points[i - 1].x;
       const dy = points[i].y - points[i - 1].y;
       if (dy !== 0) {
         const angle = Math.abs(Math.atan2(dx, dy) * 180 / Math.PI);
         if (angle > 45 && dx < 0) {
-          overhangPoints.push({
-            index: i,
-            angle,
-            severity: getOverhangSeverity(angle),
-            x: points[i].x,
-            y: points[i].y,
-          });
+          maxOverhangAngle = Math.max(maxOverhangAngle, angle);
         }
       }
-    }
-
-    // Add consolidated overhang warning if any exist
-    if (overhangPoints.length > 0) {
-      const maxAngle = Math.max(...overhangPoints.map(p => p.angle));
-      const severeCount = overhangPoints.filter(p => p.severity === 'severe').length;
-      const moderateCount = overhangPoints.filter(p => p.severity === 'moderate').length;
-      
-      let severityText = '';
-      if (severeCount > 0) {
-        severityText = `${severeCount} severe`;
-        if (moderateCount > 0) severityText += `, ${moderateCount} moderate`;
-      } else if (moderateCount > 0) {
-        severityText = `${moderateCount} moderate`;
-      }
-      
-      warnings.push({
-        type: severeCount > 0 ? 'warning' : 'info',
-        message: `${overhangPoints.length} overhang${overhangPoints.length > 1 ? 's' : ''} detected (max ${maxAngle.toFixed(0)}°)${severityText ? ` - ${severityText}` : ''} - may need supports`,
-      });
     }
   }
 
@@ -211,6 +176,15 @@ export function validateProfile(
     volume = pathLength * crossArea;
   }
 
+  // Determine support requirements based on max overhang angle
+  const supportsRequired = maxOverhangAngle > 45;
+  let supportsSeverity: SupportSeverity = 'none';
+  if (maxOverhangAngle > 60) {
+    supportsSeverity = 'required';
+  } else if (maxOverhangAngle > 45) {
+    supportsSeverity = 'recommended';
+  }
+
   return {
     isValid: warnings.filter(w => w.type === 'error').length === 0,
     warnings,
@@ -218,6 +192,8 @@ export function validateProfile(
     maxRadius,
     height,
     estimatedVolume: volume,
-    overhangPoints,
+    supportsRequired,
+    supportsSeverity,
+    maxOverhangAngle,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Grid } from '@react-three/drei';
 import { motion } from 'framer-motion';
@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Download, AlertTriangle, CheckCircle, Pen, Image, RotateCcw, ArrowRight, Spline } from 'lucide-react';
+import { Download, AlertTriangle, CheckCircle, Pen, Image, RotateCcw, ArrowRight, Spline, Shield, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/layout/Layout';
 import ProfileCanvas from '@/components/drawing/ProfileCanvas';
@@ -25,8 +25,16 @@ const CustomGenerator = () => {
   const [printSettings, setPrintSettings] = useState<PrintSettings>(defaultPrintSettings);
   const [wireframe, setWireframe] = useState(false);
   const [activeTab, setActiveTab] = useState<'draw' | 'image'>('draw');
+  const [useSupports, setUseSupports] = useState(false);
 
   const validation = validateProfile(profile, settings);
+
+  // Auto-enable supports when overhangs are detected
+  useEffect(() => {
+    if (validation.supportsRequired && !useSupports) {
+      setUseSupports(true);
+    }
+  }, [validation.supportsRequired]);
 
   const handleExportSTL = () => {
     if (!validation.isValid || profile.length < 2) {
@@ -88,10 +96,7 @@ const CustomGenerator = () => {
               </CardHeader>
               <CardContent>
                 {activeTab === 'draw' ? (
-                  <ProfileCanvas 
-                    onProfileChange={setProfile} 
-                    overhangPoints={settings.generationMode === 'lathe' ? validation.overhangPoints : []}
-                  />
+                  <ProfileCanvas onProfileChange={setProfile} />
                 ) : (
                   <ImageProcessor onProfileChange={setProfile} />
                 )}
@@ -356,6 +361,59 @@ const CustomGenerator = () => {
                   </div>
                 )}
 
+                {/* Supports Indicator */}
+                {settings.generationMode === 'lathe' && profile.length >= 2 && (
+                  <div className={`flex items-center justify-between p-3 rounded-lg mb-4 ${
+                    validation.supportsSeverity === 'required' 
+                      ? 'bg-amber-500/10 border border-amber-500/30' 
+                      : validation.supportsSeverity === 'recommended'
+                      ? 'bg-blue-500/10 border border-blue-500/30'
+                      : 'bg-green-500/10 border border-green-500/30'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {validation.supportsRequired ? (
+                        <ShieldAlert className={`w-5 h-5 ${
+                          validation.supportsSeverity === 'required' ? 'text-amber-500' : 'text-blue-500'
+                        }`} />
+                      ) : (
+                        <Shield className="w-5 h-5 text-green-500" />
+                      )}
+                      <div>
+                        <div className={`text-sm font-medium ${
+                          validation.supportsSeverity === 'required' 
+                            ? 'text-amber-600' 
+                            : validation.supportsSeverity === 'recommended'
+                            ? 'text-blue-600'
+                            : 'text-green-600'
+                        }`}>
+                          {validation.supportsSeverity === 'required' 
+                            ? 'Supports Required' 
+                            : validation.supportsSeverity === 'recommended'
+                            ? 'Supports Recommended'
+                            : 'No Supports Needed'}
+                        </div>
+                        {validation.supportsRequired && (
+                          <div className="text-xs text-muted-foreground">
+                            Max overhang: {validation.maxOverhangAngle.toFixed(0)}°
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {validation.supportsRequired && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="supports-toggle" className="text-xs text-muted-foreground">
+                          Enable
+                        </Label>
+                        <Switch
+                          id="supports-toggle"
+                          checked={useSupports}
+                          onCheckedChange={setUseSupports}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {validation.warnings.length > 0 && (
                   <div className="space-y-2 mb-4">
                     {validation.warnings.map((warning, i) => (
@@ -363,7 +421,7 @@ const CustomGenerator = () => {
                         key={i}
                         className={`text-xs px-3 py-2 rounded ${
                           warning.type === 'error'
-                            ? 'bg-red-500/10 text-red-600'
+                            ? 'bg-destructive/10 text-destructive'
                             : warning.type === 'warning'
                             ? 'bg-amber-500/10 text-amber-600'
                             : 'bg-blue-500/10 text-blue-600'

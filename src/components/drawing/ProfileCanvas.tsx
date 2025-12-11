@@ -4,13 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Pen, Pencil, Eraser, Trash2, Undo, Redo } from 'lucide-react';
-import { ProfilePoint, OverhangPoint } from '@/types/custom-profile';
+import { ProfilePoint } from '@/types/custom-profile';
 
 interface ProfileCanvasProps {
   onProfileChange: (points: ProfilePoint[]) => void;
   width?: number;
   height?: number;
-  overhangPoints?: OverhangPoint[];
 }
 
 // Fixed colors - Fabric.js doesn't support CSS variables
@@ -22,14 +21,10 @@ const COLORS = {
   primary: '#3b82f6',
   primaryForeground: '#ffffff',
   eraser: '#f4f4f5',
-  overhangMinor: '#f59e0b',    // Amber
-  overhangModerate: '#f97316', // Orange
-  overhangSevere: '#ef4444',   // Red
 };
 
-const ProfileCanvas = ({ onProfileChange, width = 400, height = 500, overhangPoints = [] }: ProfileCanvasProps) => {
+const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [activeTool, setActiveTool] = useState<'pen' | 'brush' | 'eraser' | 'select'>('pen');
   const [brushWidth, setBrushWidth] = useState(3);
@@ -39,50 +34,6 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500, overhangPoi
 
   const axisX = width / 3;
   const scale = 2;
-
-  // Draw overhang indicators on overlay canvas
-  useEffect(() => {
-    const overlay = overlayRef.current;
-    if (!overlay) return;
-
-    const ctx = overlay.getContext('2d');
-    if (!ctx) return;
-
-    // Clear previous indicators
-    ctx.clearRect(0, 0, width, height);
-
-    if (overhangPoints.length === 0) return;
-
-    overhangPoints.forEach(point => {
-      // Convert profile coordinates back to canvas coordinates
-      const canvasX = axisX + point.x * scale;
-      const canvasY = height - point.y * scale;
-
-      // Choose color based on severity
-      let color = COLORS.overhangMinor;
-      if (point.severity === 'moderate') color = COLORS.overhangModerate;
-      if (point.severity === 'severe') color = COLORS.overhangSevere;
-
-      // Draw outer ring
-      ctx.beginPath();
-      ctx.arc(canvasX, canvasY, 12, 0, Math.PI * 2);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw inner filled circle
-      ctx.beginPath();
-      ctx.arc(canvasX, canvasY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-
-      // Draw angle text
-      ctx.font = '10px sans-serif';
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.fillText(`${point.angle.toFixed(0)}°`, canvasX, canvasY - 16);
-    });
-  }, [overhangPoints, width, height, axisX, scale]);
 
   // Initialize canvas
   useEffect(() => {
@@ -400,15 +351,9 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500, overhangPoi
         </div>
       )}
 
-      {/* Canvas with overlay for overhang indicators */}
-      <div className="border border-border rounded-lg overflow-hidden bg-muted relative">
+      {/* Canvas */}
+      <div className="border border-border rounded-lg overflow-hidden bg-muted">
         <canvas ref={canvasRef} />
-        <canvas 
-          ref={overlayRef} 
-          width={width} 
-          height={height} 
-          className="absolute top-0 left-0 pointer-events-none"
-        />
       </div>
 
       {/* Instructions */}
