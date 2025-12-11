@@ -1,4 +1,4 @@
-import { LampPreset, defaultLampParams, defaultLampHardware } from '@/types/lamp';
+import { LampPreset, defaultLampParams, defaultLampHardware, defaultMountingParams } from '@/types/lamp';
 
 export const lampPresets: LampPreset[] = [
   {
@@ -13,6 +13,11 @@ export const lampPresets: LampPreset[] = [
       bulgeAmount: 0.15,
       bulgePosition: 0.7,
       lipFlare: 0.08,
+      mounting: {
+        ...defaultMountingParams,
+        canopyDiameter: 120,
+        canopyHeight: 18,
+      },
     },
     hardware: {
       ...defaultLampHardware,
@@ -34,6 +39,11 @@ export const lampPresets: LampPreset[] = [
       wallThickness: 1.8,
       bulgeAmount: 0,
       lipFlare: 0,
+      mounting: {
+        ...defaultMountingParams,
+        canopyDiameter: 80,
+        canopyHeight: 12,
+      },
     },
     hardware: {
       ...defaultLampHardware,
@@ -56,6 +66,11 @@ export const lampPresets: LampPreset[] = [
       ventilationSlots: true,
       ventSlotCount: 8,
       ventSlotHeight: 25,
+      mounting: {
+        ...defaultMountingParams,
+        canopyDiameter: 100,
+        canopyHeight: 20,
+      },
     },
     hardware: {
       ...defaultLampHardware,
@@ -66,32 +81,9 @@ export const lampPresets: LampPreset[] = [
     },
   },
   {
-    id: 'fairy-globe',
-    name: 'Fairy Light Globe',
-    description: 'Spherical shade with dot pattern cutouts',
-    params: {
-      ...defaultLampParams,
-      height: 200,
-      baseRadius: 60,
-      topRadius: 60,
-      bulgeAmount: 0.4,
-      bulgePosition: 0.5,
-      lightPatternType: 'dots',
-      patternDensity: 0.4,
-      patternSize: 6,
-    },
-    hardware: {
-      ...defaultLampHardware,
-      socketType: 'LED_Strip',
-      bulbShape: 'Tube',
-      bulbWattage: 5,
-      lampStyle: 'pendant',
-    },
-  },
-  {
     id: 'table-traditional',
     name: 'Table Lamp Classic',
-    description: 'Traditional shade for clip-on or harp mount',
+    description: 'Traditional shade with weighted base',
     params: {
       ...defaultLampParams,
       height: 160,
@@ -100,6 +92,13 @@ export const lampPresets: LampPreset[] = [
       baseThickness: 3,
       lipFlare: 0.1,
       lipHeight: 0.04,
+      mounting: {
+        ...defaultMountingParams,
+        baseWidth: 140,
+        baseHeight: 25,
+        stemDiameter: 22,
+        stemHeight: 90,
+      },
     },
     hardware: {
       ...defaultLampHardware,
@@ -125,6 +124,11 @@ export const lampPresets: LampPreset[] = [
       translucencyZoneStart: 0.3,
       translucencyZoneEnd: 0.7,
       translucencyThickness: 0.6,
+      mounting: {
+        ...defaultMountingParams,
+        canopyDiameter: 90,
+        canopyHeight: 14,
+      },
     },
     hardware: {
       ...defaultLampHardware,
@@ -135,84 +139,23 @@ export const lampPresets: LampPreset[] = [
     },
   },
   {
-    id: 'art-deco',
-    name: 'Art Deco',
-    description: 'Geometric patterns with bold lines',
-    params: {
-      ...defaultLampParams,
-      height: 180,
-      baseRadius: 45,
-      topRadius: 85,
-      rippleCount: 12,
-      rippleDepth: 0.03,
-      lightPatternType: 'geometric',
-      patternDensity: 0.25,
-      patternSize: 15,
-    },
-    hardware: {
-      ...defaultLampHardware,
-      socketType: 'E26',
-      bulbShape: 'Edison',
-      bulbWattage: 10,
-      lampStyle: 'pendant',
-    },
-  },
-  {
-    id: 'asian-lantern',
-    name: 'Asian Paper Style',
-    description: 'Tall cylinder with diffused light zones',
-    params: {
-      ...defaultLampParams,
-      height: 250,
-      baseRadius: 50,
-      topRadius: 50,
-      wallThickness: 1.2,
-      translucencyEnabled: true,
-      translucencyZoneStart: 0.1,
-      translucencyZoneEnd: 0.9,
-      translucencyThickness: 0.5,
-    },
-    hardware: {
-      ...defaultLampHardware,
-      socketType: 'E26',
-      bulbShape: 'Tube',
-      bulbWattage: 8,
-      lampStyle: 'pendant',
-    },
-  },
-  {
-    id: 'twisted-pendant',
-    name: 'Twisted Pendant',
-    description: 'Organic spiral form with flowing lines',
-    params: {
-      ...defaultLampParams,
-      height: 190,
-      baseRadius: 35,
-      topRadius: 95,
-      twistAngle: 90,
-      wobbleFrequency: 3,
-      wobbleAmplitude: 0.04,
-      bulgeAmount: 0.12,
-    },
-    hardware: {
-      ...defaultLampHardware,
-      socketType: 'E26',
-      bulbShape: 'A19',
-      bulbWattage: 10,
-      lampStyle: 'pendant',
-    },
-  },
-  {
     id: 'wall-sconce',
     name: 'Wall Sconce Shade',
-    description: 'Half-shade designed for wall mounting',
+    description: 'Asymmetric shade for wall mounting',
     params: {
       ...defaultLampParams,
       height: 140,
       baseRadius: 40,
       topRadius: 70,
-      asymmetry: 0.3,
+      asymmetry: 0.15,
       wallThickness: 2.2,
+      mounting: {
+        ...defaultMountingParams,
+        backplateWidth: 90,
+        backplateHeight: 130,
+        armLength: 70,
+        armAngle: 20,
+      },
     },
     hardware: {
       ...defaultLampHardware,
@@ -221,6 +164,56 @@ export const lampPresets: LampPreset[] = [
       bulbWattage: 5,
       lampStyle: 'wall_sconce',
       cordExit: 'bottom_side',
+    },
+  },
+  {
+    id: 'floor-modern',
+    name: 'Floor Lamp Shade',
+    description: 'Large shade with pole adapter',
+    params: {
+      ...defaultLampParams,
+      height: 220,
+      baseRadius: 50,
+      topRadius: 130,
+      bulgeAmount: 0.1,
+      mounting: {
+        ...defaultMountingParams,
+        poleAdapterDiameter: 32,
+        poleAdapterHeight: 50,
+      },
+    },
+    hardware: {
+      ...defaultLampHardware,
+      socketType: 'E26',
+      bulbShape: 'A21',
+      bulbWattage: 15,
+      lampStyle: 'floor',
+      cordExit: 'internal_channel',
+    },
+  },
+  {
+    id: 'clip-vintage',
+    name: 'Clip-On Vintage',
+    description: 'Small shade with rim clip for bare bulbs',
+    params: {
+      ...defaultLampParams,
+      height: 100,
+      baseRadius: 30,
+      topRadius: 60,
+      rippleCount: 8,
+      rippleDepth: 0.02,
+      mounting: {
+        ...defaultMountingParams,
+        clipWidth: 25,
+        clipDepth: 20,
+      },
+    },
+    hardware: {
+      ...defaultLampHardware,
+      socketType: 'E12',
+      bulbShape: 'Candle',
+      bulbWattage: 5,
+      lampStyle: 'clip_on',
     },
   },
 ];

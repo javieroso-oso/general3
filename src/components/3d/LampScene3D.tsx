@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment } from '@react-three/drei';
 import LampMesh from './LampMesh';
+import MountingMesh from './MountingMesh';
 import SocketMesh from './SocketMesh';
 import BulbMesh from './BulbMesh';
 import { LampParams, LampHardware } from '@/types/lamp';
@@ -13,6 +14,7 @@ interface LampScene3DProps {
   showSocket?: boolean;
   showBulb?: boolean;
   showHeatZone?: boolean;
+  showMounting?: boolean;
 }
 
 const LampScene3D = ({
@@ -22,10 +24,11 @@ const LampScene3D = ({
   showSocket = true,
   showBulb = true,
   showHeatZone = true,
+  showMounting = true,
 }: LampScene3DProps) => {
   return (
     <Canvas
-      camera={{ position: [3, 2, 3], fov: 45 }}
+      camera={{ position: [4, 2.5, 4], fov: 40 }}
       className="w-full h-full"
       style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)' }}
     >
@@ -60,6 +63,14 @@ const LampScene3D = ({
           showWireframe={showWireframe}
         />
         
+        {/* Style-specific mounting hardware */}
+        {showMounting && (
+          <MountingMesh
+            params={params}
+            hardware={hardware}
+          />
+        )}
+        
         {/* Socket ghost visualization */}
         <SocketMesh
           socketType={hardware.socketType}
@@ -76,14 +87,6 @@ const LampScene3D = ({
           showHeatZone={showHeatZone}
           visible={showBulb}
         />
-        
-        {/* Cord path indicator */}
-        {hardware.cordExit === 'top_hidden' && (
-          <mesh position={[0, params.socketMountingHeight * 0.01 + 0.1, 0]}>
-            <cylinderGeometry args={[hardware.cordDiameter * 0.005, hardware.cordDiameter * 0.005, 0.3, 8]} />
-            <meshStandardMaterial color="#333" />
-          </mesh>
-        )}
         
         {/* Camera controls */}
         <OrbitControls
