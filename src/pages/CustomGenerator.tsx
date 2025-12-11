@@ -196,19 +196,35 @@ const CustomGenerator = () => {
 
                 {/* Extrude-specific settings */}
                 {settings.generationMode === 'extrude' && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Extrusion Depth</Label>
-                      <span className="text-sm text-muted-foreground">{settings.extrusionDepth}mm</span>
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Extrusion Depth</Label>
+                        <span className="text-sm text-muted-foreground">{settings.extrusionDepth}mm</span>
+                      </div>
+                      <Slider
+                        value={[settings.extrusionDepth]}
+                        onValueChange={([v]) => setSettings({ ...settings, extrusionDepth: v })}
+                        min={5}
+                        max={100}
+                        step={5}
+                      />
                     </div>
-                    <Slider
-                      value={[settings.extrusionDepth]}
-                      onValueChange={([v]) => setSettings({ ...settings, extrusionDepth: v })}
-                      min={5}
-                      max={100}
-                      step={5}
-                    />
-                  </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Wall Thickness</Label>
+                        <span className="text-sm text-muted-foreground">{settings.wallThickness}mm</span>
+                      </div>
+                      <Slider
+                        value={[settings.wallThickness]}
+                        onValueChange={([v]) => setSettings({ ...settings, wallThickness: v })}
+                        min={1}
+                        max={10}
+                        step={0.5}
+                      />
+                    </div>
+                  </>
                 )}
 
                 {/* Path-specific settings */}

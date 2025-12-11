@@ -55,7 +55,7 @@ export function generateLatheMesh(
   profile: ProfilePoint[],
   settings: ProfileSettings
 ): THREE.BufferGeometry {
-  const { wallThickness, segments, smoothing, baseThickness } = settings;
+  const { wallThickness, segments, smoothing } = settings;
   
   // Smooth the profile
   const smoothedProfile = smoothing > 0 
@@ -200,12 +200,12 @@ export function generateLatheMesh(
   return geometry;
 }
 
-// Generate extrusion geometry - linear extrusion along Z axis
+// Generate extrusion geometry with hollow walls - linear extrusion along Z axis
 export function generateExtrudeMesh(
   profile: ProfilePoint[],
   settings: ProfileSettings
 ): THREE.BufferGeometry {
-  const { extrusionDepth, smoothing } = settings;
+  const { extrusionDepth, smoothing, wallThickness } = settings;
   
   // Smooth the profile
   const smoothedProfile = smoothing > 0 
@@ -215,36 +215,69 @@ export function generateExtrudeMesh(
   // Sort by Y to create proper shape
   const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
   
-  // Create 2D shape from profile points
-  const shape = new THREE.Shape();
+  if (sortedProfile.length < 2) {
+    return new THREE.BufferGeometry();
+  }
   
-  if (sortedProfile.length > 0) {
-    shape.moveTo(sortedProfile[0].x, sortedProfile[0].y);
+  // Create outer shape from profile points (mirrored for symmetry)
+  const outerShape = new THREE.Shape();
+  
+  // Start at first point
+  outerShape.moveTo(sortedProfile[0].x, sortedProfile[0].y);
+  
+  // Draw the right side (positive X)
+  for (let i = 1; i < sortedProfile.length; i++) {
+    outerShape.lineTo(sortedProfile[i].x, sortedProfile[i].y);
+  }
+  
+  // Mirror back on the left side (negative X)
+  for (let i = sortedProfile.length - 1; i >= 0; i--) {
+    outerShape.lineTo(-sortedProfile[i].x, sortedProfile[i].y);
+  }
+  
+  outerShape.closePath();
+  
+  // Create inner hole (offset by wall thickness)
+  const hole = new THREE.Path();
+  const innerProfile = sortedProfile.map(p => ({
+    x: Math.max(0.5, p.x - wallThickness),
+    y: p.y
+  }));
+  
+  // Only create hole if there's room for walls
+  const hasRoom = innerProfile.some(p => p.x > 0.5);
+  
+  if (hasRoom && wallThickness > 0) {
+    // Inset from top/bottom by wall thickness too
+    const minY = Math.min(...innerProfile.map(p => p.y)) + wallThickness;
+    const maxY = Math.max(...innerProfile.map(p => p.y)) - wallThickness;
     
-    for (let i = 1; i < sortedProfile.length; i++) {
-      shape.lineTo(sortedProfile[i].x, sortedProfile[i].y);
+    const filteredInner = innerProfile.filter(p => p.y >= minY && p.y <= maxY);
+    
+    if (filteredInner.length >= 2) {
+      hole.moveTo(filteredInner[0].x, filteredInner[0].y);
+      
+      for (let i = 1; i < filteredInner.length; i++) {
+        hole.lineTo(filteredInner[i].x, filteredInner[i].y);
+      }
+      
+      for (let i = filteredInner.length - 1; i >= 0; i--) {
+        hole.lineTo(-filteredInner[i].x, filteredInner[i].y);
+      }
+      
+      hole.closePath();
+      outerShape.holes.push(hole);
     }
-    
-    // Close the shape by going back down the inner edge
-    const lastPoint = sortedProfile[sortedProfile.length - 1];
-    shape.lineTo(lastPoint.x, lastPoint.y);
-    
-    // Mirror back to close
-    for (let i = sortedProfile.length - 1; i >= 0; i--) {
-      shape.lineTo(-sortedProfile[i].x, sortedProfile[i].y);
-    }
-    
-    shape.closePath();
   }
   
   // Extrude settings
   const extrudeSettings = {
-    steps: Math.max(1, Math.floor(extrusionDepth / 2)),
+    steps: Math.max(2, Math.floor(extrusionDepth / 5)),
     depth: extrusionDepth,
     bevelEnabled: false,
   };
   
-  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  const geometry = new THREE.ExtrudeGeometry(outerShape, extrudeSettings);
   
   // Center the geometry
   geometry.center();
@@ -252,7 +285,7 @@ export function generateExtrudeMesh(
   return geometry;
 }
 
-// Generate path mesh - profile as spine with cross-section
+// Generate path mesh with capped ends - profile as spine with cross-section
 export function generatePathMesh(
   profile: ProfilePoint[],
   settings: ProfileSettings
@@ -275,37 +308,114 @@ export function generatePathMesh(
   
   const curve = new THREE.CatmullRomCurve3(pathPoints);
   
-  // Create cross-section shape
-  let crossSection: THREE.Shape;
+  // Use TubeGeometry for circular cross-section (automatically capped)
+  // Or ExtrudeGeometry for square
   const radius = crossSectionSize / 2;
+  const tubularSegments = Math.max(smoothedProfile.length * 4, 50);
+  const radialSegments = pathCrossSection === 'circle' ? 16 : 4;
+  
+  let geometry: THREE.BufferGeometry;
   
   if (pathCrossSection === 'circle') {
-    crossSection = new THREE.Shape();
-    const segments = 16;
-    crossSection.moveTo(radius, 0);
-    for (let i = 1; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      crossSection.lineTo(radius * Math.cos(theta), radius * Math.sin(theta));
+    // Use TubeGeometry for round tubes
+    geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, false);
+    
+    // Add end caps manually for TubeGeometry
+    const positions = geometry.getAttribute('position');
+    const normals = geometry.getAttribute('normal');
+    const existingPositions = Array.from(positions.array);
+    const existingNormals = Array.from(normals.array);
+    const existingIndices = geometry.index ? Array.from(geometry.index.array) : [];
+    
+    // Get start and end tangent directions
+    const startTangent = curve.getTangentAt(0);
+    const endTangent = curve.getTangentAt(1);
+    const startPoint = curve.getPointAt(0);
+    const endPoint = curve.getPointAt(1);
+    
+    // Create start cap
+    const startCapOffset = existingPositions.length / 3;
+    const startCapCenter = existingPositions.length / 3;
+    existingPositions.push(startPoint.x, startPoint.y, startPoint.z);
+    existingNormals.push(-startTangent.x, -startTangent.y, -startTangent.z);
+    
+    // Add start cap ring vertices
+    for (let i = 0; i <= radialSegments; i++) {
+      const theta = (i / radialSegments) * Math.PI * 2;
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(up, startTangent).normalize();
+      const realUp = new THREE.Vector3().crossVectors(startTangent, right).normalize();
+      
+      const x = startPoint.x + radius * (Math.cos(theta) * right.x + Math.sin(theta) * realUp.x);
+      const y = startPoint.y + radius * (Math.cos(theta) * right.y + Math.sin(theta) * realUp.y);
+      const z = startPoint.z + radius * (Math.cos(theta) * right.z + Math.sin(theta) * realUp.z);
+      
+      existingPositions.push(x, y, z);
+      existingNormals.push(-startTangent.x, -startTangent.y, -startTangent.z);
     }
+    
+    // Start cap faces
+    for (let i = 0; i < radialSegments; i++) {
+      existingIndices.push(
+        startCapCenter,
+        startCapCenter + 1 + i,
+        startCapCenter + 2 + i
+      );
+    }
+    
+    // Create end cap
+    const endCapCenter = existingPositions.length / 3;
+    existingPositions.push(endPoint.x, endPoint.y, endPoint.z);
+    existingNormals.push(endTangent.x, endTangent.y, endTangent.z);
+    
+    // Add end cap ring vertices
+    for (let i = 0; i <= radialSegments; i++) {
+      const theta = (i / radialSegments) * Math.PI * 2;
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(up, endTangent).normalize();
+      const realUp = new THREE.Vector3().crossVectors(endTangent, right).normalize();
+      
+      const x = endPoint.x + radius * (Math.cos(theta) * right.x + Math.sin(theta) * realUp.x);
+      const y = endPoint.y + radius * (Math.cos(theta) * right.y + Math.sin(theta) * realUp.y);
+      const z = endPoint.z + radius * (Math.cos(theta) * right.z + Math.sin(theta) * realUp.z);
+      
+      existingPositions.push(x, y, z);
+      existingNormals.push(endTangent.x, endTangent.y, endTangent.z);
+    }
+    
+    // End cap faces (reverse winding)
+    for (let i = 0; i < radialSegments; i++) {
+      existingIndices.push(
+        endCapCenter,
+        endCapCenter + 2 + i,
+        endCapCenter + 1 + i
+      );
+    }
+    
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(existingPositions, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(existingNormals, 3));
+    geometry.setIndex(existingIndices);
+    
   } else {
-    // Square cross-section
-    crossSection = new THREE.Shape();
+    // Square cross-section using ExtrudeGeometry
+    const crossSection = new THREE.Shape();
     crossSection.moveTo(-radius, -radius);
     crossSection.lineTo(radius, -radius);
     crossSection.lineTo(radius, radius);
     crossSection.lineTo(-radius, radius);
     crossSection.closePath();
+    
+    const extrudeSettings = {
+      steps: tubularSegments,
+      bevelEnabled: false,
+      extrudePath: curve,
+    };
+    
+    geometry = new THREE.ExtrudeGeometry(crossSection, extrudeSettings);
   }
   
-  // Create tube geometry following the path
-  const extrudeSettings = {
-    steps: Math.max(smoothedProfile.length * 4, 50),
-    bevelEnabled: false,
-    extrudePath: curve,
-  };
-  
-  const geometry = new THREE.ExtrudeGeometry(crossSection, extrudeSettings);
   geometry.center();
+  geometry.computeVertexNormals();
   
   return geometry;
 }
@@ -327,18 +437,24 @@ export function generateMesh(
   }
 }
 
-// Export profile mesh to STL
+// Export profile mesh to STL with proper scaling
 export function exportProfileToSTL(
   profile: ProfilePoint[],
   settings: ProfileSettings
 ): Blob {
   const geometry = generateMesh(profile, settings);
-  const mesh = new THREE.Mesh(geometry);
+  
+  // Apply scale for export (1 unit = 1mm)
+  const scaledGeometry = geometry.clone();
+  scaledGeometry.scale(settings.scale, settings.scale, settings.scale);
+  
+  const mesh = new THREE.Mesh(scaledGeometry);
   
   const exporter = new STLExporter();
   const stlString = exporter.parse(mesh, { binary: false });
   
   geometry.dispose();
+  scaledGeometry.dispose();
   
   return new Blob([stlString], { type: 'application/octet-stream' });
 }
@@ -421,24 +537,58 @@ export function generateProfileGCodeLayers(
       layers.push({ z, paths });
     }
   } else if (settings.generationMode === 'extrude') {
-    // For extrude mode, generate layers along Z
+    // For extrude mode, generate layers along Z (extrusion direction)
     const layerCount = Math.ceil(settings.extrusionDepth / printSettings.layerHeight);
     
     for (let layer = 0; layer <= layerCount; layer++) {
       const z = layer * printSettings.layerHeight;
       const paths: { x: number; y: number }[][] = [];
       
-      // Create path from profile
-      const path: { x: number; y: number }[] = sortedProfile.map(p => ({ x: p.x, y: p.y }));
-      // Mirror for closed shape
-      const mirroredPath = [...path, ...sortedProfile.reverse().map(p => ({ x: -p.x, y: p.y }))];
-      mirroredPath.push(mirroredPath[0]); // Close
+      // Create outer perimeter path (mirrored profile shape)
+      const outerPath: { x: number; y: number }[] = [];
       
-      paths.push(mirroredPath);
+      // Right side
+      for (const p of sortedProfile) {
+        outerPath.push({ x: p.x, y: p.y });
+      }
+      
+      // Left side (mirrored) - use slice to avoid mutating original
+      const reversedProfile = [...sortedProfile].reverse();
+      for (const p of reversedProfile) {
+        outerPath.push({ x: -p.x, y: p.y });
+      }
+      
+      // Close the path
+      outerPath.push({ ...outerPath[0] });
+      paths.push(outerPath);
+      
+      // Create inner perimeter (offset by wall thickness)
+      const innerPath: { x: number; y: number }[] = [];
+      const minY = Math.min(...sortedProfile.map(p => p.y)) + settings.wallThickness;
+      const maxY = Math.max(...sortedProfile.map(p => p.y)) - settings.wallThickness;
+      
+      const innerProfile = sortedProfile
+        .filter(p => p.y >= minY && p.y <= maxY)
+        .map(p => ({ x: Math.max(0.5, p.x - settings.wallThickness), y: p.y }));
+      
+      if (innerProfile.length >= 2) {
+        for (const p of innerProfile) {
+          innerPath.push({ x: p.x, y: p.y });
+        }
+        
+        const reversedInner = [...innerProfile].reverse();
+        for (const p of reversedInner) {
+          innerPath.push({ x: -p.x, y: p.y });
+        }
+        
+        innerPath.push({ ...innerPath[0] });
+        paths.push(innerPath);
+      }
+      
       layers.push({ z, paths });
     }
   } else if (settings.generationMode === 'path') {
-    // For path mode, follow the profile as path
+    // For path mode, the Z layers cut through the cross-section
     const radius = settings.crossSectionSize / 2;
     const layerCount = Math.ceil(settings.crossSectionSize / printSettings.layerHeight);
     
@@ -446,9 +596,30 @@ export function generateProfileGCodeLayers(
       const z = layer * printSettings.layerHeight;
       const paths: { x: number; y: number }[][] = [];
       
-      // Path following profile
-      const path: { x: number; y: number }[] = sortedProfile.map(p => ({ x: p.x, y: p.y }));
-      paths.push(path);
+      // Calculate cross-section radius at this Z height
+      const zOffset = z - radius; // Center the cross-section
+      let crossRadius = 0;
+      
+      if (settings.pathCrossSection === 'circle') {
+        // Circle: radius varies with z
+        if (Math.abs(zOffset) <= radius) {
+          crossRadius = Math.sqrt(radius * radius - zOffset * zOffset);
+        }
+      } else {
+        // Square: constant width within bounds
+        if (Math.abs(zOffset) <= radius) {
+          crossRadius = radius;
+        }
+      }
+      
+      if (crossRadius > 0) {
+        // Path follows the profile points with offset for cross-section
+        const path: { x: number; y: number }[] = sortedProfile.map(p => ({
+          x: p.x,
+          y: p.y
+        }));
+        paths.push(path);
+      }
       
       layers.push({ z, paths });
     }
@@ -479,6 +650,7 @@ export function generateProfileGCode(
   gcode += `; Generation Mode: ${settings.generationMode}\n`;
   gcode += `; Material: ${printSettings.material}\n`;
   gcode += `; Layer Height: ${printSettings.layerHeight}mm\n`;
+  gcode += `; Scale: ${settings.scale}\n`;
   gcode += '\n; Start G-code\n';
   gcode += `M104 S${temps.nozzle} ; Set nozzle temp\n`;
   gcode += `M140 S${temps.bed} ; Set bed temp\n`;
@@ -489,23 +661,32 @@ export function generateProfileGCode(
   gcode += 'G1 Z5 F3000 ; Lift nozzle\n\n';
   
   let e = 0;
-  const extrusionMultiplier = 0.033;
+  const extrusionMultiplier = 0.033 * settings.scale;
   
   layers.forEach((layer, layerIndex) => {
     gcode += `; Layer ${layerIndex}\n`;
-    gcode += `G1 Z${layer.z.toFixed(3)} F1000\n`;
+    gcode += `G1 Z${(layer.z * settings.scale).toFixed(3)} F1000\n`;
     
     layer.paths.forEach(path => {
       if (path.length === 0) return;
       
-      gcode += `G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F${printSettings.printSpeed * 60}\n`;
+      // Scale coordinates
+      const scaledX = path[0].x * settings.scale;
+      const scaledY = path[0].y * settings.scale;
+      
+      gcode += `G0 X${scaledX.toFixed(3)} Y${scaledY.toFixed(3)} F${printSettings.printSpeed * 60}\n`;
       
       for (let i = 1; i < path.length; i++) {
-        const dx = path[i].x - path[i - 1].x;
-        const dy = path[i].y - path[i - 1].y;
+        const prevX = path[i - 1].x * settings.scale;
+        const prevY = path[i - 1].y * settings.scale;
+        const currX = path[i].x * settings.scale;
+        const currY = path[i].y * settings.scale;
+        
+        const dx = currX - prevX;
+        const dy = currY - prevY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         e += dist * extrusionMultiplier;
-        gcode += `G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} E${e.toFixed(4)} F${printSettings.printSpeed * 60}\n`;
+        gcode += `G1 X${currX.toFixed(3)} Y${currY.toFixed(3)} E${e.toFixed(4)} F${printSettings.printSpeed * 60}\n`;
       }
     });
   });
