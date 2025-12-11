@@ -210,68 +210,108 @@ export function generateExtrudeMesh(
   profile: ProfilePoint[],
   settings: ProfileSettings
 ): THREE.BufferGeometry {
-  const { extrusionDepth, smoothing, wallThickness, extrusionDirection } = settings;
+  const { extrusionDepth, smoothing, wallThickness, extrusionDirection, extrusionShapeMode } = settings;
   
   // Smooth the profile
   const smoothedProfile = smoothing > 0 
     ? smoothProfile(profile, Math.floor(profile.length * (1 + smoothing * 10)))
     : profile;
   
-  // Sort by Y to create proper shape
-  const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
-  
-  if (sortedProfile.length < 2) {
+  if (smoothedProfile.length < 2) {
     return new THREE.BufferGeometry();
   }
   
-  // Create outer shape from profile points (mirrored for symmetry)
+  // Create outer shape based on shape mode
   const outerShape = new THREE.Shape();
   
-  // Start at first point
-  outerShape.moveTo(sortedProfile[0].x, sortedProfile[0].y);
-  
-  // Draw the right side (positive X)
-  for (let i = 1; i < sortedProfile.length; i++) {
-    outerShape.lineTo(sortedProfile[i].x, sortedProfile[i].y);
-  }
-  
-  // Mirror back on the left side (negative X)
-  for (let i = sortedProfile.length - 1; i >= 0; i--) {
-    outerShape.lineTo(-sortedProfile[i].x, sortedProfile[i].y);
-  }
-  
-  outerShape.closePath();
-  
-  // Create inner hole (offset by wall thickness)
-  const hole = new THREE.Path();
-  const innerProfile = sortedProfile.map(p => ({
-    x: Math.max(0.5, p.x - wallThickness),
-    y: p.y
-  }));
-  
-  // Only create hole if there's room for walls
-  const hasRoom = innerProfile.some(p => p.x > 0.5);
-  
-  if (hasRoom && wallThickness > 0) {
-    // Inset from top/bottom by wall thickness too
-    const minY = Math.min(...innerProfile.map(p => p.y)) + wallThickness;
-    const maxY = Math.max(...innerProfile.map(p => p.y)) - wallThickness;
+  if (extrusionShapeMode === 'direct') {
+    // Direct mode: use the profile as-is as a closed shape
+    outerShape.moveTo(smoothedProfile[0].x, smoothedProfile[0].y);
     
-    const filteredInner = innerProfile.filter(p => p.y >= minY && p.y <= maxY);
+    for (let i = 1; i < smoothedProfile.length; i++) {
+      outerShape.lineTo(smoothedProfile[i].x, smoothedProfile[i].y);
+    }
     
-    if (filteredInner.length >= 2) {
-      hole.moveTo(filteredInner[0].x, filteredInner[0].y);
+    outerShape.closePath();
+    
+    // Create inner hole for hollow shape (offset inward by wall thickness)
+    if (wallThickness > 0 && smoothedProfile.length >= 3) {
+      // Use a simple offset approach - shrink toward centroid
+      const centroidX = smoothedProfile.reduce((sum, p) => sum + p.x, 0) / smoothedProfile.length;
+      const centroidY = smoothedProfile.reduce((sum, p) => sum + p.y, 0) / smoothedProfile.length;
       
-      for (let i = 1; i < filteredInner.length; i++) {
-        hole.lineTo(filteredInner[i].x, filteredInner[i].y);
+      const hole = new THREE.Path();
+      const innerPoints = smoothedProfile.map(p => {
+        const dx = p.x - centroidX;
+        const dy = p.y - centroidY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < wallThickness * 2) return null; // Too small for hollow
+        const scale = (dist - wallThickness) / dist;
+        return {
+          x: centroidX + dx * scale,
+          y: centroidY + dy * scale,
+        };
+      }).filter((p): p is { x: number; y: number } => p !== null);
+      
+      if (innerPoints.length >= 3) {
+        hole.moveTo(innerPoints[0].x, innerPoints[0].y);
+        for (let i = 1; i < innerPoints.length; i++) {
+          hole.lineTo(innerPoints[i].x, innerPoints[i].y);
+        }
+        hole.closePath();
+        outerShape.holes.push(hole);
       }
+    }
+  } else {
+    // Mirrored mode: sort by Y and mirror for symmetry
+    const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
+    
+    // Start at first point
+    outerShape.moveTo(sortedProfile[0].x, sortedProfile[0].y);
+    
+    // Draw the right side (positive X)
+    for (let i = 1; i < sortedProfile.length; i++) {
+      outerShape.lineTo(sortedProfile[i].x, sortedProfile[i].y);
+    }
+    
+    // Mirror back on the left side (negative X)
+    for (let i = sortedProfile.length - 1; i >= 0; i--) {
+      outerShape.lineTo(-sortedProfile[i].x, sortedProfile[i].y);
+    }
+    
+    outerShape.closePath();
+    
+    // Create inner hole (offset by wall thickness)
+    const hole = new THREE.Path();
+    const innerProfile = sortedProfile.map(p => ({
+      x: Math.max(0.5, p.x - wallThickness),
+      y: p.y
+    }));
+    
+    // Only create hole if there's room for walls
+    const hasRoom = innerProfile.some(p => p.x > 0.5);
+    
+    if (hasRoom && wallThickness > 0) {
+      // Inset from top/bottom by wall thickness too
+      const minY = Math.min(...innerProfile.map(p => p.y)) + wallThickness;
+      const maxY = Math.max(...innerProfile.map(p => p.y)) - wallThickness;
       
-      for (let i = filteredInner.length - 1; i >= 0; i--) {
-        hole.lineTo(-filteredInner[i].x, filteredInner[i].y);
+      const filteredInner = innerProfile.filter(p => p.y >= minY && p.y <= maxY);
+      
+      if (filteredInner.length >= 2) {
+        hole.moveTo(filteredInner[0].x, filteredInner[0].y);
+        
+        for (let i = 1; i < filteredInner.length; i++) {
+          hole.lineTo(filteredInner[i].x, filteredInner[i].y);
+        }
+        
+        for (let i = filteredInner.length - 1; i >= 0; i--) {
+          hole.lineTo(-filteredInner[i].x, filteredInner[i].y);
+        }
+        
+        hole.closePath();
+        outerShape.holes.push(hole);
       }
-      
-      hole.closePath();
-      outerShape.holes.push(hole);
     }
   }
   
