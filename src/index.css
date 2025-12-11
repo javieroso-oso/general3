@@ -2,80 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Retro-Future Workshop - Tom Sachs Inspired Design System */
+/* Electric Pop - Hyper-Saturated Vibrant Design System */
 
 @layer base {
   :root {
-    /* Warm cream background - like aged paper/plywood */
-    --background: 40 33% 96%;
-    --foreground: 20 10% 10%;
+    /* Pure white background */
+    --background: 0 0% 100%;
+    --foreground: 230 25% 15%;
 
-    /* Warm black cards - like painted plywood */
-    --card: 20 10% 10%;
-    --card-foreground: 40 33% 96%;
+    /* White cards with subtle gray for depth */
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 15%;
 
-    --popover: 20 10% 10%;
-    --popover-foreground: 40 33% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 15%;
 
-    /* Golden yellow - NASA/industrial accent */
-    --primary: 48 96% 53%;
-    --primary-foreground: 20 10% 10%;
+    /* Electric Blue - Primary (max saturation) */
+    --primary: 217 100% 50%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Warm black secondary */
-    --secondary: 20 8% 15%;
-    --secondary-foreground: 40 33% 90%;
+    /* Hot Magenta - Secondary */
+    --secondary: 330 100% 50%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 20 8% 18%;
-    --muted-foreground: 40 15% 55%;
+    /* Light gray for muted elements */
+    --muted: 220 15% 95%;
+    --muted-foreground: 230 15% 45%;
 
-    /* Muted teal accent */
-    --accent: 168 76% 64%;
-    --accent-foreground: 20 10% 10%;
+    /* Cyber Yellow - Accent */
+    --accent: 50 100% 50%;
+    --accent-foreground: 230 25% 15%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 85% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 20 10% 20%;
-    --input: 20 10% 20%;
-    --ring: 48 96% 53%;
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 217 100% 50%;
 
-    --radius: 0.25rem;
+    --radius: 0.75rem;
 
-    /* Custom surface tokens */
-    --surface: 20 10% 10%;
-    --surface-elevated: 20 10% 12%;
-    --surface-muted: 20 10% 8%;
+    /* Extended color palette */
+    --electric-blue: 217 100% 50%;
+    --electric-blue-light: 217 100% 60%;
+    --electric-blue-dark: 217 100% 40%;
     
-    /* Text hierarchy */
-    --text-primary: 40 33% 96%;
-    --text-secondary: 40 15% 70%;
-    --text-muted: 40 10% 50%;
+    --hot-magenta: 330 100% 50%;
+    --hot-magenta-light: 330 100% 60%;
+    --hot-magenta-dark: 330 100% 40%;
     
-    /* Golden yellow variants */
-    --accent-gold: 48 96% 53%;
-    --accent-gold-light: 48 96% 63%;
-    --accent-gold-dark: 48 96% 43%;
-    
-    /* Teal variants */
-    --accent-teal: 168 76% 64%;
-    --accent-teal-light: 168 76% 74%;
-    --accent-teal-dark: 168 76% 44%;
-    
-    /* Tom Sachs shadows - harder, more graphic */
-    --shadow-hard: 4px 4px 0px hsl(20 10% 5%);
-    --shadow-hard-sm: 2px 2px 0px hsl(20 10% 5%);
-    --shadow-hard-gold: 4px 4px 0px hsl(48 96% 43%);
-    --shadow-inset: inset 2px 2px 0px hsl(20 10% 5% / 0.2);
+    --cyber-yellow: 50 100% 50%;
+    --cyber-yellow-light: 50 100% 60%;
+    --cyber-yellow-dark: 50 100% 45%;
+
+    /* Colored shadows */
+    --shadow-blue: 0 8px 24px -4px hsl(217 100% 50% / 0.3);
+    --shadow-magenta: 0 8px 24px -4px hsl(330 100% 50% / 0.3);
+    --shadow-yellow: 0 8px 24px -4px hsl(50 100% 50% / 0.4);
+    --shadow-soft: 0 4px 16px -2px hsl(230 25% 15% / 0.08);
+    --shadow-lifted: 0 12px 32px -8px hsl(230 25% 15% / 0.12);
     
     /* Sidebar */
-    --sidebar-background: 20 10% 8%;
-    --sidebar-foreground: 40 33% 96%;
-    --sidebar-primary: 48 96% 53%;
-    --sidebar-primary-foreground: 20 10% 10%;
-    --sidebar-accent: 20 8% 15%;
-    --sidebar-accent-foreground: 40 33% 96%;
-    --sidebar-border: 20 10% 20%;
-    --sidebar-ring: 48 96% 53%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 230 25% 15%;
+    --sidebar-primary: 217 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 96%;
+    --sidebar-accent-foreground: 230 25% 15%;
+    --sidebar-border: 220 15% 90%;
+    --sidebar-ring: 217 100% 50%;
   }
 }
 
@@ -86,176 +81,159 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    /* Halftone dot pattern - Tom Sachs texture */
-    background-image: radial-gradient(hsl(20 10% 10% / 0.03) 1px, transparent 1px);
-    background-size: 4px 4px;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-bold uppercase tracking-tight;
+    @apply font-semibold tracking-tight text-foreground;
   }
 }
 
 @layer components {
-  /* Tom Sachs style panel - hard edges, double borders */
+  /* Modern vibrant panel */
   .workshop-panel {
-    @apply bg-card border-2 border-border;
-    box-shadow: var(--shadow-hard);
+    @apply bg-card rounded-xl border border-border;
+    box-shadow: var(--shadow-soft);
   }
   
-  .workshop-panel-light {
-    @apply bg-background border-2 border-foreground;
-    box-shadow: var(--shadow-hard);
+  .workshop-panel:hover {
+    box-shadow: var(--shadow-lifted);
   }
   
-  /* Control card with industrial feel */
+  /* Control card with colored hover */
   .control-card {
-    @apply bg-card text-card-foreground border-2 border-border p-4 transition-all duration-150;
-    box-shadow: var(--shadow-hard-sm);
+    @apply bg-card text-card-foreground rounded-xl border border-border p-4 transition-all duration-200;
+    box-shadow: var(--shadow-soft);
   }
   
   .control-card:hover {
-    box-shadow: var(--shadow-hard);
-    transform: translate(-2px, -2px);
+    @apply border-primary;
+    box-shadow: var(--shadow-blue);
+    transform: translateY(-2px);
   }
   
-  /* Preset card - badge style */
+  /* Preset card - clean with color accent */
   .preset-card {
-    @apply bg-surface-muted p-3 cursor-pointer transition-all duration-150 border-2 border-transparent;
+    @apply bg-muted rounded-lg p-3 cursor-pointer transition-all duration-200 border-2 border-transparent;
   }
   
   .preset-card:hover {
-    @apply border-primary;
-    box-shadow: var(--shadow-hard-sm);
-    transform: translate(-1px, -1px);
+    @apply border-primary bg-card;
+    box-shadow: var(--shadow-blue);
+    transform: translateY(-1px);
   }
   
   .preset-card.active {
-    @apply border-primary bg-surface-elevated;
-    box-shadow: var(--shadow-hard-gold);
+    @apply border-primary bg-card;
+    box-shadow: var(--shadow-blue);
   }
   
-  /* Stencil-style labels */
+  /* Clean label */
   .label-text {
-    @apply uppercase tracking-[0.2em] text-xs font-bold text-muted-foreground font-mono;
+    @apply text-xs font-medium text-muted-foreground uppercase tracking-wide;
   }
   
   .value-display {
-    @apply font-mono text-sm font-bold tabular-nums;
+    @apply font-mono text-sm font-semibold tabular-nums text-foreground;
   }
   
-  /* Industrial slider */
+  /* Modern slider */
   .slider-track {
-    @apply bg-secondary h-3 border border-border;
+    @apply bg-muted h-2 rounded-full;
   }
   
   .slider-thumb {
-    @apply w-6 h-6 bg-primary border-2 border-foreground cursor-grab active:cursor-grabbing transition-transform duration-100;
-    box-shadow: var(--shadow-hard-sm);
+    @apply w-5 h-5 bg-primary rounded-full cursor-grab active:cursor-grabbing transition-all duration-150;
+    box-shadow: var(--shadow-blue);
   }
   
   .slider-thumb:hover {
-    @apply scale-105;
-    box-shadow: var(--shadow-hard);
+    @apply scale-110;
   }
   
-  /* Navigation - stenciled style */
+  /* Navigation - clean underline style */
   .nav-link {
-    @apply relative px-4 py-2 text-text-secondary font-bold uppercase tracking-[0.15em] text-xs transition-all duration-150;
+    @apply relative px-4 py-2 text-muted-foreground font-medium text-sm transition-all duration-200;
   }
   
   .nav-link:hover {
-    @apply text-card-foreground;
+    @apply text-foreground;
   }
   
   .nav-link.active {
-    @apply text-primary;
+    @apply text-primary font-semibold;
   }
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-2 right-2 h-1 bg-primary;
+    @apply absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full;
   }
   
-  /* Tab buttons - badge/button style */
+  /* Tab buttons - pill style */
   .tab-button {
-    @apply px-5 py-2.5 font-bold text-text-secondary transition-all duration-150 uppercase tracking-[0.15em] text-xs border-2 border-transparent;
+    @apply px-5 py-2.5 font-medium text-muted-foreground transition-all duration-200 rounded-lg text-sm;
   }
   
   .tab-button:hover {
-    @apply text-card-foreground bg-secondary border-border;
+    @apply text-foreground bg-muted;
   }
   
   .tab-button.active {
-    @apply bg-primary text-primary-foreground border-foreground;
-    box-shadow: var(--shadow-hard-sm);
+    @apply bg-primary text-primary-foreground;
+    box-shadow: var(--shadow-blue);
   }
   
-  /* Icon button - industrial */
+  /* Icon button */
   .icon-button {
-    @apply p-2.5 bg-secondary text-secondary-foreground transition-all duration-150 border-2 border-border;
+    @apply p-2.5 bg-muted text-muted-foreground rounded-lg transition-all duration-200;
   }
   
   .icon-button:hover {
-    @apply bg-primary text-primary-foreground border-foreground;
-    box-shadow: var(--shadow-hard-sm);
-    transform: translate(-1px, -1px);
+    @apply bg-primary text-primary-foreground;
+    box-shadow: var(--shadow-blue);
   }
   
-  /* Corner notch decoration */
-  .corner-notch {
-    @apply relative;
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--hot-magenta)));
   }
   
-  .corner-notch::before {
-    content: '';
-    @apply absolute top-0 right-0 w-3 h-3 bg-background;
-    clip-path: polygon(100% 0, 0 0, 100% 100%);
+  /* Gradient border */
+  .gradient-border {
+    @apply relative rounded-xl;
+    background: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--hot-magenta)), hsl(var(--cyber-yellow)));
+    padding: 2px;
   }
   
-  /* Vintage badge shape */
-  .badge-shape {
-    @apply relative px-4 py-1 bg-primary text-primary-foreground font-bold uppercase tracking-wider text-xs;
-    clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
+  .gradient-border > * {
+    @apply bg-card rounded-[10px];
   }
   
-  /* Double border effect */
-  .double-border {
-    @apply relative border-2 border-border;
-    outline: 2px solid hsl(var(--border));
-    outline-offset: 3px;
+  /* Colored badge variants */
+  .badge-blue {
+    @apply bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-semibold;
   }
   
-  /* Halftone overlay */
-  .halftone-overlay {
-    position: relative;
+  .badge-magenta {
+    @apply bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-semibold;
   }
   
-  .halftone-overlay::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(hsl(20 10% 10% / 0.08) 1px, transparent 1px);
-    background-size: 3px 3px;
-    pointer-events: none;
+  .badge-yellow {
+    @apply bg-accent/20 text-accent-foreground px-3 py-1 rounded-full text-xs font-semibold;
   }
   
-  /* Stencil text effect */
-  .stencil-text {
-    @apply font-display font-bold uppercase tracking-[0.2em];
-    text-shadow: 2px 2px 0px hsl(20 10% 10% / 0.2);
+  /* Button with lift effect */
+  .button-lift {
+    @apply transition-all duration-200;
   }
   
-  /* Industrial divider */
-  .divider-industrial {
-    @apply h-0.5 bg-border;
-    background-image: repeating-linear-gradient(
-      90deg,
-      hsl(var(--border)),
-      hsl(var(--border)) 8px,
-      transparent 8px,
-      transparent 12px
-    );
+  .button-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lifted);
+  }
+  
+  .button-lift:active {
+    transform: translateY(0);
   }
 }
 
@@ -272,6 +250,11 @@
   .animate-pulse-slow {
     animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
+  
+  /* Gradient backgrounds */
+  .bg-gradient-vibrant {
+    background: linear-gradient(135deg, hsl(var(--electric-blue) / 0.1), hsl(var(--hot-magenta) / 0.1), hsl(var(--cyber-yellow) / 0.1));
+  }
 }
 
 @keyframes float {
@@ -281,18 +264,4 @@
   50% {
     transform: translateY(-8px);
   }
-}
-
-/* Rough/hand-drawn border effect for special elements */
-@keyframes wobble {
-  0%, 100% {
-    transform: rotate(-0.5deg);
-  }
-  50% {
-    transform: rotate(0.5deg);
-  }
-}
-
-.animate-wobble {
-  animation: wobble 0.3s ease-in-out;
 }
