@@ -2,74 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Acid Minimal Design System */
+/* Retro-Future Workshop - Tom Sachs Inspired Design System */
 
 @layer base {
   :root {
-    --background: 60 10% 96%;
-    --foreground: 0 0% 10%;
+    /* Warm cream background - like aged paper/plywood */
+    --background: 40 33% 96%;
+    --foreground: 20 10% 10%;
 
-    --card: 0 0% 10%;
-    --card-foreground: 60 10% 96%;
+    /* Warm black cards - like painted plywood */
+    --card: 20 10% 10%;
+    --card-foreground: 40 33% 96%;
 
-    --popover: 0 0% 10%;
-    --popover-foreground: 60 10% 96%;
+    --popover: 20 10% 10%;
+    --popover-foreground: 40 33% 96%;
 
-    --primary: 68 100% 50%;
-    --primary-foreground: 0 0% 10%;
+    /* Golden yellow - NASA/industrial accent */
+    --primary: 48 96% 53%;
+    --primary-foreground: 20 10% 10%;
 
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 60 10% 90%;
+    /* Warm black secondary */
+    --secondary: 20 8% 15%;
+    --secondary-foreground: 40 33% 90%;
 
-    --muted: 0 0% 18%;
-    --muted-foreground: 60 5% 60%;
+    --muted: 20 8% 18%;
+    --muted-foreground: 40 15% 55%;
 
-    --accent: 275 70% 55%;
-    --accent-foreground: 0 0% 100%;
+    /* Muted teal accent */
+    --accent: 168 76% 64%;
+    --accent-foreground: 20 10% 10%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 68 100% 50%;
+    --border: 20 10% 20%;
+    --input: 20 10% 20%;
+    --ring: 48 96% 53%;
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;
 
-    /* Custom tokens */
-    --surface: 0 0% 10%;
-    --surface-elevated: 0 0% 12%;
-    --surface-muted: 0 0% 8%;
+    /* Custom surface tokens */
+    --surface: 20 10% 10%;
+    --surface-elevated: 20 10% 12%;
+    --surface-muted: 20 10% 8%;
     
-    --text-primary: 60 10% 96%;
-    --text-secondary: 60 5% 70%;
-    --text-muted: 60 5% 50%;
+    /* Text hierarchy */
+    --text-primary: 40 33% 96%;
+    --text-secondary: 40 15% 70%;
+    --text-muted: 40 10% 50%;
     
-    --accent-lime: 68 100% 50%;
-    --accent-lime-light: 68 100% 60%;
-    --accent-lime-dark: 68 100% 40%;
+    /* Golden yellow variants */
+    --accent-gold: 48 96% 53%;
+    --accent-gold-light: 48 96% 63%;
+    --accent-gold-dark: 48 96% 43%;
     
-    --accent-violet: 275 70% 55%;
-    --accent-violet-light: 275 70% 65%;
-    --accent-violet-dark: 275 70% 45%;
+    /* Teal variants */
+    --accent-teal: 168 76% 64%;
+    --accent-teal-light: 168 76% 74%;
+    --accent-teal-dark: 168 76% 44%;
     
-    --shadow-soft: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
-    --shadow-medium: 0 8px 30px -6px hsl(0 0% 0% / 0.4);
-    --shadow-large: 0 20px 50px -12px hsl(0 0% 0% / 0.5);
-    --shadow-glow: 0 0 30px hsl(68 100% 50% / 0.2);
+    /* Tom Sachs shadows - harder, more graphic */
+    --shadow-hard: 4px 4px 0px hsl(20 10% 5%);
+    --shadow-hard-sm: 2px 2px 0px hsl(20 10% 5%);
+    --shadow-hard-gold: 4px 4px 0px hsl(48 96% 43%);
+    --shadow-inset: inset 2px 2px 0px hsl(20 10% 5% / 0.2);
     
-    --gradient-subtle: linear-gradient(135deg, hsl(68 100% 50% / 0.05), hsl(275 70% 55% / 0.03));
-    --gradient-accent: linear-gradient(135deg, hsl(68 100% 50%), hsl(68 100% 60%));
-    --gradient-violet: linear-gradient(135deg, hsl(275 70% 55%), hsl(275 70% 65%));
-    
-    --sidebar-background: 0 0% 8%;
-    --sidebar-foreground: 60 10% 96%;
-    --sidebar-primary: 68 100% 50%;
-    --sidebar-primary-foreground: 0 0% 10%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 60 10% 96%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 68 100% 50%;
+    /* Sidebar */
+    --sidebar-background: 20 10% 8%;
+    --sidebar-foreground: 40 33% 96%;
+    --sidebar-primary: 48 96% 53%;
+    --sidebar-primary-foreground: 20 10% 10%;
+    --sidebar-accent: 20 8% 15%;
+    --sidebar-accent-foreground: 40 33% 96%;
+    --sidebar-border: 20 10% 20%;
+    --sidebar-ring: 48 96% 53%;
   }
 }
 
@@ -80,63 +86,82 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    /* Halftone dot pattern - Tom Sachs texture */
+    background-image: radial-gradient(hsl(20 10% 10% / 0.03) 1px, transparent 1px);
+    background-size: 4px 4px;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display tracking-tight;
+    @apply font-display font-bold uppercase tracking-tight;
   }
 }
 
 @layer components {
-  .glass-panel {
-    @apply bg-card border border-border rounded-lg;
-    box-shadow: var(--shadow-soft);
+  /* Tom Sachs style panel - hard edges, double borders */
+  .workshop-panel {
+    @apply bg-card border-2 border-border;
+    box-shadow: var(--shadow-hard);
   }
   
-  .glass-panel-elevated {
-    @apply bg-surface-elevated border border-border rounded-lg;
-    box-shadow: var(--shadow-medium);
+  .workshop-panel-light {
+    @apply bg-background border-2 border-foreground;
+    box-shadow: var(--shadow-hard);
   }
   
+  /* Control card with industrial feel */
   .control-card {
-    @apply bg-card text-card-foreground rounded-lg border border-border p-4 transition-all duration-300;
-    box-shadow: var(--shadow-soft);
+    @apply bg-card text-card-foreground border-2 border-border p-4 transition-all duration-150;
+    box-shadow: var(--shadow-hard-sm);
   }
   
   .control-card:hover {
-    box-shadow: var(--shadow-glow);
-    border-color: hsl(var(--primary) / 0.3);
+    box-shadow: var(--shadow-hard);
+    transform: translate(-2px, -2px);
   }
   
+  /* Preset card - badge style */
   .preset-card {
-    @apply bg-surface-muted rounded-lg p-3 cursor-pointer transition-all duration-200 border border-transparent;
+    @apply bg-surface-muted p-3 cursor-pointer transition-all duration-150 border-2 border-transparent;
   }
   
   .preset-card:hover {
-    @apply border-primary/30;
-    box-shadow: var(--shadow-glow);
+    @apply border-primary;
+    box-shadow: var(--shadow-hard-sm);
+    transform: translate(-1px, -1px);
   }
   
   .preset-card.active {
     @apply border-primary bg-surface-elevated;
-    box-shadow: var(--shadow-glow);
+    box-shadow: var(--shadow-hard-gold);
   }
   
+  /* Stencil-style labels */
+  .label-text {
+    @apply uppercase tracking-[0.2em] text-xs font-bold text-muted-foreground font-mono;
+  }
+  
+  .value-display {
+    @apply font-mono text-sm font-bold tabular-nums;
+  }
+  
+  /* Industrial slider */
   .slider-track {
-    @apply bg-secondary rounded-full h-2;
+    @apply bg-secondary h-3 border border-border;
   }
   
   .slider-thumb {
-    @apply w-5 h-5 bg-primary rounded-full shadow-lg cursor-grab active:cursor-grabbing transition-transform duration-150;
+    @apply w-6 h-6 bg-primary border-2 border-foreground cursor-grab active:cursor-grabbing transition-transform duration-100;
+    box-shadow: var(--shadow-hard-sm);
   }
   
   .slider-thumb:hover {
-    @apply scale-110;
-    box-shadow: 0 0 15px hsl(var(--primary) / 0.5);
+    @apply scale-105;
+    box-shadow: var(--shadow-hard);
   }
   
+  /* Navigation - stenciled style */
   .nav-link {
-    @apply relative px-4 py-2 text-text-secondary font-medium transition-colors duration-200;
+    @apply relative px-4 py-2 text-text-secondary font-bold uppercase tracking-[0.15em] text-xs transition-all duration-150;
   }
   
   .nav-link:hover {
@@ -149,52 +174,88 @@
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full;
+    @apply absolute bottom-0 left-2 right-2 h-1 bg-primary;
   }
   
-  .icon-button {
-    @apply p-2.5 rounded-lg bg-secondary text-secondary-foreground transition-all duration-200;
-  }
-  
-  .icon-button:hover {
-    @apply bg-primary text-primary-foreground;
-    box-shadow: var(--shadow-glow);
-  }
-  
+  /* Tab buttons - badge/button style */
   .tab-button {
-    @apply px-6 py-2.5 rounded-lg font-medium text-text-secondary transition-all duration-200 uppercase tracking-wider text-xs;
+    @apply px-5 py-2.5 font-bold text-text-secondary transition-all duration-150 uppercase tracking-[0.15em] text-xs border-2 border-transparent;
   }
   
   .tab-button:hover {
-    @apply text-card-foreground bg-secondary;
+    @apply text-card-foreground bg-secondary border-border;
   }
   
   .tab-button.active {
-    @apply bg-primary text-primary-foreground;
-    box-shadow: var(--shadow-glow);
+    @apply bg-primary text-primary-foreground border-foreground;
+    box-shadow: var(--shadow-hard-sm);
   }
   
-  .label-text {
-    @apply uppercase tracking-wider text-xs font-medium text-muted-foreground font-mono;
+  /* Icon button - industrial */
+  .icon-button {
+    @apply p-2.5 bg-secondary text-secondary-foreground transition-all duration-150 border-2 border-border;
   }
   
-  .value-display {
-    @apply font-mono text-sm tabular-nums;
+  .icon-button:hover {
+    @apply bg-primary text-primary-foreground border-foreground;
+    box-shadow: var(--shadow-hard-sm);
+    transform: translate(-1px, -1px);
   }
   
-  .glow-hover {
-    @apply transition-all duration-300;
+  /* Corner notch decoration */
+  .corner-notch {
+    @apply relative;
   }
   
-  .glow-hover:hover {
-    box-shadow: var(--shadow-glow);
+  .corner-notch::before {
+    content: '';
+    @apply absolute top-0 right-0 w-3 h-3 bg-background;
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
   }
   
-  .grid-pattern {
-    background-image: 
-      linear-gradient(hsl(68 100% 50% / 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(68 100% 50% / 0.03) 1px, transparent 1px);
-    background-size: 24px 24px;
+  /* Vintage badge shape */
+  .badge-shape {
+    @apply relative px-4 py-1 bg-primary text-primary-foreground font-bold uppercase tracking-wider text-xs;
+    clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
+  }
+  
+  /* Double border effect */
+  .double-border {
+    @apply relative border-2 border-border;
+    outline: 2px solid hsl(var(--border));
+    outline-offset: 3px;
+  }
+  
+  /* Halftone overlay */
+  .halftone-overlay {
+    position: relative;
+  }
+  
+  .halftone-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(hsl(20 10% 10% / 0.08) 1px, transparent 1px);
+    background-size: 3px 3px;
+    pointer-events: none;
+  }
+  
+  /* Stencil text effect */
+  .stencil-text {
+    @apply font-display font-bold uppercase tracking-[0.2em];
+    text-shadow: 2px 2px 0px hsl(20 10% 10% / 0.2);
+  }
+  
+  /* Industrial divider */
+  .divider-industrial {
+    @apply h-0.5 bg-border;
+    background-image: repeating-linear-gradient(
+      90deg,
+      hsl(var(--border)),
+      hsl(var(--border)) 8px,
+      transparent 8px,
+      transparent 12px
+    );
   }
 }
 
@@ -203,16 +264,13 @@
     text-wrap: balance;
   }
   
+  /* Utility animations */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
   
   .animate-pulse-slow {
     animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  .animate-glow {
-    animation: glow 2s ease-in-out infinite alternate;
   }
 }
 
@@ -221,24 +279,20 @@
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
 }
 
-@keyframes glow {
-  0% {
-    box-shadow: 0 0 20px hsl(68 100% 50% / 0.2);
+/* Rough/hand-drawn border effect for special elements */
+@keyframes wobble {
+  0%, 100% {
+    transform: rotate(-0.5deg);
   }
-  100% {
-    box-shadow: 0 0 40px hsl(68 100% 50% / 0.4);
+  50% {
+    transform: rotate(0.5deg);
   }
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+.animate-wobble {
+  animation: wobble 0.3s ease-in-out;
 }

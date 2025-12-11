@@ -17,48 +17,45 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-b border-border">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-card border-b-2 border-border">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Logo - Tom Sachs industrial badge style */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
+            <div 
+              className="w-10 h-10 bg-primary border-2 border-foreground flex items-center justify-center group-hover:translate-x-[-2px] group-hover:translate-y-[-2px] transition-transform"
+              style={{ boxShadow: '3px 3px 0px hsl(20 10% 5%)' }}
+            >
               <Box className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-lg hidden sm:block text-card-foreground">
-              <span className="text-primary">P3D</span> Generator
+            <span className="font-bold text-lg hidden sm:block text-card-foreground uppercase tracking-wider">
+              <span className="text-primary">P3D</span> Gen
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* Desktop Navigation - Stenciled style */}
+          <nav className="hidden md:flex items-center gap-0">
             {navItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'relative px-4 py-2 text-xs font-medium uppercase tracking-wider transition-colors duration-200',
+                  'relative px-4 py-2 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-150 border-b-2',
                   location.pathname === item.path
-                    ? 'text-primary'
-                    : 'text-text-secondary hover:text-card-foreground'
+                    ? 'text-primary border-primary'
+                    : 'text-text-secondary hover:text-card-foreground border-transparent hover:border-text-secondary'
                 )}
               >
-                {location.pathname === item.path && (
-                  <motion.div
-                    layoutId="navIndicator"
-                    className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full shadow-glow"
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
-                  />
-                )}
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button - Industrial */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+            className="md:hidden p-2 bg-secondary text-secondary-foreground border-2 border-border hover:bg-primary hover:text-primary-foreground hover:border-foreground transition-all"
+            style={{ boxShadow: '2px 2px 0px hsl(20 10% 5%)' }}
           >
             {mobileMenuOpen ? (
               <X className="w-6 h-6" />
@@ -69,13 +66,13 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Navigation - Workshop panel */}
       {mobileMenuOpen && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="md:hidden border-t border-border bg-card"
+          className="md:hidden border-t-2 border-border bg-card"
         >
           <nav className="container mx-auto px-4 py-4 space-y-1">
             {navItems.map((item) => (
@@ -84,11 +81,12 @@ const Header = () => {
                 to={item.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  'block px-4 py-3 rounded-lg font-medium uppercase tracking-wider text-xs transition-colors',
+                  'block px-4 py-3 font-bold uppercase tracking-[0.15em] text-xs transition-all border-2',
                   location.pathname === item.path
-                    ? 'bg-primary text-primary-foreground shadow-glow'
-                    : 'text-text-secondary hover:bg-secondary hover:text-secondary-foreground'
+                    ? 'bg-primary text-primary-foreground border-foreground'
+                    : 'text-text-secondary hover:bg-secondary hover:text-secondary-foreground border-transparent hover:border-border'
                 )}
+                style={location.pathname === item.path ? { boxShadow: '3px 3px 0px hsl(20 10% 5%)' } : {}}
               >
                 {item.label}
               </Link>
