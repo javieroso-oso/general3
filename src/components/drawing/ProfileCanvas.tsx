@@ -12,6 +12,17 @@ interface ProfileCanvasProps {
   height?: number;
 }
 
+// Fixed colors - Fabric.js doesn't support CSS variables
+const COLORS = {
+  background: '#f4f4f5',
+  grid: '#e4e4e7',
+  axis: '#3b82f6',
+  stroke: '#18181b',
+  primary: '#3b82f6',
+  primaryForeground: '#ffffff',
+  eraser: '#f4f4f5',
+};
+
 const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
@@ -19,9 +30,10 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
   const [brushWidth, setBrushWidth] = useState(3);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const isLoadingFromHistory = useRef(false);
 
-  const axisX = width / 3; // Axis position
-  const scale = 2; // Pixels per mm
+  const axisX = width / 3;
+  const scale = 2;
 
   // Initialize canvas
   useEffect(() => {
@@ -30,13 +42,13 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
     const canvas = new FabricCanvas(canvasRef.current, {
       width,
       height,
-      backgroundColor: 'hsl(var(--muted))',
+      backgroundColor: COLORS.background,
       selection: false,
     });
 
     // Draw axis line
     const axisLine = new Line([axisX, 0, axisX, height], {
-      stroke: 'hsl(var(--primary))',
+      stroke: COLORS.axis,
       strokeWidth: 2,
       selectable: false,
       evented: false,
@@ -47,17 +59,19 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
     // Draw grid
     const gridSpacing = 20;
     for (let x = 0; x < width; x += gridSpacing) {
-      const line = new Line([x, 0, x, height], {
-        stroke: 'hsl(var(--border))',
-        strokeWidth: x === axisX ? 0 : 0.5,
-        selectable: false,
-        evented: false,
-      });
-      canvas.add(line);
+      if (x !== axisX) {
+        const line = new Line([x, 0, x, height], {
+          stroke: COLORS.grid,
+          strokeWidth: 0.5,
+          selectable: false,
+          evented: false,
+        });
+        canvas.add(line);
+      }
     }
     for (let y = 0; y < height; y += gridSpacing) {
       const line = new Line([0, y, width, y], {
-        stroke: 'hsl(var(--border))',
+        stroke: COLORS.grid,
         strokeWidth: 0.5,
         selectable: false,
         evented: false,
@@ -67,10 +81,15 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
 
     // Initialize brush
     canvas.freeDrawingBrush = new PencilBrush(canvas);
-    canvas.freeDrawingBrush.color = 'hsl(var(--foreground))';
+    canvas.freeDrawingBrush.color = COLORS.stroke;
     canvas.freeDrawingBrush.width = brushWidth;
 
     setFabricCanvas(canvas);
+
+    // Save initial state to history
+    const initialState = JSON.stringify(canvas.toJSON());
+    setHistory([initialState]);
+    setHistoryIndex(0);
 
     return () => {
       canvas.dispose();
@@ -86,8 +105,8 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
     if (fabricCanvas.freeDrawingBrush) {
       fabricCanvas.freeDrawingBrush.width = brushWidth;
       fabricCanvas.freeDrawingBrush.color = activeTool === 'eraser' 
-        ? 'hsl(var(--muted))' 
-        : 'hsl(var(--foreground))';
+        ? COLORS.eraser 
+        : COLORS.stroke;
     }
   }, [activeTool, brushWidth, fabricCanvas]);
 
@@ -108,8 +127,6 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
             const x = cmd[cmd.length - 2];
             const y = cmd[cmd.length - 1];
             
-            // Convert canvas coords to profile coords
-            // Only include points to the right of axis
             if (x > axisX) {
               points.push({
                 x: (x - axisX) / scale,
@@ -150,21 +167,26 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
     if (!fabricCanvas) return;
 
     const handleChange = () => {
+      if (isLoadingFromHistory.current) return;
+      
       extractProfile();
+      
       // Save to history
       const json = JSON.stringify(fabricCanvas.toJSON());
-      setHistory(prev => [...prev.slice(0, historyIndex + 1), json]);
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(json);
+        return newHistory;
+      });
       setHistoryIndex(prev => prev + 1);
     };
 
     fabricCanvas.on('path:created', handleChange);
     fabricCanvas.on('object:modified', handleChange);
-    fabricCanvas.on('object:added', handleChange);
 
     return () => {
       fabricCanvas.off('path:created', handleChange);
       fabricCanvas.off('object:modified', handleChange);
-      fabricCanvas.off('object:added', handleChange);
     };
   }, [fabricCanvas, extractProfile, historyIndex]);
 
@@ -176,14 +198,14 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
       if (activeTool !== 'pen') return;
       
       const pointer = fabricCanvas.getPointer(e.e);
-      if (pointer.x <= axisX) return; // Only allow points to right of axis
+      if (pointer.x <= axisX) return;
 
       const circle = new Circle({
         left: pointer.x,
         top: pointer.y,
-        radius: 5,
-        fill: 'hsl(var(--primary))',
-        stroke: 'hsl(var(--primary-foreground))',
+        radius: 6,
+        fill: COLORS.primary,
+        stroke: COLORS.primaryForeground,
         strokeWidth: 2,
         originX: 'center',
         originY: 'center',
@@ -192,14 +214,23 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
       });
 
       fabricCanvas.add(circle);
+      
+      // Manually trigger history save after adding point
       extractProfile();
+      const json = JSON.stringify(fabricCanvas.toJSON());
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(json);
+        return newHistory;
+      });
+      setHistoryIndex(prev => prev + 1);
     };
 
     fabricCanvas.on('mouse:down', handleClick);
     return () => {
       fabricCanvas.off('mouse:down', handleClick);
     };
-  }, [fabricCanvas, activeTool, axisX, extractProfile]);
+  }, [fabricCanvas, activeTool, axisX, extractProfile, historyIndex]);
 
   const handleClear = () => {
     if (!fabricCanvas) return;
@@ -210,26 +241,55 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
     objects.forEach(obj => fabricCanvas.remove(obj));
     fabricCanvas.renderAll();
     onProfileChange([]);
+    
+    // Save cleared state to history
+    const json = JSON.stringify(fabricCanvas.toJSON());
+    setHistory(prev => [...prev.slice(0, historyIndex + 1), json]);
+    setHistoryIndex(prev => prev + 1);
   };
 
   const handleUndo = () => {
     if (historyIndex <= 0 || !fabricCanvas) return;
+    
     const newIndex = historyIndex - 1;
-    fabricCanvas.loadFromJSON(JSON.parse(history[newIndex]), () => {
-      fabricCanvas.renderAll();
-      setHistoryIndex(newIndex);
-      extractProfile();
-    });
+    const historyState = history[newIndex];
+    
+    if (!historyState) return;
+    
+    try {
+      isLoadingFromHistory.current = true;
+      fabricCanvas.loadFromJSON(JSON.parse(historyState), () => {
+        fabricCanvas.renderAll();
+        setHistoryIndex(newIndex);
+        extractProfile();
+        isLoadingFromHistory.current = false;
+      });
+    } catch (error) {
+      console.error('Error loading history:', error);
+      isLoadingFromHistory.current = false;
+    }
   };
 
   const handleRedo = () => {
     if (historyIndex >= history.length - 1 || !fabricCanvas) return;
+    
     const newIndex = historyIndex + 1;
-    fabricCanvas.loadFromJSON(JSON.parse(history[newIndex]), () => {
-      fabricCanvas.renderAll();
-      setHistoryIndex(newIndex);
-      extractProfile();
-    });
+    const historyState = history[newIndex];
+    
+    if (!historyState) return;
+    
+    try {
+      isLoadingFromHistory.current = true;
+      fabricCanvas.loadFromJSON(JSON.parse(historyState), () => {
+        fabricCanvas.renderAll();
+        setHistoryIndex(newIndex);
+        extractProfile();
+        isLoadingFromHistory.current = false;
+      });
+    } catch (error) {
+      console.error('Error loading history:', error);
+      isLoadingFromHistory.current = false;
+    }
   };
 
   return (
@@ -292,13 +352,13 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
       )}
 
       {/* Canvas */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden bg-muted">
         <canvas ref={canvasRef} />
       </div>
 
       {/* Instructions */}
       <p className="text-xs text-muted-foreground">
-        Draw your profile to the right of the dashed axis line. The shape will be revolved around the axis to create a 3D object.
+        Draw your profile to the right of the blue dashed axis line. The shape will be transformed based on the selected generation mode.
       </p>
     </div>
   );
