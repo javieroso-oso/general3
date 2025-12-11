@@ -21,8 +21,8 @@
     --primary: 217 100% 50%;
     --primary-foreground: 0 0% 100%;
 
-    /* Hot Magenta - Secondary */
-    --secondary: 330 100% 50%;
+    /* Electric Green - Secondary */
+    --secondary: 140 100% 45%;
     --secondary-foreground: 0 0% 100%;
 
     /* Light gray for muted elements */
@@ -47,9 +47,9 @@
     --electric-blue-light: 217 100% 60%;
     --electric-blue-dark: 217 100% 40%;
     
-    --hot-magenta: 330 100% 50%;
-    --hot-magenta-light: 330 100% 60%;
-    --hot-magenta-dark: 330 100% 40%;
+    --electric-green: 140 100% 45%;
+    --electric-green-light: 140 100% 55%;
+    --electric-green-dark: 140 100% 35%;
     
     --cyber-yellow: 50 100% 50%;
     --cyber-yellow-light: 50 100% 60%;
@@ -57,7 +57,7 @@
 
     /* Colored shadows */
     --shadow-blue: 0 8px 24px -4px hsl(217 100% 50% / 0.3);
-    --shadow-magenta: 0 8px 24px -4px hsl(330 100% 50% / 0.3);
+    --shadow-green: 0 8px 24px -4px hsl(140 100% 45% / 0.3);
     --shadow-yellow: 0 8px 24px -4px hsl(50 100% 50% / 0.4);
     --shadow-soft: 0 4px 16px -2px hsl(230 25% 15% / 0.08);
     --shadow-lifted: 0 12px 32px -8px hsl(230 25% 15% / 0.12);
@@ -195,13 +195,13 @@
   /* Gradient text */
   .gradient-text {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--hot-magenta)));
+    background-image: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--electric-green)));
   }
   
   /* Gradient border */
   .gradient-border {
     @apply relative rounded-xl;
-    background: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--hot-magenta)), hsl(var(--cyber-yellow)));
+    background: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--electric-green)), hsl(var(--cyber-yellow)));
     padding: 2px;
   }
   
@@ -214,7 +214,7 @@
     @apply bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-semibold;
   }
   
-  .badge-magenta {
+  .badge-green {
     @apply bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-semibold;
   }
   
@@ -253,7 +253,7 @@
   
   /* Gradient backgrounds */
   .bg-gradient-vibrant {
-    background: linear-gradient(135deg, hsl(var(--electric-blue) / 0.1), hsl(var(--hot-magenta) / 0.1), hsl(var(--cyber-yellow) / 0.1));
+    background: linear-gradient(135deg, hsl(var(--electric-blue) / 0.1), hsl(var(--electric-green) / 0.1), hsl(var(--cyber-yellow) / 0.1));
   }
 }
 
