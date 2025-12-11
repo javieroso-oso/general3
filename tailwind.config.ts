@@ -14,8 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Outfit", "system-ui", "sans-serif"],
-        display: ["Outfit", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -61,10 +62,15 @@ export default {
           secondary: "hsl(var(--text-secondary))",
           muted: "hsl(var(--text-muted))",
         },
-        "accent-blue": {
-          DEFAULT: "hsl(var(--accent-blue))",
-          light: "hsl(var(--accent-blue-light))",
-          dark: "hsl(var(--accent-blue-dark))",
+        "accent-lime": {
+          DEFAULT: "hsl(var(--accent-lime))",
+          light: "hsl(var(--accent-lime-light))",
+          dark: "hsl(var(--accent-lime-dark))",
+        },
+        "accent-violet": {
+          DEFAULT: "hsl(var(--accent-violet))",
+          light: "hsl(var(--accent-violet-light))",
+          dark: "hsl(var(--accent-violet-dark))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
@@ -81,13 +87,14 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-        "2xl": "1rem",
-        "3xl": "1.5rem",
+        "2xl": "0.75rem",
+        "3xl": "1rem",
       },
       boxShadow: {
         soft: "var(--shadow-soft)",
         medium: "var(--shadow-medium)",
         large: "var(--shadow-large)",
+        glow: "var(--shadow-glow)",
       },
       keyframes: {
         "accordion-down": {
@@ -110,6 +117,10 @@ export default {
           "0%": { opacity: "0", transform: "scale(0.95)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        "glow-pulse": {
+          "0%, 100%": { boxShadow: "0 0 20px hsl(68 100% 50% / 0.2)" },
+          "50%": { boxShadow: "0 0 40px hsl(68 100% 50% / 0.4)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -117,6 +128,7 @@ export default {
         "fade-in": "fade-in 0.5s ease-out",
         "slide-in-right": "slide-in-right 0.4s ease-out",
         "scale-in": "scale-in 0.3s ease-out",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
       },
     },
   },

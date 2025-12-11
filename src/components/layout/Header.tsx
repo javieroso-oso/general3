@@ -17,16 +17,16 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
               <Box className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-lg hidden sm:block">
-              Parametric 3D Generator
+            <span className="font-semibold text-lg hidden sm:block text-card-foreground">
+              <span className="text-primary">P3D</span> Generator
             </span>
           </Link>
 
@@ -37,16 +37,16 @@ const Header = () => {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'relative px-4 py-2 text-sm font-medium transition-colors duration-200',
+                  'relative px-4 py-2 text-xs font-medium uppercase tracking-wider transition-colors duration-200',
                   location.pathname === item.path
                     ? 'text-primary'
-                    : 'text-text-secondary hover:text-foreground'
+                    : 'text-text-secondary hover:text-card-foreground'
                 )}
               >
                 {location.pathname === item.path && (
                   <motion.div
                     layoutId="navIndicator"
-                    className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full"
+                    className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full shadow-glow"
                     transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
                   />
                 )}
@@ -58,7 +58,7 @@ const Header = () => {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
+            className="md:hidden p-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
           >
             {mobileMenuOpen ? (
               <X className="w-6 h-6" />
@@ -75,7 +75,7 @@ const Header = () => {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="md:hidden border-t border-border bg-background"
+          className="md:hidden border-t border-border bg-card"
         >
           <nav className="container mx-auto px-4 py-4 space-y-1">
             {navItems.map((item) => (
@@ -84,10 +84,10 @@ const Header = () => {
                 to={item.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  'block px-4 py-3 rounded-lg font-medium transition-colors',
+                  'block px-4 py-3 rounded-lg font-medium uppercase tracking-wider text-xs transition-colors',
                   location.pathname === item.path
-                    ? 'bg-accent-blue-light text-primary'
-                    : 'text-text-secondary hover:bg-secondary'
+                    ? 'bg-primary text-primary-foreground shadow-glow'
+                    : 'text-text-secondary hover:bg-secondary hover:text-secondary-foreground'
                 )}
               >
                 {item.label}
