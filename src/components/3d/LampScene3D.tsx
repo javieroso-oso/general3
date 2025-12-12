@@ -1,50 +1,100 @@
 import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment } from '@react-three/drei';
-import LampMesh from './LampMesh';
+import ShadeMesh from './ShadeMesh';
+import StandMesh from './StandMesh';
 import SocketMesh from './SocketMesh';
 import BulbMesh from './BulbMesh';
-import { LampParams, LampHardware } from '@/types/lamp';
+import { LampParams, LampHardware, StandParams, getSocketHolderDimensions } from '@/types/lamp';
 
 interface LampScene3DProps {
   params: LampParams;
   hardware: LampHardware;
+  standParams: StandParams;
   showWireframe?: boolean;
   showSocket?: boolean;
   showBulb?: boolean;
   showHeatZone?: boolean;
+  showStand?: boolean;
+  showShade?: boolean;
   previewInstalled?: boolean;
 }
 
-// Get rotation for installed view based on lamp style
-const getInstalledRotation = (lampStyle: string): [number, number, number] => {
-  switch (lampStyle) {
-    case 'pendant':
-      return [Math.PI, 0, 0]; // Flip 180° - opening faces down
-    case 'wall_sconce':
-      return [-Math.PI / 2, 0, 0]; // Rotate 90° on X - opening faces outward
-    case 'standing':
+// Get rotation for installed view based on stand type
+const getInstalledRotation = (standType: string): [number, number, number] => {
+  switch (standType) {
+    case 'pendant_cord':
+      return [Math.PI, 0, 0]; // Flip 180° - shade hangs below
+    case 'wall_arm':
+      return [0, 0, 0]; // Wall mount - no rotation needed
+    case 'tripod':
     default:
-      return [0, 0, 0]; // Standing stays upright
+      return [0, 0, 0]; // Table lamp stays upright
+  }
+};
+
+// Calculate shade position relative to stand
+const getShadePosition = (standParams: StandParams, shadeHeight: number): [number, number, number] => {
+  const scale = 0.01;
+  
+  switch (standParams.type) {
+    case 'tripod':
+      // Shade sits on top of tripod rim ring
+      return [0, standParams.height * scale, 0];
+    case 'pendant_cord':
+      // Shade hangs from pendant bracket
+      const socketHolder = getSocketHolderDimensions(standParams.socketType);
+      return [0, (standParams.height - socketHolder.height - 5) * scale, 0];
+    case 'wall_arm':
+      // Shade sits on wall arm socket holder
+      const armAngleRad = (standParams.armAngle * Math.PI) / 180;
+      const armEndZ = standParams.armLength * Math.cos(armAngleRad);
+      const armEndY = standParams.backplateHeight / 2 + standParams.armLength * Math.sin(armAngleRad);
+      const wallSocketHolder = getSocketHolderDimensions(standParams.socketType);
+      return [0, (armEndY - wallSocketHolder.height - 5) * scale, armEndZ * scale];
+    default:
+      return [0, 0, 0];
+  }
+};
+
+// Calculate socket/bulb position in stand
+const getSocketPosition = (standParams: StandParams): number => {
+  switch (standParams.type) {
+    case 'tripod':
+      return standParams.height - 20;
+    case 'pendant_cord':
+      return standParams.height - 30;
+    case 'wall_arm':
+      const armAngleRad = (standParams.armAngle * Math.PI) / 180;
+      return standParams.backplateHeight / 2 + standParams.armLength * Math.sin(armAngleRad) - 30;
+    default:
+      return 100;
   }
 };
 
 const LampScene3D = ({
   params,
   hardware,
+  standParams,
   showWireframe = false,
   showSocket = true,
   showBulb = true,
   showHeatZone = true,
+  showStand = true,
+  showShade = true,
   previewInstalled = false,
 }: LampScene3DProps) => {
   // Camera target at lamp center
   const cameraTarget: [number, number, number] = [0, params.height * 0.005, 0];
   
-  // Get rotation based on preview mode and lamp style
+  // Get rotation based on preview mode and stand type
   const installedRotation = previewInstalled 
-    ? getInstalledRotation(hardware.lampStyle) 
+    ? getInstalledRotation(hardware.standType) 
     : [0, 0, 0] as [number, number, number];
+  
+  // Calculate shade position on stand
+  const shadePosition = getShadePosition(standParams, params.height);
+  const socketMountingHeight = getSocketPosition(standParams);
 
   return (
     <Canvas
@@ -76,19 +126,29 @@ const LampScene3D = ({
           followCamera={false}
         />
         
-        {/* Lamp group with installed rotation */}
+        {/* Lamp assembly with installed rotation */}
         <group rotation={installedRotation}>
-          {/* Unified lamp mesh - shade with integrated hardware accommodation */}
-          <LampMesh
-            params={params}
-            hardware={hardware}
+          {/* Stand (structural frame with socket holder) */}
+          <StandMesh
+            params={standParams}
             showWireframe={showWireframe}
+            visible={showStand}
           />
           
-          {/* Socket ghost visualization */}
+          {/* Shade (purely decorative, rests on stand) */}
+          {showShade && (
+            <group position={shadePosition}>
+              <ShadeMesh
+                params={params}
+                showWireframe={showWireframe}
+              />
+            </group>
+          )}
+          
+          {/* Socket ghost visualization (in stand) */}
           <SocketMesh
             socketType={hardware.socketType}
-            mountingHeight={params.socketMountingHeight}
+            mountingHeight={socketMountingHeight}
             visible={showSocket}
           />
           
@@ -96,7 +156,7 @@ const LampScene3D = ({
           <BulbMesh
             bulbShape={hardware.bulbShape}
             socketType={hardware.socketType}
-            mountingHeight={params.socketMountingHeight}
+            mountingHeight={socketMountingHeight}
             wattage={hardware.bulbWattage}
             showHeatZone={showHeatZone}
             visible={showBulb}

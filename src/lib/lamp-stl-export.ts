@@ -1,15 +1,9 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { 
-  LampParams, 
-  LampHardware, 
-  socketDimensions, 
-  threadedRingSpecs,
-  getMountingDimensions,
-  MountingDimensions,
-} from '@/types/lamp';
+import { LampParams, StandParams } from '@/types/lamp';
+import { generateStandGeometry } from './stand-generators';
 
-// Simple 3D noise function (same as LampMesh)
+// Simple 3D noise function
 const seededRandom = (x: number, y: number, z: number): number => {
   const dot = x * 12.9898 + y * 78.233 + z * 37.719;
   return (Math.sin(dot) * 43758.5453) % 1;
@@ -42,21 +36,10 @@ const noise3D = (x: number, y: number, z: number): number => {
   return j1 * (1 - fracZ) + j2 * fracZ;
 };
 
-export interface LampExportParts {
-  shade: THREE.BufferGeometry;
-  backplate?: THREE.BufferGeometry;
-}
-
-export interface ExportOptions {
-  format: 'single' | 'multi';
-  includeBackplate: boolean;
-}
-
-// Generate shade geometry with functional mounting features
-export function generateShadeGeometry(
-  params: LampParams,
-  hardware: LampHardware
-): THREE.BufferGeometry {
+// ============================================
+// SHADE GEOMETRY (Akari-style decorative shell)
+// ============================================
+export function generateShadeGeometry(params: LampParams): THREE.BufferGeometry {
   const radialSegments = 64;
   const positions: number[] = [];
   const indices: number[] = [];
@@ -66,16 +49,13 @@ export function generateShadeGeometry(
     wobbleFrequency, wobbleAmplitude, twistAngle,
     bulgePosition, bulgeAmount, pinchAmount,
     rippleCount, rippleDepth, lipFlare, lipHeight,
-    organicNoise,
+    organicNoise, asymmetry,
+    shade,
   } = params;
   
-  const socket = socketDimensions[hardware.socketType];
-  const mounting = getMountingDimensions(hardware.socketType, hardware.mountType, hardware.mountTolerance);
-  const cordHoleRadius = hardware.cordDiameter / 2 + 2;
-  
-  const isStanding = hardware.lampStyle === 'standing';
-  const isPendant = hardware.lampStyle === 'pendant';
-  const isWallSconce = hardware.lampStyle === 'wall_sconce';
+  const rimRadius = shade.rimDiameter / 2;
+  const rimLipHeight = shade.rimLipHeight;
+  const rimThickness = shade.rimThickness;
   
   // Apply organic deformations
   const getOrganicRadius = (baseR: number, t: number, theta: number): number => {
@@ -89,6 +69,11 @@ export function generateShadeGeometry(
     if (rippleCount > 0 && rippleDepth > 0) {
       const maxRipple = Math.min(rippleDepth, 0.1);
       r += Math.sin(theta * rippleCount) * maxRipple * baseRadius;
+    }
+    
+    if (asymmetry > 0) {
+      const maxAsym = Math.min(asymmetry, 0.1);
+      r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * baseRadius;
     }
     
     if (organicNoise > 0) {
@@ -117,25 +102,8 @@ export function generateShadeGeometry(
     const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
     radiusAtHeight += lipT * lipT * lipFlare * baseRadius;
     
-    if (isStanding) {
-      radiusAtHeight *= 1 + 0.08 * Math.pow(1 - t, 2);
-    } else if (isPendant) {
-      radiusAtHeight *= 1 - 0.05 * t * t;
-    } else if (isWallSconce) {
-      const domeShape = Math.sin(t * Math.PI * 0.9);
-      radiusAtHeight = radiusAtHeight * (0.5 + domeShape * 0.5);
-    }
-    
     return Math.max(radiusAtHeight, 10);
   };
-  
-  // Mounting geometry dimensions
-  const mountHoleRadius = mounting.holeDiameter / 2;
-  const mountLipInnerRadius = mounting.lipInnerDiameter / 2;
-  const mountLipDepth = mounting.lipDepth;
-  const mountCollarHeight = 12;
-  const mountZoneHeight = mountLipDepth + 5;
-  const mountStartY = height - mountZoneHeight;
   
   // Build profile
   interface ProfilePoint {
@@ -148,114 +116,47 @@ export function generateShadeGeometry(
   const profile: ProfilePoint[] = [];
   const heightSegments = 64;
   
-  if (isWallSconce) {
-    // Wall sconce with mounting ledge
-    for (let i = 0; i <= heightSegments; i++) {
-      const t = i / heightSegments;
-      const y = t * height * 0.8;
-      const shadeR = getShadeRadius(t);
-      let innerR = shadeR - wallThickness;
+  // Main shade body
+  for (let i = 0; i <= heightSegments; i++) {
+    const t = i / heightSegments;
+    const y = t * height;
+    const shadeR = getShadeRadius(t);
+    const innerR = shadeR - wallThickness;
+    
+    profile.push({
+      y,
+      outerR: shadeR,
+      innerR: Math.max(innerR, 5),
+      applyDeformations: true,
+    });
+  }
+  
+  // Rim lip at bottom
+  if (rimLipHeight > 0) {
+    const lipSteps = 4;
+    const bottomR = getShadeRadius(0);
+    
+    for (let i = 1; i <= lipSteps; i++) {
+      const t = i / lipSteps;
+      const y = -rimLipHeight * t;
       
-      if (y > mountStartY * 0.8) {
-        const mountT = (y - mountStartY * 0.8) / (height * 0.8 - mountStartY * 0.8);
-        if (mountT < 0.3) {
-          const blend = mountT / 0.3;
-          innerR = innerR * (1 - blend) + mountHoleRadius * blend;
-        } else if (mountT < 0.6) {
-          innerR = mountHoleRadius;
-        } else {
-          innerR = mountLipInnerRadius;
-        }
-      }
+      const lipProgress = t;
+      const outerR = bottomR * (1 - lipProgress * 0.1);
+      const targetInnerR = rimRadius - rimThickness;
+      const innerR = (bottomR - wallThickness) * (1 - lipProgress) + targetInnerR * lipProgress;
       
-      profile.push({
+      profile.unshift({
         y,
-        outerR: shadeR,
-        innerR: Math.max(innerR, mountLipInnerRadius),
-        applyDeformations: y < mountStartY * 0.8,
-      });
-    }
-  } else {
-    // Pendant or Standing with stepped mounting profile
-    if (isStanding) {
-      profile.push({ y: 0, outerR: getShadeRadius(0), innerR: cordHoleRadius, applyDeformations: true });
-    }
-    
-    // Main shade body
-    const mainBodySegments = Math.floor(heightSegments * 0.85);
-    for (let i = isStanding ? 1 : 0; i <= mainBodySegments; i++) {
-      const t = i / heightSegments;
-      const y = t * height;
-      const shadeR = getShadeRadius(t);
-      const innerR = shadeR - wallThickness;
-      
-      profile.push({ y, outerR: shadeR, innerR: Math.max(innerR, 5), applyDeformations: true });
-    }
-    
-    // Mounting zone with stepped profile
-    const mountZoneSegments = 10;
-    const shadeTopR = getShadeRadius(1);
-    const shadeTopInnerR = shadeTopR - wallThickness;
-    const mountOuterR = Math.max(mountHoleRadius + wallThickness * 2, shadeTopR * 0.6);
-    
-    for (let i = 1; i <= mountZoneSegments; i++) {
-      const t = i / mountZoneSegments;
-      const y = mountStartY + t * mountZoneHeight;
-      
-      let outerR: number;
-      let innerR: number;
-      
-      if (t < 0.2) {
-        const blend = t / 0.2;
-        outerR = shadeTopR * (1 - blend) + mountOuterR * blend;
-        innerR = shadeTopInnerR * (1 - blend) + mountHoleRadius * blend;
-      } else if (t < 0.5) {
-        outerR = mountOuterR;
-        innerR = mountHoleRadius;
-      } else if (t < 0.8) {
-        const blend = (t - 0.5) / 0.3;
-        outerR = mountOuterR;
-        innerR = mountHoleRadius * (1 - blend) + mountLipInnerRadius * blend;
-      } else {
-        outerR = mountOuterR;
-        innerR = mountLipInnerRadius;
-      }
-      
-      profile.push({
-        y,
-        outerR: Math.max(outerR, mountLipInnerRadius + wallThickness),
-        innerR: Math.max(innerR, mountLipInnerRadius),
+        outerR: Math.max(outerR, innerR + rimThickness),
+        innerR: Math.max(innerR, rimRadius - rimThickness),
         applyDeformations: false,
       });
-    }
-    
-    // Collar extension
-    if (isPendant || isStanding) {
-      const collarSteps = 6;
-      for (let i = 1; i <= collarSteps; i++) {
-        const t = i / collarSteps;
-        const y = height + t * mountCollarHeight;
-        const narrowFactor = 1 - t * 0.3;
-        const outerR = (mountLipInnerRadius + wallThickness * 1.5) * narrowFactor;
-        const innerR = t < 0.7 
-          ? mountLipInnerRadius 
-          : mountLipInnerRadius * (1 - (t - 0.7) / 0.3) + cordHoleRadius * ((t - 0.7) / 0.3);
-        
-        profile.push({
-          y,
-          outerR: Math.max(outerR, innerR + wallThickness),
-          innerR: Math.max(innerR, cordHoleRadius),
-          applyDeformations: false,
-        });
-      }
     }
   }
   
   // Generate vertices
   const twistRate = (twistAngle * Math.PI / 180) / height;
-  const thetaStart = isWallSconce ? -Math.PI / 2 : 0;
-  const thetaEnd = isWallSconce ? Math.PI / 2 : Math.PI * 2;
-  const thetaRange = thetaEnd - thetaStart;
+  const minY = profile[0].y;
   
   for (let layer = 0; layer <= 1; layer++) {
     const isInner = layer === 1;
@@ -263,14 +164,13 @@ export function generateShadeGeometry(
     for (let p = 0; p < profile.length; p++) {
       const point = profile[p];
       const t = point.y / Math.max(height, 1);
-      const twistAtHeight = twistRate * Math.min(point.y, height);
+      const twistAtHeight = point.y > 0 ? twistRate * point.y : 0;
       
       for (let x = 0; x <= radialSegments; x++) {
-        const theta = thetaStart + (x / radialSegments) * thetaRange + twistAtHeight;
+        const theta = (x / radialSegments) * Math.PI * 2 + twistAtHeight;
         let r = isInner ? point.innerR : point.outerR;
         
-        // Only apply organic deformations where flagged
-        if (point.applyDeformations && point.y <= height) {
+        if (point.applyDeformations && point.y >= 0) {
           r = getOrganicRadius(r, t, theta);
         }
         
@@ -324,74 +224,17 @@ export function generateShadeGeometry(
     indices.push(b, d, c);
   }
   
-  // Connect bottom rim (open shades)
-  if (!isStanding && profile[0].innerR > 0) {
-    const outerBottomStart = 0;
-    const innerBottomStart = innerOffset;
-    for (let x = 0; x < radialSegments; x++) {
-      const a = outerBottomStart + x;
-      const b = outerBottomStart + x + 1;
-      const c = innerBottomStart + x;
-      const d = innerBottomStart + x + 1;
-      
-      indices.push(a, c, b);
-      indices.push(b, c, d);
-    }
-  }
-  
-  // Bottom cap for standing lamps
-  if (isStanding) {
-    const bottomY = 0;
-    const baseCenterIdx = positions.length / 3;
-    positions.push(0, bottomY, 0);
+  // Connect bottom rim
+  const outerBottomStart = 0;
+  const innerBottomStart = innerOffset;
+  for (let x = 0; x < radialSegments; x++) {
+    const a = outerBottomStart + x;
+    const b = outerBottomStart + x + 1;
+    const c = innerBottomStart + x;
+    const d = innerBottomStart + x + 1;
     
-    const bottomOuterR = profile[0].outerR;
-    const bottomInnerR = profile[0].innerR;
-    
-    // Outer ring vertices
-    for (let x = 0; x <= radialSegments; x++) {
-      const theta = (x / radialSegments) * Math.PI * 2;
-      positions.push(Math.cos(theta) * bottomOuterR, bottomY, Math.sin(theta) * bottomOuterR);
-    }
-    
-    // Inner ring vertices (cord hole)
-    const innerRingStart = baseCenterIdx + 1 + radialSegments + 1;
-    for (let x = 0; x <= radialSegments; x++) {
-      const theta = (x / radialSegments) * Math.PI * 2;
-      positions.push(Math.cos(theta) * bottomInnerR, bottomY, Math.sin(theta) * bottomInnerR);
-    }
-    
-    // Create bottom face with hole (ring of triangles)
-    for (let x = 0; x < radialSegments; x++) {
-      const outerA = baseCenterIdx + 1 + x;
-      const outerB = baseCenterIdx + 1 + x + 1;
-      const innerA = innerRingStart + x;
-      const innerB = innerRingStart + x + 1;
-      
-      indices.push(outerA, outerB, innerB);
-      indices.push(outerA, innerB, innerA);
-    }
-  }
-  
-  // Wall sconce flat back
-  if (isWallSconce) {
-    for (let p = 0; p < profileCount - 1; p++) {
-      const outerLeft1 = p * verticesPerRing;
-      const outerLeft2 = (p + 1) * verticesPerRing;
-      const innerLeft1 = innerOffset + p * verticesPerRing;
-      const innerLeft2 = innerOffset + (p + 1) * verticesPerRing;
-      
-      indices.push(outerLeft1, innerLeft1, outerLeft2);
-      indices.push(innerLeft1, innerLeft2, outerLeft2);
-      
-      const outerRight1 = p * verticesPerRing + radialSegments;
-      const outerRight2 = (p + 1) * verticesPerRing + radialSegments;
-      const innerRight1 = innerOffset + p * verticesPerRing + radialSegments;
-      const innerRight2 = innerOffset + (p + 1) * verticesPerRing + radialSegments;
-      
-      indices.push(outerRight1, outerRight2, innerRight1);
-      indices.push(innerRight1, outerRight2, innerRight2);
-    }
+    indices.push(a, c, b);
+    indices.push(b, c, d);
   }
   
   const geometry = new THREE.BufferGeometry();
@@ -402,46 +245,18 @@ export function generateShadeGeometry(
   return geometry;
 }
 
-// Generate backplate for wall sconce
-export function generateBackplateGeometry(
-  params: LampParams
-): THREE.BufferGeometry {
-  const width = params.mounting.backplateWidth;
-  const height = params.mounting.backplateHeight;
-  const thickness = 4; // mm
-  const holeRadius = 3; // mm for mounting screws
-  const holeOffset = 15; // mm from edge
-  
-  const geometry = new THREE.BoxGeometry(width, height, thickness);
-  
-  // Note: For a proper implementation, we'd subtract holes
-  // This is a simplified version - holes would be added via CSG
-  
-  return geometry;
+// Export shade STL
+export function exportShadeSTL(params: LampParams): Blob {
+  const geometry = generateShadeGeometry(params);
+  const exporter = new STLExporter();
+  const mesh = new THREE.Mesh(geometry);
+  const stlString = exporter.parse(mesh, { binary: false });
+  return new Blob([stlString], { type: 'model/stl' });
 }
 
-// Generate all lamp parts
-export function generateLampParts(
-  params: LampParams,
-  hardware: LampHardware
-): LampExportParts {
-  const parts: LampExportParts = {
-    shade: generateShadeGeometry(params, hardware),
-  };
-  
-  if (hardware.lampStyle === 'wall_sconce') {
-    parts.backplate = generateBackplateGeometry(params);
-  }
-  
-  return parts;
-}
-
-// Export single STL
-export function exportShadeSTL(
-  params: LampParams,
-  hardware: LampHardware
-): Blob {
-  const geometry = generateShadeGeometry(params, hardware);
+// Export stand STL
+export function exportStandSTL(params: StandParams): Blob {
+  const geometry = generateStandGeometry(params);
   const exporter = new STLExporter();
   const mesh = new THREE.Mesh(geometry);
   const stlString = exporter.parse(mesh, { binary: false });
@@ -449,12 +264,8 @@ export function exportShadeSTL(
 }
 
 // Download shade STL
-export function downloadShadeSTL(
-  params: LampParams,
-  hardware: LampHardware,
-  filename: string = 'lamp-shade.stl'
-): void {
-  const blob = exportShadeSTL(params, hardware);
+export function downloadShadeSTL(params: LampParams, filename: string = 'shade.stl'): void {
+  const blob = exportShadeSTL(params);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -463,36 +274,27 @@ export function downloadShadeSTL(
   URL.revokeObjectURL(url);
 }
 
-// Download all parts as separate files
+// Download stand STL
+export function downloadStandSTL(params: StandParams, filename: string = 'stand.stl'): void {
+  const blob = exportStandSTL(params);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Download both parts
 export function downloadLampParts(
-  params: LampParams,
-  hardware: LampHardware,
+  shadeParams: LampParams, 
+  standParams: StandParams, 
   baseName: string = 'lamp'
 ): void {
-  const parts = generateLampParts(params, hardware);
-  const exporter = new STLExporter();
+  downloadShadeSTL(shadeParams, `${baseName}-shade.stl`);
   
-  // Download shade
-  const shadeMesh = new THREE.Mesh(parts.shade);
-  const shadeSTL = exporter.parse(shadeMesh, { binary: false });
-  const shadeBlob = new Blob([shadeSTL], { type: 'model/stl' });
-  const shadeUrl = URL.createObjectURL(shadeBlob);
-  const shadeLink = document.createElement('a');
-  shadeLink.href = shadeUrl;
-  shadeLink.download = `${baseName}-shade.stl`;
-  shadeLink.click();
-  URL.revokeObjectURL(shadeUrl);
-  
-  // Download backplate if exists
-  if (parts.backplate) {
-    const backplateMesh = new THREE.Mesh(parts.backplate);
-    const backplateSTL = exporter.parse(backplateMesh, { binary: false });
-    const backplateBlob = new Blob([backplateSTL], { type: 'model/stl' });
-    const backplateUrl = URL.createObjectURL(backplateBlob);
-    const backplateLink = document.createElement('a');
-    backplateLink.href = backplateUrl;
-    backplateLink.download = `${baseName}-backplate.stl`;
-    backplateLink.click();
-    URL.revokeObjectURL(backplateUrl);
-  }
+  // Small delay to prevent browser blocking
+  setTimeout(() => {
+    downloadStandSTL(standParams, `${baseName}-stand.stl`);
+  }, 100);
 }
