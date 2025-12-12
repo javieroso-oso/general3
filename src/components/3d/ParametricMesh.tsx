@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints, rimSpecs } from '@/types/parametric';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -65,6 +65,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       baseRadius,
       topRadius,
       wallThickness,
+      rimSize,
       wobbleFrequency,
       wobbleAmplitude,
       twistAngle,
@@ -88,18 +89,43 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
     const baseH = baseThickness * SCALE;
+    
+    // Standard rim dimensions (scaled)
+    const rimRadius = (rimSize / 2) * SCALE;
+    const rimHeight = rimSpecs.height * SCALE;
+    const lipDepth = rimSpecs.lipDepth * SCALE;
 
     const segments = 64;
     const heightSegments = 64;
 
     const outerVerts: number[] = [];
     const innerVerts: number[] = [];
-    const baseVerts: number[] = [];
 
-    // Generate outer and inner surfaces
+    // Generate standard rim ring at the base (always circular, no deformation)
+    const rimSegments = 32;
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2;
+      
+      // Outer rim edge
+      const outerX = Math.cos(theta) * rimRadius;
+      const outerZ = Math.sin(theta) * rimRadius;
+      
+      // Inner rim edge (with lip)
+      const innerX = Math.cos(theta) * (rimRadius - lipDepth);
+      const innerZ = Math.sin(theta) * (rimRadius - lipDepth);
+      
+      // Add rim vertices (at y=0)
+      outerVerts.push(outerX, 0, outerZ);
+      innerVerts.push(innerX, 0, innerZ);
+    }
+
+    // Generate organic body starting above the rim
+    const bodyStartY = rimHeight;
+    const bodyHeight = h - rimHeight;
+
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
-      const y = t * h;
+      const y = bodyStartY + t * bodyHeight;
 
       // Base profile interpolation
       let radius: number;
@@ -161,6 +187,13 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
+        // At the base of the body (t=0), blend radius to match rim inner edge
+        if (t < 0.1) {
+          const blendT = t / 0.1;
+          const rimInnerRadius = rimRadius - lipDepth;
+          r = rimInnerRadius + (r - rimInnerRadius) * blendT;
+        }
+
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
 
@@ -176,36 +209,26 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
-    // Generate base
-    const baseSegments = 32;
-    for (let i = 0; i <= baseSegments; i++) {
-      const r = (i / baseSegments) * bRad;
-      for (let j = 0; j <= segments; j++) {
-        const theta = (j / segments) * Math.PI * 2;
-        const x = Math.cos(theta) * r;
-        const z = Math.sin(theta) * r;
-        
-        let y = 0;
-        if (baseType === 'rounded' && i > baseSegments * 0.7) {
-          const bt = (i - baseSegments * 0.7) / (baseSegments * 0.3);
-          y = -Math.sqrt(1 - bt * bt) * baseH * 0.3;
-        } else if (baseType === 'pedestal' && i > baseSegments * 0.8) {
-          const bt = (i - baseSegments * 0.8) / (baseSegments * 0.2);
-          y = bt * baseH * 0.5;
-        }
-        
-        baseVerts.push(x, y, z);
-      }
-    }
-
     // Build geometry
     const vertices: number[] = [...outerVerts];
     const indices: number[] = [];
 
-    // Outer surface indices
+    // Rim ring indices (connecting rim to body)
+    const rimRowSize = segments + 1;
+    for (let j = 0; j < segments; j++) {
+      const a = j;
+      const b = j + 1;
+      const c = rimRowSize + j;
+      const d = rimRowSize + j + 1;
+      indices.push(a, c, b);
+      indices.push(b, c, d);
+    }
+
+    // Outer surface indices (body)
+    const bodyOffset = rimRowSize;
     for (let i = 0; i < heightSegments; i++) {
       for (let j = 0; j < segments; j++) {
-        const a = i * (segments + 1) + j;
+        const a = bodyOffset + i * (segments + 1) + j;
         const b = a + 1;
         const c = a + (segments + 1);
         const d = c + 1;

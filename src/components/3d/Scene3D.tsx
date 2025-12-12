@@ -42,11 +42,12 @@ const Scene3D = ({
   const scale = 0.01;
   const standVisible = standParams?.enabled && standParams?.type !== 'none';
   
-  // Calculate stand rim from object base radius
-  const standRimDiameter = standParams ? params.baseRadius * 2 : 0;
-  
-  // Position object on top of stand if stand is enabled
-  const objectYOffset = standVisible && standParams ? standParams.height * scale : 0;
+  // Position object so its rim sits INTO the stand's socket
+  // The socket depth is 5mm, so object drops down by that amount
+  const socketDepth = 5; // from rimSpecs.socketDepth
+  const objectYOffset = standVisible && standParams 
+    ? (standParams.height - socketDepth) * scale 
+    : 0;
   
   return (
     <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-secondary/30 to-secondary/60">
@@ -80,10 +81,7 @@ const Scene3D = ({
               {/* Stand (if enabled) */}
               {standVisible && standParams && (
                 <StandMesh
-                  params={{
-                    ...standParams,
-                    rimDiameter: standRimDiameter,
-                  }}
+                  params={standParams}
                   showWireframe={showWireframe}
                 />
               )}

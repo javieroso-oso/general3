@@ -40,7 +40,10 @@ const Index = () => {
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
-    setParams(defaultParams[type]);
+    const newParams = defaultParams[type];
+    setParams(newParams);
+    // Sync stand rim size with new object
+    setStandParams(prev => ({ ...prev, rimSize: newParams.rimSize }));
   };
 
   const analysis = useMemo(() => 
@@ -82,17 +85,19 @@ const Index = () => {
       return;
     }
     
-    const filename = `stand_${standParams.type}_${Date.now()}.stl`;
+    if (standParams.rimSize !== params.rimSize) {
+      toast.warning('Stand rim size differs from object rim size', {
+        description: 'The parts may not fit together perfectly.',
+      });
+    }
     
-    // Pass stand params with calculated rim diameter
-    downloadStandSTL({
-      ...standParams,
-      rimDiameter: params.baseRadius * 2,
-    }, filename);
+    const filename = `stand_${standParams.type}_rim${standParams.rimSize}mm_${Date.now()}.stl`;
+    
+    downloadStandSTL(standParams, filename);
     toast.success('Stand STL exported!', {
       description: filename,
     });
-  }, [standParams, params.baseRadius]);
+  }, [standParams, params.rimSize]);
 
   return (
     <Layout showFooter={false}>
@@ -144,7 +149,7 @@ const Index = () => {
               <TabsContent value="stand" className="mt-0 space-y-4">
                 <StandControls
                   params={standParams}
-                  objectBaseRadius={params.baseRadius}
+                  objectRimSize={params.rimSize}
                   onChange={setStandParams}
                 />
               </TabsContent>
