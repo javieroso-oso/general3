@@ -442,3 +442,6 @@ export function downloadGCode(
   
   URL.revokeObjectURL(url);
 }
+
+// Re-export stand STL function from lamp-stl-export
+export { downloadStandSTL } from './lamp-stl-export';

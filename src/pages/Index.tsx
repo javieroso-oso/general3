@@ -8,17 +8,20 @@ import ObjectTypeTabs from '@/components/controls/ObjectTypeTabs';
 import PrintAnalysisPanel from '@/components/controls/PrintAnalysisPanel';
 import PrintSettingsPanel from '@/components/controls/PrintSettingsPanel';
 import BatchGenerator from '@/components/controls/BatchGenerator';
+import StandControls from '@/components/controls/StandControls';
 import { 
   ParametricParams, 
   ObjectType, 
   defaultParams, 
   PrintSettings, 
   defaultPrintSettings,
-  analyzePrint 
+  analyzePrint,
+  StandParams,
+  defaultStandParams,
 } from '@/types/parametric';
-import { downloadSTL, downloadGCode } from '@/lib/stl-export';
+import { downloadSTL, downloadGCode, downloadStandSTL } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, Footprints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -33,6 +36,7 @@ const Index = () => {
   const [gcodeLayer, setGcodeLayer] = useState(0);
   const [gcodeShowAll, setGcodeShowAll] = useState(true);
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
+  const [standParams, setStandParams] = useState<StandParams>(defaultStandParams);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -72,6 +76,42 @@ const Index = () => {
     });
   }, [params, objectType, printSettings, analysis.isValid]);
 
+  const handleExportStand = useCallback(() => {
+    if (!standParams.enabled || standParams.type === 'none') {
+      toast.error('No stand configured');
+      return;
+    }
+    
+    const filename = `stand_${standParams.type}_${Date.now()}.stl`;
+    
+    // Calculate a standard rim size
+    const rimSize = Math.round(params.baseRadius * 2 / 50) * 50 || 150;
+    const standardRim = (rimSize < 125 ? 100 : rimSize < 175 ? 150 : rimSize < 225 ? 200 : 250) as 100 | 150 | 200 | 250;
+    
+    downloadStandSTL({
+      type: standParams.type === 'tripod' ? 'tripod' : 
+            standParams.type === 'pendant' ? 'pendant_cord' : 'wall_arm',
+      socketType: 'E26',
+      rimDiameter: standardRim,
+      height: standParams.height,
+      wallThickness: 3,
+      legCount: standParams.legCount,
+      legSpread: standParams.legSpread,
+      legThickness: 8,
+      socketHolderHeight: 80,
+      cordLength: standParams.cordLength,
+      canopyDiameter: 80,
+      canopyHeight: 25,
+      armLength: standParams.armLength,
+      armAngle: standParams.armAngle,
+      backplateWidth: 100,
+      backplateHeight: 140,
+    } as any, filename);
+    toast.success('Stand STL exported!', {
+      description: filename,
+    });
+  }, [standParams, params.baseRadius]);
+
   return (
     <Layout showFooter={false}>
       <div className="h-[calc(100vh-4rem)] flex flex-col lg:flex-row">
@@ -88,10 +128,14 @@ const Index = () => {
 
           {/* Tabbed Controls */}
           <Tabs defaultValue="design" className="flex-1 flex flex-col">
-            <TabsList className="mx-4 mt-4 grid grid-cols-4">
+            <TabsList className="mx-4 mt-4 grid grid-cols-5">
               <TabsTrigger value="design" className="text-xs gap-1">
                 <Layers className="w-3 h-3" />
                 Design
+              </TabsTrigger>
+              <TabsTrigger value="stand" className="text-xs gap-1">
+                <Footprints className="w-3 h-3" />
+                Stand
               </TabsTrigger>
               <TabsTrigger value="print" className="text-xs gap-1">
                 <Settings2 className="w-3 h-3" />
@@ -112,6 +156,14 @@ const Index = () => {
                   params={params}
                   type={objectType}
                   onParamsChange={setParams}
+                />
+              </TabsContent>
+
+              <TabsContent value="stand" className="mt-0 space-y-4">
+                <StandControls
+                  params={standParams}
+                  objectBaseRadius={params.baseRadius}
+                  onChange={setStandParams}
                 />
               </TabsContent>
 
@@ -192,6 +244,7 @@ const Index = () => {
               gcodeLayer={gcodeLayer}
               gcodeShowAll={gcodeShowAll}
               gcodeAnimate={gcodeAnimate}
+              standParams={standParams}
             />
             
             {/* Dimensions overlay */}
@@ -260,17 +313,28 @@ const Index = () => {
               size="lg"
             >
               <Download className="w-5 h-5" />
-              Export STL
+              Export Object
             </Button>
+            {standParams.enabled && standParams.type !== 'none' && (
+              <Button 
+                onClick={handleExportStand} 
+                variant="outline"
+                className="gap-2"
+                size="lg"
+              >
+                <Footprints className="w-5 h-5" />
+                Export Stand
+              </Button>
+            )}
             <Button 
               onClick={handleExportGCode} 
               disabled={!analysis.isValid}
               variant="secondary"
-              className="flex-1 gap-2"
+              className="gap-2"
               size="lg"
             >
               <FileCode className="w-5 h-5" />
-              Export G-code
+              G-code
             </Button>
           </div>
         </motion.div>

@@ -1,9 +1,10 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera, Grid } from '@react-three/drei';
-import { Suspense, useState } from 'react';
+import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
+import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
-import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
+import { ParametricParams, ObjectType, PrintSettings, StandParams } from '@/types/parametric';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -14,6 +15,7 @@ interface Scene3DProps {
   gcodeLayer?: number;
   gcodeShowAll?: boolean;
   gcodeAnimate?: boolean;
+  standParams?: StandParams;
 }
 
 const defaultSettings: PrintSettings = {
@@ -35,7 +37,17 @@ const Scene3D = ({
   gcodeLayer = 0,
   gcodeShowAll = true,
   gcodeAnimate = false,
+  standParams,
 }: Scene3DProps) => {
+  const scale = 0.01;
+  const standVisible = standParams?.enabled && standParams?.type !== 'none';
+  
+  // Calculate stand rim from object base radius
+  const standRimDiameter = standParams ? params.baseRadius * 2 : 0;
+  
+  // Position object on top of stand if stand is enabled
+  const objectYOffset = standVisible && standParams ? standParams.height * scale : 0;
+  
   return (
     <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-secondary/30 to-secondary/60">
       <Canvas shadows>
@@ -49,7 +61,7 @@ const Scene3D = ({
         
         {/* Print bed grid */}
         <Grid
-          position={[0, -params.height * 0.01 * 0.5 - 0.01, 0]}
+          position={[0, -0.01, 0]}
           args={[4, 4]}
           cellSize={0.2}
           cellThickness={0.5}
@@ -64,7 +76,33 @@ const Scene3D = ({
         
         <Suspense fallback={null}>
           {viewMode === 'model' ? (
-            <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
+            <group>
+              {/* Stand (if enabled) */}
+              {standVisible && standParams && (
+                <StandMesh
+                  params={{
+                    type: standParams.type === 'tripod' ? 'tripod' : 
+                          standParams.type === 'pendant' ? 'pendant_cord' : 'wall_arm',
+                    socketType: 'E26',
+                    rimDiameter: standRimDiameter,
+                    height: standParams.height,
+                    legCount: standParams.legCount,
+                    legSpread: standParams.legSpread,
+                    cordLength: standParams.cordLength,
+                    canopyDiameter: 80,
+                    armLength: standParams.armLength,
+                    armAngle: standParams.armAngle,
+                    backplateSize: 100,
+                  }}
+                  showWireframe={showWireframe}
+                />
+              )}
+              
+              {/* Parametric object */}
+              <group position={[0, objectYOffset, 0]}>
+                <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
+              </group>
+            </group>
           ) : (
             <GCodePreview 
               params={params} 
