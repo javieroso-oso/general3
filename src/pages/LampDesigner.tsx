@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useDeferredValue, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,9 +12,9 @@ import HardwareSelector from '@/components/lamp/HardwareSelector';
 import PatternControls from '@/components/lamp/PatternControls';
 import SafetyPanel from '@/components/lamp/SafetyPanel';
 import { lampPresets } from '@/data/lamp-presets';
-import { LampParams, LampHardware, defaultLampParams, defaultLampHardware, LampPreset, MountingParams, defaultMountingParams } from '@/types/lamp';
+import { LampParams, LampHardware, defaultLampParams, defaultLampHardware, LampPreset } from '@/types/lamp';
 import { PrintSettings, defaultPrintSettings } from '@/types/parametric';
-import { Lightbulb, Settings, Sparkles, Download, Flame, Grid3X3, PanelLeftClose, PanelLeft, Shield, Wrench } from 'lucide-react';
+import { Lightbulb, Settings, Sparkles, Download, Flame, Grid3X3, PanelLeftClose, PanelLeft, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -23,30 +23,26 @@ const LampDesigner = () => {
   const [hardware, setHardware] = useState<LampHardware>(defaultLampHardware);
   const [printSettings, setPrintSettings] = useState<PrintSettings>(defaultPrintSettings);
   
+  // Deferred params for smooth slider performance
+  const deferredParams = useDeferredValue(params);
+  const deferredHardware = useDeferredValue(hardware);
+  
   const [showWireframe, setShowWireframe] = useState(false);
   const [showSocket, setShowSocket] = useState(true);
   const [showBulb, setShowBulb] = useState(true);
   const [showHeatZone, setShowHeatZone] = useState(false);
-  const [showMounting, setShowMounting] = useState(true);
   
   const [panelOpen, setPanelOpen] = useState(true);
   
-  const applyPreset = (preset: LampPreset) => {
+  const applyPreset = useCallback((preset: LampPreset) => {
     setParams(preset.params);
     setHardware(preset.hardware);
     toast.success(`Applied "${preset.name}" preset`);
-  };
+  }, []);
   
-  const handleExportSTL = () => {
+  const handleExportSTL = useCallback(() => {
     toast.info('STL export coming soon');
-  };
-
-  const updateMounting = (key: keyof MountingParams, value: number) => {
-    setParams({
-      ...params,
-      mounting: { ...params.mounting, [key]: value }
-    });
-  };
+  }, []);
   
   return (
     <Layout>
@@ -72,15 +68,12 @@ const LampDesigner = () => {
           </div>
           
           <Tabs defaultValue="shape" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid grid-cols-5 m-2 bg-muted/50">
+            <TabsList className="grid grid-cols-4 m-2 bg-muted/50">
               <TabsTrigger value="shape" className="text-[10px] px-1">
                 <Settings className="w-3 h-3" />
               </TabsTrigger>
               <TabsTrigger value="hardware" className="text-[10px] px-1">
                 <Lightbulb className="w-3 h-3" />
-              </TabsTrigger>
-              <TabsTrigger value="mounting" className="text-[10px] px-1">
-                <Wrench className="w-3 h-3" />
               </TabsTrigger>
               <TabsTrigger value="pattern" className="text-[10px] px-1">
                 <Sparkles className="w-3 h-3" />
@@ -98,14 +91,6 @@ const LampDesigner = () => {
                 
                 <TabsContent value="hardware" className="m-0">
                   <HardwareSelector hardware={hardware} onHardwareChange={setHardware} />
-                </TabsContent>
-
-                <TabsContent value="mounting" className="m-0">
-                  <MountingControls 
-                    lampStyle={hardware.lampStyle}
-                    mounting={params.mounting}
-                    onMountingChange={updateMounting}
-                  />
                 </TabsContent>
                 
                 <TabsContent value="pattern" className="m-0">
@@ -154,10 +139,6 @@ const LampDesigner = () => {
                 </Button>
               )}
               
-              <div className="flex items-center gap-2 text-xs">
-                <Switch id="mounting" checked={showMounting} onCheckedChange={setShowMounting} className="scale-75" />
-                <Label htmlFor="mounting" className="cursor-pointer text-xs">Mount</Label>
-              </div>
               <div className="flex items-center gap-2 text-xs">
                 <Switch id="socket" checked={showSocket} onCheckedChange={setShowSocket} className="scale-75" />
                 <Label htmlFor="socket" className="cursor-pointer text-xs">Socket</Label>
@@ -233,13 +214,12 @@ const LampDesigner = () => {
           {/* 3D Canvas - takes full remaining space */}
           <div className="flex-1 relative">
             <LampScene3D
-              params={params}
-              hardware={hardware}
+              params={deferredParams}
+              hardware={deferredHardware}
               showWireframe={showWireframe}
               showSocket={showSocket}
               showBulb={showBulb}
               showHeatZone={showHeatZone}
-              showMounting={showMounting}
             />
             
             {/* Compact info overlay */}
@@ -256,95 +236,6 @@ const LampDesigner = () => {
         </div>
       </div>
     </Layout>
-  );
-};
-
-// Mounting controls component
-import { Slider } from '@/components/ui/slider';
-
-interface MountingControlsProps {
-  lampStyle: LampHardware['lampStyle'];
-  mounting: MountingParams;
-  onMountingChange: (key: keyof MountingParams, value: number) => void;
-}
-
-const MountingControls = ({ lampStyle, mounting, onMountingChange }: MountingControlsProps) => {
-  const SliderRow = ({ label, paramKey, min, max, step = 1 }: { 
-    label: string; 
-    paramKey: keyof MountingParams; 
-    min: number; 
-    max: number; 
-    step?: number;
-  }) => (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">{label}</Label>
-        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{mounting[paramKey]}mm</span>
-      </div>
-      <Slider
-        value={[mounting[paramKey]]}
-        onValueChange={([v]) => onMountingChange(paramKey, v)}
-        min={min}
-        max={max}
-        step={step}
-        className="py-1"
-      />
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
-        <p className="text-xs font-bold text-primary uppercase">{lampStyle.replace('_', ' ')}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">
-          {lampStyle === 'pendant' && 'Ceiling-mounted with canopy and cord'}
-          {lampStyle === 'table' && 'Weighted base with central stem'}
-          {lampStyle === 'wall_sconce' && 'Wall-mounted with backplate'}
-          {lampStyle === 'floor' && 'Pole adapter for floor lamp base'}
-          {lampStyle === 'clip_on' && 'Rim clip for bare bulb fixtures'}
-        </p>
-      </div>
-
-      {lampStyle === 'pendant' && (
-        <>
-          <SliderRow label="Canopy Diameter" paramKey="canopyDiameter" min={60} max={200} />
-          <SliderRow label="Canopy Height" paramKey="canopyHeight" min={8} max={40} />
-          <SliderRow label="Cord Channel" paramKey="cordChannelDiameter" min={5} max={15} />
-        </>
-      )}
-
-      {lampStyle === 'table' && (
-        <>
-          <SliderRow label="Base Width" paramKey="baseWidth" min={80} max={250} />
-          <SliderRow label="Base Height" paramKey="baseHeight" min={10} max={50} />
-          <SliderRow label="Stem Diameter" paramKey="stemDiameter" min={12} max={40} />
-          <SliderRow label="Stem Height" paramKey="stemHeight" min={30} max={150} />
-        </>
-      )}
-
-      {lampStyle === 'wall_sconce' && (
-        <>
-          <SliderRow label="Backplate Width" paramKey="backplateWidth" min={50} max={150} />
-          <SliderRow label="Backplate Height" paramKey="backplateHeight" min={60} max={200} />
-          <SliderRow label="Arm Length" paramKey="armLength" min={20} max={120} />
-          <SliderRow label="Arm Angle" paramKey="armAngle" min={0} max={45} />
-        </>
-      )}
-
-      {lampStyle === 'floor' && (
-        <>
-          <SliderRow label="Pole Adapter Ø" paramKey="poleAdapterDiameter" min={20} max={50} />
-          <SliderRow label="Adapter Height" paramKey="poleAdapterHeight" min={20} max={80} />
-        </>
-      )}
-
-      {lampStyle === 'clip_on' && (
-        <>
-          <SliderRow label="Clip Width" paramKey="clipWidth" min={15} max={50} />
-          <SliderRow label="Clip Depth" paramKey="clipDepth" min={15} max={40} />
-        </>
-      )}
-    </div>
   );
 };
 

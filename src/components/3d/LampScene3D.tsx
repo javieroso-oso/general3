@@ -13,7 +13,6 @@ interface LampScene3DProps {
   showSocket?: boolean;
   showBulb?: boolean;
   showHeatZone?: boolean;
-  showMounting?: boolean;
 }
 
 const LampScene3D = ({
@@ -23,22 +22,9 @@ const LampScene3D = ({
   showSocket = true,
   showBulb = true,
   showHeatZone = true,
-  showMounting = true,
 }: LampScene3DProps) => {
-  // Calculate camera target based on lamp style
-  const getCameraTarget = () => {
-    const baseY = params.height * 0.005;
-    switch (hardware.lampStyle) {
-      case 'table':
-        return [0, baseY - params.mounting.baseHeight * 0.003, 0] as [number, number, number];
-      case 'floor':
-        return [0, baseY - params.mounting.poleAdapterHeight * 0.003, 0] as [number, number, number];
-      case 'pendant':
-        return [0, baseY + params.mounting.canopyHeight * 0.003, 0] as [number, number, number];
-      default:
-        return [0, baseY, 0] as [number, number, number];
-    }
-  };
+  // Camera target at lamp center
+  const cameraTarget: [number, number, number] = [0, params.height * 0.005, 0];
 
   return (
     <Canvas
@@ -70,12 +56,11 @@ const LampScene3D = ({
           followCamera={false}
         />
         
-        {/* Unified lamp mesh with integrated mounting */}
+        {/* Unified lamp mesh - shade with integrated hardware accommodation */}
         <LampMesh
           params={params}
           hardware={hardware}
           showWireframe={showWireframe}
-          showMounting={showMounting}
         />
         
         {/* Socket ghost visualization */}
@@ -102,7 +87,7 @@ const LampScene3D = ({
           enableRotate={true}
           minDistance={1}
           maxDistance={10}
-          target={getCameraTarget()}
+          target={cameraTarget}
         />
       </Suspense>
     </Canvas>

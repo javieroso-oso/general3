@@ -7,7 +7,6 @@ interface LampMeshProps {
   params: LampParams;
   hardware: LampHardware;
   showWireframe?: boolean;
-  showMounting?: boolean;
 }
 
 // Simple 3D noise function
@@ -49,7 +48,7 @@ const smoothstep = (edge0: number, edge1: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
-const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true }: LampMeshProps) => {
+const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const scale = 0.01;
@@ -78,42 +77,16 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
       rippleCount, rippleDepth, lipFlare, lipHeight,
       organicNoise, noiseScale, baseThickness, socketHoleDiameter,
       ventilationSlots, ventSlotCount, ventSlotWidth, ventSlotHeight,
-      mounting,
     } = params;
     
     const lampStyle = hardware.lampStyle;
-    
-    // Calculate total geometry height based on lamp style
-    let bottomY = 0;
-    let topY = height;
-    
-    if (showMounting) {
-      switch (lampStyle) {
-        case 'table':
-          bottomY = -mounting.baseHeight;
-          break;
-        case 'floor':
-          bottomY = -mounting.poleAdapterHeight;
-          break;
-        case 'pendant':
-          topY = height + mounting.canopyHeight + 10;
-          break;
-        case 'clip_on':
-          topY = height + 15;
-          break;
-      }
-    }
-    
-    // Calculate the total height for segments
-    const totalHeight = topY - bottomY;
-    const heightSegments = Math.max(64, Math.ceil(totalHeight / 2));
+    const cordHoleRadius = hardware.cordDiameter / 2 + 2;
     
     // Apply organic deformations to a radius at given height and angle
     const getOrganicRadius = (
       baseR: number, 
       t: number, 
       theta: number, 
-      yPos: number,
       applyDeformations: boolean = true
     ): number => {
       let r = baseR;
@@ -170,232 +143,59 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
       return radiusAtHeight;
     };
     
-    // Build unified geometry profile
+    // Build unified geometry profile - just the shade!
+    // Hardware accommodation is built INTO the shade shape
     interface ProfilePoint {
       y: number;
       outerR: number;
       innerR: number;
       applyDeformations: boolean;
-      isShade: boolean;
     }
     
     const profile: ProfilePoint[] = [];
+    const heightSegments = 64;
     
-    // Add mounting geometry to profile based on lamp style
-    if (showMounting) {
-      switch (lampStyle) {
-        case 'table': {
-          // Heavy organic base that mirrors shade profile
-          const baseWidth = mounting.baseWidth / 2;
-          const stemR = mounting.stemDiameter / 2;
-          const cordHole = hardware.cordDiameter / 2 + 3;
-          
-          // Base bottom (inverted shade profile for organic feel)
-          for (let i = 0; i <= 12; i++) {
-            const t = i / 12;
-            const invertedT = 1 - t;
-            // Use inverted shade profile for organic base
-            let r = baseWidth * (0.9 + 0.1 * getShadeRadius(invertedT * 0.5) / baseRadius);
-            // Smooth transition curve
-            r *= smoothstep(0, 0.3, t) * 0.1 + 0.9;
-            
-            profile.push({
-              y: -mounting.baseHeight + t * mounting.baseHeight * 0.6,
-              outerR: r,
-              innerR: cordHole,
-              applyDeformations: true,
-              isShade: false,
-            });
-          }
-          
-          // Stem transition - organic taper from base to shade
-          for (let i = 0; i <= 16; i++) {
-            const t = i / 16;
-            const stemY = -mounting.baseHeight * 0.4 + t * (mounting.baseHeight * 0.4 + 5);
-            // Smooth organic taper
-            const taperT = smoothstep(0, 1, t);
-            const r = baseWidth * 0.4 * (1 - taperT) + stemR * 1.5 * taperT;
-            
-            profile.push({
-              y: stemY,
-              outerR: r,
-              innerR: cordHole,
-              applyDeformations: true,
-              isShade: false,
-            });
-          }
-          
-          // Collar blending into shade base
-          for (let i = 0; i <= 8; i++) {
-            const t = i / 8;
-            const collarY = 5 + t * 15;
-            // Blend from stem to shade base radius
-            const shadeBaseR = getShadeRadius(collarY / height);
-            const blendT = smoothstep(0, 1, t);
-            const r = stemR * 1.5 * (1 - blendT) + shadeBaseR * blendT;
-            
-            profile.push({
-              y: collarY,
-              outerR: r,
-              innerR: t < 0.5 ? cordHole : 0,
-              applyDeformations: true,
-              isShade: t > 0.5,
-            });
-          }
-          break;
-        }
-        
-        case 'floor': {
-          // Pole adapter with organic transition
-          const adapterR = mounting.poleAdapterDiameter / 2;
-          const poleHole = adapterR - 3;
-          
-          // Pole socket at bottom
-          for (let i = 0; i <= 8; i++) {
-            const t = i / 8;
-            const y = -mounting.poleAdapterHeight + t * mounting.poleAdapterHeight * 0.7;
-            const r = adapterR + 8 - t * 3;
-            
-            profile.push({
-              y,
-              outerR: r,
-              innerR: poleHole,
-              applyDeformations: false,
-              isShade: false,
-            });
-          }
-          
-          // Organic transition collar
-          for (let i = 0; i <= 12; i++) {
-            const t = i / 12;
-            const y = -mounting.poleAdapterHeight * 0.3 + t * (mounting.poleAdapterHeight * 0.3 + 10);
-            const transitionR = (adapterR + 5) * (1 - smoothstep(0, 1, t)) + 
-                               getShadeRadius(0) * 0.6 * smoothstep(0, 1, t);
-            
-            profile.push({
-              y,
-              outerR: transitionR,
-              innerR: t < 0.7 ? poleHole : 0,
-              applyDeformations: true,
-              isShade: false,
-            });
-          }
-          break;
-        }
-        
-        case 'pendant':
-        case 'clip_on':
-          // These add geometry at the top, handled after shade
-          break;
-      }
-    }
+    // Determine bottom style based on lamp type
+    const hasClosedBottom = lampStyle === 'table' || lampStyle === 'floor';
+    const bottomThickness = hasClosedBottom ? Math.max(baseThickness, 8) : baseThickness;
     
-    // Main shade body
-    const shadeStartIdx = profile.length;
-    for (let i = 0; i <= 48; i++) {
-      const t = i / 48;
+    // Main shade body - the shade IS the lamp, no extra parts
+    for (let i = 0; i <= heightSegments; i++) {
+      const t = i / heightSegments;
       const y = t * height;
       
-      // Skip if we already have profile points below shade
-      if (profile.length > 0 && y < profile[profile.length - 1].y + 1) continue;
-      
       const shadeR = getShadeRadius(t);
-      const isInSocketHole = y > params.socketMountingHeight - 5;
       
+      // Calculate inner radius based on position
       let innerR = shadeR - wallThickness;
-      if (isInSocketHole) {
+      
+      // Socket accommodation at top - internal lip for socket to rest on
+      const socketLipStart = params.socketMountingHeight - socket.collarHeight;
+      const socketLipEnd = params.socketMountingHeight;
+      
+      if (y >= socketLipStart && y <= socketLipEnd) {
+        // Create internal lip/ridge for socket collar
+        const lipProgress = (y - socketLipStart) / (socketLipEnd - socketLipStart);
+        const lipThickness = 3; // mm ridge for socket to sit on
+        innerR = Math.min(innerR, socketHoleDiameter / 2 + lipThickness * (1 - smoothstep(0.3, 0.8, lipProgress)));
+      } else if (y > socketLipEnd) {
+        // Socket hole opening above the lip
         innerR = Math.min(innerR, socketHoleDiameter / 2);
+      }
+      
+      // Bottom closure for table/floor lamps with cord channel
+      if (hasClosedBottom && y < bottomThickness) {
+        const bottomProgress = y / bottomThickness;
+        // Smoothly close the bottom but leave cord channel
+        innerR = cordHoleRadius + (innerR - cordHoleRadius) * smoothstep(0, 0.8, bottomProgress);
       }
       
       profile.push({
         y,
         outerR: shadeR,
-        innerR: innerR,
+        innerR: Math.max(innerR, hasClosedBottom && t < 0.05 ? cordHoleRadius : 0),
         applyDeformations: true,
-        isShade: true,
       });
-    }
-    
-    // Add top mounting geometry
-    if (showMounting) {
-      switch (lampStyle) {
-        case 'pendant': {
-          const cordHole = mounting.cordChannelDiameter / 2;
-          const canopyR = mounting.canopyDiameter / 2;
-          
-          // Socket collar extending from top
-          const topShadeR = getShadeRadius(1);
-          for (let i = 1; i <= 8; i++) {
-            const t = i / 8;
-            const y = height + t * 8;
-            // Organic collar that tapers
-            const collarR = topShadeR * (1 - t * 0.3);
-            
-            profile.push({
-              y,
-              outerR: collarR,
-              innerR: socket.outerDiameter / 2 + 2,
-              applyDeformations: true,
-              isShade: false,
-            });
-          }
-          
-          // Cord channel stem
-          for (let i = 1; i <= 6; i++) {
-            const t = i / 6;
-            const y = height + 8 + t * 5;
-            
-            profile.push({
-              y,
-              outerR: cordHole + 4,
-              innerR: cordHole,
-              applyDeformations: false,
-              isShade: false,
-            });
-          }
-          
-          // Canopy disc with organic profile
-          for (let i = 1; i <= 10; i++) {
-            const t = i / 10;
-            const y = height + 13 + t * mounting.canopyHeight;
-            // Canopy has inverted organic curve
-            const canopyT = Math.sin(t * Math.PI);
-            const r = (cordHole + 4) * (1 - t * 0.3) + canopyR * canopyT * 0.8;
-            
-            profile.push({
-              y,
-              outerR: Math.max(r, cordHole + 5),
-              innerR: cordHole,
-              applyDeformations: true,
-              isShade: false,
-            });
-          }
-          break;
-        }
-        
-        case 'clip_on': {
-          const topShadeR = getShadeRadius(1);
-          
-          // Clip rim that follows shade curve
-          for (let i = 1; i <= 10; i++) {
-            const t = i / 10;
-            const y = height + t * 15;
-            // Clip curves inward then has a lip
-            const clipT = t < 0.6 ? t / 0.6 : 1 - (t - 0.6) / 0.4;
-            const r = topShadeR * (1 + lipFlare * 0.5) - t * 5 + 
-                     mounting.clipDepth * Math.sin(clipT * Math.PI);
-            
-            profile.push({
-              y,
-              outerR: r,
-              innerR: r - mounting.clipWidth * 0.3,
-              applyDeformations: true,
-              isShade: false,
-            });
-          }
-          break;
-        }
-      }
     }
     
     // Build vertices from profile
@@ -416,11 +216,11 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
           
           // Apply organic deformations
           if (point.applyDeformations) {
-            r = getOrganicRadius(r, t, theta, point.y, true);
+            r = getOrganicRadius(r, t, theta, true);
           }
           
           // Handle ventilation slots on shade
-          if (point.isShade && ventilationSlots && t > 0.7) {
+          if (ventilationSlots && t > 0.7) {
             const slotAngle = (Math.PI * 2) / ventSlotCount;
             const nearSlot = Math.abs(((theta % slotAngle) - slotAngle / 2)) < (ventSlotWidth / point.outerR / 2);
             if (nearSlot && point.y > height - ventSlotHeight - 10) {
@@ -441,7 +241,7 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
           const nz = Math.sin(theta);
           normals.push(isInner ? -nx : nx, 0, isInner ? -nz : nz);
           
-          uvs.push(x / radialSegments, point.y / totalHeight);
+          uvs.push(x / radialSegments, t);
         }
       }
     }
@@ -493,8 +293,8 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
       indices.push(b, d, c);
     }
     
-    // Bottom cap
-    if (profile[0].innerR <= 0 || baseThickness > 0) {
+    // Bottom cap (closed for table/floor, or if baseThickness > 0)
+    if (bottomThickness > 0) {
       const bottomY = profile[0].y;
       const baseCenterIdx = positions.length / 3;
       positions.push(0, bottomY * scale, 0);
@@ -506,7 +306,7 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
         const theta = (x / radialSegments) * Math.PI * 2;
         let r = bottomR;
         if (profile[0].applyDeformations) {
-          r = getOrganicRadius(r, 0, theta, bottomY, true);
+          r = getOrganicRadius(r, 0, theta, true);
         }
         positions.push(Math.cos(theta) * r * scale, bottomY * scale, Math.sin(theta) * r * scale);
         normals.push(0, -1, 0);
@@ -528,7 +328,7 @@ const LampMesh = ({ params, hardware, showWireframe = false, showMounting = true
     const wireGeo = new THREE.WireframeGeometry(geo);
     
     return { geometry: geo, wireframeGeometry: wireGeo };
-  }, [params, hardware, socket, scale, showMounting]);
+  }, [params, hardware, socket, scale]);
   
   return (
     <group>
