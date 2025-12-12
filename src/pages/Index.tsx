@@ -84,29 +84,11 @@ const Index = () => {
     
     const filename = `stand_${standParams.type}_${Date.now()}.stl`;
     
-    // Calculate a standard rim size
-    const rimSize = Math.round(params.baseRadius * 2 / 50) * 50 || 150;
-    const standardRim = (rimSize < 125 ? 100 : rimSize < 175 ? 150 : rimSize < 225 ? 200 : 250) as 100 | 150 | 200 | 250;
-    
+    // Pass stand params with calculated rim diameter
     downloadStandSTL({
-      type: standParams.type === 'tripod' ? 'tripod' : 
-            standParams.type === 'pendant' ? 'pendant_cord' : 'wall_arm',
-      socketType: 'E26',
-      rimDiameter: standardRim,
-      height: standParams.height,
-      wallThickness: 3,
-      legCount: standParams.legCount,
-      legSpread: standParams.legSpread,
-      legThickness: 8,
-      socketHolderHeight: 80,
-      cordLength: standParams.cordLength,
-      canopyDiameter: 80,
-      canopyHeight: 25,
-      armLength: standParams.armLength,
-      armAngle: standParams.armAngle,
-      backplateWidth: 100,
-      backplateHeight: 140,
-    } as any, filename);
+      ...standParams,
+      rimDiameter: params.baseRadius * 2,
+    }, filename);
     toast.success('Stand STL exported!', {
       description: filename,
     });

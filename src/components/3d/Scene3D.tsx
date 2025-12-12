@@ -81,18 +81,8 @@ const Scene3D = ({
               {standVisible && standParams && (
                 <StandMesh
                   params={{
-                    type: standParams.type === 'tripod' ? 'tripod' : 
-                          standParams.type === 'pendant' ? 'pendant_cord' : 'wall_arm',
-                    socketType: 'E26',
+                    ...standParams,
                     rimDiameter: standRimDiameter,
-                    height: standParams.height,
-                    legCount: standParams.legCount,
-                    legSpread: standParams.legSpread,
-                    cordLength: standParams.cordLength,
-                    canopyDiameter: 80,
-                    armLength: standParams.armLength,
-                    armAngle: standParams.armAngle,
-                    backplateSize: 100,
                   }}
                   showWireframe={showWireframe}
                 />

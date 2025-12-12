@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { LampParams, StandParams } from '@/types/lamp';
+import { LampParams } from '@/types/lamp';
+import { StandParams } from '@/types/parametric';
 import { generateStandGeometry } from './stand-generators';
 
 // Simple 3D noise function
