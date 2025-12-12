@@ -108,23 +108,7 @@ const ShadeControls = ({ params, onParamsChange }: ShadeControlsProps) => {
         />
       </Section>
       
-      {/* Socket Mounting */}
-      <Section title="Socket Mounting" defaultOpen={true}>
-        <SliderRow
-          label="Socket Height"
-          value={params.socketMountingHeight}
-          onChange={(v) => updateParam('socketMountingHeight', v)}
-          min={params.height * 0.5}
-          max={params.height}
-        />
-        <SliderRow
-          label="Socket Hole Diameter"
-          value={params.socketHoleDiameter}
-          onChange={(v) => updateParam('socketHoleDiameter', v)}
-          min={20}
-          max={80}
-        />
-      </Section>
+      {/* Note: Socket mounting hole is now auto-calculated from hardware selection */}
       
       {/* Organic Shape */}
       <Section title="Organic Shape" defaultOpen={false}>
