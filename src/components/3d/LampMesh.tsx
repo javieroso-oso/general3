@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { LampParams, LampHardware, socketDimensions } from '@/types/lamp';
+import { LampParams, LampHardware, getMountingDimensions } from '@/types/lamp';
 
 interface LampMeshProps {
   params: LampParams;
@@ -53,7 +53,8 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const scale = 0.01;
   
-  const socket = socketDimensions[hardware.socketType];
+  // Calculate real mounting dimensions from hardware
+  const mountingDims = getMountingDimensions(hardware.socketType, hardware.mountType, hardware.mountTolerance);
   const lampStyle = hardware.lampStyle;
   
   // Rotate slowly
@@ -82,6 +83,12 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     } = params;
     
     const cordHoleRadius = hardware.cordDiameter / 2 + 2;
+    
+    // Mounting geometry dimensions (from hardware selection)
+    const mountHoleRadius = mountingDims.holeDiameter / 2;      // Where ring outer edge sits
+    const mountLipInnerRadius = mountingDims.lipInnerDiameter / 2; // Inner opening for socket
+    const mountLipDepth = mountingDims.lipDepth;                   // How deep the ledge is
+    const mountCollarHeight = 12;                              // Visible collar above shade
     
     // Style-specific geometry adjustments
     const isStanding = lampStyle === 'standing';
@@ -176,32 +183,49 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     const heightSegments = 64;
     
     // ============================================
-    // ALL LAMP STYLES: Simple organic shade only
-    // Hardware is internal/invisible - just affects inner radius
+    // MOUNTING GEOMETRY: Visible ledge and collar
+    // Creates stepped internal profile for hardware
     // ============================================
     
-    // Socket internal clearance dimensions
-    const socketClearanceRadius = socket.outerDiameter / 2 + 3;
+    // Calculate where mounting zone starts (relative to shade height)
+    // The mounting zone is at the TOP of the shade
+    const mountZoneHeight = mountLipDepth + 5; // Lip depth + transition
+    const mountStartY = height - mountZoneHeight;
     
     if (isWallSconce) {
-      // Wall sconce: half-dome shade only
-      // Flat back handled by theta range in vertex generation
+      // Wall sconce: half-dome shade with internal mounting ledge
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
-        const y = t * height * 0.8; // Shorter dome
+        const y = t * height * 0.8;
         const shadeR = getShadeRadius(t);
-        const innerR = shadeR - wallThickness;
+        let innerR = shadeR - wallThickness;
+        
+        // Add mounting ledge near top
+        if (y > mountStartY * 0.8) {
+          const mountT = (y - mountStartY * 0.8) / (height * 0.8 - mountStartY * 0.8);
+          // Transition to ledge
+          if (mountT < 0.3) {
+            // Smooth transition from shade wall to ledge
+            const blend = mountT / 0.3;
+            innerR = innerR * (1 - blend) + mountHoleRadius * blend;
+          } else if (mountT < 0.6) {
+            // Ledge surface (flat area where ring sits)
+            innerR = mountHoleRadius;
+          } else {
+            // Inner collar (socket opening)
+            innerR = mountLipInnerRadius;
+          }
+        }
         
         profile.push({
           y,
           outerR: shadeR,
-          innerR: Math.max(innerR, socketClearanceRadius),
-          applyDeformations: true,
+          innerR: Math.max(innerR, mountLipInnerRadius),
+          applyDeformations: y < mountStartY * 0.8,
         });
       }
     } else {
-      // Pendant or Standing: Standard organic shade
-      // Standing has closed bottom, pendant is open
+      // Pendant or Standing: Standard organic shade with mounting geometry
       const hasClosedBottom = isStanding;
       
       if (hasClosedBottom) {
@@ -214,17 +238,13 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         });
       }
       
-      for (let i = hasClosedBottom ? 1 : 0; i <= heightSegments; i++) {
+      // Main shade body (up to mounting zone)
+      const mainBodySegments = Math.floor(heightSegments * 0.85);
+      for (let i = hasClosedBottom ? 1 : 0; i <= mainBodySegments; i++) {
         const t = i / heightSegments;
         const y = t * height;
         const shadeR = getShadeRadius(t);
-        let innerR = shadeR - wallThickness;
-        
-        // Internal socket mounting lip near top (invisible from outside)
-        if (t > 0.85) {
-          const lipProgress = (t - 0.85) / 0.15;
-          innerR = Math.min(innerR, socketClearanceRadius + (innerR - socketClearanceRadius) * (1 - lipProgress * 0.5));
-        }
+        const innerR = shadeR - wallThickness;
         
         profile.push({
           y,
@@ -234,21 +254,77 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         });
       }
       
-      // Pendant: collar at top (organic transition, not blocky)
-      if (isPendant) {
-        const topR = getShadeRadius(1);
-        for (let i = 1; i <= 8; i++) {
-          const t = i / 8;
-          const y = height + t * 12;
-          // Smooth organic narrowing to cord
-          const narrowFactor = 1 - Math.pow(t, 0.7) * 0.8;
-          const collarR = topR * narrowFactor + cordHoleRadius * (1 - narrowFactor);
+      // ============================================
+      // MOUNTING ZONE: Stepped profile for hardware
+      // ============================================
+      const mountZoneSegments = 10;
+      const shadeTopR = getShadeRadius(1);
+      const shadeTopInnerR = shadeTopR - wallThickness;
+      
+      // Ensure mounting hole is properly sized relative to shade
+      // The outer wall narrows to accommodate the mounting collar
+      const mountOuterR = Math.max(mountHoleRadius + wallThickness * 2, shadeTopR * 0.6);
+      
+      for (let i = 1; i <= mountZoneSegments; i++) {
+        const t = i / mountZoneSegments;
+        const y = mountStartY + t * mountZoneHeight;
+        
+        let outerR: number;
+        let innerR: number;
+        
+        if (t < 0.2) {
+          // Zone 1: Transition - shade wall narrows toward mounting area
+          const blend = t / 0.2;
+          outerR = shadeTopR * (1 - blend) + mountOuterR * blend;
+          innerR = shadeTopInnerR * (1 - blend) + mountHoleRadius * blend;
+        } else if (t < 0.5) {
+          // Zone 2: Ledge surface - flat horizontal area where ring sits
+          // Outer wall stays at mount collar size
+          // Inner is at ring outer diameter (ledge surface)
+          outerR = mountOuterR;
+          innerR = mountHoleRadius; // Ring outer edge sits here
+        } else if (t < 0.8) {
+          // Zone 3: Step down to socket opening
+          const blend = (t - 0.5) / 0.3;
+          outerR = mountOuterR;
+          innerR = mountHoleRadius * (1 - blend) + mountLipInnerRadius * blend;
+        } else {
+          // Zone 4: Collar - inner wall around socket opening
+          outerR = mountOuterR;
+          innerR = mountLipInnerRadius; // Socket fits through here
+        }
+        
+        profile.push({
+          y,
+          outerR: Math.max(outerR, mountLipInnerRadius + wallThickness),
+          innerR: Math.max(innerR, mountLipInnerRadius),
+          applyDeformations: false, // Precise geometry, no organic effects
+        });
+      }
+      
+      // ============================================
+      // COLLAR EXTENSION: Visible mounting collar
+      // ============================================
+      if (isPendant || isStanding) {
+        const collarSteps = 6;
+        for (let i = 1; i <= collarSteps; i++) {
+          const t = i / collarSteps;
+          const y = height + t * mountCollarHeight;
+          
+          // Collar narrows toward cord hole at top
+          const narrowFactor = 1 - t * 0.3;
+          const outerR = (mountLipInnerRadius + wallThickness * 1.5) * narrowFactor;
+          
+          // Inner stays at socket opening size until near top
+          const innerR = t < 0.7 
+            ? mountLipInnerRadius 
+            : mountLipInnerRadius * (1 - (t - 0.7) / 0.3) + cordHoleRadius * ((t - 0.7) / 0.3);
           
           profile.push({
             y,
-            outerR: collarR + wallThickness * (1 - t * 0.5),
-            innerR: collarR,
-            applyDeformations: t < 0.5, // Organic at base, smooth at top
+            outerR: Math.max(outerR, innerR + wallThickness),
+            innerR: Math.max(innerR, cordHoleRadius),
+            applyDeformations: false,
           });
         }
       }
@@ -415,7 +491,7 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     const wireGeo = new THREE.WireframeGeometry(geo);
     
     return { geometry: geo, wireframeGeometry: wireGeo };
-  }, [params, hardware.lampStyle, hardware.cordDiameter, socket, scale]);
+  }, [params, hardware, mountingDims, lampStyle, scale]);
   
   return (
     <group>

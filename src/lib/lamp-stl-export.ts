@@ -129,87 +129,125 @@ export function generateShadeGeometry(
     return Math.max(radiusAtHeight, 10);
   };
   
-  // Get inner radius with mounting features
-  const getInnerRadius = (t: number, shadeR: number): number => {
-    let innerR = shadeR - wallThickness;
-    
-    // Create mounting lip near top based on mount type
-    const mountZoneStart = 0.85;
-    if (t > mountZoneStart) {
-      const lipProgress = (t - mountZoneStart) / (1 - mountZoneStart);
-      
-      if (hardware.mountType === 'threaded_ring') {
-        // Create a ledge for threaded ring to sit on
-        const ledgeR = mounting.holeDiameter / 2;
-        const lipInnerR = mounting.lipInnerDiameter / 2;
-        
-        if (lipProgress < 0.5) {
-          // Transition to ledge
-          innerR = Math.min(innerR, ledgeR + (innerR - ledgeR) * (1 - lipProgress * 2));
-        } else {
-          // Inner opening for socket
-          innerR = lipInnerR;
-        }
-      } else if (hardware.mountType === 'press_fit') {
-        // Slightly undersized collar for friction fit
-        const collarR = mounting.lipInnerDiameter / 2;
-        innerR = Math.min(innerR, collarR);
-      } else if (hardware.mountType === 'snap_ring') {
-        // Create groove for snap ring
-        const grooveR = mounting.holeDiameter / 2;
-        const grooveDepth = 2;
-        
-        if (lipProgress > 0.3 && lipProgress < 0.5) {
-          // Groove section
-          innerR = Math.min(innerR, grooveR + grooveDepth);
-        } else {
-          innerR = Math.min(innerR, grooveR);
-        }
-      }
-    }
-    
-    return Math.max(innerR, cordHoleRadius);
-  };
+  // Mounting geometry dimensions
+  const mountHoleRadius = mounting.holeDiameter / 2;
+  const mountLipInnerRadius = mounting.lipInnerDiameter / 2;
+  const mountLipDepth = mounting.lipDepth;
+  const mountCollarHeight = 12;
+  const mountZoneHeight = mountLipDepth + 5;
+  const mountStartY = height - mountZoneHeight;
   
   // Build profile
   interface ProfilePoint {
     y: number;
     outerR: number;
     innerR: number;
+    applyDeformations: boolean;
   }
   
   const profile: ProfilePoint[] = [];
   const heightSegments = 64;
   
-  // Build shade profile
-  if (isStanding) {
-    // Closed bottom with cord hole
-    profile.push({ y: 0, outerR: getShadeRadius(0), innerR: cordHoleRadius });
-  }
-  
-  for (let i = isStanding ? 1 : 0; i <= heightSegments; i++) {
-    const t = i / heightSegments;
-    const y = isWallSconce ? t * height * 0.8 : t * height;
-    const shadeR = getShadeRadius(t);
-    const innerR = getInnerRadius(t, shadeR);
-    
-    profile.push({ y, outerR: shadeR, innerR });
-  }
-  
-  // Pendant collar
-  if (isPendant) {
-    const topR = getShadeRadius(1);
-    for (let i = 1; i <= 8; i++) {
-      const t = i / 8;
-      const y = height + t * 12;
-      const narrowFactor = 1 - Math.pow(t, 0.7) * 0.8;
-      const collarR = topR * narrowFactor + cordHoleRadius * (1 - narrowFactor);
+  if (isWallSconce) {
+    // Wall sconce with mounting ledge
+    for (let i = 0; i <= heightSegments; i++) {
+      const t = i / heightSegments;
+      const y = t * height * 0.8;
+      const shadeR = getShadeRadius(t);
+      let innerR = shadeR - wallThickness;
+      
+      if (y > mountStartY * 0.8) {
+        const mountT = (y - mountStartY * 0.8) / (height * 0.8 - mountStartY * 0.8);
+        if (mountT < 0.3) {
+          const blend = mountT / 0.3;
+          innerR = innerR * (1 - blend) + mountHoleRadius * blend;
+        } else if (mountT < 0.6) {
+          innerR = mountHoleRadius;
+        } else {
+          innerR = mountLipInnerRadius;
+        }
+      }
       
       profile.push({
         y,
-        outerR: collarR + wallThickness * (1 - t * 0.5),
-        innerR: collarR,
+        outerR: shadeR,
+        innerR: Math.max(innerR, mountLipInnerRadius),
+        applyDeformations: y < mountStartY * 0.8,
       });
+    }
+  } else {
+    // Pendant or Standing with stepped mounting profile
+    if (isStanding) {
+      profile.push({ y: 0, outerR: getShadeRadius(0), innerR: cordHoleRadius, applyDeformations: true });
+    }
+    
+    // Main shade body
+    const mainBodySegments = Math.floor(heightSegments * 0.85);
+    for (let i = isStanding ? 1 : 0; i <= mainBodySegments; i++) {
+      const t = i / heightSegments;
+      const y = t * height;
+      const shadeR = getShadeRadius(t);
+      const innerR = shadeR - wallThickness;
+      
+      profile.push({ y, outerR: shadeR, innerR: Math.max(innerR, 5), applyDeformations: true });
+    }
+    
+    // Mounting zone with stepped profile
+    const mountZoneSegments = 10;
+    const shadeTopR = getShadeRadius(1);
+    const shadeTopInnerR = shadeTopR - wallThickness;
+    const mountOuterR = Math.max(mountHoleRadius + wallThickness * 2, shadeTopR * 0.6);
+    
+    for (let i = 1; i <= mountZoneSegments; i++) {
+      const t = i / mountZoneSegments;
+      const y = mountStartY + t * mountZoneHeight;
+      
+      let outerR: number;
+      let innerR: number;
+      
+      if (t < 0.2) {
+        const blend = t / 0.2;
+        outerR = shadeTopR * (1 - blend) + mountOuterR * blend;
+        innerR = shadeTopInnerR * (1 - blend) + mountHoleRadius * blend;
+      } else if (t < 0.5) {
+        outerR = mountOuterR;
+        innerR = mountHoleRadius;
+      } else if (t < 0.8) {
+        const blend = (t - 0.5) / 0.3;
+        outerR = mountOuterR;
+        innerR = mountHoleRadius * (1 - blend) + mountLipInnerRadius * blend;
+      } else {
+        outerR = mountOuterR;
+        innerR = mountLipInnerRadius;
+      }
+      
+      profile.push({
+        y,
+        outerR: Math.max(outerR, mountLipInnerRadius + wallThickness),
+        innerR: Math.max(innerR, mountLipInnerRadius),
+        applyDeformations: false,
+      });
+    }
+    
+    // Collar extension
+    if (isPendant || isStanding) {
+      const collarSteps = 6;
+      for (let i = 1; i <= collarSteps; i++) {
+        const t = i / collarSteps;
+        const y = height + t * mountCollarHeight;
+        const narrowFactor = 1 - t * 0.3;
+        const outerR = (mountLipInnerRadius + wallThickness * 1.5) * narrowFactor;
+        const innerR = t < 0.7 
+          ? mountLipInnerRadius 
+          : mountLipInnerRadius * (1 - (t - 0.7) / 0.3) + cordHoleRadius * ((t - 0.7) / 0.3);
+        
+        profile.push({
+          y,
+          outerR: Math.max(outerR, innerR + wallThickness),
+          innerR: Math.max(innerR, cordHoleRadius),
+          applyDeformations: false,
+        });
+      }
     }
   }
   
@@ -231,7 +269,8 @@ export function generateShadeGeometry(
         const theta = thetaStart + (x / radialSegments) * thetaRange + twistAtHeight;
         let r = isInner ? point.innerR : point.outerR;
         
-        if (point.y <= height) {
+        // Only apply organic deformations where flagged
+        if (point.applyDeformations && point.y <= height) {
           r = getOrganicRadius(r, t, theta);
         }
         
