@@ -6,8 +6,8 @@ export type SocketType = 'E26' | 'E27' | 'E12' | 'GU10' | 'G9' | 'LED_Strip';
 // Bulb shapes for ghost preview
 export type BulbShape = 'A19' | 'A21' | 'Globe' | 'Candle' | 'Edison' | 'PAR30' | 'Tube';
 
-// Mounting/lamp styles
-export type LampStyle = 'pendant' | 'standing' | 'wall_sconce';
+// Stand types (Akari-inspired modular system)
+export type StandType = 'tripod' | 'pendant_cord' | 'wall_arm';
 
 // Cord routing options
 export type CordExit = 'bottom_center' | 'bottom_side' | 'top_hidden' | 'internal_channel';
@@ -15,8 +15,11 @@ export type CordExit = 'bottom_center' | 'bottom_side' | 'top_hidden' | 'interna
 // Light pattern cutout types
 export type LightPatternType = 'none' | 'dots' | 'lines' | 'organic' | 'geometric';
 
-// Mount types for socket attachment
-export type MountType = 'threaded_ring' | 'press_fit' | 'snap_ring';
+// Standard rim sizes (shade must match stand)
+export type StandardRimSize = 100 | 150 | 200 | 250;
+
+// Shade-stand connection type
+export type RimConnectionType = 'drop_in' | 'clip_on' | 'friction_fit';
 
 export interface SocketDimensions {
   outerDiameter: number;  // mm
@@ -32,35 +35,6 @@ export interface BulbDimensions {
   heatZoneRadius: number; // mm - heat dissipation zone
 }
 
-// Threaded ring specifications (hardware you buy)
-export interface ThreadedRingSpec {
-  ringInnerDiameter: number;  // mm - fits over socket
-  ringOuterDiameter: number;  // mm - seats in shade lip
-  ringHeight: number;         // mm - depth of ring
-  threadPitch: number;        // mm - for reference
-}
-
-// Mounting dimensions calculated from hardware selection
-export interface MountingDimensions {
-  holeDiameter: number;       // mm - main opening
-  lipDepth: number;           // mm - how deep ring/collar seats
-  lipInnerDiameter: number;   // mm - inner edge of lip
-}
-
-// Style-specific mounting parameters
-export interface MountingParams {
-  // Pendant - canopy at top
-  canopyDiameter: number;      // mm
-  canopyHeight: number;        // mm
-  cordChannelDiameter: number; // mm
-  
-  // Wall sconce - backplate and arm
-  backplateWidth: number;      // mm
-  backplateHeight: number;     // mm
-  armLength: number;           // mm
-  armAngle: number;            // degrees
-}
-
 // Hardware shopping list item
 export interface HardwareItem {
   name: string;
@@ -74,30 +48,81 @@ export interface HardwareShoppingList {
   socket: HardwareItem;
   cord: HardwareItem;
   bulb: HardwareItem;
-  threadedRing?: HardwareItem;
-  snapRing?: HardwareItem;
   additionalItems: HardwareItem[];
   assemblySteps: string[];
 }
 
+// ============================================
+// AKARI-INSPIRED MODULAR SYSTEM
+// Shade + Stand as separate printable parts
+// ============================================
+
+// Shade configuration (purely decorative)
+export interface ShadeConfig {
+  rimDiameter: StandardRimSize;      // Must match stand
+  rimConnection: RimConnectionType;  // How it connects to stand
+  rimThickness: number;              // mm - thickness of rim edge
+  rimLipHeight: number;              // mm - height of lip for drop-in
+}
+
+// Stand hardware configuration
+export interface StandHardware {
+  socketType: SocketType;
+  bulbShape: BulbShape;
+  bulbWattage: number;
+  cordDiameter: number;   // mm
+}
+
+// Base stand parameters (shared across all types)
+export interface BaseStandParams {
+  type: StandType;
+  rimDiameter: StandardRimSize;      // Must match shade
+  socketType: SocketType;
+  height: number;                    // mm - total height
+  wallThickness: number;             // mm
+}
+
+// Tripod stand (table/floor lamp)
+export interface TripodStandParams extends BaseStandParams {
+  type: 'tripod';
+  legCount: 3 | 4;
+  legSpread: number;        // degrees from vertical
+  legThickness: number;     // mm - leg cross-section
+  socketHolderHeight: number; // mm - central column height
+}
+
+// Pendant cord stand (ceiling lamp)
+export interface PendantCordParams extends BaseStandParams {
+  type: 'pendant_cord';
+  canopyDiameter: number;   // mm - ceiling mount
+  canopyHeight: number;     // mm
+  cordLength: number;       // mm (visual only)
+}
+
+// Wall arm stand (sconce)
+export interface WallArmParams extends BaseStandParams {
+  type: 'wall_arm';
+  armLength: number;        // mm
+  armAngle: number;         // degrees from horizontal
+  backplateWidth: number;   // mm
+  backplateHeight: number;  // mm
+}
+
+export type StandParams = TripodStandParams | PendantCordParams | WallArmParams;
+
+// Complete lamp hardware config (socket + bulb + stand)
 export interface LampHardware {
   socketType: SocketType;
   bulbShape: BulbShape;
   bulbWattage: number;
-  cordExit: CordExit;
-  cordDiameter: number;   // mm
-  lampStyle: LampStyle;
-  mountType: MountType;
-  mountTolerance: number; // mm - printer calibration (0.2-0.5)
+  cordDiameter: number;     // mm
+  standType: StandType;
 }
 
+// Lamp shade parameters (organic shape + rim)
 export interface LampParams extends ParametricParams {
-  // Socket mounting (auto-calculated, kept for compatibility)
-  socketMountingHeight: number;  // mm from bottom (usually near top)
-  socketHoleDiameter: number;    // mm - now auto-calculated but stored
-  
-  // Mounting parameters (style-specific)
-  mounting: MountingParams;
+  // Shade rim (where it rests on stand)
+  shade: ShadeConfig;
   
   // Ventilation
   ventilationSlots: boolean;
@@ -118,6 +143,12 @@ export interface LampParams extends ParametricParams {
   translucencyThickness: number; // mm - thinner wall for light pass
 }
 
+// Stand parameters (structure that holds hardware)
+export interface LampStand {
+  params: StandParams;
+  hardware: StandHardware;
+}
+
 // Socket dimensions lookup (real measurements in mm)
 export const socketDimensions: Record<SocketType, SocketDimensions> = {
   E26: { outerDiameter: 26, height: 47, collarHeight: 10, threadDiameter: 24 },
@@ -126,16 +157,6 @@ export const socketDimensions: Record<SocketType, SocketDimensions> = {
   GU10: { outerDiameter: 50, height: 55, collarHeight: 8, threadDiameter: 50 },
   G9: { outerDiameter: 18, height: 35, collarHeight: 5, threadDiameter: 9 },
   LED_Strip: { outerDiameter: 12, height: 20, collarHeight: 5, threadDiameter: 10 },
-};
-
-// Threaded ring specs lookup (real hardware measurements)
-export const threadedRingSpecs: Record<SocketType, ThreadedRingSpec> = {
-  E26: { ringInnerDiameter: 33, ringOuterDiameter: 42, ringHeight: 10, threadPitch: 2.5 },
-  E27: { ringInnerDiameter: 34, ringOuterDiameter: 43, ringHeight: 10, threadPitch: 2.5 },
-  E12: { ringInnerDiameter: 18, ringOuterDiameter: 26, ringHeight: 6, threadPitch: 1.5 },
-  GU10: { ringInnerDiameter: 50, ringOuterDiameter: 60, ringHeight: 8, threadPitch: 0 }, // twist-lock
-  G9: { ringInnerDiameter: 15, ringOuterDiameter: 22, ringHeight: 8, threadPitch: 1.0 },
-  LED_Strip: { ringInnerDiameter: 10, ringOuterDiameter: 18, ringHeight: 5, threadPitch: 0 },
 };
 
 // Bulb dimensions lookup (in mm)
@@ -174,20 +195,52 @@ export interface LampPreset {
   description: string;
   params: LampParams;
   hardware: LampHardware;
+  stand: StandParams;
   thumbnail?: string;
 }
 
-// Default mounting params
-export const defaultMountingParams: MountingParams = {
-  // Pendant
+// Default shade config
+export const defaultShadeConfig: ShadeConfig = {
+  rimDiameter: 150,
+  rimConnection: 'drop_in',
+  rimThickness: 3,
+  rimLipHeight: 8,
+};
+
+// Default stand params
+export const defaultTripodParams: TripodStandParams = {
+  type: 'tripod',
+  rimDiameter: 150,
+  socketType: 'E26',
+  height: 250,
+  wallThickness: 3,
+  legCount: 3,
+  legSpread: 35,
+  legThickness: 8,
+  socketHolderHeight: 80,
+};
+
+export const defaultPendantCordParams: PendantCordParams = {
+  type: 'pendant_cord',
+  rimDiameter: 150,
+  socketType: 'E26',
+  height: 60,
+  wallThickness: 3,
   canopyDiameter: 100,
-  canopyHeight: 15,
-  cordChannelDiameter: 8,
-  // Wall sconce
-  backplateWidth: 80,
-  backplateHeight: 120,
-  armLength: 60,
+  canopyHeight: 25,
+  cordLength: 1000,
+};
+
+export const defaultWallArmParams: WallArmParams = {
+  type: 'wall_arm',
+  rimDiameter: 150,
+  socketType: 'E26',
+  height: 150,
+  wallThickness: 3,
+  armLength: 180,
   armAngle: 15,
+  backplateWidth: 100,
+  backplateHeight: 140,
 };
 
 // Default lamp hardware
@@ -195,42 +248,31 @@ export const defaultLampHardware: LampHardware = {
   socketType: 'E26',
   bulbShape: 'A19',
   bulbWattage: 10,
-  cordExit: 'top_hidden',
   cordDiameter: 6,
-  lampStyle: 'pendant',
-  mountType: 'threaded_ring',
-  mountTolerance: 0.3,
+  standType: 'tripod',
 };
 
-// Calculate mounting dimensions based on hardware selection
-export const getMountingDimensions = (
-  socketType: SocketType,
-  mountType: MountType,
-  tolerance: number
-): MountingDimensions => {
-  const socket = socketDimensions[socketType];
-  const ring = threadedRingSpecs[socketType];
-  
-  switch (mountType) {
-    case 'threaded_ring':
-      return {
-        holeDiameter: ring.ringOuterDiameter + tolerance,
-        lipDepth: ring.ringHeight + 1,
-        lipInnerDiameter: ring.ringInnerDiameter + tolerance,
-      };
-    case 'press_fit':
-      return {
-        holeDiameter: socket.outerDiameter + tolerance,
-        lipDepth: socket.collarHeight,
-        lipInnerDiameter: socket.outerDiameter - tolerance * 0.5, // undersized for friction
-      };
-    case 'snap_ring':
-      return {
-        holeDiameter: socket.outerDiameter + tolerance + 4, // extra space for ring
-        lipDepth: 3,
-        lipInnerDiameter: socket.outerDiameter + tolerance,
-      };
+// Get default stand params for a stand type
+export const getDefaultStandParams = (type: StandType): StandParams => {
+  switch (type) {
+    case 'tripod':
+      return { ...defaultTripodParams };
+    case 'pendant_cord':
+      return { ...defaultPendantCordParams };
+    case 'wall_arm':
+      return { ...defaultWallArmParams };
   }
+};
+
+// Calculate socket holder dimensions for stand
+export const getSocketHolderDimensions = (socketType: SocketType) => {
+  const socket = socketDimensions[socketType];
+  return {
+    innerDiameter: socket.outerDiameter + 1, // Tight fit
+    outerDiameter: socket.outerDiameter + 8, // Wall thickness
+    height: socket.height + 10,              // Extra for cord
+    cordHole: 8,                              // Standard cord hole
+  };
 };
 
 // Generate hardware shopping list from current selection
@@ -238,8 +280,6 @@ export const generateShoppingList = (
   hardware: LampHardware,
   material: PrintSettings['material']
 ): HardwareShoppingList => {
-  const socket = socketDimensions[hardware.socketType];
-  const ring = threadedRingSpecs[hardware.socketType];
   const bulb = bulbDimensions[hardware.bulbShape];
   const heatLimit = materialHeatLimits[material];
   
@@ -265,17 +305,15 @@ export const generateShoppingList = (
   const list: HardwareShoppingList = {
     socket: {
       name: socketNames[hardware.socketType],
-      specification: `${hardware.socketType} base, Ø${socket.outerDiameter}mm`,
-      notes: hardware.mountType === 'threaded_ring' 
-        ? 'Must include threaded shade ring' 
-        : 'Standard socket without ring',
-      searchTerm: `${hardware.socketType} lamp socket ${hardware.mountType === 'threaded_ring' ? 'with threaded ring' : ''}`,
+      specification: `${hardware.socketType} base, keyless`,
+      notes: 'Standard socket with cord hole at bottom',
+      searchTerm: `${hardware.socketType} lamp socket keyless`,
     },
     cord: {
-      name: '18/2 SPT-1 Lamp Cord',
-      specification: `${hardware.cordDiameter}mm diameter`,
-      notes: 'Length as needed, typically 6-8 feet',
-      searchTerm: 'lamp cord 18 gauge SPT-1',
+      name: '18/2 SPT-1 Lamp Cord with Plug',
+      specification: `${hardware.cordDiameter}mm diameter, 6-8 feet`,
+      notes: 'Pre-wired with plug preferred',
+      searchTerm: 'lamp cord with plug 18 gauge',
     },
     bulb: {
       name: bulbNames[hardware.bulbShape],
@@ -289,99 +327,89 @@ export const generateShoppingList = (
     assemblySteps: [],
   };
   
-  // Add mount-specific items
-  if (hardware.mountType === 'threaded_ring') {
-    list.threadedRing = {
-      name: `${hardware.socketType} Threaded Shade Ring`,
-      specification: `Ø${ring.ringOuterDiameter}mm outer, ${ring.ringHeight}mm height`,
-      notes: 'Usually included with socket, verify before purchase',
-      searchTerm: `${hardware.socketType} lamp shade ring threaded`,
-    };
+  // Stand-specific items and assembly
+  if (hardware.standType === 'tripod') {
     list.assemblySteps = [
-      '1. Thread cord through shade bottom opening',
-      '2. Wire cord to socket terminals',
-      '3. Place threaded ring in shade lip (seats on ledge)',
-      '4. Screw socket into threaded ring from below',
-      '5. Install bulb and test',
+      '1. Print the shade and tripod stand',
+      '2. Thread cord up through stand legs and socket holder',
+      '3. Wire cord terminals to socket',
+      '4. Push socket into the socket holder (friction fit)',
+      '5. Place shade on rim ring - it just drops in!',
+      '6. Install bulb and test',
     ];
-  } else if (hardware.mountType === 'press_fit') {
-    list.assemblySteps = [
-      '1. Thread cord through shade bottom opening',
-      '2. Wire cord to socket terminals',
-      '3. Press socket into shade collar (friction fit)',
-      '4. Ensure socket is fully seated and secure',
-      '5. Install bulb and test',
-    ];
-  } else {
-    list.snapRing = {
-      name: 'Lamp Socket Snap Ring',
-      specification: `Ø${socket.outerDiameter + 2}mm internal`,
-      notes: 'C-clip style retaining ring',
-      searchTerm: 'lamp socket retaining ring snap',
-    };
-    list.assemblySteps = [
-      '1. Thread cord through shade bottom opening',
-      '2. Wire cord to socket terminals', 
-      '3. Insert snap ring into shade groove',
-      '4. Drop socket through ring (ring holds socket)',
-      '5. Install bulb and test',
-    ];
-  }
-  
-  // Style-specific items
-  if (hardware.lampStyle === 'pendant') {
+  } else if (hardware.standType === 'pendant_cord') {
     list.additionalItems.push({
       name: 'Ceiling Canopy Kit',
       specification: 'Matches cord diameter',
-      notes: 'Covers ceiling junction box',
+      notes: 'Covers ceiling junction box (or use printed canopy)',
       searchTerm: 'pendant light canopy kit',
     });
-  } else if (hardware.lampStyle === 'wall_sconce') {
+    list.assemblySteps = [
+      '1. Print the shade and pendant bracket (with canopy)',
+      '2. Wire cord to socket in the pendant bracket',
+      '3. Mount canopy to ceiling junction box',
+      '4. Hang shade on bracket rim - it just drops in!',
+      '5. Install bulb and test',
+    ];
+  } else if (hardware.standType === 'wall_arm') {
     list.additionalItems.push({
       name: 'Wall Mounting Hardware',
       specification: '2× screws + anchors',
       notes: 'For mounting backplate to wall',
       searchTerm: 'wall sconce mounting screws',
     });
+    list.assemblySteps = [
+      '1. Print the shade and wall arm (with backplate)',
+      '2. Mount backplate to wall using screws/anchors',
+      '3. Route cord through arm to socket holder',
+      '4. Wire cord to socket',
+      '5. Place shade on arm rim ring',
+      '6. Install bulb and test',
+    ];
   }
   
   return list;
 };
 
-// Default lamp params (extending base parametric params for lamp type)
+// Default lamp params (Akari-style: pure decorative shade)
 export const defaultLampParams: LampParams = {
-  height: 150,
-  baseRadius: 40,
-  topRadius: 80,
+  // Base parametric shape
+  height: 180,
+  baseRadius: 60,
+  topRadius: 100,
   wallThickness: 2.0,
   wobbleFrequency: 0,
   wobbleAmplitude: 0,
   twistAngle: 0,
-  bulgePosition: 0.6,
-  bulgeAmount: 0.1,
+  bulgePosition: 0.5,
+  bulgeAmount: 0.15,
   pinchAmount: 0,
   asymmetry: 0,
   rippleCount: 0,
   rippleDepth: 0,
-  lipFlare: 0.05,
-  lipHeight: 0.03,
+  lipFlare: 0.08,
+  lipHeight: 0.05,
   organicNoise: 0,
   noiseScale: 1,
   baseThickness: 0,
   baseType: 'flat',
   
-  // Lamp-specific
-  socketMountingHeight: 145,
-  socketHoleDiameter: 40,
-  mounting: defaultMountingParams,
+  // Shade rim config
+  shade: defaultShadeConfig,
+  
+  // Ventilation (optional)
   ventilationSlots: false,
   ventSlotCount: 6,
   ventSlotWidth: 5,
   ventSlotHeight: 20,
+  
+  // Light patterns
   lightPatternType: 'none',
   patternDensity: 0.3,
   patternSize: 8,
   patternDepth: 0.8,
+  
+  // Translucency
   translucencyEnabled: false,
   translucencyZoneStart: 0.3,
   translucencyZoneEnd: 0.7,
