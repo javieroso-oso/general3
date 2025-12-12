@@ -84,7 +84,7 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     const cordHoleRadius = hardware.cordDiameter / 2 + 2;
     
     // Style-specific geometry adjustments
-    const isTableOrFloor = lampStyle === 'table' || lampStyle === 'floor';
+    const isStanding = lampStyle === 'standing';
     const isPendant = lampStyle === 'pendant';
     const isWallSconce = lampStyle === 'wall_sconce';
     
@@ -151,7 +151,7 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
       radiusAtHeight += lipT * lipT * lipFlare * baseRadius;
       
       // Style-specific subtle adjustments
-      if (isTableOrFloor) {
+      if (isStanding) {
         radiusAtHeight *= 1 + 0.08 * Math.pow(1 - t, 2); // Slightly wider at base
       } else if (isPendant) {
         radiusAtHeight *= 1 - 0.05 * t * t; // Slightly narrower at top
@@ -200,9 +200,9 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         });
       }
     } else {
-      // Pendant, Table, Floor: Standard organic shade
-      // Table/floor have closed bottom, pendant is open
-      const hasClosedBottom = isTableOrFloor;
+      // Pendant or Standing: Standard organic shade
+      // Standing has closed bottom, pendant is open
+      const hasClosedBottom = isStanding;
       
       if (hasClosedBottom) {
         // Closed base with cord hole
