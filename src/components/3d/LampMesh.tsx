@@ -78,12 +78,15 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
       rippleCount, rippleDepth, lipFlare, lipHeight,
       organicNoise, noiseScale, baseThickness, socketHoleDiameter,
       ventilationSlots, ventSlotCount, ventSlotWidth, ventSlotHeight,
+      mounting,
     } = params;
     
     const cordHoleRadius = hardware.cordDiameter / 2 + 2;
     
     // Style-specific geometry adjustments
     const isTableOrFloor = lampStyle === 'table' || lampStyle === 'floor';
+    const isTable = lampStyle === 'table';
+    const isFloor = lampStyle === 'floor';
     const isPendant = lampStyle === 'pendant';
     const isClipOn = lampStyle === 'clip_on';
     const isWallSconce = lampStyle === 'wall_sconce';
@@ -122,42 +125,29 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         r += (noise3D(nx, ny, nz) - 0.5) * organicNoise * baseRadius * 0.5;
       }
       
-      // Wall sconce: create true elliptical half-dome
-      if (isWallSconce) {
-        const cosTheta = Math.cos(theta);
-        // Create elliptical shape: full radius at front (theta=0), nearly flat at back (theta=PI)
-        // Use ellipse equation: r = a*b / sqrt((b*cos)^2 + (a*sin)^2) where a=1 (front), b=0.15 (back)
-        const frontDepth = 1.0;
-        const backDepth = 0.15;
-        const ellipseFactor = (frontDepth * backDepth) / 
-          Math.sqrt(Math.pow(backDepth * cosTheta, 2) + Math.pow(frontDepth * Math.sin(theta), 2));
-        r *= ellipseFactor;
-      }
-      
       return Math.max(r, 5);
     };
     
     // Helper to get shade profile radius at normalized t (0-1 along shade height)
-    const getShadeRadius = (t: number, theta?: number): number => {
+    const getShadeRadius = (t: number): number => {
       let radiusAtHeight = baseRadius + (topRadius - baseRadius) * t;
       
       // Style-specific profile modifications
       if (isTableOrFloor) {
-        // Table/floor: wider, more stable base with gentle taper, LARGE open top
-        const baseFlare = 1 + 0.2 * (1 - t) * (1 - t);
-        radiusAtHeight *= baseFlare;
+        // Table/floor: classic empire shade shape - wider at bottom, narrower at top
+        const empireShape = 1 + 0.15 * Math.pow(1 - t, 2);
+        radiusAtHeight *= empireShape;
       } else if (isPendant) {
         // Pendant: narrower at top where it hangs, wider bottom
         const pendantTaper = 1 - 0.1 * t * t;
         radiusAtHeight *= pendantTaper;
       } else if (isClipOn) {
-        // Clip-on: proper sized conical shade (80% of base radius)
-        const coneShape = 1 - t * 0.35; // Gentle taper toward top
-        radiusAtHeight = baseRadius * 0.8 * coneShape;
+        // Clip-on: small conical shade
+        radiusAtHeight = baseRadius * 0.7 * (1 - t * 0.3);
       } else if (isWallSconce) {
-        // Wall sconce: proper half-dome with full base radius
-        const domeShape = Math.sin(t * Math.PI * 0.9);
-        radiusAtHeight = baseRadius * 0.8 * (0.5 + domeShape * 0.5);
+        // Wall sconce: dome shape
+        const domeShape = Math.sin(t * Math.PI * 0.8 + 0.2);
+        radiusAtHeight = baseRadius * 0.9 * (0.4 + domeShape * 0.6);
       }
       
       // Bulge
@@ -195,34 +185,324 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     const hasClosedBottom = isTableOrFloor;
     const bottomThickness = hasClosedBottom ? Math.max(baseThickness, 12) : baseThickness;
     
-    // For clip-on, add clip geometry at top
-    const clipExtension = isClipOn ? 60 : 0; // Much taller clip arms
-    const totalHeight = height + clipExtension;
-    
-    // Main shade body
-    for (let i = 0; i <= heightSegments; i++) {
-      const t = i / heightSegments;
-      const y = t * height;
+    // ============================================
+    // TABLE/FLOOR LAMP: Add base and stem FIRST
+    // ============================================
+    if (isTable) {
+      // Table lamp base platform
+      const baseHeight = mounting.baseHeight;
+      const baseWidth = mounting.baseWidth / 2; // radius
+      const stemDiameter = mounting.stemDiameter;
+      const stemHeight = mounting.stemHeight;
       
-      const shadeR = getShadeRadius(t);
+      // Base platform - bottom
+      profile.push({
+        y: 0,
+        outerR: baseWidth,
+        innerR: 0, // Solid base
+        applyDeformations: false,
+      });
       
-      // Calculate inner radius - large open top for table/floor lamps
-      let innerR = shadeR - wallThickness;
+      // Base platform - top edge
+      profile.push({
+        y: baseHeight * 0.8,
+        outerR: baseWidth,
+        innerR: 0,
+        applyDeformations: false,
+      });
       
-      // For table/floor: keep large opening, just add small internal socket ledge
-      if (isTableOrFloor) {
-        const socketLipStart = params.socketMountingHeight - socket.collarHeight;
-        const socketLipEnd = params.socketMountingHeight;
+      // Transition to stem
+      profile.push({
+        y: baseHeight,
+        outerR: stemDiameter / 2 + 10,
+        innerR: 0,
+        applyDeformations: false,
+      });
+      
+      // Stem - runs up to shade
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8;
+        const y = baseHeight + t * stemHeight;
+        profile.push({
+          y,
+          outerR: stemDiameter / 2,
+          innerR: cordHoleRadius, // Hollow for cord
+          applyDeformations: false,
+        });
+      }
+      
+      // Socket mounting collar at top of stem
+      const collarBottom = baseHeight + stemHeight;
+      const collarHeight = socket.collarHeight + 5;
+      
+      profile.push({
+        y: collarBottom,
+        outerR: socket.outerDiameter / 2 + 8,
+        innerR: socket.threadDiameter / 2,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: collarBottom + collarHeight * 0.5,
+        outerR: socket.outerDiameter / 2 + 10,
+        innerR: socket.threadDiameter / 2,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: collarBottom + collarHeight,
+        outerR: socket.outerDiameter / 2 + 6,
+        innerR: socket.outerDiameter / 2,
+        applyDeformations: false,
+      });
+      
+      // Shade attached above collar - shade starts here
+      const shadeStart = collarBottom + collarHeight + 5;
+      
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        const y = shadeStart + t * height;
+        const shadeR = getShadeRadius(t);
+        const innerR = shadeR - wallThickness;
         
-        // Only create a small internal ledge for socket, not close the opening
-        if (y >= socketLipStart && y <= socketLipEnd) {
-          const lipInset = 8; // Small ledge for socket to rest on
-          innerR = Math.max(shadeR - wallThickness - lipInset, socketHoleDiameter / 2 + 5);
-        }
-        // Above socket area: keep fully open (just wall thickness)
-        // innerR stays at shadeR - wallThickness
-      } else {
-        // Other styles: original socket accommodation logic
+        profile.push({
+          y,
+          outerR: shadeR,
+          innerR: Math.max(innerR, 5),
+          applyDeformations: true,
+        });
+      }
+    }
+    // ============================================
+    // FLOOR LAMP: Pole adapter at bottom
+    // ============================================
+    else if (isFloor) {
+      const adapterHeight = mounting.poleAdapterHeight;
+      const adapterDiameter = mounting.poleAdapterDiameter;
+      
+      // Pole adapter bottom
+      profile.push({
+        y: 0,
+        outerR: adapterDiameter / 2 + 5,
+        innerR: adapterDiameter / 2, // Fits over pole
+        applyDeformations: false,
+      });
+      
+      // Adapter body
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 4;
+        profile.push({
+          y: t * adapterHeight * 0.8,
+          outerR: adapterDiameter / 2 + 5,
+          innerR: adapterDiameter / 2,
+          applyDeformations: false,
+        });
+      }
+      
+      // Transition flare
+      profile.push({
+        y: adapterHeight,
+        outerR: adapterDiameter / 2 + 15,
+        innerR: adapterDiameter / 2,
+        applyDeformations: false,
+      });
+      
+      // Socket collar
+      const collarStart = adapterHeight + 5;
+      profile.push({
+        y: collarStart,
+        outerR: socket.outerDiameter / 2 + 10,
+        innerR: socket.threadDiameter / 2,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: collarStart + socket.collarHeight,
+        outerR: socket.outerDiameter / 2 + 8,
+        innerR: socket.outerDiameter / 2,
+        applyDeformations: false,
+      });
+      
+      // Shade
+      const shadeStart = collarStart + socket.collarHeight + 5;
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        const y = shadeStart + t * height;
+        const shadeR = getShadeRadius(t);
+        const innerR = shadeR - wallThickness;
+        
+        profile.push({
+          y,
+          outerR: shadeR,
+          innerR: Math.max(innerR, 5),
+          applyDeformations: true,
+        });
+      }
+    }
+    // ============================================
+    // WALL SCONCE: Half-dome with backplate
+    // ============================================
+    else if (isWallSconce) {
+      const backplateWidth = mounting.backplateWidth / 2;
+      const backplateHeight = mounting.backplateHeight;
+      const armLength = mounting.armLength;
+      const backplateThickness = 8;
+      
+      // Backplate - flat against wall (Z will be constrained in vertex generation)
+      profile.push({
+        y: 0,
+        outerR: backplateWidth,
+        innerR: 0,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: backplateThickness,
+        outerR: backplateWidth,
+        innerR: 0,
+        applyDeformations: false,
+      });
+      
+      // Transition arm from backplate to shade
+      const armStart = backplateHeight * 0.3;
+      profile.push({
+        y: armStart,
+        outerR: 20,
+        innerR: cordHoleRadius,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: armStart + armLength * 0.5,
+        outerR: 18,
+        innerR: cordHoleRadius,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: armStart + armLength,
+        outerR: 20,
+        innerR: cordHoleRadius,
+        applyDeformations: false,
+      });
+      
+      // Socket collar
+      const collarStart = armStart + armLength + 5;
+      profile.push({
+        y: collarStart,
+        outerR: socket.outerDiameter / 2 + 8,
+        innerR: socket.threadDiameter / 2,
+        applyDeformations: false,
+      });
+      
+      // Half-dome shade (only front hemisphere rendered later)
+      const shadeStart = collarStart + socket.collarHeight;
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        const y = shadeStart + t * height * 0.7; // Shorter dome
+        const shadeR = getShadeRadius(t);
+        const innerR = shadeR - wallThickness;
+        
+        profile.push({
+          y,
+          outerR: shadeR,
+          innerR: Math.max(innerR, 5),
+          applyDeformations: true,
+        });
+      }
+    }
+    // ============================================
+    // CLIP-ON: Shade + separate spring arms
+    // ============================================
+    else if (isClipOn) {
+      // Small conical shade first
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        const y = t * height * 0.6; // Shorter shade
+        const shadeR = getShadeRadius(t);
+        const innerR = shadeR - wallThickness;
+        
+        profile.push({
+          y,
+          outerR: shadeR,
+          innerR: Math.max(innerR, socketHoleDiameter / 2),
+          applyDeformations: true,
+        });
+      }
+      
+      // Rim at top of shade
+      const shadeTopY = height * 0.6;
+      const shadeTopR = getShadeRadius(1);
+      profile.push({
+        y: shadeTopY + 2,
+        outerR: shadeTopR + 3,
+        innerR: shadeTopR - wallThickness,
+        applyDeformations: false,
+      });
+      
+      // Socket collar integrated at top
+      profile.push({
+        y: shadeTopY + 5,
+        outerR: socket.outerDiameter / 2 + 12,
+        innerR: socket.threadDiameter / 2,
+        applyDeformations: false,
+      });
+      profile.push({
+        y: shadeTopY + 5 + socket.collarHeight,
+        outerR: socket.outerDiameter / 2 + 8,
+        innerR: socket.outerDiameter / 2,
+        applyDeformations: false,
+      });
+      
+      // Spring arm base (ring around socket)
+      const armBaseY = shadeTopY + 5 + socket.collarHeight + 3;
+      profile.push({
+        y: armBaseY,
+        outerR: socket.outerDiameter / 2 + 15,
+        innerR: socket.outerDiameter / 2 + 2,
+        applyDeformations: false,
+      });
+      
+      // Spring arms going UP and curving inward
+      const clipArmLength = 50;
+      const bulbGripRadius = 15; // Where arms grip the bulb
+      
+      for (let i = 1; i <= 10; i++) {
+        const t = i / 10;
+        const y = armBaseY + t * clipArmLength;
+        // Curve inward toward bulb
+        const inwardCurve = Math.pow(t, 1.5);
+        const armR = (socket.outerDiameter / 2 + 15) * (1 - inwardCurve * 0.6) + bulbGripRadius * inwardCurve;
+        
+        profile.push({
+          y,
+          outerR: armR + 4, // Thick arms
+          innerR: Math.max(armR - 2, 8),
+          applyDeformations: false,
+        });
+      }
+      
+      // Spring tip - curves in to grip
+      for (let i = 1; i <= 5; i++) {
+        const t = i / 5;
+        const y = armBaseY + clipArmLength + t * 15;
+        const tipR = bulbGripRadius * (1 - t * 0.4);
+        
+        profile.push({
+          y,
+          outerR: tipR + 5,
+          innerR: Math.max(tipR, 5),
+          applyDeformations: false,
+        });
+      }
+    }
+    // ============================================
+    // PENDANT: Standard shade with collar
+    // ============================================
+    else {
+      // Main shade body
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        const y = t * height;
+        
+        const shadeR = getShadeRadius(t);
+        let innerR = shadeR - wallThickness;
+        
+        // Socket lip near top
         const socketLipStart = params.socketMountingHeight - socket.collarHeight;
         const socketLipEnd = params.socketMountingHeight;
         
@@ -233,86 +513,20 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         } else if (y > socketLipEnd) {
           innerR = Math.min(innerR, socketHoleDiameter / 2);
         }
-      }
-      
-      // Bottom closure for table/floor lamps with cord channel
-      if (hasClosedBottom && y < bottomThickness) {
-        const bottomProgress = y / bottomThickness;
-        innerR = cordHoleRadius + (innerR - cordHoleRadius) * smoothstep(0, 0.8, bottomProgress);
-      }
-      
-      profile.push({
-        y,
-        outerR: shadeR,
-        innerR: Math.max(innerR, hasClosedBottom && t < 0.08 ? cordHoleRadius : 0),
-        applyDeformations: true,
-      });
-    }
-    
-    // Add clip-on extension at top with prominent spring clip arms
-    if (isClipOn) {
-      const topShadeR = getShadeRadius(1);
-      const clipArmLength = 55; // Very prominent clip arms
-      const bulbGripRadius = socket.outerDiameter / 2 + 5;
-      
-      // Transition rim from shade top - slight outward flare
-      for (let i = 1; i <= 3; i++) {
-        const t = i / 3;
-        const y = height + t * 5;
-        const rimR = topShadeR + t * 3;
         
         profile.push({
           y,
-          outerR: rimR + wallThickness * 1.5,
-          innerR: rimR,
-          applyDeformations: false,
+          outerR: shadeR,
+          innerR: Math.max(innerR, 3),
+          applyDeformations: true,
         });
       }
       
-      // Clip arm going UP and curving INWARD strongly
-      for (let i = 1; i <= 12; i++) {
-        const t = i / 12;
-        const y = height + 5 + t * clipArmLength * 0.7;
-        // Strong inward curve toward bulb
-        const inwardCurve = Math.pow(t, 1.2);
-        const armR = (topShadeR + 3) * (1 - inwardCurve * 0.65) + bulbGripRadius * inwardCurve * 0.4;
-        
-        profile.push({
-          y,
-          outerR: armR + wallThickness * 2,
-          innerR: Math.max(armR, 8),
-          applyDeformations: false,
-        });
-      }
-      
-      // Spring grip tip - curves slightly outward then sharply in for grip
-      for (let i = 1; i <= 8; i++) {
-        const t = i / 8;
-        const y = height + 5 + clipArmLength * 0.7 + t * clipArmLength * 0.3;
-        // Spring curve: slight outward bow then sharp inward grip
-        const springBow = Math.sin(t * Math.PI) * 0.2;
-        const gripIn = Math.pow(t, 1.5) * 0.5;
-        const tipR = bulbGripRadius * (0.8 + springBow - gripIn);
-        
-        profile.push({
-          y,
-          outerR: Math.max(tipR + wallThickness * 1.5, 12),
-          innerR: Math.max(tipR, 6),
-          applyDeformations: false,
-        });
-      }
-    }
-    
-    // Wall sconce: no separate backplate needed - the half-dome IS the sconce
-    // The elliptical shape creates the wall-mounting surface at the back
-    
-    // Add pendant collar at top
-    if (isPendant) {
+      // Pendant collar at top
       const topShadeR = getShadeRadius(1);
       for (let i = 1; i <= 6; i++) {
         const t = i / 6;
         const y = height + t * 15;
-        // Collar tapers to cord hole
         const collarR = topShadeR * (1 - t * 0.7) + cordHoleRadius * t;
         
         profile.push({
@@ -328,16 +542,21 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     const twistRate = (twistAngle * Math.PI / 180) / height;
     const actualTotalHeight = profile[profile.length - 1].y;
     
+    // For wall sconce, only generate front half (0 to PI)
+    const thetaStart = isWallSconce ? -Math.PI / 2 : 0;
+    const thetaEnd = isWallSconce ? Math.PI / 2 : Math.PI * 2;
+    const thetaRange = thetaEnd - thetaStart;
+    
     for (let layer = 0; layer <= 1; layer++) {
       const isInner = layer === 1;
       
       for (let p = 0; p < profile.length; p++) {
         const point = profile[p];
-        const t = point.y / height;
+        const t = point.y / Math.max(height, 1);
         const twistAtHeight = twistRate * Math.min(point.y, height);
         
         for (let x = 0; x <= radialSegments; x++) {
-          const theta = (x / radialSegments) * Math.PI * 2 + twistAtHeight;
+          const theta = thetaStart + (x / radialSegments) * thetaRange + twistAtHeight;
           
           let r = isInner ? point.innerR : point.outerR;
           
@@ -419,8 +638,36 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
       indices.push(b, d, c);
     }
     
-    // Bottom cap (closed for table/floor, or if baseThickness > 0)
-    if (bottomThickness > 0) {
+    // Wall sconce: close the flat back edges
+    if (isWallSconce) {
+      // Connect front edges with flat back faces
+      for (let p = 0; p < profileCount - 1; p++) {
+        // Left edge (theta = -PI/2)
+        const outerLeft1 = p * verticesPerRing;
+        const outerLeft2 = (p + 1) * verticesPerRing;
+        const innerLeft1 = innerOffset + p * verticesPerRing;
+        const innerLeft2 = innerOffset + (p + 1) * verticesPerRing;
+        
+        if (profile[p].innerR > 0 && profile[p + 1].innerR > 0) {
+          indices.push(outerLeft1, innerLeft1, outerLeft2);
+          indices.push(innerLeft1, innerLeft2, outerLeft2);
+        }
+        
+        // Right edge (theta = PI/2)
+        const outerRight1 = p * verticesPerRing + radialSegments;
+        const outerRight2 = (p + 1) * verticesPerRing + radialSegments;
+        const innerRight1 = innerOffset + p * verticesPerRing + radialSegments;
+        const innerRight2 = innerOffset + (p + 1) * verticesPerRing + radialSegments;
+        
+        if (profile[p].innerR > 0 && profile[p + 1].innerR > 0) {
+          indices.push(outerRight1, outerRight2, innerRight1);
+          indices.push(innerRight1, outerRight2, innerRight2);
+        }
+      }
+    }
+    
+    // Bottom cap
+    if (profile[0].innerR === 0) {
       const bottomY = profile[0].y;
       const baseCenterIdx = positions.length / 3;
       positions.push(0, bottomY * scale, 0);
@@ -429,11 +676,8 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
       
       const bottomR = profile[0].outerR;
       for (let x = 0; x <= radialSegments; x++) {
-        const theta = (x / radialSegments) * Math.PI * 2;
-        let r = bottomR;
-        if (profile[0].applyDeformations) {
-          r = getOrganicRadius(r, 0, theta, true);
-        }
+        const theta = thetaStart + (x / radialSegments) * thetaRange;
+        const r = bottomR;
         positions.push(Math.cos(theta) * r * scale, bottomY * scale, Math.sin(theta) * r * scale);
         normals.push(0, -1, 0);
         uvs.push(Math.cos(theta) * 0.5 + 0.5, Math.sin(theta) * 0.5 + 0.5);
