@@ -1,358 +1,333 @@
 import * as THREE from 'three';
-import {
-  StandParams,
-  TripodStandParams,
-  PendantCordParams,
-  WallArmParams,
-  getSocketHolderDimensions,
-} from '@/types/lamp';
+import { StandParams as MainStandParams } from '@/types/parametric';
 
 // ============================================
-// AKARI-INSPIRED STAND GENERATORS
+// STAND GENERATORS
 // Generate 3D geometry for printable stands
 // ============================================
 
+interface TripodParams {
+  rimDiameter: number;
+  height: number;
+  legCount: 3 | 4;
+  legSpread: number;
+}
+
+interface PendantParams {
+  rimDiameter: number;
+  height: number;
+  cordLength: number;
+}
+
+interface WallArmParams {
+  rimDiameter: number;
+  height: number;
+  armLength: number;
+  armAngle: number;
+}
+
 // Generate tripod stand geometry (table/floor lamp)
-export function generateTripodStandGeometry(params: TripodStandParams): THREE.BufferGeometry {
-  const group = new THREE.Group();
-  
-  const socketHolder = getSocketHolderDimensions(params.socketType);
+export function generateTripodStandGeometry(params: TripodParams): THREE.BufferGeometry {
   const rimRadius = params.rimDiameter / 2;
-  const legAngleStep = (Math.PI * 2) / params.legCount;
-  const legSpreadRad = (params.legSpread * Math.PI) / 180;
+  const legCount = params.legCount;
+  const legAngleStep = (Math.PI * 2) / legCount;
+  const wallThickness = 4;
+  const legThickness = 6;
+  const socketHolderHeight = 60;
+  const socketOuterRadius = 18;
   
-  // ============================================
-  // 1. RIM RING (where shade rests)
-  // ============================================
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // 1. RIM RING (where object rests)
   const rimRingGeom = new THREE.TorusGeometry(
-    rimRadius - params.wallThickness / 2,
-    params.wallThickness / 2,
+    rimRadius - wallThickness / 2,
+    wallThickness / 2,
     8,
     48
   );
-  const rimRing = new THREE.Mesh(rimRingGeom);
-  rimRing.position.y = params.height;
-  rimRing.rotation.x = Math.PI / 2;
-  group.add(rimRing);
+  const rimMatrix = new THREE.Matrix4().makeTranslation(0, params.height, 0);
+  rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  rimRingGeom.applyMatrix4(rimMatrix);
+  geometries.push(rimRingGeom);
   
-  // ============================================
   // 2. CENTRAL SOCKET HOLDER (column)
-  // ============================================
-  const holderOuterRadius = socketHolder.outerDiameter / 2;
-  const holderInnerRadius = socketHolder.innerDiameter / 2;
-  const holderHeight = params.socketHolderHeight;
-  
-  // Outer cylinder
-  const holderOuter = new THREE.CylinderGeometry(
-    holderOuterRadius,
-    holderOuterRadius,
-    holderHeight,
+  const holderGeom = new THREE.CylinderGeometry(
+    socketOuterRadius,
+    socketOuterRadius,
+    socketHolderHeight,
     24
   );
-  const holderMesh = new THREE.Mesh(holderOuter);
-  holderMesh.position.y = params.height - holderHeight / 2;
-  group.add(holderMesh);
+  holderGeom.translate(0, params.height - socketHolderHeight / 2, 0);
+  geometries.push(holderGeom);
   
-  // Inner hole (socket cavity) - will be subtracted in final mesh
-  // For now, we'll create a hollow version using lathe
-  
-  // ============================================
   // 3. LEGS (spread outward from socket holder base)
-  // ============================================
-  const legLength = params.height - holderHeight + 20;
-  const legGeom = new THREE.CylinderGeometry(
-    params.legThickness / 2,
-    params.legThickness / 2 * 1.2, // Slightly wider at base
-    legLength,
-    8
-  );
+  const legLength = params.height - socketHolderHeight + 20;
+  const bottomRadius = rimRadius * 1.1;
   
-  for (let i = 0; i < params.legCount; i++) {
+  for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep;
-    const leg = new THREE.Mesh(legGeom);
     
-    // Position at base of socket holder
-    const topX = Math.cos(angle) * holderOuterRadius;
-    const topZ = Math.sin(angle) * holderOuterRadius;
-    
-    // Calculate bottom position based on spread
-    const bottomRadius = rimRadius * 1.1; // Legs extend beyond rim
+    // Top and bottom positions
+    const topX = Math.cos(angle) * socketOuterRadius;
+    const topZ = Math.sin(angle) * socketOuterRadius;
     const bottomX = Math.cos(angle) * bottomRadius;
     const bottomZ = Math.sin(angle) * bottomRadius;
     
-    // Position and rotate leg
-    leg.position.set(
-      (topX + bottomX) / 2,
-      legLength / 2 - 10,
-      (topZ + bottomZ) / 2
+    // Create leg as a box and orient it
+    const dx = bottomX - topX;
+    const dy = -(params.height - socketHolderHeight);
+    const dz = bottomZ - topZ;
+    const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    
+    const legGeom = new THREE.CylinderGeometry(
+      legThickness / 2,
+      legThickness / 2 * 1.2,
+      length,
+      8
     );
     
-    // Calculate rotation to connect top and bottom points
-    const dx = bottomX - topX;
-    const dy = -(params.height - holderHeight);
-    const dz = bottomZ - topZ;
-    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
-    const tiltAngle = Math.atan2(horizontalDist, -dy);
+    // Position and rotate leg
+    const midX = (topX + bottomX) / 2;
+    const midY = (params.height - socketHolderHeight) / 2;
+    const midZ = (topZ + bottomZ) / 2;
     
-    leg.rotation.x = tiltAngle;
-    leg.rotation.y = -angle;
+    // Calculate rotation
+    const direction = new THREE.Vector3(dx, dy, dz).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
     
-    group.add(leg);
+    const matrix = new THREE.Matrix4();
+    matrix.compose(
+      new THREE.Vector3(midX, midY, midZ),
+      quaternion,
+      new THREE.Vector3(1, 1, 1)
+    );
+    legGeom.applyMatrix4(matrix);
+    geometries.push(legGeom);
   }
   
-  // ============================================
-  // 4. RIM SUPPORTS (connect legs to rim)
-  // ============================================
-  const supportGeom = new THREE.CylinderGeometry(
-    params.wallThickness / 2,
-    params.wallThickness / 2,
-    rimRadius * 0.8,
-    6
-  );
-  
-  for (let i = 0; i < params.legCount; i++) {
+  // 4. RIM SUPPORTS (horizontal spokes from holder to rim)
+  for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep + legAngleStep / 2;
-    const support = new THREE.Mesh(supportGeom);
+    const supportLength = rimRadius * 0.7;
     
-    // Horizontal support from socket holder to rim
-    support.rotation.z = Math.PI / 2;
-    support.rotation.y = angle;
-    support.position.set(
+    const supportGeom = new THREE.CylinderGeometry(
+      wallThickness / 2,
+      wallThickness / 2,
+      supportLength,
+      6
+    );
+    
+    // Rotate to horizontal and position
+    supportGeom.rotateZ(Math.PI / 2);
+    supportGeom.rotateY(angle);
+    supportGeom.translate(
       Math.cos(angle) * rimRadius * 0.5,
       params.height - 5,
       Math.sin(angle) * rimRadius * 0.5
     );
-    
-    group.add(support);
+    geometries.push(supportGeom);
   }
   
-  // Merge all geometries
-  const mergedGeometry = mergeGroupToGeometry(group);
-  return mergedGeometry;
+  return mergeGeometries(geometries);
 }
 
 // Generate pendant cord stand geometry
-export function generatePendantCordGeometry(params: PendantCordParams): THREE.BufferGeometry {
-  const group = new THREE.Group();
-  
-  const socketHolder = getSocketHolderDimensions(params.socketType);
+export function generatePendantCordGeometry(params: PendantParams): THREE.BufferGeometry {
   const rimRadius = params.rimDiameter / 2;
+  const wallThickness = 4;
+  const canopyDiameter = 80;
+  const canopyHeight = 25;
+  const socketHolderHeight = 50;
+  const socketRadius = 18;
   
-  // ============================================
+  const geometries: THREE.BufferGeometry[] = [];
+  
   // 1. CANOPY (ceiling mount)
-  // ============================================
   const canopyGeom = new THREE.CylinderGeometry(
-    params.canopyDiameter / 2,
-    params.canopyDiameter / 2 * 0.9,
-    params.canopyHeight,
+    canopyDiameter / 2,
+    canopyDiameter / 2 * 0.9,
+    canopyHeight,
     32
   );
-  const canopy = new THREE.Mesh(canopyGeom);
-  canopy.position.y = params.height + params.canopyHeight / 2;
-  group.add(canopy);
+  canopyGeom.translate(0, params.height + canopyHeight / 2, 0);
+  geometries.push(canopyGeom);
   
-  // ============================================
   // 2. SOCKET HOLDER (hanging below canopy)
-  // ============================================
-  const holderHeight = socketHolder.height;
-  const holderRadius = socketHolder.outerDiameter / 2;
-  
   const holderGeom = new THREE.CylinderGeometry(
-    holderRadius,
-    holderRadius * 1.1,
-    holderHeight,
+    socketRadius,
+    socketRadius * 1.1,
+    socketHolderHeight,
     24
   );
-  const holder = new THREE.Mesh(holderGeom);
-  holder.position.y = params.height - holderHeight / 2;
-  group.add(holder);
+  holderGeom.translate(0, params.height - socketHolderHeight / 2, 0);
+  geometries.push(holderGeom);
   
-  // ============================================
   // 3. RIM RING (where shade hangs)
-  // ============================================
   const rimRingGeom = new THREE.TorusGeometry(
-    rimRadius - params.wallThickness / 2,
-    params.wallThickness,
+    rimRadius - wallThickness / 2,
+    wallThickness,
     8,
     48
   );
-  const rimRing = new THREE.Mesh(rimRingGeom);
-  rimRing.position.y = params.height - holderHeight - 5;
-  rimRing.rotation.x = Math.PI / 2;
-  group.add(rimRing);
+  const rimMatrix = new THREE.Matrix4().makeTranslation(0, params.height - socketHolderHeight - 5, 0);
+  rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  rimRingGeom.applyMatrix4(rimMatrix);
+  geometries.push(rimRingGeom);
   
-  // ============================================
   // 4. SUPPORT STRUTS (socket holder to rim)
-  // ============================================
   const strutCount = 3;
-  const strutGeom = new THREE.CylinderGeometry(
-    params.wallThickness / 2,
-    params.wallThickness / 2,
-    rimRadius * 0.7,
-    6
-  );
-  
   for (let i = 0; i < strutCount; i++) {
     const angle = (i / strutCount) * Math.PI * 2;
-    const strut = new THREE.Mesh(strutGeom);
+    const strutLength = rimRadius * 0.6;
     
-    strut.rotation.z = Math.PI / 2;
-    strut.rotation.y = angle;
-    strut.position.set(
-      Math.cos(angle) * rimRadius * 0.4,
-      params.height - holderHeight - 5,
-      Math.sin(angle) * rimRadius * 0.4
+    const strutGeom = new THREE.CylinderGeometry(
+      wallThickness / 2,
+      wallThickness / 2,
+      strutLength,
+      6
     );
     
-    group.add(strut);
+    strutGeom.rotateZ(Math.PI / 2);
+    strutGeom.rotateY(angle);
+    strutGeom.translate(
+      Math.cos(angle) * rimRadius * 0.35,
+      params.height - socketHolderHeight - 5,
+      Math.sin(angle) * rimRadius * 0.35
+    );
+    geometries.push(strutGeom);
   }
   
-  // Merge all geometries
-  const mergedGeometry = mergeGroupToGeometry(group);
-  return mergedGeometry;
+  return mergeGeometries(geometries);
 }
 
 // Generate wall arm stand geometry
 export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeometry {
-  const group = new THREE.Group();
-  
-  const socketHolder = getSocketHolderDimensions(params.socketType);
   const rimRadius = params.rimDiameter / 2;
+  const wallThickness = 4;
+  const backplateWidth = 100;
+  const backplateHeight = 140;
+  const socketHolderHeight = 50;
+  const socketRadius = 18;
   const armAngleRad = (params.armAngle * Math.PI) / 180;
   
-  // ============================================
-  // 1. BACKPLATE (wall mount)
-  // ============================================
-  const backplateGeom = new THREE.BoxGeometry(
-    params.backplateWidth,
-    params.backplateHeight,
-    params.wallThickness * 2
-  );
-  const backplate = new THREE.Mesh(backplateGeom);
-  backplate.position.set(0, params.backplateHeight / 2, 0);
-  group.add(backplate);
+  const geometries: THREE.BufferGeometry[] = [];
   
-  // ============================================
+  // 1. BACKPLATE (wall mount)
+  const backplateGeom = new THREE.BoxGeometry(
+    backplateWidth,
+    backplateHeight,
+    wallThickness * 2
+  );
+  backplateGeom.translate(0, backplateHeight / 2, 0);
+  geometries.push(backplateGeom);
+  
   // 2. ARM (extends from backplate)
-  // ============================================
   const armGeom = new THREE.CylinderGeometry(
-    params.wallThickness * 1.5,
-    params.wallThickness * 1.5,
+    wallThickness * 1.5,
+    wallThickness * 1.5,
     params.armLength,
     12
   );
-  const arm = new THREE.Mesh(armGeom);
   
   // Position arm extending outward at angle
-  arm.rotation.x = Math.PI / 2 - armAngleRad;
-  arm.position.set(
+  armGeom.rotateX(Math.PI / 2 - armAngleRad);
+  armGeom.translate(
     0,
-    params.backplateHeight / 2,
+    backplateHeight / 2,
     params.armLength / 2 * Math.cos(armAngleRad)
   );
-  group.add(arm);
+  geometries.push(armGeom);
   
-  // ============================================
   // 3. SOCKET HOLDER (at end of arm)
-  // ============================================
-  const holderHeight = socketHolder.height;
-  const holderRadius = socketHolder.outerDiameter / 2;
+  const armEndZ = params.armLength * Math.cos(armAngleRad);
+  const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
   
   const holderGeom = new THREE.CylinderGeometry(
-    holderRadius,
-    holderRadius,
-    holderHeight,
+    socketRadius,
+    socketRadius,
+    socketHolderHeight,
     24
   );
-  const holder = new THREE.Mesh(holderGeom);
+  holderGeom.translate(0, armEndY - socketHolderHeight / 2, armEndZ);
+  geometries.push(holderGeom);
   
-  // Position at end of arm
-  const armEndZ = params.armLength * Math.cos(armAngleRad);
-  const armEndY = params.backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
-  holder.position.set(0, armEndY - holderHeight / 2, armEndZ);
-  group.add(holder);
-  
-  // ============================================
   // 4. RIM RING (where shade rests)
-  // ============================================
   const rimRingGeom = new THREE.TorusGeometry(
-    rimRadius - params.wallThickness / 2,
-    params.wallThickness,
+    rimRadius - wallThickness / 2,
+    wallThickness,
     8,
     48
   );
-  const rimRing = new THREE.Mesh(rimRingGeom);
-  rimRing.position.set(0, armEndY - holderHeight - 5, armEndZ);
-  rimRing.rotation.x = Math.PI / 2;
-  group.add(rimRing);
+  const rimMatrix = new THREE.Matrix4().makeTranslation(0, armEndY - socketHolderHeight - 5, armEndZ);
+  rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  rimRingGeom.applyMatrix4(rimMatrix);
+  geometries.push(rimRingGeom);
   
-  // ============================================
   // 5. RIM SUPPORTS
-  // ============================================
   const supportCount = 3;
-  const supportGeom = new THREE.CylinderGeometry(
-    params.wallThickness / 2,
-    params.wallThickness / 2,
-    rimRadius * 0.6,
-    6
-  );
-  
   for (let i = 0; i < supportCount; i++) {
     const angle = (i / supportCount) * Math.PI * 2;
-    const support = new THREE.Mesh(supportGeom);
+    const supportLength = rimRadius * 0.5;
     
-    support.rotation.z = Math.PI / 2;
-    support.rotation.y = angle;
-    support.position.set(
-      Math.cos(angle) * rimRadius * 0.35,
-      armEndY - holderHeight - 5,
-      armEndZ + Math.sin(angle) * rimRadius * 0.35
+    const supportGeom = new THREE.CylinderGeometry(
+      wallThickness / 2,
+      wallThickness / 2,
+      supportLength,
+      6
     );
     
-    group.add(support);
+    supportGeom.rotateZ(Math.PI / 2);
+    supportGeom.rotateY(angle);
+    supportGeom.translate(
+      Math.cos(angle) * rimRadius * 0.3,
+      armEndY - socketHolderHeight - 5,
+      armEndZ + Math.sin(angle) * rimRadius * 0.3
+    );
+    geometries.push(supportGeom);
   }
   
-  // Merge all geometries
-  const mergedGeometry = mergeGroupToGeometry(group);
-  return mergedGeometry;
+  return mergeGeometries(geometries);
 }
 
-// Generate stand geometry based on type
-export function generateStandGeometry(params: StandParams): THREE.BufferGeometry {
+// Generate stand geometry based on StandParams from parametric.ts
+export function generateStandGeometry(params: MainStandParams): THREE.BufferGeometry {
+  if (!params.enabled || params.type === 'none') {
+    return new THREE.BufferGeometry();
+  }
+  
   switch (params.type) {
     case 'tripod':
-      return generateTripodStandGeometry(params);
-    case 'pendant_cord':
-      return generatePendantCordGeometry(params);
+      return generateTripodStandGeometry({
+        rimDiameter: params.rimDiameter,
+        height: params.height,
+        legCount: params.legCount,
+        legSpread: params.legSpread,
+      });
+    case 'pendant':
+      return generatePendantCordGeometry({
+        rimDiameter: params.rimDiameter,
+        height: params.height,
+        cordLength: params.cordLength,
+      });
     case 'wall_arm':
-      return generateWallArmGeometry(params);
+      return generateWallArmGeometry({
+        rimDiameter: params.rimDiameter,
+        height: params.height,
+        armLength: params.armLength,
+        armAngle: params.armAngle,
+      });
+    default:
+      return new THREE.BufferGeometry();
   }
 }
 
-// Helper: Merge THREE.Group into single BufferGeometry
-function mergeGroupToGeometry(group: THREE.Group): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
-  
-  group.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      const geom = child.geometry.clone();
-      child.updateMatrix();
-      geom.applyMatrix4(child.matrix);
-      geometries.push(geom);
-    }
-  });
-  
+// Helper: Merge multiple geometries into one
+function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (geometries.length === 0) {
     return new THREE.BufferGeometry();
   }
   
-  // Merge using BufferGeometryUtils-like approach
-  const merged = mergeBufferGeometries(geometries);
-  return merged;
-}
-
-// Simple buffer geometry merge (since we can't use BufferGeometryUtils directly)
-function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   let totalVertices = 0;
   let totalIndices = 0;
   
@@ -363,14 +338,19 @@ function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.Buffer
     if (idx) totalIndices += idx.count;
   }
   
+  if (totalVertices === 0) {
+    return new THREE.BufferGeometry();
+  }
+  
   const positions = new Float32Array(totalVertices * 3);
+  const normals = new Float32Array(totalVertices * 3);
   const indices: number[] = [];
   
   let vertexOffset = 0;
-  let indexOffset = 0;
   
   for (const geom of geometries) {
     const pos = geom.getAttribute('position');
+    const norm = geom.getAttribute('normal');
     if (!pos) continue;
     
     // Copy positions
@@ -378,6 +358,12 @@ function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.Buffer
       positions[(vertexOffset + i) * 3] = pos.getX(i);
       positions[(vertexOffset + i) * 3 + 1] = pos.getY(i);
       positions[(vertexOffset + i) * 3 + 2] = pos.getZ(i);
+      
+      if (norm) {
+        normals[(vertexOffset + i) * 3] = norm.getX(i);
+        normals[(vertexOffset + i) * 3 + 1] = norm.getY(i);
+        normals[(vertexOffset + i) * 3 + 2] = norm.getZ(i);
+      }
     }
     
     // Copy indices with offset
@@ -393,10 +379,12 @@ function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.Buffer
   
   const merged = new THREE.BufferGeometry();
   merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
   if (indices.length > 0) {
     merged.setIndex(indices);
   }
   merged.computeVertexNormals();
+  merged.computeBoundingSphere();
   
   return merged;
 }

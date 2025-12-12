@@ -2,36 +2,23 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { generateStandGeometry } from '@/lib/stand-generators';
-import { StandParams } from '@/types/lamp';
+import { StandParams } from '@/types/parametric';
 
 interface StandMeshProps {
-  params: {
-    type: 'tripod' | 'pendant_cord' | 'wall_arm';
-    socketType?: 'E26' | 'E27' | 'E12' | 'GU10' | 'G9' | 'LED_Strip';
-    rimDiameter: number;  // Allow any number, not just StandardRimSize
-    height: number;
-    legCount?: 3 | 4;
-    legSpread?: number;
-    cordLength?: number;
-    canopyDiameter?: number;
-    armLength?: number;
-    armAngle?: number;
-    backplateSize?: number;
-  };
+  params: StandParams;
   showWireframe?: boolean;
-  visible?: boolean;
 }
 
 /**
  * StandMesh - Renders the printable stand structure
  * Tripod legs, pendant bracket, or wall arm with socket holder
  */
-const StandMesh = ({ params, showWireframe = false, visible = true }: StandMeshProps) => {
+const StandMesh = ({ params, showWireframe = false }: StandMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const scale = 0.01;
   
-  // Rotate slowly (sync with shade)
+  // Rotate slowly
   useFrame(({ clock }) => {
     const rotation = clock.elapsedTime * 0.15;
     if (meshRef.current) meshRef.current.rotation.y = rotation;
@@ -39,43 +26,11 @@ const StandMesh = ({ params, showWireframe = false, visible = true }: StandMeshP
   });
   
   const { geometry, wireframeGeometry } = useMemo(() => {
-    // Convert to full StandParams for the generator
-    const fullParams: StandParams = params.type === 'tripod' 
-      ? {
-          type: 'tripod',
-          socketType: params.socketType || 'E26',
-          rimDiameter: (Math.round(params.rimDiameter / 50) * 50 || 150) as 100 | 150 | 200 | 250,
-          height: params.height,
-          wallThickness: 3,
-          legCount: params.legCount || 3,
-          legSpread: params.legSpread || 35,
-          legThickness: 8,
-          socketHolderHeight: 80,
-        }
-      : params.type === 'pendant_cord'
-      ? {
-          type: 'pendant_cord',
-          socketType: params.socketType || 'E26',
-          rimDiameter: (Math.round(params.rimDiameter / 50) * 50 || 150) as 100 | 150 | 200 | 250,
-          height: params.height,
-          wallThickness: 3,
-          canopyDiameter: params.canopyDiameter || 80,
-          canopyHeight: 25,
-          cordLength: params.cordLength || 500,
-        }
-      : {
-          type: 'wall_arm',
-          socketType: params.socketType || 'E26',
-          rimDiameter: (Math.round(params.rimDiameter / 50) * 50 || 150) as 100 | 150 | 200 | 250,
-          height: params.height,
-          wallThickness: 3,
-          armLength: params.armLength || 200,
-          armAngle: params.armAngle || 15,
-          backplateWidth: params.backplateSize || 100,
-          backplateHeight: 140,
-        };
+    if (!params.enabled || params.type === 'none') {
+      return { geometry: new THREE.BufferGeometry(), wireframeGeometry: new THREE.BufferGeometry() };
+    }
     
-    const standGeo = generateStandGeometry(fullParams);
+    const standGeo = generateStandGeometry(params);
     
     // Scale geometry
     standGeo.scale(scale, scale, scale);
@@ -86,7 +41,9 @@ const StandMesh = ({ params, showWireframe = false, visible = true }: StandMeshP
     return { geometry: standGeo, wireframeGeometry: wireGeo };
   }, [params]);
   
-  if (!visible) return null;
+  if (!params.enabled || params.type === 'none') {
+    return null;
+  }
   
   return (
     <group>
