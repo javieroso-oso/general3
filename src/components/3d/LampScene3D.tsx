@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment } from '@react-three/drei';
 import LampMesh from './LampMesh';
-import MountingMesh from './MountingMesh';
 import SocketMesh from './SocketMesh';
 import BulbMesh from './BulbMesh';
 import { LampParams, LampHardware } from '@/types/lamp';
@@ -26,6 +25,21 @@ const LampScene3D = ({
   showHeatZone = true,
   showMounting = true,
 }: LampScene3DProps) => {
+  // Calculate camera target based on lamp style
+  const getCameraTarget = () => {
+    const baseY = params.height * 0.005;
+    switch (hardware.lampStyle) {
+      case 'table':
+        return [0, baseY - params.mounting.baseHeight * 0.003, 0] as [number, number, number];
+      case 'floor':
+        return [0, baseY - params.mounting.poleAdapterHeight * 0.003, 0] as [number, number, number];
+      case 'pendant':
+        return [0, baseY + params.mounting.canopyHeight * 0.003, 0] as [number, number, number];
+      default:
+        return [0, baseY, 0] as [number, number, number];
+    }
+  };
+
   return (
     <Canvas
       camera={{ position: [4, 2.5, 4], fov: 40 }}
@@ -56,20 +70,13 @@ const LampScene3D = ({
           followCamera={false}
         />
         
-        {/* Lamp shade */}
+        {/* Unified lamp mesh with integrated mounting */}
         <LampMesh
           params={params}
           hardware={hardware}
           showWireframe={showWireframe}
+          showMounting={showMounting}
         />
-        
-        {/* Style-specific mounting hardware */}
-        {showMounting && (
-          <MountingMesh
-            params={params}
-            hardware={hardware}
-          />
-        )}
         
         {/* Socket ghost visualization */}
         <SocketMesh
@@ -95,7 +102,7 @@ const LampScene3D = ({
           enableRotate={true}
           minDistance={1}
           maxDistance={10}
-          target={[0, params.height * 0.005, 0]}
+          target={getCameraTarget()}
         />
       </Suspense>
     </Canvas>
