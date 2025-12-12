@@ -7,7 +7,7 @@ export type SocketType = 'E26' | 'E27' | 'E12' | 'GU10' | 'G9' | 'LED_Strip';
 export type BulbShape = 'A19' | 'A21' | 'Globe' | 'Candle' | 'Edison' | 'PAR30' | 'Tube';
 
 // Mounting/lamp styles
-export type LampStyle = 'pendant' | 'table' | 'wall_sconce' | 'clip_on' | 'floor';
+export type LampStyle = 'pendant' | 'table' | 'wall_sconce' | 'floor';
 
 // Cord routing options
 export type CordExit = 'bottom_center' | 'bottom_side' | 'top_hidden' | 'internal_channel';
@@ -52,9 +52,6 @@ export interface MountingParams {
   poleAdapterDiameter: number; // mm (fits standard poles)
   poleAdapterHeight: number;   // mm
   
-  // Clip-on - rim clip
-  clipWidth: number;           // mm
-  clipDepth: number;           // mm
 }
 
 export interface LampHardware {
@@ -161,9 +158,6 @@ export const defaultMountingParams: MountingParams = {
   // Floor
   poleAdapterDiameter: 30,
   poleAdapterHeight: 40,
-  // Clip-on
-  clipWidth: 30,
-  clipDepth: 25,
 };
 
 // Default lamp hardware
