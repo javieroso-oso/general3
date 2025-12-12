@@ -31,67 +31,128 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
   const rimRadius = params.rimDiameter / 2;
   const legCount = params.legCount;
   const legAngleStep = (Math.PI * 2) / legCount;
+  
+  // Structural dimensions
   const wallThickness = 4;
-  const legThickness = 6;
-  const socketHolderHeight = 60;
-  const socketOuterRadius = 18;
+  const legThickness = 8;
+  const hubRadius = 20;
+  const hubHeight = 40;
+  const footPadRadius = 12;
+  const footPadHeight = 4;
+  
+  // Calculate leg spread - convert degrees to radians
+  const legSpreadRad = (params.legSpread * Math.PI) / 180;
+  
+  // Hub sits at top, legs spread down from hub base to floor
+  const hubTopY = params.height;
+  const hubBottomY = params.height - hubHeight;
+  
+  // Calculate where legs touch the ground based on legSpread angle
+  // Bottom radius = hubRadius + (distance from hub to ground) * tan(spread angle)
+  const legVerticalDrop = hubBottomY; // from hubBottom to y=0
+  const bottomSpreadRadius = hubRadius + legVerticalDrop * Math.tan(legSpreadRad);
   
   const geometries: THREE.BufferGeometry[] = [];
   
-  // 1. RIM RING (where object rests)
+  // 1. RIM RING (where object rests) - at the very top
   const rimRingGeom = new THREE.TorusGeometry(
     rimRadius - wallThickness / 2,
     wallThickness / 2,
     8,
     48
   );
-  const rimMatrix = new THREE.Matrix4().makeTranslation(0, params.height, 0);
+  const rimMatrix = new THREE.Matrix4().makeTranslation(0, hubTopY, 0);
   rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
   rimRingGeom.applyMatrix4(rimMatrix);
   geometries.push(rimRingGeom);
   
-  // 2. CENTRAL SOCKET HOLDER (column)
-  const holderGeom = new THREE.CylinderGeometry(
-    socketOuterRadius,
-    socketOuterRadius,
-    socketHolderHeight,
+  // 2. CENTRAL HUB (socket holder at top)
+  const hubGeom = new THREE.CylinderGeometry(
+    hubRadius,
+    hubRadius * 0.9,
+    hubHeight,
     24
   );
-  holderGeom.translate(0, params.height - socketHolderHeight / 2, 0);
-  geometries.push(holderGeom);
+  hubGeom.translate(0, hubTopY - hubHeight / 2, 0);
+  geometries.push(hubGeom);
   
-  // 3. LEGS (spread outward from socket holder base)
-  const legLength = params.height - socketHolderHeight + 20;
-  const bottomRadius = rimRadius * 1.1;
+  // 3. VERTICAL SUPPORT STRUTS (rim ring to hub)
+  const strutCount = legCount;
+  for (let i = 0; i < strutCount; i++) {
+    const angle = i * legAngleStep + legAngleStep / 2;
+    const strutRadius = (rimRadius + hubRadius) / 2 * 0.7;
+    
+    const strutGeom = new THREE.CylinderGeometry(
+      wallThickness / 2,
+      wallThickness / 2,
+      hubHeight * 0.3,
+      6
+    );
+    strutGeom.translate(
+      Math.cos(angle) * strutRadius,
+      hubTopY - hubHeight * 0.15,
+      Math.sin(angle) * strutRadius
+    );
+    geometries.push(strutGeom);
+  }
   
+  // 4. HORIZONTAL RIM SUPPORTS (hub to rim ring)
+  for (let i = 0; i < strutCount; i++) {
+    const angle = i * legAngleStep + legAngleStep / 2;
+    const supportLength = rimRadius - hubRadius;
+    
+    const supportGeom = new THREE.CylinderGeometry(
+      wallThickness / 2,
+      wallThickness / 2,
+      supportLength,
+      6
+    );
+    
+    // Rotate to horizontal
+    supportGeom.rotateZ(Math.PI / 2);
+    supportGeom.rotateY(angle);
+    supportGeom.translate(
+      Math.cos(angle) * (hubRadius + supportLength / 2),
+      hubTopY - 2,
+      Math.sin(angle) * (hubRadius + supportLength / 2)
+    );
+    geometries.push(supportGeom);
+  }
+  
+  // 5. LEGS (spread outward from hub base to floor)
   for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep;
     
-    // Top and bottom positions
-    const topX = Math.cos(angle) * socketOuterRadius;
-    const topZ = Math.sin(angle) * socketOuterRadius;
-    const bottomX = Math.cos(angle) * bottomRadius;
-    const bottomZ = Math.sin(angle) * bottomRadius;
+    // Top of leg connects to hub base
+    const topX = Math.cos(angle) * hubRadius * 0.9;
+    const topY = hubBottomY;
+    const topZ = Math.sin(angle) * hubRadius * 0.9;
     
-    // Create leg as a box and orient it
+    // Bottom of leg on the floor with spread
+    const bottomX = Math.cos(angle) * bottomSpreadRadius;
+    const bottomY = 0;
+    const bottomZ = Math.sin(angle) * bottomSpreadRadius;
+    
+    // Calculate leg direction and length
     const dx = bottomX - topX;
-    const dy = -(params.height - socketHolderHeight);
+    const dy = bottomY - topY;
     const dz = bottomZ - topZ;
-    const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const legLength = Math.sqrt(dx * dx + dy * dy + dz * dz);
     
+    // Create tapered leg (thicker at bottom for stability)
     const legGeom = new THREE.CylinderGeometry(
-      legThickness / 2,
-      legThickness / 2 * 1.2,
-      length,
+      legThickness / 2,      // top radius (at hub)
+      legThickness / 2 * 1.3, // bottom radius (at floor)
+      legLength,
       8
     );
     
-    // Position and rotate leg
+    // Calculate midpoint for positioning
     const midX = (topX + bottomX) / 2;
-    const midY = (params.height - socketHolderHeight) / 2;
+    const midY = (topY + bottomY) / 2;
     const midZ = (topZ + bottomZ) / 2;
     
-    // Calculate rotation
+    // Calculate rotation to align cylinder with leg direction
     const direction = new THREE.Vector3(dx, dy, dz).normalize();
     const up = new THREE.Vector3(0, 1, 0);
     const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
@@ -104,29 +165,16 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
     );
     legGeom.applyMatrix4(matrix);
     geometries.push(legGeom);
-  }
-  
-  // 4. RIM SUPPORTS (horizontal spokes from holder to rim)
-  for (let i = 0; i < legCount; i++) {
-    const angle = i * legAngleStep + legAngleStep / 2;
-    const supportLength = rimRadius * 0.7;
     
-    const supportGeom = new THREE.CylinderGeometry(
-      wallThickness / 2,
-      wallThickness / 2,
-      supportLength,
-      6
+    // 6. FOOT PADS (flat cylinders at leg bottoms for stability)
+    const footPadGeom = new THREE.CylinderGeometry(
+      footPadRadius,
+      footPadRadius,
+      footPadHeight,
+      12
     );
-    
-    // Rotate to horizontal and position
-    supportGeom.rotateZ(Math.PI / 2);
-    supportGeom.rotateY(angle);
-    supportGeom.translate(
-      Math.cos(angle) * rimRadius * 0.5,
-      params.height - 5,
-      Math.sin(angle) * rimRadius * 0.5
-    );
-    geometries.push(supportGeom);
+    footPadGeom.translate(bottomX, footPadHeight / 2, bottomZ);
+    geometries.push(footPadGeom);
   }
   
   return mergeGeometries(geometries);
