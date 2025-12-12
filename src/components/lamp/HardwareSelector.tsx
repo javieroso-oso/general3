@@ -42,7 +42,6 @@ const styleOptions: { value: LampStyle; label: string; icon: string }[] = [
   { value: 'table', label: 'Table Lamp', icon: '🏠' },
   { value: 'wall_sconce', label: 'Wall Sconce', icon: '🪟' },
   { value: 'floor', label: 'Floor Lamp', icon: '🗼' },
-  { value: 'clip_on', label: 'Clip-On', icon: '📎' },
 ];
 
 const cordExitOptions: { value: CordExit; label: string; description: string }[] = [

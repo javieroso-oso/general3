@@ -85,10 +85,7 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     
     // Style-specific geometry adjustments
     const isTableOrFloor = lampStyle === 'table' || lampStyle === 'floor';
-    const isTable = lampStyle === 'table';
-    const isFloor = lampStyle === 'floor';
     const isPendant = lampStyle === 'pendant';
-    const isClipOn = lampStyle === 'clip_on';
     const isWallSconce = lampStyle === 'wall_sconce';
     
     // Apply organic deformations to a radius at given height and angle
@@ -158,8 +155,6 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         radiusAtHeight *= 1 + 0.08 * Math.pow(1 - t, 2); // Slightly wider at base
       } else if (isPendant) {
         radiusAtHeight *= 1 - 0.05 * t * t; // Slightly narrower at top
-      } else if (isClipOn) {
-        radiusAtHeight *= 0.8; // Smaller overall
       } else if (isWallSconce) {
         // Dome profile
         const domeShape = Math.sin(t * Math.PI * 0.9);
@@ -201,21 +196,6 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
           y,
           outerR: shadeR,
           innerR: Math.max(innerR, socketClearanceRadius),
-          applyDeformations: true,
-        });
-      }
-    } else if (isClipOn) {
-      // Clip-on: Small organic shade, opening at top for bulb
-      for (let i = 0; i <= heightSegments; i++) {
-        const t = i / heightSegments;
-        const y = t * height * 0.7; // Shorter
-        const shadeR = getShadeRadius(t);
-        const innerR = shadeR - wallThickness;
-        
-        profile.push({
-          y,
-          outerR: shadeR,
-          innerR: Math.max(innerR, socketClearanceRadius * 0.8),
           applyDeformations: true,
         });
       }

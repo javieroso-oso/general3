@@ -191,29 +191,4 @@ export const lampPresets: LampPreset[] = [
       cordExit: 'internal_channel',
     },
   },
-  {
-    id: 'clip-vintage',
-    name: 'Clip-On Vintage',
-    description: 'Small shade with rim clip for bare bulbs',
-    params: {
-      ...defaultLampParams,
-      height: 100,
-      baseRadius: 30,
-      topRadius: 60,
-      rippleCount: 8,
-      rippleDepth: 0.02,
-      mounting: {
-        ...defaultMountingParams,
-        clipWidth: 25,
-        clipDepth: 20,
-      },
-    },
-    hardware: {
-      ...defaultLampHardware,
-      socketType: 'E12',
-      bulbShape: 'Candle',
-      bulbWattage: 5,
-      lampStyle: 'clip_on',
-    },
-  },
 ];
