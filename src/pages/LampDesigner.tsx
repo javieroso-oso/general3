@@ -5,16 +5,19 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import Layout from '@/components/layout/Layout';
 import LampScene3D from '@/components/3d/LampScene3D';
 import ShadeControls from '@/components/lamp/ShadeControls';
 import HardwareSelector from '@/components/lamp/HardwareSelector';
 import PatternControls from '@/components/lamp/PatternControls';
 import SafetyPanel from '@/components/lamp/SafetyPanel';
+import HardwareShoppingList from '@/components/lamp/HardwareShoppingList';
 import { lampPresets } from '@/data/lamp-presets';
 import { LampParams, LampHardware, defaultLampParams, defaultLampHardware, LampPreset } from '@/types/lamp';
 import { PrintSettings, defaultPrintSettings } from '@/types/parametric';
-import { Lightbulb, Settings, Sparkles, Download, Flame, Grid3X3, PanelLeftClose, PanelLeft, Shield, Eye } from 'lucide-react';
+import { downloadShadeSTL, downloadLampParts } from '@/lib/lamp-stl-export';
+import { Lightbulb, Settings, Sparkles, Download, Flame, Grid3X3, PanelLeftClose, PanelLeft, Shield, Eye, ShoppingCart, ChevronDown, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -41,9 +44,15 @@ const LampDesigner = () => {
     toast.success(`Applied "${preset.name}" preset`);
   }, []);
   
-  const handleExportSTL = useCallback(() => {
-    toast.info('STL export coming soon');
-  }, []);
+  const handleExportShade = useCallback(() => {
+    downloadShadeSTL(params, hardware, `lamp-${hardware.lampStyle}-shade.stl`);
+    toast.success('Shade STL downloaded!');
+  }, [params, hardware]);
+  
+  const handleExportAllParts = useCallback(() => {
+    downloadLampParts(params, hardware, `lamp-${hardware.lampStyle}`);
+    toast.success('All parts downloaded!');
+  }, [params, hardware]);
   
   return (
     <Layout>
@@ -187,6 +196,30 @@ const LampDesigner = () => {
                 ))}
               </div>
               
+              {/* Hardware List Sheet */}
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1 h-7 text-xs">
+                    <ShoppingCart className="w-3 h-3" />
+                    Parts
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-96">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">
+                      <ShoppingCart className="w-5 h-5 text-primary" />
+                      Hardware Shopping List
+                    </SheetTitle>
+                  </SheetHeader>
+                  <ScrollArea className="h-[calc(100vh-6rem)] mt-4 pr-4">
+                    <HardwareShoppingList
+                      hardware={hardware}
+                      material={printSettings.material}
+                    />
+                  </ScrollArea>
+                </SheetContent>
+              </Sheet>
+              
               {/* Safety Sheet */}
               <Sheet>
                 <SheetTrigger asChild>
@@ -212,10 +245,32 @@ const LampDesigner = () => {
                 </SheetContent>
               </Sheet>
               
-              <Button onClick={handleExportSTL} size="sm" className="gap-1 h-7 text-xs">
-                <Download className="w-3 h-3" />
-                Export
-              </Button>
+              {/* Export Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-1 h-7 text-xs">
+                    <Download className="w-3 h-3" />
+                    Export
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportShade}>
+                    <Package className="w-4 h-4 mr-2" />
+                    Download Shade STL
+                  </DropdownMenuItem>
+                  {hardware.lampStyle === 'wall_sconce' && (
+                    <DropdownMenuItem onClick={handleExportAllParts}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download All Parts
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                    G-code export coming soon
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           
