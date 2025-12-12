@@ -81,9 +81,9 @@ export const lampPresets: LampPreset[] = [
     },
   },
   {
-    id: 'table-traditional',
-    name: 'Table Lamp Classic',
-    description: 'Traditional shade with weighted base',
+    id: 'standing-classic',
+    name: 'Standing Classic',
+    description: 'Traditional shade for table or floor use',
     params: {
       ...defaultLampParams,
       height: 160,
@@ -94,17 +94,13 @@ export const lampPresets: LampPreset[] = [
       lipHeight: 0.04,
       mounting: {
         ...defaultMountingParams,
-        baseWidth: 140,
-        baseHeight: 25,
-        stemDiameter: 22,
-        stemHeight: 90,
       },
     },
     hardware: {
       ...defaultLampHardware,
       socketType: 'E26',
       bulbShape: 'A19',
-      lampStyle: 'table',
+      lampStyle: 'standing',
       cordExit: 'bottom_center',
     },
   },
@@ -167,9 +163,9 @@ export const lampPresets: LampPreset[] = [
     },
   },
   {
-    id: 'floor-modern',
-    name: 'Floor Lamp Shade',
-    description: 'Large shade with pole adapter',
+    id: 'standing-tall',
+    name: 'Standing Tall',
+    description: 'Large shade for floor lamp use',
     params: {
       ...defaultLampParams,
       height: 220,
@@ -178,8 +174,6 @@ export const lampPresets: LampPreset[] = [
       bulgeAmount: 0.1,
       mounting: {
         ...defaultMountingParams,
-        poleAdapterDiameter: 32,
-        poleAdapterHeight: 50,
       },
     },
     hardware: {
@@ -187,7 +181,7 @@ export const lampPresets: LampPreset[] = [
       socketType: 'E26',
       bulbShape: 'A21',
       bulbWattage: 15,
-      lampStyle: 'floor',
+      lampStyle: 'standing',
       cordExit: 'internal_channel',
     },
   },

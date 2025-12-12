@@ -23,10 +23,9 @@ const getInstalledRotation = (lampStyle: string): [number, number, number] => {
       return [Math.PI, 0, 0]; // Flip 180° - opening faces down
     case 'wall_sconce':
       return [-Math.PI / 2, 0, 0]; // Rotate 90° on X - opening faces outward
-    case 'clip_on':
-      return [Math.PI, 0, 0]; // Flip 180° - clips from above
+    case 'standing':
     default:
-      return [0, 0, 0]; // Table/floor stay as-is
+      return [0, 0, 0]; // Standing stays upright
   }
 };
 

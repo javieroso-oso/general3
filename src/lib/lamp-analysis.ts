@@ -102,8 +102,8 @@ export function analyzeLampSafety(
     recommendations.push('Consider using PETG or ABS for better heat resistance');
   }
   
-  if (hardware.lampStyle === 'table' && params.baseThickness < 2) {
-    recommendations.push('Add base thickness for table lamp stability');
+  if (hardware.lampStyle === 'standing' && params.baseThickness < 2) {
+    recommendations.push('Add base thickness for standing lamp stability');
   }
   
   if (hardware.cordExit === 'internal_channel' && params.wallThickness < 4) {

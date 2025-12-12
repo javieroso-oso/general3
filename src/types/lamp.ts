@@ -7,7 +7,7 @@ export type SocketType = 'E26' | 'E27' | 'E12' | 'GU10' | 'G9' | 'LED_Strip';
 export type BulbShape = 'A19' | 'A21' | 'Globe' | 'Candle' | 'Edison' | 'PAR30' | 'Tube';
 
 // Mounting/lamp styles
-export type LampStyle = 'pendant' | 'table' | 'wall_sconce' | 'floor';
+export type LampStyle = 'pendant' | 'standing' | 'wall_sconce';
 
 // Cord routing options
 export type CordExit = 'bottom_center' | 'bottom_side' | 'top_hidden' | 'internal_channel';
@@ -36,22 +36,11 @@ export interface MountingParams {
   canopyHeight: number;        // mm
   cordChannelDiameter: number; // mm
   
-  // Table lamp - base and stem
-  baseWidth: number;           // mm
-  baseHeight: number;          // mm
-  stemDiameter: number;        // mm
-  stemHeight: number;          // mm
-  
   // Wall sconce - backplate and arm
   backplateWidth: number;      // mm
   backplateHeight: number;     // mm
   armLength: number;           // mm
   armAngle: number;            // degrees
-  
-  // Floor lamp - pole adapter
-  poleAdapterDiameter: number; // mm (fits standard poles)
-  poleAdapterHeight: number;   // mm
-  
 }
 
 export interface LampHardware {
@@ -145,19 +134,11 @@ export const defaultMountingParams: MountingParams = {
   canopyDiameter: 100,
   canopyHeight: 15,
   cordChannelDiameter: 8,
-  // Table
-  baseWidth: 120,
-  baseHeight: 20,
-  stemDiameter: 20,
-  stemHeight: 80,
   // Wall sconce
   backplateWidth: 80,
   backplateHeight: 120,
   armLength: 60,
   armAngle: 15,
-  // Floor
-  poleAdapterDiameter: 30,
-  poleAdapterHeight: 40,
 };
 
 // Default lamp hardware
