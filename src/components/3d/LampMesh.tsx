@@ -122,11 +122,20 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         r += (noise3D(nx, ny, nz) - 0.5) * organicNoise * baseRadius * 0.5;
       }
       
+      // Wall sconce: flatten the back side (theta near PI)
+      if (isWallSconce) {
+        const backFlatten = Math.cos(theta); // -1 at back, +1 at front
+        if (backFlatten < 0) {
+          // Flatten back side proportionally
+          r *= 1 + backFlatten * 0.4; // Reduce radius at back by up to 40%
+        }
+      }
+      
       return Math.max(r, 5);
     };
     
     // Helper to get shade profile radius at normalized t (0-1 along shade height)
-    const getShadeRadius = (t: number): number => {
+    const getShadeRadius = (t: number, theta?: number): number => {
       let radiusAtHeight = baseRadius + (topRadius - baseRadius) * t;
       
       // Style-specific profile modifications
@@ -142,8 +151,9 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         // Clip-on: uniform cylinder-ish shape with slight taper
         radiusAtHeight = baseRadius * 0.9 + (topRadius - baseRadius * 0.9) * t * 0.7;
       } else if (isWallSconce) {
-        // Wall sconce: half-dome style, flatter on back
-        radiusAtHeight *= 0.9;
+        // Wall sconce: slightly smaller overall, dome-like profile
+        const domeShape = Math.sin(t * Math.PI * 0.9); // Dome curve
+        radiusAtHeight = baseRadius * 0.7 * (1 + domeShape * 0.3);
       }
       
       // Bulge
@@ -221,19 +231,58 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
       });
     }
     
-    // Add clip-on extension at top
+    // Add clip-on extension at top with spring tension geometry
     if (isClipOn) {
       const topShadeR = getShadeRadius(1);
-      for (let i = 1; i <= 8; i++) {
-        const t = i / 8;
-        const y = height + t * clipExtension;
-        // Clip curves inward to grip bulb rim
-        const clipR = topShadeR * (1 - t * 0.4) + socketHoleDiameter / 2 * t * 0.5;
+      const bulbGripRadius = socketHoleDiameter / 2 + 5; // Slightly larger than socket
+      
+      // Main clip body
+      for (let i = 1; i <= 6; i++) {
+        const t = i / 6;
+        const y = height + t * clipExtension * 0.6;
+        // Clip curves inward
+        const clipR = topShadeR * (1 - t * 0.5) + bulbGripRadius * t * 0.3;
         
         profile.push({
           y,
           outerR: clipR + wallThickness,
           innerR: clipR,
+          applyDeformations: false,
+        });
+      }
+      
+      // Inner grip lip - curves back out slightly for spring tension
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 4;
+        const y = height + clipExtension * 0.6 + t * clipExtension * 0.4;
+        // Spring back outward then grip inward
+        const springCurve = Math.sin(t * Math.PI);
+        const gripR = bulbGripRadius * (1 + springCurve * 0.15) * (1 - t * 0.3);
+        
+        profile.push({
+          y,
+          outerR: gripR + wallThickness * 0.8,
+          innerR: Math.max(gripR, 8),
+          applyDeformations: false,
+        });
+      }
+    }
+    
+    // Add wall sconce backplate at bottom
+    if (isWallSconce) {
+      const backplateThickness = 8;
+      const backplateRadius = baseRadius * 0.8;
+      
+      // Transition from shade to backplate
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 4;
+        const y = -t * backplateThickness;
+        const plateR = getShadeRadius(0) * (1 - t * 0.3) + backplateRadius * t * 0.3;
+        
+        profile.unshift({
+          y,
+          outerR: plateR,
+          innerR: 0, // Solid backplate
           applyDeformations: false,
         });
       }
