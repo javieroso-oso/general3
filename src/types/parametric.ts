@@ -35,6 +35,36 @@ export interface ParametricParams {
   baseType: 'flat' | 'rounded' | 'pedestal';
 }
 
+// Stand types for modular stand system
+export type StandType = 'none' | 'tripod' | 'pendant' | 'wall_arm';
+
+export interface StandParams {
+  enabled: boolean;
+  type: StandType;
+  rimDiameter: number;  // Auto-calculated from object base radius
+  height: number;       // Stand height in mm
+  // Tripod-specific
+  legCount: 3 | 4;
+  legSpread: number;    // degrees
+  // Pendant-specific
+  cordLength: number;   // mm (visual only)
+  // Wall arm-specific
+  armLength: number;
+  armAngle: number;
+}
+
+export const defaultStandParams: StandParams = {
+  enabled: false,
+  type: 'none',
+  rimDiameter: 100,
+  height: 150,
+  legCount: 3,
+  legSpread: 35,
+  cordLength: 500,
+  armLength: 200,
+  armAngle: 15,
+};
+
 export interface PrintSettings {
   layerHeight: number;        // mm
   nozzleDiameter: number;     // mm

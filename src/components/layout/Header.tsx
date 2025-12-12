@@ -1,11 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Box, Menu, X, Lightbulb } from 'lucide-react';
+import { Box, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { path: '/lamps', label: 'Lamp Studio', featured: true },
   { path: '/', label: 'Generator' },
   { path: '/custom', label: 'Custom' },
   { path: '/about', label: 'About' },
@@ -42,15 +41,11 @@ const Header = () => {
                 to={item.path}
                 className={cn(
                   'relative px-4 py-2 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-150 border-b-2',
-                  item.featured && 'flex items-center gap-1.5',
                   location.pathname === item.path
                     ? 'text-primary border-primary'
-                    : item.featured 
-                      ? 'text-secondary hover:text-secondary border-secondary/50 hover:border-secondary'
-                      : 'text-text-secondary hover:text-card-foreground border-transparent hover:border-text-secondary'
+                    : 'text-text-secondary hover:text-card-foreground border-transparent hover:border-text-secondary'
                 )}
               >
-                {item.featured && <Lightbulb className="w-3.5 h-3.5" />}
                 {item.label}
               </Link>
             ))}
