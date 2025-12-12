@@ -14,7 +14,7 @@ import SafetyPanel from '@/components/lamp/SafetyPanel';
 import { lampPresets } from '@/data/lamp-presets';
 import { LampParams, LampHardware, defaultLampParams, defaultLampHardware, LampPreset } from '@/types/lamp';
 import { PrintSettings, defaultPrintSettings } from '@/types/parametric';
-import { Lightbulb, Settings, Sparkles, Download, Flame, Grid3X3, PanelLeftClose, PanelLeft, Shield } from 'lucide-react';
+import { Lightbulb, Settings, Sparkles, Download, Flame, Grid3X3, PanelLeftClose, PanelLeft, Shield, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +31,7 @@ const LampDesigner = () => {
   const [showSocket, setShowSocket] = useState(true);
   const [showBulb, setShowBulb] = useState(true);
   const [showHeatZone, setShowHeatZone] = useState(false);
+  const [previewInstalled, setPreviewInstalled] = useState(false);
   
   const [panelOpen, setPanelOpen] = useState(true);
   
@@ -158,6 +159,13 @@ const LampDesigner = () => {
                 <Switch id="wireframe" checked={showWireframe} onCheckedChange={setShowWireframe} className="scale-75" />
                 <Label htmlFor="wireframe" className="cursor-pointer text-xs">Wire</Label>
               </div>
+              <div className="flex items-center gap-2 text-xs">
+                <Switch id="preview-installed" checked={previewInstalled} onCheckedChange={setPreviewInstalled} className="scale-75" />
+                <Label htmlFor="preview-installed" className="cursor-pointer text-xs flex items-center gap-1">
+                  <Eye className="w-3 h-3" />
+                  Installed
+                </Label>
+              </div>
             </div>
             
             <div className="flex items-center gap-2">
@@ -220,6 +228,7 @@ const LampDesigner = () => {
               showSocket={showSocket}
               showBulb={showBulb}
               showHeatZone={showHeatZone}
+              previewInstalled={previewInstalled}
             />
             
             {/* Compact info overlay */}
