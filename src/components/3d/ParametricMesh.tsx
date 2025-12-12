@@ -58,8 +58,9 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.LineSegments>(null);
+  const collarRef = useRef<THREE.Mesh>(null);
 
-  const { geometry, wireframeGeo } = useMemo(() => {
+  const { bodyGeometry, collarGeometry, wireframeGeo } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -79,8 +80,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       lipHeight,
       organicNoise,
       noiseScale,
-      baseThickness,
-      baseType,
     } = params;
 
     // Scale to scene units
@@ -88,40 +87,37 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const bRad = baseRadius * SCALE;
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
-    const baseH = baseThickness * SCALE;
     
-    // Standard rim dimensions (scaled)
-    const rimRadius = (rimSize / 2) * SCALE;
-    const rimHeight = rimSpecs.height * SCALE;
-    const lipDepth = rimSpecs.lipDepth * SCALE;
+    // COLLAR DIMENSIONS (scaled) - this is the universal mounting interface
+    const collarOuterRadius = (rimSize / 2) * SCALE;
+    const collarInnerRadius = (rimSize / 2 - rimSpecs.lipDepth) * SCALE;
+    const collarHeight = rimSpecs.height * SCALE;
 
     const segments = 64;
     const heightSegments = 64;
 
+    // ========================================
+    // 1. GENERATE COLLAR (solid cylinder at base)
+    // ========================================
+    const collarGeo = new THREE.CylinderGeometry(
+      collarOuterRadius,  // top radius
+      collarOuterRadius,  // bottom radius
+      collarHeight,       // height
+      48,                 // radial segments
+      1,                  // height segments
+      false               // open ended = false (solid)
+    );
+    // Position collar so its BOTTOM is at y=0
+    collarGeo.translate(0, collarHeight / 2, 0);
+
+    // ========================================
+    // 2. GENERATE ORGANIC BODY (starts above collar)
+    // ========================================
+    const bodyStartY = collarHeight;
+    const bodyHeight = h - collarHeight;
+    
     const outerVerts: number[] = [];
     const innerVerts: number[] = [];
-
-    // Generate standard rim ring at the base (always circular, no deformation)
-    const rimSegments = 32;
-    for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2;
-      
-      // Outer rim edge
-      const outerX = Math.cos(theta) * rimRadius;
-      const outerZ = Math.sin(theta) * rimRadius;
-      
-      // Inner rim edge (with lip)
-      const innerX = Math.cos(theta) * (rimRadius - lipDepth);
-      const innerZ = Math.sin(theta) * (rimRadius - lipDepth);
-      
-      // Add rim vertices (at y=0)
-      outerVerts.push(outerX, 0, outerZ);
-      innerVerts.push(innerX, 0, innerZ);
-    }
-
-    // Generate organic body starting above the rim
-    const bodyStartY = rimHeight;
-    const bodyHeight = h - rimHeight;
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
@@ -143,7 +139,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const bulgeDist = Math.abs(t - bulgePosition);
       radius += Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * bRad;
 
-      // Pinch effect - limited for printability
+      // Pinch effect
       const pinchTop = Math.pow(t, 4) * pinchAmount * 0.3;
       const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
       radius *= (1 - pinchTop - pinchBottom);
@@ -152,7 +148,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
       radius += lipT * lipT * lipFlare * bRad;
 
-      // Ensure minimum radius for printability
+      // Ensure minimum radius
       radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
 
       const twistRad = (twistAngle * Math.PI / 180) * t;
@@ -161,7 +157,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         const theta = (j / segments) * Math.PI * 2 + twistRad;
         let r = radius;
 
-        // Wobble - limited amplitude for print stability
+        // Wobble
         if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
           const maxWobble = Math.min(wobbleAmplitude, 0.15);
           r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * bRad;
@@ -173,7 +169,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += Math.sin(theta * rippleCount) * maxRipple * bRad;
         }
 
-        // Asymmetry - limited for stability
+        // Asymmetry
         if (asymmetry > 0) {
           const maxAsym = Math.min(asymmetry, 0.1);
           r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * bRad;
@@ -187,11 +183,10 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // At the base of the body (t=0), blend radius to match rim inner edge
-        if (t < 0.1) {
-          const blendT = t / 0.1;
-          const rimInnerRadius = rimRadius - lipDepth;
-          r = rimInnerRadius + (r - rimInnerRadius) * blendT;
+        // At the bottom of the body (t=0), blend to match collar inner radius
+        if (t < 0.15) {
+          const blendT = t / 0.15;
+          r = collarInnerRadius + (r - collarInnerRadius) * blendT;
         }
 
         // Ensure minimum radius
@@ -209,26 +204,14 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
-    // Build geometry
+    // Build body geometry
     const vertices: number[] = [...outerVerts];
     const indices: number[] = [];
 
-    // Rim ring indices (connecting rim to body)
-    const rimRowSize = segments + 1;
-    for (let j = 0; j < segments; j++) {
-      const a = j;
-      const b = j + 1;
-      const c = rimRowSize + j;
-      const d = rimRowSize + j + 1;
-      indices.push(a, c, b);
-      indices.push(b, c, d);
-    }
-
-    // Outer surface indices (body)
-    const bodyOffset = rimRowSize;
+    // Outer surface indices
     for (let i = 0; i < heightSegments; i++) {
       for (let j = 0; j < segments; j++) {
-        const a = bodyOffset + i * (segments + 1) + j;
+        const a = i * (segments + 1) + j;
         const b = a + 1;
         const c = a + (segments + 1);
         const d = c + 1;
@@ -237,29 +220,37 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
+    const bodyGeo = new THREE.BufferGeometry();
+    bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    bodyGeo.setIndex(indices);
+    bodyGeo.computeVertexNormals();
 
-    // Wireframe geometry for visualization
-    const wireGeo = new THREE.WireframeGeometry(geo);
+    // Wireframe geometry
+    const wireGeo = new THREE.WireframeGeometry(bodyGeo);
 
-    return { geometry: geo, wireframeGeo: wireGeo };
+    return { bodyGeometry: bodyGeo, collarGeometry: collarGeo, wireframeGeo: wireGeo };
   }, [params, type]);
 
   useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.05;
-    }
-    if (wireRef.current) {
-      wireRef.current.rotation.y = state.clock.elapsedTime * 0.05;
-    }
+    const rotation = state.clock.elapsedTime * 0.05;
+    if (meshRef.current) meshRef.current.rotation.y = rotation;
+    if (collarRef.current) collarRef.current.rotation.y = rotation;
+    if (wireRef.current) wireRef.current.rotation.y = rotation;
   });
 
   return (
     <group position={[0, -params.height * SCALE * 0.5, 0]}>
-      <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
+      {/* Solid collar at base */}
+      <mesh ref={collarRef} geometry={collarGeometry} castShadow receiveShadow>
+        <meshStandardMaterial
+          color="#c0c0c0"
+          roughness={0.5}
+          metalness={0.1}
+        />
+      </mesh>
+      
+      {/* Organic body above collar */}
+      <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color="#d4d4d4"
           roughness={0.6}
@@ -267,6 +258,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           side={THREE.DoubleSide}
         />
       </mesh>
+      
       {showWireframe && (
         <lineSegments ref={wireRef} geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />

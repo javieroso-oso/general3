@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
 import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
-import { ParametricParams, ObjectType, PrintSettings, StandParams } from '@/types/parametric';
+import { ParametricParams, ObjectType, PrintSettings, StandParams, rimSpecs } from '@/types/parametric';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -42,11 +42,16 @@ const Scene3D = ({
   const scale = 0.01;
   const standVisible = standParams?.enabled && standParams?.type !== 'none';
   
-  // Position object so its rim sits INTO the stand's socket
-  // The socket depth is 5mm, so object drops down by that amount
-  const socketDepth = 5; // from rimSpecs.socketDepth
+  // Calculate socket depth based on collar height + clearance
+  const socketDepth = rimSpecs.height + 2; // Collar height (8mm) + 2mm clearance
+  
+  // Position object so its collar sits INTO the stand's socket cradle
+  // Object's collar bottom should rest on the socket ledge
+  // Socket ledge is at: standHeight - socketDepth + ledgeHeight (2mm)
+  // Object's center is at height/2 above collar bottom
+  // So object y = standHeight - socketDepth + ledgeHeight + height/2
   const objectYOffset = standVisible && standParams 
-    ? (standParams.height - socketDepth) * scale 
+    ? (standParams.height - socketDepth + 2 + params.height / 2) * scale 
     : 0;
   
   return (
@@ -78,7 +83,7 @@ const Scene3D = ({
         <Suspense fallback={null}>
           {viewMode === 'model' ? (
             <group>
-              {/* Stand (if enabled) */}
+              {/* Stand (if enabled) - positioned at origin, socket at top */}
               {standVisible && standParams && (
                 <StandMesh
                   params={standParams}
@@ -86,7 +91,7 @@ const Scene3D = ({
                 />
               )}
               
-              {/* Parametric object */}
+              {/* Parametric object - positioned so collar sits in socket */}
               <group position={[0, objectYOffset, 0]}>
                 <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
               </group>
