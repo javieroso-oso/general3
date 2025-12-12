@@ -1,11 +1,26 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
+// Standard rim sizes in mm - universal interface between objects and stands
+export type StandardRimSize = 60 | 80 | 100 | 120;
+
+export const standardRimSizes: StandardRimSize[] = [60, 80, 100, 120];
+
+// Rim specifications
+export const rimSpecs = {
+  height: 8,        // Height of the rim ring in mm
+  lipDepth: 3,      // How far the lip extends inward in mm
+  socketDepth: 5,   // How deep the stand socket is in mm
+};
+
 export interface ParametricParams {
   // Basic dimensions (mm for printing)
   height: number;
   baseRadius: number;
   topRadius: number;
   wallThickness: number;
+  
+  // Standard rim for universal stand compatibility
+  rimSize: StandardRimSize;
   
   // Organic deformations
   wobbleFrequency: number;
@@ -41,13 +56,13 @@ export type StandType = 'none' | 'tripod' | 'pendant' | 'wall_arm';
 export interface StandParams {
   enabled: boolean;
   type: StandType;
-  rimDiameter: number;  // Auto-calculated from object base radius
-  height: number;       // Stand height in mm
+  rimSize: StandardRimSize;  // Must match object rimSize for compatibility
+  height: number;            // Stand height in mm
   // Tripod-specific
   legCount: 3 | 4;
-  legSpread: number;    // degrees
+  legSpread: number;         // degrees
   // Pendant-specific
-  cordLength: number;   // mm (visual only)
+  cordLength: number;        // mm (visual only)
   // Wall arm-specific
   armLength: number;
   armAngle: number;
@@ -56,7 +71,7 @@ export interface StandParams {
 export const defaultStandParams: StandParams = {
   enabled: false,
   type: 'none',
-  rimDiameter: 100,
+  rimSize: 80,
   height: 150,
   legCount: 3,
   legSpread: 35,
@@ -139,6 +154,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 40,           // mm
     topRadius: 35,            // mm
     wallThickness: 2.0,       // mm
+    rimSize: 80,              // Standard rim for universal stand compatibility
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -160,6 +176,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 30,
     topRadius: 60,
     wallThickness: 1.6,
+    rimSize: 80,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -181,6 +198,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 35,
     topRadius: 25,
     wallThickness: 3.0,
+    rimSize: 100,
     wobbleFrequency: 3,
     wobbleAmplitude: 0.08,
     twistAngle: 30,

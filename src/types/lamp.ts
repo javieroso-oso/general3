@@ -378,6 +378,7 @@ export const defaultLampParams: LampParams = {
   baseRadius: 60,
   topRadius: 100,
   wallThickness: 2.0,
+  rimSize: 100, // Standard rim for universal stand compatibility
   wobbleFrequency: 0,
   wobbleAmplitude: 0,
   twistAngle: 0,

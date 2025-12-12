@@ -1,136 +1,170 @@
 import * as THREE from 'three';
-import { StandParams as MainStandParams } from '@/types/parametric';
+import { StandParams as MainStandParams, rimSpecs } from '@/types/parametric';
 
 // ============================================
 // STAND GENERATORS
 // Generate 3D geometry for printable stands
+// with universal rim socket system
 // ============================================
 
 interface TripodParams {
-  rimDiameter: number;
+  rimSize: number;
   height: number;
   legCount: 3 | 4;
   legSpread: number;
 }
 
 interface PendantParams {
-  rimDiameter: number;
+  rimSize: number;
   height: number;
   cordLength: number;
 }
 
 interface WallArmParams {
-  rimDiameter: number;
+  rimSize: number;
   height: number;
   armLength: number;
   armAngle: number;
 }
 
-// Generate tripod stand geometry (table/floor lamp)
+// Socket dimensions derived from rim specs
+const getSocketDimensions = (rimSize: number) => {
+  const rimRadius = rimSize / 2;
+  const socketWall = 4; // Wall thickness of socket
+  const socketDepth = rimSpecs.socketDepth; // How deep the socket is
+  const socketLip = 2; // Inner ledge for rim to rest on
+  
+  return {
+    outerRadius: rimRadius + socketWall,
+    innerRadius: rimRadius,
+    lipRadius: rimRadius - rimSpecs.lipDepth - 1, // Slightly smaller than rim lip for snug fit
+    depth: socketDepth,
+    lipHeight: socketLip,
+  };
+};
+
+// Generate rim socket geometry that the object's rim sits INTO
+function generateRimSocket(rimSize: number, yPosition: number): THREE.BufferGeometry[] {
+  const socket = getSocketDimensions(rimSize);
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // Outer ring of socket
+  const outerRingGeom = new THREE.TorusGeometry(
+    (socket.outerRadius + socket.innerRadius) / 2,
+    (socket.outerRadius - socket.innerRadius) / 2,
+    8,
+    48
+  );
+  const outerMatrix = new THREE.Matrix4().makeTranslation(0, yPosition, 0);
+  outerMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  outerRingGeom.applyMatrix4(outerMatrix);
+  geometries.push(outerRingGeom);
+  
+  // Inner ledge (where rim rests)
+  const ledgeGeom = new THREE.CylinderGeometry(
+    socket.innerRadius,
+    socket.innerRadius,
+    socket.lipHeight,
+    32,
+    1,
+    true // Open-ended cylinder
+  );
+  ledgeGeom.translate(0, yPosition - socket.lipHeight / 2, 0);
+  geometries.push(ledgeGeom);
+  
+  // Bottom lip ring (catches the rim's inward lip)
+  const lipRingGeom = new THREE.TorusGeometry(
+    socket.lipRadius,
+    1.5,
+    6,
+    32
+  );
+  const lipMatrix = new THREE.Matrix4().makeTranslation(0, yPosition - socket.depth, 0);
+  lipMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  lipRingGeom.applyMatrix4(lipMatrix);
+  geometries.push(lipRingGeom);
+  
+  return geometries;
+}
+
+// Generate tripod stand geometry with proper rim socket
 export function generateTripodStandGeometry(params: TripodParams): THREE.BufferGeometry {
-  const rimRadius = params.rimDiameter / 2;
   const legCount = params.legCount;
   const legAngleStep = (Math.PI * 2) / legCount;
   
   // Structural dimensions
-  const wallThickness = 4;
   const legThickness = 8;
-  const hubRadius = 20;
-  const hubHeight = 40;
-  const footPadRadius = 12;
-  const footPadHeight = 4;
+  const hubRadius = 25;
+  const hubHeight = 35;
+  const footPadRadius = 14;
+  const footPadHeight = 5;
   
-  // Calculate leg spread - convert degrees to radians
+  // Calculate leg spread
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
   
-  // Hub sits at top, legs spread down from hub base to floor
-  const hubTopY = params.height;
-  const hubBottomY = params.height - hubHeight;
+  // Hub position (socket at top)
+  const socketTop = params.height;
+  const hubTopY = socketTop - rimSpecs.socketDepth;
+  const hubBottomY = hubTopY - hubHeight;
   
-  // Calculate where legs touch the ground based on legSpread angle
-  // Bottom radius = hubRadius + (distance from hub to ground) * tan(spread angle)
-  const legVerticalDrop = hubBottomY; // from hubBottom to y=0
+  // Leg bottom spread
+  const legVerticalDrop = hubBottomY;
   const bottomSpreadRadius = hubRadius + legVerticalDrop * Math.tan(legSpreadRad);
   
   const geometries: THREE.BufferGeometry[] = [];
   
-  // 1. RIM RING (where object rests) - at the very top
-  const rimRingGeom = new THREE.TorusGeometry(
-    rimRadius - wallThickness / 2,
-    wallThickness / 2,
-    8,
-    48
-  );
-  const rimMatrix = new THREE.Matrix4().makeTranslation(0, hubTopY, 0);
-  rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
-  rimRingGeom.applyMatrix4(rimMatrix);
-  geometries.push(rimRingGeom);
+  // 1. RIM SOCKET (where object sits INTO)
+  const socketGeoms = generateRimSocket(params.rimSize, socketTop);
+  geometries.push(...socketGeoms);
   
-  // 2. CENTRAL HUB (socket holder at top)
+  // 2. CENTRAL HUB (structural support below socket)
   const hubGeom = new THREE.CylinderGeometry(
     hubRadius,
-    hubRadius * 0.9,
+    hubRadius * 0.85,
     hubHeight,
     24
   );
   hubGeom.translate(0, hubTopY - hubHeight / 2, 0);
   geometries.push(hubGeom);
   
-  // 3. VERTICAL SUPPORT STRUTS (rim ring to hub)
-  const strutCount = legCount;
-  for (let i = 0; i < strutCount; i++) {
+  // 3. SOCKET-TO-HUB SUPPORTS (connect socket rim to hub)
+  const socket = getSocketDimensions(params.rimSize);
+  const supportCount = legCount;
+  for (let i = 0; i < supportCount; i++) {
     const angle = i * legAngleStep + legAngleStep / 2;
-    const strutRadius = (rimRadius + hubRadius) / 2 * 0.7;
+    const supportLength = socket.outerRadius - hubRadius;
     
-    const strutGeom = new THREE.CylinderGeometry(
-      wallThickness / 2,
-      wallThickness / 2,
-      hubHeight * 0.3,
-      6
-    );
-    strutGeom.translate(
-      Math.cos(angle) * strutRadius,
-      hubTopY - hubHeight * 0.15,
-      Math.sin(angle) * strutRadius
-    );
-    geometries.push(strutGeom);
+    if (supportLength > 5) {
+      const supportGeom = new THREE.CylinderGeometry(
+        4,
+        4,
+        supportLength,
+        6
+      );
+      
+      supportGeom.rotateZ(Math.PI / 2);
+      supportGeom.rotateY(angle);
+      supportGeom.translate(
+        Math.cos(angle) * (hubRadius + supportLength / 2),
+        hubTopY,
+        Math.sin(angle) * (hubRadius + supportLength / 2)
+      );
+      geometries.push(supportGeom);
+    }
   }
   
-  // 4. HORIZONTAL RIM SUPPORTS (hub to rim ring)
-  for (let i = 0; i < strutCount; i++) {
-    const angle = i * legAngleStep + legAngleStep / 2;
-    const supportLength = rimRadius - hubRadius;
-    
-    const supportGeom = new THREE.CylinderGeometry(
-      wallThickness / 2,
-      wallThickness / 2,
-      supportLength,
-      6
-    );
-    
-    // Rotate to horizontal
-    supportGeom.rotateZ(Math.PI / 2);
-    supportGeom.rotateY(angle);
-    supportGeom.translate(
-      Math.cos(angle) * (hubRadius + supportLength / 2),
-      hubTopY - 2,
-      Math.sin(angle) * (hubRadius + supportLength / 2)
-    );
-    geometries.push(supportGeom);
-  }
-  
-  // 5. LEGS (spread outward from hub base to floor)
+  // 4. LEGS (spread outward from hub base to floor)
   for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep;
     
     // Top of leg connects to hub base
-    const topX = Math.cos(angle) * hubRadius * 0.9;
+    const topX = Math.cos(angle) * hubRadius * 0.85;
     const topY = hubBottomY;
-    const topZ = Math.sin(angle) * hubRadius * 0.9;
+    const topZ = Math.sin(angle) * hubRadius * 0.85;
     
     // Bottom of leg on the floor with spread
     const bottomX = Math.cos(angle) * bottomSpreadRadius;
-    const bottomY = 0;
+    const bottomY = footPadHeight;
     const bottomZ = Math.sin(angle) * bottomSpreadRadius;
     
     // Calculate leg direction and length
@@ -139,10 +173,10 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
     const dz = bottomZ - topZ;
     const legLength = Math.sqrt(dx * dx + dy * dy + dz * dz);
     
-    // Create tapered leg (thicker at bottom for stability)
+    // Create tapered leg
     const legGeom = new THREE.CylinderGeometry(
-      legThickness / 2,      // top radius (at hub)
-      legThickness / 2 * 1.3, // bottom radius (at floor)
+      legThickness / 2,
+      legThickness / 2 * 1.4,
       legLength,
       8
     );
@@ -166,10 +200,10 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
     legGeom.applyMatrix4(matrix);
     geometries.push(legGeom);
     
-    // 6. FOOT PADS (flat cylinders at leg bottoms for stability)
+    // 5. FOOT PADS (flat for stability)
     const footPadGeom = new THREE.CylinderGeometry(
       footPadRadius,
-      footPadRadius,
+      footPadRadius * 1.1,
       footPadHeight,
       12
     );
@@ -180,16 +214,17 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
   return mergeGeometries(geometries);
 }
 
-// Generate pendant cord stand geometry
+// Generate pendant bracket geometry with rim socket
 export function generatePendantCordGeometry(params: PendantParams): THREE.BufferGeometry {
-  const rimRadius = params.rimDiameter / 2;
-  const wallThickness = 4;
   const canopyDiameter = 80;
   const canopyHeight = 25;
-  const socketHolderHeight = 50;
-  const socketRadius = 18;
+  const socketHolderHeight = 40;
+  const socketRadius = 20;
   
   const geometries: THREE.BufferGeometry[] = [];
+  
+  // Socket position (bottom of bracket where object hangs)
+  const socketTop = params.height - socketHolderHeight - 10;
   
   // 1. CANOPY (ceiling mount)
   const canopyGeom = new THREE.CylinderGeometry(
@@ -201,138 +236,184 @@ export function generatePendantCordGeometry(params: PendantParams): THREE.Buffer
   canopyGeom.translate(0, params.height + canopyHeight / 2, 0);
   geometries.push(canopyGeom);
   
-  // 2. SOCKET HOLDER (hanging below canopy)
+  // 2. CORD/ROD (connects canopy to socket holder)
+  const cordLength = params.height - socketTop + socketHolderHeight;
+  const cordGeom = new THREE.CylinderGeometry(
+    4,
+    4,
+    cordLength,
+    8
+  );
+  cordGeom.translate(0, params.height - cordLength / 2, 0);
+  geometries.push(cordGeom);
+  
+  // 3. SOCKET HOLDER (holds the rim socket)
   const holderGeom = new THREE.CylinderGeometry(
     socketRadius,
     socketRadius * 1.1,
     socketHolderHeight,
     24
   );
-  holderGeom.translate(0, params.height - socketHolderHeight / 2, 0);
+  holderGeom.translate(0, socketTop + socketHolderHeight / 2, 0);
   geometries.push(holderGeom);
   
-  // 3. RIM RING (where shade hangs)
-  const rimRingGeom = new THREE.TorusGeometry(
-    rimRadius - wallThickness / 2,
-    wallThickness,
-    8,
-    48
-  );
-  const rimMatrix = new THREE.Matrix4().makeTranslation(0, params.height - socketHolderHeight - 5, 0);
-  rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
-  rimRingGeom.applyMatrix4(rimMatrix);
-  geometries.push(rimRingGeom);
+  // 4. RIM SOCKET (where shade hangs INTO)
+  const socketGeoms = generateRimSocket(params.rimSize, socketTop);
+  geometries.push(...socketGeoms);
   
-  // 4. SUPPORT STRUTS (socket holder to rim)
-  const strutCount = 3;
+  // 5. SUPPORT STRUTS (socket holder to rim socket)
+  const socket = getSocketDimensions(params.rimSize);
+  const strutCount = 4;
   for (let i = 0; i < strutCount; i++) {
     const angle = (i / strutCount) * Math.PI * 2;
-    const strutLength = rimRadius * 0.6;
+    const strutLength = socket.outerRadius - socketRadius;
     
-    const strutGeom = new THREE.CylinderGeometry(
-      wallThickness / 2,
-      wallThickness / 2,
-      strutLength,
-      6
-    );
-    
-    strutGeom.rotateZ(Math.PI / 2);
-    strutGeom.rotateY(angle);
-    strutGeom.translate(
-      Math.cos(angle) * rimRadius * 0.35,
-      params.height - socketHolderHeight - 5,
-      Math.sin(angle) * rimRadius * 0.35
-    );
-    geometries.push(strutGeom);
+    if (strutLength > 5) {
+      const strutGeom = new THREE.CylinderGeometry(
+        3,
+        3,
+        strutLength,
+        6
+      );
+      
+      strutGeom.rotateZ(Math.PI / 2);
+      strutGeom.rotateY(angle);
+      strutGeom.translate(
+        Math.cos(angle) * (socketRadius + strutLength / 2),
+        socketTop,
+        Math.sin(angle) * (socketRadius + strutLength / 2)
+      );
+      geometries.push(strutGeom);
+    }
   }
   
   return mergeGeometries(geometries);
 }
 
-// Generate wall arm stand geometry
+// Generate wall arm geometry with rim socket
 export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeometry {
-  const rimRadius = params.rimDiameter / 2;
-  const wallThickness = 4;
   const backplateWidth = 100;
   const backplateHeight = 140;
-  const socketHolderHeight = 50;
-  const socketRadius = 18;
+  const wallThickness = 8;
+  const armThickness = 12;
   const armAngleRad = (params.armAngle * Math.PI) / 180;
   
   const geometries: THREE.BufferGeometry[] = [];
+  
+  // Calculate arm end position
+  const armEndZ = params.armLength * Math.cos(armAngleRad);
+  const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
+  
+  // Socket position at end of arm
+  const socketTop = armEndY;
   
   // 1. BACKPLATE (wall mount)
   const backplateGeom = new THREE.BoxGeometry(
     backplateWidth,
     backplateHeight,
-    wallThickness * 2
+    wallThickness
   );
   backplateGeom.translate(0, backplateHeight / 2, 0);
   geometries.push(backplateGeom);
   
+  // Mounting holes visual
+  const holeSpacing = 60;
+  for (const yOffset of [-holeSpacing / 2, holeSpacing / 2]) {
+    const holeRingGeom = new THREE.TorusGeometry(6, 2, 6, 16);
+    const holeMatrix = new THREE.Matrix4().makeTranslation(0, backplateHeight / 2 + yOffset, -wallThickness / 2);
+    holeRingGeom.applyMatrix4(holeMatrix);
+    geometries.push(holeRingGeom);
+  }
+  
   // 2. ARM (extends from backplate)
   const armGeom = new THREE.CylinderGeometry(
-    wallThickness * 1.5,
-    wallThickness * 1.5,
+    armThickness / 2,
+    armThickness / 2,
     params.armLength,
     12
   );
   
-  // Position arm extending outward at angle
   armGeom.rotateX(Math.PI / 2 - armAngleRad);
   armGeom.translate(
     0,
-    backplateHeight / 2,
+    backplateHeight / 2 + params.armLength / 2 * Math.sin(armAngleRad),
     params.armLength / 2 * Math.cos(armAngleRad)
   );
   geometries.push(armGeom);
   
-  // 3. SOCKET HOLDER (at end of arm)
-  const armEndZ = params.armLength * Math.cos(armAngleRad);
-  const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
-  
-  const holderGeom = new THREE.CylinderGeometry(
-    socketRadius,
-    socketRadius,
-    socketHolderHeight,
+  // 3. SOCKET MOUNT (at end of arm)
+  const mountGeom = new THREE.CylinderGeometry(
+    20,
+    20,
+    30,
     24
   );
-  holderGeom.translate(0, armEndY - socketHolderHeight / 2, armEndZ);
-  geometries.push(holderGeom);
+  mountGeom.translate(0, armEndY - 15, armEndZ);
+  geometries.push(mountGeom);
   
-  // 4. RIM RING (where shade rests)
-  const rimRingGeom = new THREE.TorusGeometry(
-    rimRadius - wallThickness / 2,
-    wallThickness,
+  // 4. RIM SOCKET (where shade sits INTO)
+  // Translate socket geometries to arm end position
+  const socket = getSocketDimensions(params.rimSize);
+  
+  // Outer socket ring
+  const outerRingGeom = new THREE.TorusGeometry(
+    (socket.outerRadius + socket.innerRadius) / 2,
+    (socket.outerRadius - socket.innerRadius) / 2,
     8,
     48
   );
-  const rimMatrix = new THREE.Matrix4().makeTranslation(0, armEndY - socketHolderHeight - 5, armEndZ);
-  rimMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
-  rimRingGeom.applyMatrix4(rimMatrix);
-  geometries.push(rimRingGeom);
+  const outerMatrix = new THREE.Matrix4().makeTranslation(0, socketTop - 30, armEndZ);
+  outerMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  outerRingGeom.applyMatrix4(outerMatrix);
+  geometries.push(outerRingGeom);
   
-  // 5. RIM SUPPORTS
-  const supportCount = 3;
-  for (let i = 0; i < supportCount; i++) {
-    const angle = (i / supportCount) * Math.PI * 2;
-    const supportLength = rimRadius * 0.5;
+  // Inner ledge
+  const ledgeGeom = new THREE.CylinderGeometry(
+    socket.innerRadius,
+    socket.innerRadius,
+    socket.lipHeight,
+    32,
+    1,
+    true
+  );
+  ledgeGeom.translate(0, socketTop - 30 - socket.lipHeight / 2, armEndZ);
+  geometries.push(ledgeGeom);
+  
+  // Bottom lip ring
+  const lipRingGeom = new THREE.TorusGeometry(
+    socket.lipRadius,
+    1.5,
+    6,
+    32
+  );
+  const lipMatrix = new THREE.Matrix4().makeTranslation(0, socketTop - 30 - socket.depth, armEndZ);
+  lipMatrix.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  lipRingGeom.applyMatrix4(lipMatrix);
+  geometries.push(lipRingGeom);
+  
+  // 5. SUPPORT STRUTS
+  const strutCount = 3;
+  for (let i = 0; i < strutCount; i++) {
+    const angle = (i / strutCount) * Math.PI * 2;
+    const strutLength = socket.outerRadius - 15;
     
-    const supportGeom = new THREE.CylinderGeometry(
-      wallThickness / 2,
-      wallThickness / 2,
-      supportLength,
-      6
-    );
-    
-    supportGeom.rotateZ(Math.PI / 2);
-    supportGeom.rotateY(angle);
-    supportGeom.translate(
-      Math.cos(angle) * rimRadius * 0.3,
-      armEndY - socketHolderHeight - 5,
-      armEndZ + Math.sin(angle) * rimRadius * 0.3
-    );
-    geometries.push(supportGeom);
+    if (strutLength > 5) {
+      const strutGeom = new THREE.CylinderGeometry(
+        3,
+        3,
+        strutLength,
+        6
+      );
+      
+      strutGeom.rotateZ(Math.PI / 2);
+      strutGeom.rotateY(angle);
+      strutGeom.translate(
+        Math.cos(angle) * (15 + strutLength / 2),
+        socketTop - 30,
+        armEndZ + Math.sin(angle) * (15 + strutLength / 2)
+      );
+      geometries.push(strutGeom);
+    }
   }
   
   return mergeGeometries(geometries);
@@ -347,20 +428,20 @@ export function generateStandGeometry(params: MainStandParams): THREE.BufferGeom
   switch (params.type) {
     case 'tripod':
       return generateTripodStandGeometry({
-        rimDiameter: params.rimDiameter,
+        rimSize: params.rimSize,
         height: params.height,
         legCount: params.legCount,
         legSpread: params.legSpread,
       });
     case 'pendant':
       return generatePendantCordGeometry({
-        rimDiameter: params.rimDiameter,
+        rimSize: params.rimSize,
         height: params.height,
         cordLength: params.cordLength,
       });
     case 'wall_arm':
       return generateWallArmGeometry({
-        rimDiameter: params.rimDiameter,
+        rimSize: params.rimSize,
         height: params.height,
         armLength: params.armLength,
         armAngle: params.armAngle,

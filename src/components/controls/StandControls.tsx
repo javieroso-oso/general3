@@ -1,23 +1,23 @@
-import { StandParams, StandType } from '@/types/parametric';
+import { StandParams, StandType, StandardRimSize, standardRimSizes } from '@/types/parametric';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import ParameterSlider from './ParameterSlider';
-import { Footprints, Cable, Grip } from 'lucide-react';
+import { Footprints, Cable, Grip, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface StandControlsProps {
   params: StandParams;
-  objectBaseRadius: number;
+  objectRimSize: StandardRimSize;
   onChange: (params: StandParams) => void;
 }
 
-const StandControls = ({ params, objectBaseRadius, onChange }: StandControlsProps) => {
+const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) => {
   const handleChange = <K extends keyof StandParams>(key: K, value: StandParams[K]) => {
     onChange({ ...params, [key]: value });
   };
 
-  // Auto-calculate rim diameter from object
-  const calculatedRim = Math.round(objectBaseRadius * 2);
+  const isCompatible = params.rimSize === objectRimSize;
 
   return (
     <div className="space-y-6">
@@ -70,14 +70,44 @@ const StandControls = ({ params, objectBaseRadius, onChange }: StandControlsProp
             </Select>
           </div>
 
-          {/* Rim Diameter (display only) */}
-          <div className="p-3 bg-muted/50 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Rim Diameter</span>
-              <span className="text-sm font-mono">{calculatedRim}mm</span>
+          {/* Standard Rim Size Selector */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Stand Rim Size</Label>
+              {isCompatible ? (
+                <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Compatible
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 bg-amber-50">
+                  <AlertCircle className="w-3 h-3" />
+                  Size Mismatch
+                </Badge>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Auto-calculated from object base diameter
+            <Select
+              value={String(params.rimSize)}
+              onValueChange={(value) => handleChange('rimSize', Number(value) as StandardRimSize)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {standardRimSizes.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    <div className="flex items-center justify-between gap-4 w-full">
+                      <span>{size}mm</span>
+                      {size === objectRimSize && (
+                        <span className="text-xs text-muted-foreground">(object)</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Object rim: {objectRimSize}mm — {isCompatible ? 'Perfect fit!' : 'Adjust to match for compatibility'}
             </p>
           </div>
 
@@ -159,6 +189,14 @@ const StandControls = ({ params, objectBaseRadius, onChange }: StandControlsProp
               />
             </>
           )}
+
+          {/* Rim System Info */}
+          <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Universal Rim System</p>
+            <p className="text-xs text-muted-foreground">
+              Objects have a standardized circular rim at the base. Stands have a matching socket that the rim sits INTO for a secure, universal fit.
+            </p>
+          </div>
         </>
       )}
     </div>
