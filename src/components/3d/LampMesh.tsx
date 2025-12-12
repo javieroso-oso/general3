@@ -122,12 +122,12 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         r += (noise3D(nx, ny, nz) - 0.5) * organicNoise * baseRadius * 0.5;
       }
       
-      // Wall sconce: flatten the back side (theta near PI)
+      // Wall sconce: create half-dome by aggressively flattening the back
       if (isWallSconce) {
         const backFlatten = Math.cos(theta); // -1 at back, +1 at front
         if (backFlatten < 0) {
-          // Flatten back side proportionally
-          r *= 1 + backFlatten * 0.4; // Reduce radius at back by up to 40%
+          // Flatten back side to almost flat (80% reduction)
+          r *= 1 + backFlatten * 0.8;
         }
       }
       
@@ -148,12 +148,13 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
         const pendantTaper = 1 - 0.1 * t * t;
         radiusAtHeight *= pendantTaper;
       } else if (isClipOn) {
-        // Clip-on: uniform cylinder-ish shape with slight taper
-        radiusAtHeight = baseRadius * 0.9 + (topRadius - baseRadius * 0.9) * t * 0.7;
+        // Clip-on: small conical shade designed to clip onto bulb
+        const coneShape = 1 - t * 0.4; // Tapers toward top
+        radiusAtHeight = baseRadius * 0.6 * coneShape;
       } else if (isWallSconce) {
-        // Wall sconce: slightly smaller overall, dome-like profile
-        const domeShape = Math.sin(t * Math.PI * 0.9); // Dome curve
-        radiusAtHeight = baseRadius * 0.7 * (1 + domeShape * 0.3);
+        // Wall sconce: compact half-dome profile
+        const domeShape = Math.sin(t * Math.PI * 0.8); // Strong dome curve
+        radiusAtHeight = baseRadius * 0.5 * (0.6 + domeShape * 0.6);
       }
       
       // Bulge
@@ -192,7 +193,7 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
     const bottomThickness = hasClosedBottom ? Math.max(baseThickness, 12) : baseThickness;
     
     // For clip-on, add clip geometry at top
-    const clipExtension = isClipOn ? 20 : 0;
+    const clipExtension = isClipOn ? 60 : 0; // Much taller clip arms
     const totalHeight = height + clipExtension;
     
     // Main shade body
@@ -231,61 +232,102 @@ const LampMesh = ({ params, hardware, showWireframe = false }: LampMeshProps) =>
       });
     }
     
-    // Add clip-on extension at top with spring tension geometry
+    // Add clip-on extension at top with prominent spring clip arms
     if (isClipOn) {
       const topShadeR = getShadeRadius(1);
-      const bulbGripRadius = socketHoleDiameter / 2 + 5; // Slightly larger than socket
+      const clipArmLength = 45; // Much longer clip arms
+      const bulbGripRadius = socket.outerDiameter / 2 + 8;
       
-      // Main clip body
-      for (let i = 1; i <= 6; i++) {
-        const t = i / 6;
-        const y = height + t * clipExtension * 0.6;
-        // Clip curves inward
-        const clipR = topShadeR * (1 - t * 0.5) + bulbGripRadius * t * 0.3;
+      // Transition from shade to clip - flares outward slightly
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 4;
+        const y = height + t * 8;
+        const transitionR = topShadeR * (1 + t * 0.1);
         
         profile.push({
           y,
-          outerR: clipR + wallThickness,
+          outerR: transitionR + wallThickness,
+          innerR: transitionR,
+          applyDeformations: false,
+        });
+      }
+      
+      // Clip arm - curves inward dramatically
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8;
+        const y = height + 8 + t * clipArmLength * 0.6;
+        // Strong inward curve
+        const inwardCurve = Math.pow(t, 1.5);
+        const clipR = topShadeR * (1 - inwardCurve * 0.7) + bulbGripRadius * inwardCurve * 0.5;
+        
+        profile.push({
+          y,
+          outerR: clipR + wallThickness * 1.2,
           innerR: clipR,
           applyDeformations: false,
         });
       }
       
-      // Inner grip lip - curves back out slightly for spring tension
-      for (let i = 1; i <= 4; i++) {
-        const t = i / 4;
-        const y = height + clipExtension * 0.6 + t * clipExtension * 0.4;
-        // Spring back outward then grip inward
-        const springCurve = Math.sin(t * Math.PI);
-        const gripR = bulbGripRadius * (1 + springCurve * 0.15) * (1 - t * 0.3);
+      // Spring grip - curves back outward then sharply inward for grip
+      for (let i = 1; i <= 6; i++) {
+        const t = i / 6;
+        const y = height + 8 + clipArmLength * 0.6 + t * clipArmLength * 0.4;
+        // Spring tension curve: out then in
+        const springOut = Math.sin(t * Math.PI * 0.7) * 0.3;
+        const gripIn = Math.pow(t, 2) * 0.4;
+        const gripR = bulbGripRadius * (1 + springOut - gripIn);
         
         profile.push({
           y,
-          outerR: gripR + wallThickness * 0.8,
-          innerR: Math.max(gripR, 8),
+          outerR: gripR + wallThickness,
+          innerR: Math.max(gripR, 10),
           applyDeformations: false,
         });
       }
     }
     
-    // Add wall sconce backplate at bottom
+    // Add wall sconce backplate - integrated flat mounting plate
     if (isWallSconce) {
-      const backplateThickness = 8;
-      const backplateRadius = baseRadius * 0.8;
+      const backplateHeight = 25;
+      const backplateWidth = baseRadius * 1.2;
+      const shadeBottomR = getShadeRadius(0);
       
-      // Transition from shade to backplate
-      for (let i = 1; i <= 4; i++) {
-        const t = i / 4;
-        const y = -t * backplateThickness;
-        const plateR = getShadeRadius(0) * (1 - t * 0.3) + backplateRadius * t * 0.3;
+      // Transition collar from shade to backplate
+      for (let i = 1; i <= 3; i++) {
+        const t = i / 3;
+        const y = -t * 5;
+        const collarR = shadeBottomR * (1 - t * 0.2);
+        
+        profile.unshift({
+          y,
+          outerR: collarR,
+          innerR: 0,
+          applyDeformations: false,
+        });
+      }
+      
+      // Flat rectangular-ish backplate (approximated with circular geometry but much wider)
+      for (let i = 1; i <= 6; i++) {
+        const t = i / 6;
+        const y = -5 - t * backplateHeight;
+        // Keep radius consistent for flat plate look
+        const plateR = backplateWidth * 0.9;
         
         profile.unshift({
           y,
           outerR: plateR,
-          innerR: 0, // Solid backplate
+          innerR: 0,
           applyDeformations: false,
         });
       }
+      
+      // Bottom cap of backplate
+      profile.unshift({
+        y: -5 - backplateHeight - 3,
+        outerR: backplateWidth * 0.85,
+        innerR: 0,
+        applyDeformations: false,
+      });
     }
     
     // Add pendant collar at top
