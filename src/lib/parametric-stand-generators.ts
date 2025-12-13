@@ -3,7 +3,8 @@ import {
   ParametricStandParams, 
   LegProfile, 
   HubStyle, 
-  FootStyle 
+  FootStyle,
+  getSocketHolderDims
 } from '@/types/stand';
 
 // ============================================
@@ -11,7 +12,7 @@ import {
 // Generates stands with customizable leg shapes and styles
 // ============================================
 
-// Socket dimensions for object connection
+// Socket dimensions for object connection (cup that holds the object)
 const getSocketDimensions = (rimSize: number) => {
   const rimRadius = rimSize / 2;
   const clearance = 0.3;
@@ -26,7 +27,7 @@ const getSocketDimensions = (rimSize: number) => {
   };
 };
 
-// Generate smooth cup socket
+// Generate smooth cup socket (where object sits)
 function generateCupSocket(rimSize: number, topY: number): THREE.BufferGeometry {
   const socket = getSocketDimensions(rimSize);
   const points: THREE.Vector2[] = [];
@@ -51,6 +52,40 @@ function generateCupSocket(rimSize: number, topY: number): THREE.BufferGeometry 
   points.push(new THREE.Vector2(0, topY - socket.depth));
   
   return new THREE.LatheGeometry(points, 48);
+}
+
+// Generate socket holder for electrical socket (E26/E27)
+function generateSocketHolder(params: ParametricStandParams, topY: number): THREE.BufferGeometry {
+  const dims = getSocketHolderDims(params.socketType);
+  const points: THREE.Vector2[] = [];
+  
+  const holderTopY = topY - 5; // Sits just below cup socket
+  const holderBottomY = holderTopY - dims.height;
+  
+  // Create hollow cylinder with cord hole at bottom
+  // Inner wall (socket cavity)
+  points.push(new THREE.Vector2(dims.cordHoleRadius, holderBottomY));
+  points.push(new THREE.Vector2(dims.innerRadius, holderBottomY + 5));
+  points.push(new THREE.Vector2(dims.innerRadius, holderTopY - dims.collarHeight));
+  // Collar lip to hold socket
+  points.push(new THREE.Vector2(dims.innerRadius - 2, holderTopY - dims.collarHeight));
+  points.push(new THREE.Vector2(dims.innerRadius - 2, holderTopY));
+  points.push(new THREE.Vector2(dims.outerRadius, holderTopY));
+  // Outer wall
+  points.push(new THREE.Vector2(dims.outerRadius, holderBottomY));
+  points.push(new THREE.Vector2(dims.cordHoleRadius, holderBottomY));
+  
+  return new THREE.LatheGeometry(points, 24);
+}
+
+// Generate cord channel through a leg
+function generateCordChannel(
+  startPoint: THREE.Vector3,
+  endPoint: THREE.Vector3,
+  radius: number = 4
+): THREE.BufferGeometry {
+  const path = new THREE.LineCurve3(startPoint, endPoint);
+  return new THREE.TubeGeometry(path, 8, radius, 8, false);
 }
 
 // Generate leg cross-section based on profile
@@ -213,57 +248,93 @@ function generateParametricLeg(
   return geometry;
 }
 
-// Generate hub based on style
+// Generate hub with leg attachment shoulders
 function generateHub(
   hubStyle: HubStyle,
   hubScale: number,
   baseRadius: number,
   topY: number,
-  bottomY: number
-): THREE.BufferGeometry {
+  bottomY: number,
+  legCount: number = 3,
+  legThickness: number = 8
+): THREE.BufferGeometry[] {
   const scaledRadius = baseRadius * hubScale;
   const height = topY - bottomY;
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // Main hub geometry
+  let hubGeom: THREE.BufferGeometry;
   
   switch (hubStyle) {
     case 'sphere':
-      const sphereGeom = new THREE.SphereGeometry(scaledRadius, 24, 16);
-      sphereGeom.translate(0, bottomY + height / 2, 0);
-      return sphereGeom;
+      hubGeom = new THREE.SphereGeometry(scaledRadius, 24, 16);
+      hubGeom.translate(0, bottomY + height / 2, 0);
+      break;
       
     case 'disc':
-      const discGeom = new THREE.CylinderGeometry(scaledRadius, scaledRadius, height * 0.3, 24);
-      discGeom.translate(0, bottomY + height * 0.5, 0);
-      return discGeom;
+      hubGeom = new THREE.CylinderGeometry(scaledRadius, scaledRadius, height * 0.4, 24);
+      hubGeom.translate(0, bottomY + height * 0.5, 0);
+      break;
       
     case 'cone':
-      const coneGeom = new THREE.ConeGeometry(scaledRadius, height, 24);
-      coneGeom.rotateX(Math.PI);
-      coneGeom.translate(0, bottomY + height / 2, 0);
-      return coneGeom;
+      hubGeom = new THREE.ConeGeometry(scaledRadius, height, 24);
+      hubGeom.rotateX(Math.PI);
+      hubGeom.translate(0, bottomY + height / 2, 0);
+      break;
       
     case 'minimal':
-      // Very small transition piece
-      const minimalGeom = new THREE.CylinderGeometry(
-        scaledRadius * 0.8,
-        scaledRadius * 0.5,
-        height * 0.5,
+      // Slightly larger minimal hub for better leg attachment
+      hubGeom = new THREE.CylinderGeometry(
+        scaledRadius * 0.9,
+        scaledRadius * 0.6,
+        height * 0.6,
         24
       );
-      minimalGeom.translate(0, topY - height * 0.25, 0);
-      return minimalGeom;
+      hubGeom.translate(0, topY - height * 0.3, 0);
+      break;
       
     case 'smooth':
     default:
-      // Smooth tapered cylinder
-      const smoothGeom = new THREE.CylinderGeometry(
+      hubGeom = new THREE.CylinderGeometry(
         scaledRadius,
-        scaledRadius * 0.6,
+        scaledRadius * 0.7,
         height,
         24
       );
-      smoothGeom.translate(0, bottomY + height / 2, 0);
-      return smoothGeom;
+      hubGeom.translate(0, bottomY + height / 2, 0);
+      break;
   }
+  
+  geometries.push(hubGeom);
+  
+  // Add leg attachment shoulders/collars for seamless connection
+  const shoulderRadius = legThickness * 0.7;
+  const shoulderHeight = height * 0.4;
+  const legAngleStep = (Math.PI * 2) / legCount;
+  
+  for (let i = 0; i < legCount; i++) {
+    const angle = i * legAngleStep;
+    const shoulderX = Math.cos(angle) * scaledRadius * 0.5;
+    const shoulderZ = Math.sin(angle) * scaledRadius * 0.5;
+    
+    // Create tapered shoulder that blends into leg
+    const shoulderGeom = new THREE.CylinderGeometry(
+      shoulderRadius * 0.8,
+      shoulderRadius * 1.2,
+      shoulderHeight,
+      12
+    );
+    
+    // Rotate shoulder to point outward toward leg
+    const outwardAngle = Math.atan2(shoulderZ, shoulderX);
+    shoulderGeom.rotateZ(Math.PI / 6); // Slight outward tilt
+    shoulderGeom.rotateY(-outwardAngle);
+    shoulderGeom.translate(shoulderX, bottomY + shoulderHeight / 2, shoulderZ);
+    
+    geometries.push(shoulderGeom);
+  }
+  
+  return geometries;
 }
 
 // Generate foot based on style
@@ -271,7 +342,8 @@ function generateFoot(
   footStyle: FootStyle,
   footScale: number,
   baseRadius: number,
-  position: THREE.Vector3
+  position: THREE.Vector3,
+  hasCordExit: boolean = false
 ): THREE.BufferGeometry | null {
   if (footStyle === 'none') return null;
   
@@ -292,14 +364,41 @@ function generateFoot(
       break;
       
     case 'flare':
-      geom = new THREE.CylinderGeometry(scaledRadius * 0.6, scaledRadius * 1.2, scaledRadius * 0.8, 16);
-      geom.translate(position.x, position.y + scaledRadius * 0.4, position.z);
+      // Flare with optional cord exit hole
+      if (hasCordExit) {
+        const points: THREE.Vector2[] = [];
+        points.push(new THREE.Vector2(4, 0)); // Cord hole
+        points.push(new THREE.Vector2(scaledRadius * 0.6, scaledRadius * 0.2));
+        points.push(new THREE.Vector2(scaledRadius * 1.2, scaledRadius * 0.8));
+        points.push(new THREE.Vector2(scaledRadius * 1.1, scaledRadius * 0.8));
+        points.push(new THREE.Vector2(scaledRadius * 0.5, scaledRadius * 0.2));
+        points.push(new THREE.Vector2(4, 0));
+        geom = new THREE.LatheGeometry(points, 16);
+        geom.translate(position.x, position.y, position.z);
+      } else {
+        geom = new THREE.CylinderGeometry(scaledRadius * 0.6, scaledRadius * 1.2, scaledRadius * 0.8, 16);
+        geom.translate(position.x, position.y + scaledRadius * 0.4, position.z);
+      }
       break;
       
     case 'pad':
     default:
-      geom = new THREE.CylinderGeometry(scaledRadius, scaledRadius * 1.1, scaledRadius * 0.4, 16);
-      geom.translate(position.x, position.y + scaledRadius * 0.2, position.z);
+      if (hasCordExit) {
+        // Pad with cord hole
+        const points: THREE.Vector2[] = [];
+        points.push(new THREE.Vector2(4, 0)); // Cord hole
+        points.push(new THREE.Vector2(scaledRadius * 1.1, 0));
+        points.push(new THREE.Vector2(scaledRadius * 1.1, scaledRadius * 0.4));
+        points.push(new THREE.Vector2(scaledRadius, scaledRadius * 0.4));
+        points.push(new THREE.Vector2(scaledRadius * 0.9, scaledRadius * 0.1));
+        points.push(new THREE.Vector2(4, scaledRadius * 0.1));
+        points.push(new THREE.Vector2(4, 0));
+        geom = new THREE.LatheGeometry(points, 16);
+        geom.translate(position.x, position.y, position.z);
+      } else {
+        geom = new THREE.CylinderGeometry(scaledRadius, scaledRadius * 1.1, scaledRadius * 0.4, 16);
+        geom.translate(position.x, position.y + scaledRadius * 0.2, position.z);
+      }
       break;
   }
   
@@ -312,49 +411,62 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
   const geometries: THREE.BufferGeometry[] = [];
   
   const socketTop = params.height;
-  const hubHeight = 15 * params.hubScale;
+  const hubHeight = 20 * params.hubScale;
   const hubTopY = socketTop - socket.depth;
   const hubBottomY = hubTopY - hubHeight;
-  const hubRadius = socket.outerRadius * 0.8 * params.hubScale;
+  const hubRadius = socket.outerRadius * 0.9 * params.hubScale;
   
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
   const bottomSpreadRadius = hubRadius + hubBottomY * Math.tan(legSpreadRad);
   const footPadRadius = 10 * params.footScale;
   
-  // 1. Cup socket
+  // 1. Cup socket (where object sits)
   geometries.push(generateCupSocket(params.rimSize, socketTop));
   
-  // 2. Hub
-  geometries.push(generateHub(
+  // 2. Socket holder for electrical socket (if enabled)
+  if (params.showSocketHolder) {
+    geometries.push(generateSocketHolder(params, socketTop - socket.depth));
+  }
+  
+  // 3. Hub with leg attachment shoulders
+  const hubGeometries = generateHub(
     params.hubStyle,
     params.hubScale,
-    socket.outerRadius * 0.8,
+    socket.outerRadius * 0.9,
     hubTopY,
-    hubBottomY
-  ));
+    hubBottomY,
+    params.legCount,
+    params.legThickness
+  );
+  geometries.push(...hubGeometries);
   
-  // 3. Legs
+  // 4. Legs with improved attachment
   const legAngleStep = (Math.PI * 2) / params.legCount;
   for (let i = 0; i < params.legCount; i++) {
     const angle = i * legAngleStep;
+    const isCordLeg = params.showSocketHolder && i === params.cordExitLeg;
     
-    const topX = Math.cos(angle) * hubRadius * 0.6;
-    const topZ = Math.sin(angle) * hubRadius * 0.6;
+    // Start leg from hub's outer edge (not inside) for seamless attachment
+    const hubAttachRadius = hubRadius * 0.7;
+    const topX = Math.cos(angle) * hubAttachRadius;
+    const topZ = Math.sin(angle) * hubAttachRadius;
     
     const bottomX = Math.cos(angle) * bottomSpreadRadius;
     const bottomZ = Math.sin(angle) * bottomSpreadRadius;
     
-    const startPoint = new THREE.Vector3(topX, hubBottomY, topZ);
+    // Leg starts slightly overlapping into hub for seamless connection
+    const startPoint = new THREE.Vector3(topX, hubBottomY + hubHeight * 0.15, topZ);
     const endPoint = new THREE.Vector3(bottomX, footPadRadius * 0.4, bottomZ);
     
     geometries.push(generateParametricLeg(params, startPoint, endPoint));
     
-    // 4. Feet
+    // 5. Feet (with cord exit hole on designated leg)
     const footGeom = generateFoot(
       params.footStyle,
       params.footScale,
       footPadRadius,
-      new THREE.Vector3(bottomX, 0, bottomZ)
+      new THREE.Vector3(bottomX, 0, bottomZ),
+      isCordLeg
     );
     if (footGeom) geometries.push(footGeom);
   }
@@ -372,7 +484,7 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
   const canopyHeight = 20;
   const totalHeight = socketTop + params.cordLength + canopyHeight;
   
-  // 1. Canopy
+  // 1. Canopy (ceiling mount)
   const canopyGeom = new THREE.SphereGeometry(
     canopyDiameter / 2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2
   );
@@ -380,27 +492,29 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
   canopyGeom.translate(0, totalHeight - canopyHeight, 0);
   geometries.push(canopyGeom);
   
-  // 2. Cord (can be styled based on leg profile)
+  // 2. Cord (hollow tube for wiring)
   const cordThickness = params.legThickness * 0.4;
-  const cordStart = new THREE.Vector3(0, totalHeight - canopyHeight, 0);
-  const cordEnd = new THREE.Vector3(0, socketTop + socket.depth + 20, 0);
-  
   const cordGeom = new THREE.CylinderGeometry(cordThickness, cordThickness, params.cordLength, 8);
   cordGeom.translate(0, totalHeight - canopyHeight - params.cordLength / 2, 0);
   geometries.push(cordGeom);
   
-  // 3. Transition
-  const transitionHeight = 20;
+  // 3. Transition piece
+  const transitionHeight = 25;
   const transitionGeom = new THREE.CylinderGeometry(
     socket.outerRadius * 0.9,
-    cordThickness * 2,
+    cordThickness * 2.5,
     transitionHeight,
     24
   );
   transitionGeom.translate(0, socketTop + socket.depth + transitionHeight / 2, 0);
   geometries.push(transitionGeom);
   
-  // 4. Cup socket
+  // 4. Socket holder (built into pendant - always shown)
+  if (params.showSocketHolder) {
+    geometries.push(generateSocketHolder(params, socketTop));
+  }
+  
+  // 5. Cup socket
   geometries.push(generateCupSocket(params.rimSize, socketTop));
   
   return mergeGeometries(geometries);
@@ -413,13 +527,14 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   
   const backplateWidth = 90;
   const backplateHeight = 120;
-  const wallThickness = 6;
+  const wallThickness = 8;
   const armAngleRad = (params.armAngle * Math.PI) / 180;
   
   const armEndZ = params.armLength * Math.cos(armAngleRad);
   const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
+  const socketTopY = armEndY + socket.depth + 20;
   
-  // 1. Backplate
+  // 1. Backplate with cord channel
   const backplateGeom = new THREE.BoxGeometry(backplateWidth, backplateHeight, wallThickness);
   backplateGeom.translate(0, backplateHeight / 2, 0);
   geometries.push(backplateGeom);
@@ -429,18 +544,25 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   const armEnd = new THREE.Vector3(0, armEndY, armEndZ);
   geometries.push(generateParametricLeg(params, armStart, armEnd));
   
-  // 3. Transition
-  const transitionHeight = socket.depth + 8;
+  // 3. Transition to socket area
+  const transitionHeight = 20;
   const transitionGeom = new THREE.CylinderGeometry(
     socket.outerRadius * 0.9,
-    params.legThickness / 2,
+    params.legThickness * 0.8,
     transitionHeight,
     24
   );
   transitionGeom.translate(0, armEndY + transitionHeight / 2, armEndZ);
   geometries.push(transitionGeom);
   
-  // 4. Cup socket at arm end
+  // 4. Socket holder (if enabled)
+  if (params.showSocketHolder) {
+    const holderGeom = generateSocketHolder(params, socketTopY);
+    holderGeom.translate(0, 0, armEndZ);
+    geometries.push(holderGeom);
+  }
+  
+  // 5. Cup socket at arm end
   const cupPoints: THREE.Vector2[] = [];
   cupPoints.push(new THREE.Vector2(0, -socket.depth));
   cupPoints.push(new THREE.Vector2(socket.innerRadius, -socket.depth));
@@ -461,7 +583,7 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   cupPoints.push(new THREE.Vector2(0, -socket.depth));
   
   const cupGeom = new THREE.LatheGeometry(cupPoints, 48);
-  cupGeom.translate(0, armEndY + transitionHeight + socket.depth, armEndZ);
+  cupGeom.translate(0, socketTopY, armEndZ);
   geometries.push(cupGeom);
   
   return mergeGeometries(geometries);
