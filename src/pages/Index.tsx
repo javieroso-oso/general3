@@ -8,7 +8,7 @@ import ObjectTypeTabs from '@/components/controls/ObjectTypeTabs';
 import PrintAnalysisPanel from '@/components/controls/PrintAnalysisPanel';
 import PrintSettingsPanel from '@/components/controls/PrintSettingsPanel';
 import BatchGenerator from '@/components/controls/BatchGenerator';
-import StandControls from '@/components/controls/StandControls';
+import ParametricStandControls from '@/components/controls/ParametricStandControls';
 import { 
   ParametricParams, 
   ObjectType, 
@@ -16,10 +16,12 @@ import {
   PrintSettings, 
   defaultPrintSettings,
   analyzePrint,
-  StandParams,
-  defaultStandParams,
 } from '@/types/parametric';
-import { downloadSTL, downloadGCode, downloadStandSTL } from '@/lib/stl-export';
+import { 
+  ParametricStandParams, 
+  defaultParametricStandParams 
+} from '@/types/stand';
+import { downloadSTL, downloadGCode, downloadParametricStandSTL } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, Footprints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,7 +38,7 @@ const Index = () => {
   const [gcodeLayer, setGcodeLayer] = useState(0);
   const [gcodeShowAll, setGcodeShowAll] = useState(true);
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
-  const [standParams, setStandParams] = useState<StandParams>(defaultStandParams);
+  const [standParams, setStandParams] = useState<ParametricStandParams>(defaultParametricStandParams);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -56,7 +58,7 @@ const Index = () => {
   };
 
   // Auto-sync rim when enabling stand
-  const handleStandChange = (newStandParams: StandParams) => {
+  const handleStandChange = (newStandParams: ParametricStandParams) => {
     if (newStandParams.enabled && !standParams.enabled) {
       // Just enabled - sync rim size
       setStandParams({ ...newStandParams, rimSize: params.rimSize });
@@ -99,7 +101,7 @@ const Index = () => {
   }, [params, objectType, printSettings, analysis.isValid]);
 
   const handleExportStand = useCallback(() => {
-    if (!standParams.enabled || standParams.type === 'none') {
+    if (!standParams.enabled) {
       toast.error('No stand configured');
       return;
     }
@@ -110,9 +112,9 @@ const Index = () => {
       });
     }
     
-    const filename = `stand_${standParams.type}_rim${standParams.rimSize}mm_${Date.now()}.stl`;
+    const filename = `stand_${standParams.style}_${standParams.mountType}_rim${standParams.rimSize}mm_${Date.now()}.stl`;
     
-    downloadStandSTL(standParams, filename);
+    downloadParametricStandSTL(standParams, filename);
     toast.success('Stand STL exported!', {
       description: filename,
     });
@@ -166,7 +168,7 @@ const Index = () => {
               </TabsContent>
 
               <TabsContent value="stand" className="mt-0 space-y-4">
-                <StandControls
+                <ParametricStandControls
                   params={standParams}
                   objectRimSize={params.rimSize}
                   onChange={handleStandChange}
@@ -321,7 +323,7 @@ const Index = () => {
               <Download className="w-5 h-5" />
               Export Object
             </Button>
-            {standParams.enabled && standParams.type !== 'none' && (
+            {standParams.enabled && (
               <Button 
                 onClick={handleExportStand} 
                 variant="outline"
