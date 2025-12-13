@@ -1,4 +1,5 @@
 import { StandardRimSize } from './parametric';
+import { SocketType, socketDimensions } from './lamp';
 
 // ============================================
 // STAND STYLE SYSTEM
@@ -94,6 +95,23 @@ export interface ParametricStandParams {
   // Foot controls
   footStyle: FootStyle;
   footScale: number;        // 0.5-2.0
+  
+  // Hardware integration (for lamps)
+  socketType: SocketType;
+  showSocketHolder: boolean;
+  cordExitLeg: number;      // Which leg the cord exits (0-based index)
+}
+
+// Get socket holder dimensions based on socket type
+export function getSocketHolderDims(socketType: SocketType) {
+  const socket = socketDimensions[socketType];
+  return {
+    innerRadius: (socket.outerDiameter + 1) / 2,  // Tight fit
+    outerRadius: (socket.outerDiameter + 10) / 2, // Wall thickness
+    height: socket.height + 15,                    // Extra for cord
+    cordHoleRadius: 4,                             // 8mm diameter cord hole
+    collarHeight: socket.collarHeight,
+  };
 }
 
 // Style presets library
@@ -205,6 +223,10 @@ export const defaultParametricStandParams: ParametricStandParams = {
   hubScale: 1.0,
   footStyle: 'pad',
   footScale: 1.0,
+  // Hardware (for lamps)
+  socketType: 'E26',
+  showSocketHolder: false,
+  cordExitLeg: 0,
 };
 
 // Apply style preset to params

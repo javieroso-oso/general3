@@ -7,7 +7,8 @@ import {
   FootStyle,
   applyStylePreset 
 } from '@/types/stand';
-import { StandardRimSize } from '@/types/parametric';
+import { SocketType } from '@/types/lamp';
+import { StandardRimSize, ObjectType } from '@/types/parametric';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -22,20 +23,25 @@ import {
   CheckCircle2,
   Palette,
   Settings2,
-  Sparkles
+  Sparkles,
+  Lightbulb,
+  Plug
 } from 'lucide-react';
 
 interface ParametricStandControlsProps {
   params: ParametricStandParams;
   objectRimSize: StandardRimSize;
+  objectType: ObjectType;
   onChange: (params: ParametricStandParams) => void;
 }
 
 const ParametricStandControls = ({ 
   params, 
-  objectRimSize, 
+  objectRimSize,
+  objectType,
   onChange 
 }: ParametricStandControlsProps) => {
+  const isLamp = objectType === 'lamp';
   
   const handleChange = <K extends keyof ParametricStandParams>(
     key: K, 
@@ -116,9 +122,9 @@ const ParametricStandControls = ({
             </Badge>
           </div>
 
-          {/* Tabs for Style vs Fine-tuning */}
+          {/* Tabs for Style, Customize, and Hardware */}
           <Tabs defaultValue="style" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className={`grid w-full ${isLamp ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <TabsTrigger value="style" className="gap-2">
                 <Palette className="w-4 h-4" />
                 Style
@@ -127,6 +133,12 @@ const ParametricStandControls = ({
                 <Settings2 className="w-4 h-4" />
                 Customize
               </TabsTrigger>
+              {isLamp && (
+                <TabsTrigger value="hardware" className="gap-2">
+                  <Plug className="w-4 h-4" />
+                  Hardware
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="style" className="space-y-4 mt-4">
@@ -333,13 +345,93 @@ const ParametricStandControls = ({
                 onChange={(v) => handleChange('footScale', v)}
               />
             </TabsContent>
+
+            {/* Hardware Tab (Lamps only) */}
+            {isLamp && (
+              <TabsContent value="hardware" className="space-y-4 mt-4">
+                {/* Socket holder toggle */}
+                <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4" />
+                      Socket Holder
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Holds electrical bulb socket
+                    </p>
+                  </div>
+                  <Switch
+                    checked={params.showSocketHolder}
+                    onCheckedChange={(checked) => handleChange('showSocketHolder', checked)}
+                  />
+                </div>
+
+                {params.showSocketHolder && (
+                  <>
+                    {/* Socket type */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Socket Type</Label>
+                      <Select
+                        value={params.socketType}
+                        onValueChange={(value: SocketType) => handleChange('socketType', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="E26">E26 (Standard US)</SelectItem>
+                          <SelectItem value="E27">E27 (Standard EU)</SelectItem>
+                          <SelectItem value="E12">E12 (Candelabra)</SelectItem>
+                          <SelectItem value="GU10">GU10 (Spotlight)</SelectItem>
+                          <SelectItem value="G9">G9 (Halogen)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Cord exit leg (tripod only) */}
+                    {params.mountType === 'tripod' && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Cord Exit Leg</Label>
+                        <Select
+                          value={String(params.cordExitLeg)}
+                          onValueChange={(value) => handleChange('cordExitLeg', Number(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: params.legCount }).map((_, i) => (
+                              <SelectItem key={i} value={String(i)}>
+                                Leg {i + 1}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Power cord routes through this leg
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Hardware info */}
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900">
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        <strong>Hardware needed:</strong> {params.socketType} socket, 18/2 lamp cord with plug, LED bulb (10W max for PLA)
+                      </p>
+                    </div>
+                  </>
+                )}
+              </TabsContent>
+            )}
           </Tabs>
 
           {/* Info */}
           <div className="p-3 bg-muted/50 rounded-lg flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-primary mt-0.5" />
             <p className="text-xs text-muted-foreground">
-              Choose a style preset for quick design, or switch to Customize for full parametric control over every element.
+              {isLamp 
+                ? 'Design your stand, then configure hardware in the Hardware tab for a functional lamp.'
+                : 'Choose a style preset for quick design, or switch to Customize for full parametric control.'}
             </p>
           </div>
         </>

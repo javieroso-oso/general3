@@ -171,6 +171,7 @@ const Index = () => {
                 <ParametricStandControls
                   params={standParams}
                   objectRimSize={params.rimSize}
+                  objectType={objectType}
                   onChange={handleStandChange}
                 />
               </TabsContent>
