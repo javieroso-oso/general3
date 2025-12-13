@@ -62,7 +62,7 @@ function generateSocketHolder(params: ParametricStandParams, topY: number): THRE
   return new THREE.LatheGeometry(points, 24);
 }
 
-// Generate a safe, robust leg using TubeGeometry
+// Generate a robust leg using TubeGeometry with proper attachment
 function generateParametricLeg(
   params: ParametricStandParams,
   startPoint: THREE.Vector3,
@@ -70,101 +70,78 @@ function generateParametricLeg(
 ): THREE.BufferGeometry {
   const { legProfile, legThickness, legCurve, legTaper } = params;
   
-  const segments = 20;
+  const segments = 16;
   const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
   const length = direction.length();
   
   if (length < 1) {
-    // Return empty geometry for invalid legs
     return new THREE.BufferGeometry();
   }
   
   direction.normalize();
   
-  // Calculate a stable perpendicular vector
-  let perpendicular: THREE.Vector3;
-  if (Math.abs(direction.y) > 0.9) {
-    // Direction is mostly vertical, use X axis as reference
-    perpendicular = new THREE.Vector3(1, 0, 0);
-  } else {
-    // Use Y axis as reference
-    const up = new THREE.Vector3(0, 1, 0);
-    perpendicular = new THREE.Vector3().crossVectors(direction, up).normalize();
-  }
+  // Calculate perpendicular for outward curve direction (radially outward from center)
+  const horizontalDir = new THREE.Vector3(startPoint.x, 0, startPoint.z).normalize();
   
-  // Generate curved path points
+  // Generate path points - use LineCurve3 endpoints + optional curve
   const pathPoints: THREE.Vector3[] = [];
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
-    
-    // Base position along straight line
     const point = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
     
-    // Add outward curve (parabolic, max at middle)
-    const curveAmount = legCurve * length * 0.12;
-    const curveFactor = 4 * t * (1 - t); // 0 at ends, 1 at middle
-    point.addScaledVector(perpendicular, curveFactor * curveAmount);
+    // Add outward curve (radially outward, parabolic shape)
+    if (legCurve > 0) {
+      const curveAmount = legCurve * length * 0.1;
+      const curveFactor = 4 * t * (1 - t); // 0 at ends, 1 at middle
+      point.addScaledVector(horizontalDir, curveFactor * curveAmount);
+    }
     
     pathPoints.push(point);
   }
   
-  // Create smooth curve
-  const path = new THREE.CatmullRomCurve3(pathPoints);
+  // Use simple path that DOES pass through endpoints
+  const path = new THREE.CatmullRomCurve3(pathPoints, false, 'centripetal', 0.5);
   
-  // Determine radial segments based on profile
   const radialSegments = legProfile === 'square' ? 4 : legProfile === 'angular' ? 6 : 8;
-  
-  // Calculate radius with taper
   const baseRadius = legThickness / 2;
-  const startRadius = baseRadius;
-  const endRadius = baseRadius * Math.max(0.4, 1 - legTaper * 0.6);
   
-  // Use TubeGeometry for robust, clean legs
+  // Create tube geometry
   const tubeGeom = new THREE.TubeGeometry(path, segments, baseRadius, radialSegments, false);
   
-  // Apply taper by modifying vertices
-  const positions = tubeGeom.getAttribute('position');
-  const pathLength = path.getLength();
-  
-  for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i);
-    const y = positions.getY(i);
-    const z = positions.getZ(i);
+  // Apply taper if needed
+  if (legTaper > 0.01) {
+    const positions = tubeGeom.getAttribute('position');
     
-    const vertex = new THREE.Vector3(x, y, z);
-    
-    // Find closest point on path to determine t
-    let minDist = Infinity;
-    let closestT = 0;
-    for (let j = 0; j <= 20; j++) {
-      const t = j / 20;
-      const pathPoint = path.getPointAt(t);
-      const dist = vertex.distanceTo(pathPoint);
-      if (dist < minDist) {
-        minDist = dist;
-        closestT = t;
-      }
+    for (let i = 0; i < positions.count; i++) {
+      const vertex = new THREE.Vector3(
+        positions.getX(i),
+        positions.getY(i),
+        positions.getZ(i)
+      );
+      
+      // Estimate t based on Y position (top to bottom)
+      const t = Math.max(0, Math.min(1, 1 - (vertex.y - endPoint.y) / (startPoint.y - endPoint.y)));
+      
+      // Find center point on path at this t
+      const pathPoint = path.getPointAt(Math.min(1, Math.max(0, t)));
+      
+      // Scale radially from path center
+      const offset = vertex.clone().sub(pathPoint);
+      const taperScale = 1 - (t * legTaper * 0.5);
+      offset.multiplyScalar(Math.max(0.5, taperScale));
+      
+      const newPos = pathPoint.clone().add(offset);
+      positions.setXYZ(i, newPos.x, newPos.y, newPos.z);
     }
     
-    // Apply taper based on position along path
-    const taperScale = 1 - (closestT * legTaper * 0.5);
-    const pathPoint = path.getPointAt(closestT);
-    
-    // Scale vertex position relative to path
-    const offset = vertex.clone().sub(pathPoint);
-    offset.multiplyScalar(Math.max(0.5, taperScale));
-    const newPos = pathPoint.clone().add(offset);
-    
-    positions.setXYZ(i, newPos.x, newPos.y, newPos.z);
+    positions.needsUpdate = true;
   }
   
-  positions.needsUpdate = true;
   tubeGeom.computeVertexNormals();
-  
   return tubeGeom;
 }
 
-// Generate sleek, minimal hub
+// Generate sleek, minimal hub with proper leg attachment zone
 function generateHub(
   hubStyle: HubStyle,
   hubScale: number,
@@ -172,61 +149,69 @@ function generateHub(
   topY: number,
   bottomY: number
 ): THREE.BufferGeometry {
-  const scaledRadius = baseRadius * hubScale;
+  const r = baseRadius; // Already includes hubScale from caller
   const height = topY - bottomY;
+  
+  // Leg attachment zone is at 25% up from bottom - hub MUST extend to r at that Y
+  const legAttachY = bottomY + height * 0.25;
   
   const points: THREE.Vector2[] = [];
   
   switch (hubStyle) {
     case 'sphere':
-      // Smooth sphere-like profile
-      for (let i = 0; i <= 12; i++) {
-        const t = i / 12;
-        const angle = t * Math.PI;
-        const r = Math.sin(angle) * scaledRadius;
-        const y = bottomY + (1 - Math.cos(angle)) * height * 0.5;
-        points.push(new THREE.Vector2(r, y));
-      }
+      // Sphere with wide base for leg attachment
+      points.push(new THREE.Vector2(0, bottomY));
+      points.push(new THREE.Vector2(r * 0.7, bottomY));
+      points.push(new THREE.Vector2(r, legAttachY)); // Widest at leg attachment
+      points.push(new THREE.Vector2(r * 0.85, bottomY + height * 0.5));
+      points.push(new THREE.Vector2(r * 0.6, topY - height * 0.15));
+      points.push(new THREE.Vector2(r * 0.45, topY));
+      points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'disc':
-      // Low, wide disc
+      // Wide disc - legs attach at outer edge
       points.push(new THREE.Vector2(0, bottomY));
-      points.push(new THREE.Vector2(scaledRadius * 1.2, bottomY));
-      points.push(new THREE.Vector2(scaledRadius * 1.2, bottomY + height * 0.3));
-      points.push(new THREE.Vector2(scaledRadius * 0.8, bottomY + height * 0.4));
-      points.push(new THREE.Vector2(0, bottomY + height * 0.4));
+      points.push(new THREE.Vector2(r * 1.1, bottomY));
+      points.push(new THREE.Vector2(r * 1.1, legAttachY)); // Leg attachment
+      points.push(new THREE.Vector2(r * 0.9, bottomY + height * 0.5));
+      points.push(new THREE.Vector2(r * 0.5, topY));
+      points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'cone':
-      // Clean tapered cone
+      // Cone with base flare for legs
       points.push(new THREE.Vector2(0, bottomY));
-      points.push(new THREE.Vector2(scaledRadius, bottomY));
-      points.push(new THREE.Vector2(scaledRadius * 0.3, topY));
+      points.push(new THREE.Vector2(r, bottomY));
+      points.push(new THREE.Vector2(r, legAttachY)); // Leg attachment
+      points.push(new THREE.Vector2(r * 0.5, bottomY + height * 0.5));
+      points.push(new THREE.Vector2(r * 0.25, topY));
       points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'minimal':
-      // Ultra-clean minimal profile
-      points.push(new THREE.Vector2(0, bottomY + height * 0.3));
-      points.push(new THREE.Vector2(scaledRadius * 0.6, bottomY + height * 0.3));
-      points.push(new THREE.Vector2(scaledRadius * 0.5, topY));
+      // Clean minimal - legs visible attachment
+      points.push(new THREE.Vector2(0, bottomY));
+      points.push(new THREE.Vector2(r * 0.9, bottomY));
+      points.push(new THREE.Vector2(r, legAttachY)); // Widest for leg attachment
+      points.push(new THREE.Vector2(r * 0.6, bottomY + height * 0.5));
+      points.push(new THREE.Vector2(r * 0.4, topY));
       points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'smooth':
     default:
-      // Default smooth tapered cylinder
+      // Smooth with clear leg attachment zone
       points.push(new THREE.Vector2(0, bottomY));
-      points.push(new THREE.Vector2(scaledRadius * 0.8, bottomY));
-      points.push(new THREE.Vector2(scaledRadius, bottomY + height * 0.2));
-      points.push(new THREE.Vector2(scaledRadius * 0.9, topY - height * 0.1));
-      points.push(new THREE.Vector2(scaledRadius * 0.7, topY));
+      points.push(new THREE.Vector2(r * 0.85, bottomY));
+      points.push(new THREE.Vector2(r, legAttachY)); // Widest at leg attachment
+      points.push(new THREE.Vector2(r * 0.8, bottomY + height * 0.5));
+      points.push(new THREE.Vector2(r * 0.55, topY));
       points.push(new THREE.Vector2(0, topY));
       break;
   }
   
-  return new THREE.LatheGeometry(points, 24);
+  return new THREE.LatheGeometry(points, 32);
 }
 
 // Generate minimal foot
@@ -302,14 +287,15 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
   const geometries: THREE.BufferGeometry[] = [];
   
   const socketTop = params.height;
-  const hubHeight = 15 * params.hubScale;
+  const hubHeight = 20 * params.hubScale;
   const hubTopY = socketTop - socket.depth;
   const hubBottomY = hubTopY - hubHeight;
-  const hubRadius = socket.outerRadius * 0.7 * params.hubScale;
+  
+  // Hub radius - wider for better leg attachment
+  const hubMaxRadius = socket.outerRadius * params.hubScale;
   
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
-  const effectiveHeight = hubBottomY;
-  const bottomSpreadRadius = hubRadius + effectiveHeight * Math.tan(legSpreadRad);
+  const bottomSpreadRadius = hubMaxRadius * 2 + hubBottomY * Math.tan(legSpreadRad);
   
   // 1. Cup socket (where object sits)
   geometries.push(generateCupSocket(params.rimSize, socketTop));
@@ -319,33 +305,36 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
     geometries.push(generateSocketHolder(params, socketTop - socket.depth));
   }
   
-  // 3. Clean, minimal hub
+  // 3. Hub - with clear leg attachment zone
   const hubGeom = generateHub(
     params.hubStyle,
     params.hubScale,
-    hubRadius,
+    hubMaxRadius,
     hubTopY,
     hubBottomY
   );
   geometries.push(hubGeom);
   
-  // 4. Legs - attach properly to hub
+  // 4. Legs - start INSIDE hub and extend down to floor
   const legAngleStep = (Math.PI * 2) / params.legCount;
+  
+  // Leg starts INSIDE the hub to ensure overlap (at hub center Y, smaller radius)
+  const legStartY = hubBottomY + hubHeight * 0.4; // Higher up in hub
+  const legStartRadius = hubMaxRadius * 0.5; // Closer to center
+  
   for (let i = 0; i < params.legCount; i++) {
     const angle = i * legAngleStep;
     const isCordLeg = params.showSocketHolder && i === params.cordExitLeg;
     
-    // Leg starts at hub's outer edge at the bottom of the hub
-    const startRadius = hubRadius * 0.75;
-    const startX = Math.cos(angle) * startRadius;
-    const startZ = Math.sin(angle) * startRadius;
+    // Leg starts INSIDE hub (overlaps with hub geometry)
+    const startX = Math.cos(angle) * legStartRadius;
+    const startZ = Math.sin(angle) * legStartRadius;
     
     // Leg ends at foot position on the ground
     const endX = Math.cos(angle) * bottomSpreadRadius;
     const endZ = Math.sin(angle) * bottomSpreadRadius;
     
-    // Start point is at the bottom of the hub
-    const startPoint = new THREE.Vector3(startX, hubBottomY, startZ);
+    const startPoint = new THREE.Vector3(startX, legStartY, startZ);
     const endPoint = new THREE.Vector3(endX, 0, endZ);
     
     const legGeom = generateParametricLeg(params, startPoint, endPoint);
