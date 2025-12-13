@@ -4,8 +4,9 @@ import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
 import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
-import { ParametricParams, ObjectType, PrintSettings, StandParams } from '@/types/parametric';
-import { getSocketDepth } from '@/lib/stand-generators';
+import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
+import { ParametricStandParams } from '@/types/stand';
+import { getParametricSocketDepth } from '@/lib/parametric-stand-generators';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -16,7 +17,7 @@ interface Scene3DProps {
   gcodeLayer?: number;
   gcodeShowAll?: boolean;
   gcodeAnimate?: boolean;
-  standParams?: StandParams;
+  standParams?: ParametricStandParams;
 }
 
 const defaultSettings: PrintSettings = {
@@ -41,11 +42,11 @@ const Scene3D = ({
   standParams,
 }: Scene3DProps) => {
   const scale = 0.01;
-  const standVisible = standParams?.enabled && standParams?.type !== 'none';
+  const standVisible = standParams?.enabled;
   
   // Calculate object position: drops into cup socket seamlessly
   // Object base sits at: standHeight - socketDepth + small offset
-  const socketDepth = standParams ? getSocketDepth(standParams.rimSize) : 10;
+  const socketDepth = standParams ? getParametricSocketDepth(standParams.rimSize) : 10;
   const objectYOffset = standVisible && standParams 
     ? (standParams.height - socketDepth + 3 + params.height / 2) * scale 
     : 0;

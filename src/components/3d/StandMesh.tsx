@@ -1,17 +1,16 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { generateStandGeometry } from '@/lib/stand-generators';
-import { StandParams } from '@/types/parametric';
+import { generateParametricStandGeometry } from '@/lib/parametric-stand-generators';
+import { ParametricStandParams } from '@/types/stand';
 
 interface StandMeshProps {
-  params: StandParams;
+  params: ParametricStandParams;
   showWireframe?: boolean;
 }
 
 /**
- * StandMesh - Renders the printable stand structure
- * Tripod legs, pendant bracket, or wall arm with socket holder
+ * StandMesh - Renders the parametric stand with customizable leg shapes
  */
 const StandMesh = ({ params, showWireframe = false }: StandMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -26,11 +25,11 @@ const StandMesh = ({ params, showWireframe = false }: StandMeshProps) => {
   });
   
   const { geometry, wireframeGeometry } = useMemo(() => {
-    if (!params.enabled || params.type === 'none') {
+    if (!params.enabled) {
       return { geometry: new THREE.BufferGeometry(), wireframeGeometry: new THREE.BufferGeometry() };
     }
     
-    const standGeo = generateStandGeometry(params);
+    const standGeo = generateParametricStandGeometry(params);
     
     // Scale geometry
     standGeo.scale(scale, scale, scale);
@@ -41,7 +40,7 @@ const StandMesh = ({ params, showWireframe = false }: StandMeshProps) => {
     return { geometry: standGeo, wireframeGeometry: wireGeo };
   }, [params]);
   
-  if (!params.enabled || params.type === 'none') {
+  if (!params.enabled) {
     return null;
   }
   
