@@ -58,9 +58,8 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.LineSegments>(null);
-  const collarRef = useRef<THREE.Mesh>(null);
 
-  const { bodyGeometry, collarGeometry, wireframeGeo } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -88,40 +87,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
     
-    // COLLAR DIMENSIONS (scaled) - this is the universal mounting interface
-    const collarOuterRadius = (rimSize / 2) * SCALE;
-    const collarInnerRadius = (rimSize / 2 - rimSpecs.lipDepth) * SCALE;
-    const collarHeight = rimSpecs.height * SCALE;
+    // BLEND ZONE: Bottom portion smoothly transitions to standard rim size
+    const blendZoneHeight = 12 * SCALE; // 12mm blend zone
+    const rimRadius = (rimSize / 2) * SCALE;
 
     const segments = 64;
     const heightSegments = 64;
 
-    // ========================================
-    // 1. GENERATE COLLAR (solid cylinder at base)
-    // ========================================
-    const collarGeo = new THREE.CylinderGeometry(
-      collarOuterRadius,  // top radius
-      collarOuterRadius,  // bottom radius
-      collarHeight,       // height
-      48,                 // radial segments
-      1,                  // height segments
-      false               // open ended = false (solid)
-    );
-    // Position collar so its BOTTOM is at y=0
-    collarGeo.translate(0, collarHeight / 2, 0);
-
-    // ========================================
-    // 2. GENERATE ORGANIC BODY (starts above collar)
-    // ========================================
-    const bodyStartY = collarHeight;
-    const bodyHeight = h - collarHeight;
-    
     const outerVerts: number[] = [];
-    const innerVerts: number[] = [];
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
-      const y = bodyStartY + t * bodyHeight;
+      const y = t * h;
 
       // Base profile interpolation
       let radius: number;
@@ -183,11 +160,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // At the bottom of the body (t=0), blend to match collar inner radius
-        if (t < 0.15) {
-          const blendT = t / 0.15;
-          r = collarInnerRadius + (r - collarInnerRadius) * blendT;
-        }
+        // SEAMLESS BLEND: At the bottom, smoothly blend to rim radius
+        const blendT = Math.min(1, y / blendZoneHeight);
+        // Smooth easing function (ease-in-out)
+        const smoothBlend = blendT * blendT * (3 - 2 * blendT);
+        r = rimRadius + (r - rimRadius) * smoothBlend;
 
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
@@ -195,12 +172,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         const x = Math.cos(theta) * r;
         const z = Math.sin(theta) * r;
         outerVerts.push(x, y, z);
-
-        // Inner surface (wall thickness)
-        const innerR = Math.max(r - wall, wall);
-        const ix = Math.cos(theta) * innerR;
-        const iz = Math.sin(theta) * innerR;
-        innerVerts.push(ix, y, iz);
       }
     }
 
@@ -228,32 +199,22 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
 
-    return { bodyGeometry: bodyGeo, collarGeometry: collarGeo, wireframeGeo: wireGeo };
+    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo };
   }, [params, type]);
 
   useFrame((state) => {
     const rotation = state.clock.elapsedTime * 0.05;
     if (meshRef.current) meshRef.current.rotation.y = rotation;
-    if (collarRef.current) collarRef.current.rotation.y = rotation;
     if (wireRef.current) wireRef.current.rotation.y = rotation;
   });
 
   return (
     <group position={[0, -params.height * SCALE * 0.5, 0]}>
-      {/* Solid collar at base */}
-      <mesh ref={collarRef} geometry={collarGeometry} castShadow receiveShadow>
-        <meshStandardMaterial
-          color="#c0c0c0"
-          roughness={0.5}
-          metalness={0.1}
-        />
-      </mesh>
-      
-      {/* Organic body above collar */}
+      {/* Unified organic body with seamless rim blend */}
       <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
-          color="#d4d4d4"
-          roughness={0.6}
+          color="#e8e8e8"
+          roughness={0.55}
           metalness={0.05}
           side={THREE.DoubleSide}
         />
