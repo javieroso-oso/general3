@@ -1,9 +1,9 @@
-import { StandParams, StandType, StandardRimSize, standardRimSizes } from '@/types/parametric';
+import { StandParams, StandType, StandardRimSize } from '@/types/parametric';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import ParameterSlider from './ParameterSlider';
-import { Footprints, Cable, Grip, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Footprints, Cable, Grip, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface StandControlsProps {
@@ -17,8 +17,6 @@ const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) 
     onChange({ ...params, [key]: value });
   };
 
-  const isCompatible = params.rimSize === objectRimSize;
-
   return (
     <div className="space-y-6">
       {/* Enable Stand Toggle */}
@@ -26,7 +24,7 @@ const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) 
         <div className="space-y-1">
           <Label className="text-sm font-medium">Add Stand</Label>
           <p className="text-xs text-muted-foreground">
-            Generate a printable stand for your object
+            Generate a seamless stand for your object
           </p>
         </div>
         <Switch
@@ -70,45 +68,20 @@ const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) 
             </Select>
           </div>
 
-          {/* Standard Rim Size Selector */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Stand Rim Size</Label>
-              {isCompatible ? (
-                <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Compatible
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 bg-amber-50">
-                  <AlertCircle className="w-3 h-3" />
-                  Size Mismatch
-                </Badge>
-              )}
+          {/* Auto-synced status */}
+          <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900">
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <div className="flex-1">
+              <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                Auto-matched to object
+              </span>
+              <p className="text-xs text-green-600 dark:text-green-500">
+                Socket fits {objectRimSize}mm rim seamlessly
+              </p>
             </div>
-            <Select
-              value={String(params.rimSize)}
-              onValueChange={(value) => handleChange('rimSize', Number(value) as StandardRimSize)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {standardRimSizes.map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    <div className="flex items-center justify-between gap-4 w-full">
-                      <span>{size}mm</span>
-                      {size === objectRimSize && (
-                        <span className="text-xs text-muted-foreground">(object)</span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Object rim: {objectRimSize}mm — {isCompatible ? 'Perfect fit!' : 'Adjust to match for compatibility'}
-            </p>
+            <Badge variant="outline" className="text-green-600 border-green-300">
+              {objectRimSize}mm
+            </Badge>
           </div>
 
           {/* Stand Height */}
@@ -156,7 +129,7 @@ const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) 
           {/* Pendant-specific */}
           {params.type === 'pendant' && (
             <ParameterSlider
-              label="Cord Length (visual)"
+              label="Cord Length"
               value={params.cordLength}
               min={100}
               max={1000}
@@ -190,11 +163,10 @@ const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) 
             </>
           )}
 
-          {/* Rim System Info */}
-          <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">Universal Rim System</p>
+          {/* Info */}
+          <div className="p-3 bg-muted/50 rounded-lg">
             <p className="text-xs text-muted-foreground">
-              Objects have a standardized circular rim at the base. Stands have a matching socket that the rim sits INTO for a secure, universal fit.
+              Stand socket automatically adapts to your object's base profile for a seamless, unified appearance.
             </p>
           </div>
         </>

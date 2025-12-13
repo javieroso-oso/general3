@@ -42,8 +42,27 @@ const Index = () => {
     setObjectType(type);
     const newParams = defaultParams[type];
     setParams(newParams);
-    // Sync stand rim size with new object
+    // Auto-sync stand rim size with new object
     setStandParams(prev => ({ ...prev, rimSize: newParams.rimSize }));
+  };
+
+  // Auto-sync stand rim size when object rim changes
+  const handleParamsChange = (newParams: ParametricParams) => {
+    setParams(newParams);
+    // Keep stand rim synced with object rim
+    if (standParams.enabled && newParams.rimSize !== standParams.rimSize) {
+      setStandParams(prev => ({ ...prev, rimSize: newParams.rimSize }));
+    }
+  };
+
+  // Auto-sync rim when enabling stand
+  const handleStandChange = (newStandParams: StandParams) => {
+    if (newStandParams.enabled && !standParams.enabled) {
+      // Just enabled - sync rim size
+      setStandParams({ ...newStandParams, rimSize: params.rimSize });
+    } else {
+      setStandParams(newStandParams);
+    }
   };
 
   const analysis = useMemo(() => 
@@ -142,7 +161,7 @@ const Index = () => {
                 <ParameterControls
                   params={params}
                   type={objectType}
-                  onParamsChange={setParams}
+                  onParamsChange={handleParamsChange}
                 />
               </TabsContent>
 
@@ -150,7 +169,7 @@ const Index = () => {
                 <StandControls
                   params={standParams}
                   objectRimSize={params.rimSize}
-                  onChange={setStandParams}
+                  onChange={handleStandChange}
                 />
               </TabsContent>
 

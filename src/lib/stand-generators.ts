@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { StandParams as MainStandParams, rimSpecs } from '@/types/parametric';
+import { StandParams as MainStandParams } from '@/types/parametric';
 
 // ============================================
 // STAND GENERATORS
-// Generate 3D geometry for printable stands
-// with universal rim socket cradle system
+// Seamless, elegant stand system with smooth cup sockets
 // ============================================
 
 interface TripodParams {
@@ -27,149 +26,123 @@ interface WallArmParams {
   armAngle: number;
 }
 
-// Socket cradle dimensions - where the object's collar sits INTO
+// Socket cup dimensions - elegant cup that envelops the object base
 const getSocketDimensions = (rimSize: number) => {
-  const collarRadius = rimSize / 2;
-  const clearance = 0.5; // Small gap for fit
-  const socketWall = 5;  // Wall thickness around socket
-  const socketDepth = rimSpecs.height + 2; // Collar height + 2mm for clearance
+  const rimRadius = rimSize / 2;
+  const clearance = 0.3; // Tight fit
+  const wallThickness = 4;
+  const cupDepth = 10; // Object drops 10mm into cup
   
   return {
-    innerRadius: collarRadius + clearance,  // Collar fits inside this
-    outerRadius: collarRadius + clearance + socketWall,
-    depth: socketDepth,
-    ledgeHeight: 2, // Flat surface collar rests on
+    innerRadius: rimRadius + clearance,
+    outerRadius: rimRadius + clearance + wallThickness,
+    depth: cupDepth,
+    lipRadius: rimRadius + clearance + wallThickness + 2, // Slight flare at top
   };
 };
 
-// Generate a simple socket cradle - a ring with a flat ledge
-function generateSocketCradle(rimSize: number, topY: number): THREE.BufferGeometry[] {
+// Generate elegant cup socket using lathe geometry for smooth curves
+function generateSmoothCupSocket(rimSize: number, topY: number): THREE.BufferGeometry {
   const socket = getSocketDimensions(rimSize);
-  const geometries: THREE.BufferGeometry[] = [];
   
-  // Outer wall of socket (cylinder)
-  const outerWallGeom = new THREE.CylinderGeometry(
-    socket.outerRadius,
-    socket.outerRadius,
-    socket.depth,
-    48,
-    1,
-    true // Open-ended for the ring wall
-  );
-  outerWallGeom.translate(0, topY - socket.depth / 2, 0);
-  geometries.push(outerWallGeom);
+  // Create cup profile for lathe (cross-section from center outward)
+  // Profile goes from bottom of cup, up the inner wall, curves over the lip
+  const points: THREE.Vector2[] = [];
   
-  // Top ring (flat surface at socket top)
-  const topRingGeom = new THREE.RingGeometry(
-    socket.innerRadius,
-    socket.outerRadius,
-    48
-  );
-  topRingGeom.rotateX(-Math.PI / 2);
-  topRingGeom.translate(0, topY, 0);
-  geometries.push(topRingGeom);
+  // Inner bottom (closed bottom of cup)
+  points.push(new THREE.Vector2(0, topY - socket.depth));
+  points.push(new THREE.Vector2(socket.innerRadius, topY - socket.depth));
   
-  // Bottom ledge (flat surface where collar rests)
-  const ledgeGeom = new THREE.RingGeometry(
-    socket.innerRadius - 3, // Ledge extends inward to support collar
-    socket.innerRadius,
-    48
-  );
-  ledgeGeom.rotateX(-Math.PI / 2);
-  ledgeGeom.translate(0, topY - socket.depth + socket.ledgeHeight, 0);
-  geometries.push(ledgeGeom);
+  // Inner wall going up
+  points.push(new THREE.Vector2(socket.innerRadius, topY - 2));
   
-  // Inner ledge support ring
-  const ledgeSupportGeom = new THREE.CylinderGeometry(
-    socket.innerRadius,
-    socket.innerRadius - 3,
-    socket.ledgeHeight,
-    48,
-    1,
-    false
-  );
-  ledgeSupportGeom.translate(0, topY - socket.depth + socket.ledgeHeight / 2, 0);
-  geometries.push(ledgeSupportGeom);
+  // Smooth curved lip at top (using bezier-like curve)
+  const lipCurveSteps = 8;
+  for (let i = 0; i <= lipCurveSteps; i++) {
+    const t = i / lipCurveSteps;
+    // Quadratic curve from inner top to outer top
+    const angle = t * Math.PI / 2;
+    const curveRadius = socket.outerRadius - socket.innerRadius;
+    const x = socket.innerRadius + Math.sin(angle) * curveRadius;
+    const y = topY - 2 + Math.cos(angle) * 2;
+    points.push(new THREE.Vector2(x, y));
+  }
   
-  return geometries;
+  // Outer wall going down with slight taper
+  points.push(new THREE.Vector2(socket.outerRadius, topY - socket.depth + 2));
+  points.push(new THREE.Vector2(socket.outerRadius * 0.95, topY - socket.depth));
+  
+  // Close the bottom
+  points.push(new THREE.Vector2(0, topY - socket.depth));
+  
+  const geometry = new THREE.LatheGeometry(points, 48);
+  return geometry;
 }
 
-// Generate tripod stand geometry with socket cradle
+// Generate tripod stand with elegant cup socket
 export function generateTripodStandGeometry(params: TripodParams): THREE.BufferGeometry {
   const legCount = params.legCount;
   const legAngleStep = (Math.PI * 2) / legCount;
-  
   const socket = getSocketDimensions(params.rimSize);
   
-  // Structural dimensions
-  const legThickness = 8;
-  const hubRadius = socket.outerRadius; // Hub matches socket outer radius
-  const hubHeight = 25;
-  const footPadRadius = 14;
-  const footPadHeight = 5;
+  // Scale leg thickness with rim size for proportion
+  const legThickness = 6 + params.rimSize * 0.05;
+  const hubRadius = socket.outerRadius * 0.8;
+  const footPadRadius = 12 + params.rimSize * 0.08;
+  const footPadHeight = 4;
   
-  // Calculate leg spread
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
-  
-  // Socket at the very top
   const socketTop = params.height;
-  const hubTopY = socketTop - socket.depth; // Hub starts right below socket
+  const hubHeight = 15;
+  const hubTopY = socketTop - socket.depth;
   const hubBottomY = hubTopY - hubHeight;
-  
-  // Leg bottom spread
-  const legVerticalDrop = hubBottomY;
-  const bottomSpreadRadius = hubRadius + legVerticalDrop * Math.tan(legSpreadRad);
+  const bottomSpreadRadius = hubRadius + hubBottomY * Math.tan(legSpreadRad);
   
   const geometries: THREE.BufferGeometry[] = [];
   
-  // 1. SOCKET CRADLE at top
-  const socketGeoms = generateSocketCradle(params.rimSize, socketTop);
-  geometries.push(...socketGeoms);
+  // 1. SMOOTH CUP SOCKET at top
+  const cupGeom = generateSmoothCupSocket(params.rimSize, socketTop);
+  geometries.push(cupGeom);
   
-  // 2. CENTRAL HUB (solid cylinder connecting socket to legs)
+  // 2. CENTRAL HUB (tapered cylinder blending into socket)
   const hubGeom = new THREE.CylinderGeometry(
     hubRadius,
-    hubRadius * 0.7,
+    hubRadius * 0.6,
     hubHeight,
     24
   );
   hubGeom.translate(0, hubTopY - hubHeight / 2, 0);
   geometries.push(hubGeom);
   
-  // 3. LEGS (spread outward from hub base to floor)
+  // 3. LEGS with smooth taper
   for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep;
     
-    // Top of leg connects to hub base
-    const topX = Math.cos(angle) * hubRadius * 0.7;
+    const topX = Math.cos(angle) * hubRadius * 0.6;
     const topY = hubBottomY;
-    const topZ = Math.sin(angle) * hubRadius * 0.7;
+    const topZ = Math.sin(angle) * hubRadius * 0.6;
     
-    // Bottom of leg on the floor with spread
     const bottomX = Math.cos(angle) * bottomSpreadRadius;
     const bottomY = footPadHeight;
     const bottomZ = Math.sin(angle) * bottomSpreadRadius;
     
-    // Calculate leg direction and length
     const dx = bottomX - topX;
     const dy = bottomY - topY;
     const dz = bottomZ - topZ;
     const legLength = Math.sqrt(dx * dx + dy * dy + dz * dz);
     
-    // Create tapered leg
+    // Tapered leg
     const legGeom = new THREE.CylinderGeometry(
       legThickness / 2,
-      legThickness / 3, // Tapered to a point
+      legThickness / 3,
       legLength,
-      8
+      12
     );
     
-    // Calculate midpoint for positioning
     const midX = (topX + bottomX) / 2;
     const midY = (topY + bottomY) / 2;
     const midZ = (topZ + bottomZ) / 2;
     
-    // Calculate rotation to align cylinder with leg direction
     const direction = new THREE.Vector3(dx, dy, dz).normalize();
     const up = new THREE.Vector3(0, 1, 0);
     const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
@@ -183,12 +156,12 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
     legGeom.applyMatrix4(matrix);
     geometries.push(legGeom);
     
-    // 4. FOOT PADS (flat for stability)
+    // 4. FOOT PADS with slight dome
     const footPadGeom = new THREE.CylinderGeometry(
       footPadRadius,
       footPadRadius * 1.1,
       footPadHeight,
-      12
+      16
     );
     footPadGeom.translate(bottomX, footPadHeight / 2, bottomZ);
     geometries.push(footPadGeom);
@@ -197,75 +170,68 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
   return mergeGeometries(geometries);
 }
 
-// Generate pendant bracket geometry with socket cradle
+// Generate pendant bracket with elegant cup socket
 export function generatePendantCordGeometry(params: PendantParams): THREE.BufferGeometry {
-  const canopyDiameter = 80;
-  const canopyHeight = 25;
-  
   const socket = getSocketDimensions(params.rimSize);
+  const canopyDiameter = 70 + params.rimSize * 0.3;
+  const canopyHeight = 20;
   
   const geometries: THREE.BufferGeometry[] = [];
-  
-  // Socket at the bottom where lamp shade hangs
   const socketTop = params.height;
-  
-  // 1. CANOPY (ceiling mount)
   const totalHeight = socketTop + params.cordLength + canopyHeight;
-  const canopyGeom = new THREE.CylinderGeometry(
+  
+  // 1. CANOPY (ceiling mount) with smooth dome
+  const canopyGeom = new THREE.SphereGeometry(
     canopyDiameter / 2,
-    canopyDiameter / 2 * 0.9,
-    canopyHeight,
-    32
+    24,
+    12,
+    0,
+    Math.PI * 2,
+    0,
+    Math.PI / 2
   );
-  canopyGeom.translate(0, totalHeight - canopyHeight / 2, 0);
+  canopyGeom.scale(1, canopyHeight / (canopyDiameter / 2), 1);
+  canopyGeom.translate(0, totalHeight - canopyHeight, 0);
   geometries.push(canopyGeom);
   
-  // 2. CORD/ROD (connects canopy to socket)
-  const cordLength = params.cordLength;
-  const cordGeom = new THREE.CylinderGeometry(
-    4,
-    4,
-    cordLength,
-    8
-  );
-  cordGeom.translate(0, totalHeight - canopyHeight - cordLength / 2, 0);
+  // 2. CORD (thin rod)
+  const cordGeom = new THREE.CylinderGeometry(3, 3, params.cordLength, 8);
+  cordGeom.translate(0, totalHeight - canopyHeight - params.cordLength / 2, 0);
   geometries.push(cordGeom);
   
-  // 3. SOCKET HOLDER (connects cord to socket cradle)
-  const holderHeight = 30;
-  const holderGeom = new THREE.CylinderGeometry(
-    socket.outerRadius,
-    socket.outerRadius,
-    holderHeight,
+  // 3. TRANSITION PIECE (cord to socket)
+  const transitionHeight = 20;
+  const transitionGeom = new THREE.CylinderGeometry(
+    socket.outerRadius * 0.9,
+    6,
+    transitionHeight,
     24
   );
-  holderGeom.translate(0, socketTop + holderHeight / 2, 0);
-  geometries.push(holderGeom);
+  transitionGeom.translate(0, socketTop + socket.depth + transitionHeight / 2, 0);
+  geometries.push(transitionGeom);
   
-  // 4. SOCKET CRADLE (where shade hangs INTO)
-  const socketGeoms = generateSocketCradle(params.rimSize, socketTop);
-  geometries.push(...socketGeoms);
+  // 4. CUP SOCKET (inverted for pendant - object hangs INTO it)
+  const cupGeom = generateSmoothCupSocket(params.rimSize, socketTop);
+  geometries.push(cupGeom);
   
   return mergeGeometries(geometries);
 }
 
-// Generate wall arm geometry with socket cradle
+// Generate wall arm with elegant cup socket
 export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeometry {
-  const backplateWidth = 100;
-  const backplateHeight = 140;
-  const wallThickness = 8;
-  const armThickness = 12;
-  const armAngleRad = (params.armAngle * Math.PI) / 180;
-  
   const socket = getSocketDimensions(params.rimSize);
+  const backplateWidth = 90;
+  const backplateHeight = 120;
+  const wallThickness = 6;
+  const armThickness = 10 + params.rimSize * 0.04;
+  const armAngleRad = (params.armAngle * Math.PI) / 180;
   
   const geometries: THREE.BufferGeometry[] = [];
   
-  // Calculate arm end position
   const armEndZ = params.armLength * Math.cos(armAngleRad);
   const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
   
-  // 1. BACKPLATE (wall mount)
+  // 1. BACKPLATE with rounded edges
   const backplateGeom = new THREE.BoxGeometry(
     backplateWidth,
     backplateHeight,
@@ -274,23 +240,13 @@ export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeom
   backplateGeom.translate(0, backplateHeight / 2, 0);
   geometries.push(backplateGeom);
   
-  // Mounting holes visual
-  const holeSpacing = 60;
-  for (const yOffset of [-holeSpacing / 2, holeSpacing / 2]) {
-    const holeRingGeom = new THREE.TorusGeometry(6, 2, 6, 16);
-    const holeMatrix = new THREE.Matrix4().makeTranslation(0, backplateHeight / 2 + yOffset, -wallThickness / 2);
-    holeRingGeom.applyMatrix4(holeMatrix);
-    geometries.push(holeRingGeom);
-  }
-  
   // 2. ARM (extends from backplate)
   const armGeom = new THREE.CylinderGeometry(
     armThickness / 2,
     armThickness / 2,
     params.armLength,
-    12
+    16
   );
-  
   armGeom.rotateX(Math.PI / 2 - armAngleRad);
   armGeom.translate(
     0,
@@ -299,74 +255,57 @@ export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeom
   );
   geometries.push(armGeom);
   
-  // 3. SOCKET MOUNT (at end of arm, connects to socket cradle)
-  const mountHeight = socket.depth + 10;
-  const mountGeom = new THREE.CylinderGeometry(
-    socket.outerRadius,
-    socket.outerRadius * 0.8,
-    mountHeight,
+  // 3. TRANSITION from arm to socket
+  const transitionHeight = socket.depth + 8;
+  const transitionGeom = new THREE.CylinderGeometry(
+    socket.outerRadius * 0.9,
+    armThickness / 2,
+    transitionHeight,
     24
   );
-  mountGeom.translate(0, armEndY + mountHeight / 2, armEndZ);
-  geometries.push(mountGeom);
+  transitionGeom.translate(0, armEndY + transitionHeight / 2, armEndZ);
+  geometries.push(transitionGeom);
   
-  // 4. SOCKET CRADLE (where shade sits INTO) - positioned at arm end
-  const socketGeoms = generateSocketCradleAt(params.rimSize, armEndY, armEndZ);
-  geometries.push(...socketGeoms);
+  // 4. CUP SOCKET at arm end
+  const cupGeom = generateSmoothCupSocketAt(params.rimSize, armEndY, armEndZ);
+  geometries.push(cupGeom);
   
   return mergeGeometries(geometries);
 }
 
-// Generate socket cradle at a specific position (for wall arm)
-function generateSocketCradleAt(rimSize: number, y: number, z: number): THREE.BufferGeometry[] {
+// Generate cup socket at specific position (for wall arm)
+function generateSmoothCupSocketAt(rimSize: number, y: number, z: number): THREE.BufferGeometry {
   const socket = getSocketDimensions(rimSize);
-  const geometries: THREE.BufferGeometry[] = [];
   
-  // Outer wall of socket
-  const outerWallGeom = new THREE.CylinderGeometry(
-    socket.outerRadius,
-    socket.outerRadius,
-    socket.depth,
-    48,
-    1,
-    true
-  );
-  outerWallGeom.translate(0, y - socket.depth / 2, z);
-  geometries.push(outerWallGeom);
+  const points: THREE.Vector2[] = [];
   
-  // Top ring
-  const topRingGeom = new THREE.RingGeometry(
-    socket.innerRadius,
-    socket.outerRadius,
-    48
-  );
-  topRingGeom.rotateX(-Math.PI / 2);
-  topRingGeom.translate(0, y, z);
-  geometries.push(topRingGeom);
+  // Inner bottom
+  points.push(new THREE.Vector2(0, -socket.depth));
+  points.push(new THREE.Vector2(socket.innerRadius, -socket.depth));
   
-  // Bottom ledge
-  const ledgeGeom = new THREE.RingGeometry(
-    socket.innerRadius - 3,
-    socket.innerRadius,
-    48
-  );
-  ledgeGeom.rotateX(-Math.PI / 2);
-  ledgeGeom.translate(0, y - socket.depth + socket.ledgeHeight, z);
-  geometries.push(ledgeGeom);
+  // Inner wall
+  points.push(new THREE.Vector2(socket.innerRadius, -2));
   
-  // Inner ledge support
-  const ledgeSupportGeom = new THREE.CylinderGeometry(
-    socket.innerRadius,
-    socket.innerRadius - 3,
-    socket.ledgeHeight,
-    48,
-    1,
-    false
-  );
-  ledgeSupportGeom.translate(0, y - socket.depth + socket.ledgeHeight / 2, z);
-  geometries.push(ledgeSupportGeom);
+  // Curved lip
+  const lipCurveSteps = 8;
+  for (let i = 0; i <= lipCurveSteps; i++) {
+    const t = i / lipCurveSteps;
+    const angle = t * Math.PI / 2;
+    const curveRadius = socket.outerRadius - socket.innerRadius;
+    const x = socket.innerRadius + Math.sin(angle) * curveRadius;
+    const yPos = -2 + Math.cos(angle) * 2;
+    points.push(new THREE.Vector2(x, yPos));
+  }
   
-  return geometries;
+  // Outer wall with taper
+  points.push(new THREE.Vector2(socket.outerRadius, -socket.depth + 2));
+  points.push(new THREE.Vector2(socket.outerRadius * 0.95, -socket.depth));
+  points.push(new THREE.Vector2(0, -socket.depth));
+  
+  const geometry = new THREE.LatheGeometry(points, 48);
+  geometry.translate(0, y, z);
+  
+  return geometry;
 }
 
 // Generate stand geometry based on StandParams
@@ -401,6 +340,11 @@ export function generateStandGeometry(params: MainStandParams): THREE.BufferGeom
   }
 }
 
+// Get socket depth for positioning calculations
+export function getSocketDepth(rimSize: number): number {
+  return getSocketDimensions(rimSize).depth;
+}
+
 // Helper: Merge multiple geometries into one
 function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (geometries.length === 0) {
@@ -432,7 +376,6 @@ function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeomet
     const norm = geom.getAttribute('normal');
     if (!pos) continue;
     
-    // Copy positions
     for (let i = 0; i < pos.count; i++) {
       positions[(vertexOffset + i) * 3] = pos.getX(i);
       positions[(vertexOffset + i) * 3 + 1] = pos.getY(i);
@@ -445,14 +388,12 @@ function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeomet
       }
     }
     
-    // Copy indices with offset
     const idx = geom.getIndex();
     if (idx) {
       for (let i = 0; i < idx.count; i++) {
         indices.push(idx.getX(i) + vertexOffset);
       }
     } else {
-      // Generate indices for non-indexed geometry
       for (let i = 0; i < pos.count; i++) {
         indices.push(vertexOffset + i);
       }
