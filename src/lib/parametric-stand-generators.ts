@@ -9,49 +9,37 @@ import {
 
 // ============================================
 // PARAMETRIC STAND GENERATORS
-// Generates stands with customizable leg shapes and styles
+// Sleek, minimal stands with proper leg attachment
 // ============================================
 
-// Socket dimensions for object connection (cup that holds the object)
+// Socket dimensions for object connection (simple cup)
 const getSocketDimensions = (rimSize: number) => {
   const rimRadius = rimSize / 2;
-  const clearance = 0.3;
-  const wallThickness = 4;
-  const cupDepth = 10;
+  const clearance = 0.5;
+  const wallThickness = 3;
+  const cupDepth = 8;
   
   return {
     innerRadius: rimRadius + clearance,
     outerRadius: rimRadius + clearance + wallThickness,
     depth: cupDepth,
-    lipRadius: rimRadius + clearance + wallThickness + 2,
   };
 };
 
-// Generate smooth cup socket (where object sits)
+// Generate clean, minimal cup socket (where object sits)
 function generateCupSocket(rimSize: number, topY: number): THREE.BufferGeometry {
   const socket = getSocketDimensions(rimSize);
   const points: THREE.Vector2[] = [];
   
-  points.push(new THREE.Vector2(0, topY - socket.depth));
-  points.push(new THREE.Vector2(socket.innerRadius, topY - socket.depth));
-  points.push(new THREE.Vector2(socket.innerRadius, topY - 2));
+  // Simple, clean cup profile
+  points.push(new THREE.Vector2(socket.innerRadius * 0.8, topY - socket.depth));
+  points.push(new THREE.Vector2(socket.innerRadius, topY - socket.depth + 2));
+  points.push(new THREE.Vector2(socket.innerRadius, topY - 1));
+  points.push(new THREE.Vector2(socket.outerRadius, topY));
+  points.push(new THREE.Vector2(socket.outerRadius, topY - socket.depth));
+  points.push(new THREE.Vector2(socket.innerRadius * 0.8, topY - socket.depth));
   
-  // Curved lip
-  const lipSteps = 8;
-  for (let i = 0; i <= lipSteps; i++) {
-    const t = i / lipSteps;
-    const angle = t * Math.PI / 2;
-    const curveRadius = socket.outerRadius - socket.innerRadius;
-    const x = socket.innerRadius + Math.sin(angle) * curveRadius;
-    const y = topY - 2 + Math.cos(angle) * 2;
-    points.push(new THREE.Vector2(x, y));
-  }
-  
-  points.push(new THREE.Vector2(socket.outerRadius, topY - socket.depth + 2));
-  points.push(new THREE.Vector2(socket.outerRadius * 0.95, topY - socket.depth));
-  points.push(new THREE.Vector2(0, topY - socket.depth));
-  
-  return new THREE.LatheGeometry(points, 48);
+  return new THREE.LatheGeometry(points, 32);
 }
 
 // Generate socket holder for electrical socket (E26/E27)
@@ -59,106 +47,52 @@ function generateSocketHolder(params: ParametricStandParams, topY: number): THRE
   const dims = getSocketHolderDims(params.socketType);
   const points: THREE.Vector2[] = [];
   
-  const holderTopY = topY - 5; // Sits just below cup socket
+  const holderTopY = topY - 5;
   const holderBottomY = holderTopY - dims.height;
   
-  // Create hollow cylinder with cord hole at bottom
-  // Inner wall (socket cavity)
+  // Simple hollow cylinder for socket
   points.push(new THREE.Vector2(dims.cordHoleRadius, holderBottomY));
-  points.push(new THREE.Vector2(dims.innerRadius, holderBottomY + 5));
-  points.push(new THREE.Vector2(dims.innerRadius, holderTopY - dims.collarHeight));
-  // Collar lip to hold socket
-  points.push(new THREE.Vector2(dims.innerRadius - 2, holderTopY - dims.collarHeight));
-  points.push(new THREE.Vector2(dims.innerRadius - 2, holderTopY));
+  points.push(new THREE.Vector2(dims.innerRadius, holderBottomY + 3));
+  points.push(new THREE.Vector2(dims.innerRadius, holderTopY - 3));
+  points.push(new THREE.Vector2(dims.innerRadius - 1.5, holderTopY));
   points.push(new THREE.Vector2(dims.outerRadius, holderTopY));
-  // Outer wall
   points.push(new THREE.Vector2(dims.outerRadius, holderBottomY));
   points.push(new THREE.Vector2(dims.cordHoleRadius, holderBottomY));
   
   return new THREE.LatheGeometry(points, 24);
 }
 
-// Generate cord channel through a leg
-function generateCordChannel(
-  startPoint: THREE.Vector3,
-  endPoint: THREE.Vector3,
-  radius: number = 4
-): THREE.BufferGeometry {
-  const path = new THREE.LineCurve3(startPoint, endPoint);
-  return new THREE.TubeGeometry(path, 8, radius, 8, false);
-}
-
-// Generate leg cross-section based on profile
-function getLegCrossSection(profile: LegProfile, thickness: number, segments: number = 8): THREE.Shape {
-  const shape = new THREE.Shape();
-  const r = thickness / 2;
-  
-  switch (profile) {
-    case 'round':
-      // Circle
-      for (let i = 0; i <= segments; i++) {
-        const angle = (i / segments) * Math.PI * 2;
-        const x = Math.cos(angle) * r;
-        const y = Math.sin(angle) * r;
-        if (i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
-      }
-      break;
-      
-    case 'square':
-      shape.moveTo(-r, -r);
-      shape.lineTo(r, -r);
-      shape.lineTo(r, r);
-      shape.lineTo(-r, r);
-      shape.lineTo(-r, -r);
-      break;
-      
-    case 'angular':
-      // Hexagonal
-      for (let i = 0; i <= 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        const x = Math.cos(angle) * r;
-        const y = Math.sin(angle) * r;
-        if (i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
-      }
-      break;
-      
-    default:
-      // Default to round
-      for (let i = 0; i <= segments; i++) {
-        const angle = (i / segments) * Math.PI * 2;
-        const x = Math.cos(angle) * r;
-        const y = Math.sin(angle) * r;
-        if (i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
-      }
-  }
-  
-  return shape;
-}
-
-// Generate a parametric leg with curve, twist, and taper
+// Generate a safe, robust leg using TubeGeometry
 function generateParametricLeg(
   params: ParametricStandParams,
   startPoint: THREE.Vector3,
   endPoint: THREE.Vector3
 ): THREE.BufferGeometry {
-  const { legProfile, legThickness, legCurve, legTwist, legTaper } = params;
+  const { legProfile, legThickness, legCurve, legTaper } = params;
   
-  const segments = 24;
+  const segments = 20;
   const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
   const length = direction.length();
-  direction.normalize();
   
-  // Calculate perpendicular for curve
-  const up = new THREE.Vector3(0, 1, 0);
-  const perpendicular = new THREE.Vector3().crossVectors(direction, up).normalize();
-  if (perpendicular.length() < 0.1) {
-    perpendicular.set(1, 0, 0);
+  if (length < 1) {
+    // Return empty geometry for invalid legs
+    return new THREE.BufferGeometry();
   }
   
-  // Generate path points with curve
+  direction.normalize();
+  
+  // Calculate a stable perpendicular vector
+  let perpendicular: THREE.Vector3;
+  if (Math.abs(direction.y) > 0.9) {
+    // Direction is mostly vertical, use X axis as reference
+    perpendicular = new THREE.Vector3(1, 0, 0);
+  } else {
+    // Use Y axis as reference
+    const up = new THREE.Vector3(0, 1, 0);
+    perpendicular = new THREE.Vector3().crossVectors(direction, up).normalize();
+  }
+  
+  // Generate curved path points
   const pathPoints: THREE.Vector3[] = [];
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
@@ -166,241 +100,198 @@ function generateParametricLeg(
     // Base position along straight line
     const point = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
     
-    // Add curve (parabolic curve, max at middle)
-    const curveAmount = legCurve * length * 0.15;
-    const curveFactor = 4 * t * (1 - t); // Parabola: 0 at ends, 1 at middle
+    // Add outward curve (parabolic, max at middle)
+    const curveAmount = legCurve * length * 0.12;
+    const curveFactor = 4 * t * (1 - t); // 0 at ends, 1 at middle
     point.addScaledVector(perpendicular, curveFactor * curveAmount);
     
     pathPoints.push(point);
   }
   
-  // Create path
+  // Create smooth curve
   const path = new THREE.CatmullRomCurve3(pathPoints);
   
-  // Generate tube with varying radius (taper)
-  const radiusFunction = (t: number) => {
-    const baseRadius = legThickness / 2;
-    const taperFactor = 1 - legTaper * t;
-    return baseRadius * Math.max(0.3, taperFactor);
-  };
+  // Determine radial segments based on profile
+  const radialSegments = legProfile === 'square' ? 4 : legProfile === 'angular' ? 6 : 8;
   
-  // Use TubeGeometry with custom radius
-  const frames = path.computeFrenetFrames(segments, false);
+  // Calculate radius with taper
+  const baseRadius = legThickness / 2;
+  const startRadius = baseRadius;
+  const endRadius = baseRadius * Math.max(0.4, 1 - legTaper * 0.6);
   
-  const vertices: number[] = [];
-  const normals: number[] = [];
-  const indices: number[] = [];
+  // Use TubeGeometry for robust, clean legs
+  const tubeGeom = new THREE.TubeGeometry(path, segments, baseRadius, radialSegments, false);
   
-  const radialSegments = legProfile === 'square' ? 4 : legProfile === 'angular' ? 6 : 12;
+  // Apply taper by modifying vertices
+  const positions = tubeGeom.getAttribute('position');
+  const pathLength = path.getLength();
   
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const radius = radiusFunction(t);
-    const point = path.getPointAt(t);
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const z = positions.getZ(i);
     
-    const N = frames.normals[i];
-    const B = frames.binormals[i];
+    const vertex = new THREE.Vector3(x, y, z);
     
-    // Add twist
-    const twistAngle = (legTwist * Math.PI / 180) * t;
-    
-    for (let j = 0; j <= radialSegments; j++) {
-      const v = (j / radialSegments) * Math.PI * 2 + twistAngle;
-      
-      const sin = Math.sin(v);
-      const cos = Math.cos(v);
-      
-      const normal = new THREE.Vector3();
-      normal.x = cos * N.x + sin * B.x;
-      normal.y = cos * N.y + sin * B.y;
-      normal.z = cos * N.z + sin * B.z;
-      normal.normalize();
-      
-      const vertex = new THREE.Vector3();
-      vertex.x = point.x + radius * normal.x;
-      vertex.y = point.y + radius * normal.y;
-      vertex.z = point.z + radius * normal.z;
-      
-      vertices.push(vertex.x, vertex.y, vertex.z);
-      normals.push(normal.x, normal.y, normal.z);
+    // Find closest point on path to determine t
+    let minDist = Infinity;
+    let closestT = 0;
+    for (let j = 0; j <= 20; j++) {
+      const t = j / 20;
+      const pathPoint = path.getPointAt(t);
+      const dist = vertex.distanceTo(pathPoint);
+      if (dist < minDist) {
+        minDist = dist;
+        closestT = t;
+      }
     }
+    
+    // Apply taper based on position along path
+    const taperScale = 1 - (closestT * legTaper * 0.5);
+    const pathPoint = path.getPointAt(closestT);
+    
+    // Scale vertex position relative to path
+    const offset = vertex.clone().sub(pathPoint);
+    offset.multiplyScalar(Math.max(0.5, taperScale));
+    const newPos = pathPoint.clone().add(offset);
+    
+    positions.setXYZ(i, newPos.x, newPos.y, newPos.z);
   }
   
-  // Generate indices
-  for (let i = 0; i < segments; i++) {
-    for (let j = 0; j < radialSegments; j++) {
-      const a = i * (radialSegments + 1) + j;
-      const b = (i + 1) * (radialSegments + 1) + j;
-      const c = (i + 1) * (radialSegments + 1) + j + 1;
-      const d = i * (radialSegments + 1) + j + 1;
-      
-      indices.push(a, b, d);
-      indices.push(b, c, d);
-    }
-  }
+  positions.needsUpdate = true;
+  tubeGeom.computeVertexNormals();
   
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  
-  return geometry;
+  return tubeGeom;
 }
 
-// Generate hub with leg attachment shoulders
+// Generate sleek, minimal hub
 function generateHub(
   hubStyle: HubStyle,
   hubScale: number,
   baseRadius: number,
   topY: number,
-  bottomY: number,
-  legCount: number = 3,
-  legThickness: number = 8
-): THREE.BufferGeometry[] {
+  bottomY: number
+): THREE.BufferGeometry {
   const scaledRadius = baseRadius * hubScale;
   const height = topY - bottomY;
-  const geometries: THREE.BufferGeometry[] = [];
   
-  // Main hub geometry
-  let hubGeom: THREE.BufferGeometry;
+  const points: THREE.Vector2[] = [];
   
   switch (hubStyle) {
     case 'sphere':
-      hubGeom = new THREE.SphereGeometry(scaledRadius, 24, 16);
-      hubGeom.translate(0, bottomY + height / 2, 0);
+      // Smooth sphere-like profile
+      for (let i = 0; i <= 12; i++) {
+        const t = i / 12;
+        const angle = t * Math.PI;
+        const r = Math.sin(angle) * scaledRadius;
+        const y = bottomY + (1 - Math.cos(angle)) * height * 0.5;
+        points.push(new THREE.Vector2(r, y));
+      }
       break;
       
     case 'disc':
-      hubGeom = new THREE.CylinderGeometry(scaledRadius, scaledRadius, height * 0.4, 24);
-      hubGeom.translate(0, bottomY + height * 0.5, 0);
+      // Low, wide disc
+      points.push(new THREE.Vector2(0, bottomY));
+      points.push(new THREE.Vector2(scaledRadius * 1.2, bottomY));
+      points.push(new THREE.Vector2(scaledRadius * 1.2, bottomY + height * 0.3));
+      points.push(new THREE.Vector2(scaledRadius * 0.8, bottomY + height * 0.4));
+      points.push(new THREE.Vector2(0, bottomY + height * 0.4));
       break;
       
     case 'cone':
-      hubGeom = new THREE.ConeGeometry(scaledRadius, height, 24);
-      hubGeom.rotateX(Math.PI);
-      hubGeom.translate(0, bottomY + height / 2, 0);
+      // Clean tapered cone
+      points.push(new THREE.Vector2(0, bottomY));
+      points.push(new THREE.Vector2(scaledRadius, bottomY));
+      points.push(new THREE.Vector2(scaledRadius * 0.3, topY));
+      points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'minimal':
-      // Slightly larger minimal hub for better leg attachment
-      hubGeom = new THREE.CylinderGeometry(
-        scaledRadius * 0.9,
-        scaledRadius * 0.6,
-        height * 0.6,
-        24
-      );
-      hubGeom.translate(0, topY - height * 0.3, 0);
+      // Ultra-clean minimal profile
+      points.push(new THREE.Vector2(0, bottomY + height * 0.3));
+      points.push(new THREE.Vector2(scaledRadius * 0.6, bottomY + height * 0.3));
+      points.push(new THREE.Vector2(scaledRadius * 0.5, topY));
+      points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'smooth':
     default:
-      hubGeom = new THREE.CylinderGeometry(
-        scaledRadius,
-        scaledRadius * 0.7,
-        height,
-        24
-      );
-      hubGeom.translate(0, bottomY + height / 2, 0);
+      // Default smooth tapered cylinder
+      points.push(new THREE.Vector2(0, bottomY));
+      points.push(new THREE.Vector2(scaledRadius * 0.8, bottomY));
+      points.push(new THREE.Vector2(scaledRadius, bottomY + height * 0.2));
+      points.push(new THREE.Vector2(scaledRadius * 0.9, topY - height * 0.1));
+      points.push(new THREE.Vector2(scaledRadius * 0.7, topY));
+      points.push(new THREE.Vector2(0, topY));
       break;
   }
   
-  geometries.push(hubGeom);
-  
-  // Add leg attachment shoulders/collars for seamless connection
-  const shoulderRadius = legThickness * 0.7;
-  const shoulderHeight = height * 0.4;
-  const legAngleStep = (Math.PI * 2) / legCount;
-  
-  for (let i = 0; i < legCount; i++) {
-    const angle = i * legAngleStep;
-    const shoulderX = Math.cos(angle) * scaledRadius * 0.5;
-    const shoulderZ = Math.sin(angle) * scaledRadius * 0.5;
-    
-    // Create tapered shoulder that blends into leg
-    const shoulderGeom = new THREE.CylinderGeometry(
-      shoulderRadius * 0.8,
-      shoulderRadius * 1.2,
-      shoulderHeight,
-      12
-    );
-    
-    // Rotate shoulder to point outward toward leg
-    const outwardAngle = Math.atan2(shoulderZ, shoulderX);
-    shoulderGeom.rotateZ(Math.PI / 6); // Slight outward tilt
-    shoulderGeom.rotateY(-outwardAngle);
-    shoulderGeom.translate(shoulderX, bottomY + shoulderHeight / 2, shoulderZ);
-    
-    geometries.push(shoulderGeom);
-  }
-  
-  return geometries;
+  return new THREE.LatheGeometry(points, 24);
 }
 
-// Generate foot based on style
+// Generate minimal foot
 function generateFoot(
   footStyle: FootStyle,
   footScale: number,
-  baseRadius: number,
   position: THREE.Vector3,
   hasCordExit: boolean = false
 ): THREE.BufferGeometry | null {
   if (footStyle === 'none') return null;
   
-  const scaledRadius = baseRadius * footScale;
-  
-  let geom: THREE.BufferGeometry;
+  const baseSize = 8 * footScale;
+  const points: THREE.Vector2[] = [];
   
   switch (footStyle) {
     case 'sphere':
-      geom = new THREE.SphereGeometry(scaledRadius, 16, 12);
-      geom.translate(position.x, position.y + scaledRadius * 0.5, position.z);
+      // Small spherical foot
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        const angle = t * Math.PI * 0.5;
+        const r = Math.cos(angle) * baseSize;
+        const y = Math.sin(angle) * baseSize * 0.6;
+        points.push(new THREE.Vector2(r, y));
+      }
       break;
       
     case 'spike':
-      geom = new THREE.ConeGeometry(scaledRadius * 0.5, scaledRadius * 2, 12);
-      geom.rotateX(Math.PI);
-      geom.translate(position.x, position.y + scaledRadius, position.z);
+      // Small pointed spike
+      points.push(new THREE.Vector2(0, 0));
+      points.push(new THREE.Vector2(baseSize * 0.4, baseSize * 0.3));
+      points.push(new THREE.Vector2(baseSize * 0.5, baseSize));
+      points.push(new THREE.Vector2(0, baseSize));
       break;
       
     case 'flare':
-      // Flare with optional cord exit hole
+      // Subtle flare
       if (hasCordExit) {
-        const points: THREE.Vector2[] = [];
-        points.push(new THREE.Vector2(4, 0)); // Cord hole
-        points.push(new THREE.Vector2(scaledRadius * 0.6, scaledRadius * 0.2));
-        points.push(new THREE.Vector2(scaledRadius * 1.2, scaledRadius * 0.8));
-        points.push(new THREE.Vector2(scaledRadius * 1.1, scaledRadius * 0.8));
-        points.push(new THREE.Vector2(scaledRadius * 0.5, scaledRadius * 0.2));
-        points.push(new THREE.Vector2(4, 0));
-        geom = new THREE.LatheGeometry(points, 16);
-        geom.translate(position.x, position.y, position.z);
+        points.push(new THREE.Vector2(3, 0));
+        points.push(new THREE.Vector2(baseSize * 0.8, baseSize * 0.15));
       } else {
-        geom = new THREE.CylinderGeometry(scaledRadius * 0.6, scaledRadius * 1.2, scaledRadius * 0.8, 16);
-        geom.translate(position.x, position.y + scaledRadius * 0.4, position.z);
+        points.push(new THREE.Vector2(0, 0));
+        points.push(new THREE.Vector2(baseSize * 0.8, baseSize * 0.15));
       }
+      points.push(new THREE.Vector2(baseSize, baseSize * 0.5));
+      points.push(new THREE.Vector2(baseSize * 0.6, baseSize));
+      points.push(new THREE.Vector2(0, baseSize));
       break;
       
     case 'pad':
     default:
+      // Simple pad
       if (hasCordExit) {
-        // Pad with cord hole
-        const points: THREE.Vector2[] = [];
-        points.push(new THREE.Vector2(4, 0)); // Cord hole
-        points.push(new THREE.Vector2(scaledRadius * 1.1, 0));
-        points.push(new THREE.Vector2(scaledRadius * 1.1, scaledRadius * 0.4));
-        points.push(new THREE.Vector2(scaledRadius, scaledRadius * 0.4));
-        points.push(new THREE.Vector2(scaledRadius * 0.9, scaledRadius * 0.1));
-        points.push(new THREE.Vector2(4, scaledRadius * 0.1));
-        points.push(new THREE.Vector2(4, 0));
-        geom = new THREE.LatheGeometry(points, 16);
-        geom.translate(position.x, position.y, position.z);
+        points.push(new THREE.Vector2(3, 0));
       } else {
-        geom = new THREE.CylinderGeometry(scaledRadius, scaledRadius * 1.1, scaledRadius * 0.4, 16);
-        geom.translate(position.x, position.y + scaledRadius * 0.2, position.z);
+        points.push(new THREE.Vector2(0, 0));
       }
+      points.push(new THREE.Vector2(baseSize * 0.7, 0));
+      points.push(new THREE.Vector2(baseSize * 0.8, baseSize * 0.3));
+      points.push(new THREE.Vector2(baseSize * 0.5, baseSize * 0.5));
+      points.push(new THREE.Vector2(0, baseSize * 0.5));
       break;
   }
+  
+  const geom = new THREE.LatheGeometry(points, 12);
+  geom.translate(position.x, position.y, position.z);
   
   return geom;
 }
@@ -411,14 +302,14 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
   const geometries: THREE.BufferGeometry[] = [];
   
   const socketTop = params.height;
-  const hubHeight = 20 * params.hubScale;
+  const hubHeight = 15 * params.hubScale;
   const hubTopY = socketTop - socket.depth;
   const hubBottomY = hubTopY - hubHeight;
-  const hubRadius = socket.outerRadius * 0.9 * params.hubScale;
+  const hubRadius = socket.outerRadius * 0.7 * params.hubScale;
   
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
-  const bottomSpreadRadius = hubRadius + hubBottomY * Math.tan(legSpreadRad);
-  const footPadRadius = 10 * params.footScale;
+  const effectiveHeight = hubBottomY;
+  const bottomSpreadRadius = hubRadius + effectiveHeight * Math.tan(legSpreadRad);
   
   // 1. Cup socket (where object sits)
   geometries.push(generateCupSocket(params.rimSize, socketTop));
@@ -428,44 +319,45 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
     geometries.push(generateSocketHolder(params, socketTop - socket.depth));
   }
   
-  // 3. Hub with leg attachment shoulders
-  const hubGeometries = generateHub(
+  // 3. Clean, minimal hub
+  const hubGeom = generateHub(
     params.hubStyle,
     params.hubScale,
-    socket.outerRadius * 0.9,
+    hubRadius,
     hubTopY,
-    hubBottomY,
-    params.legCount,
-    params.legThickness
+    hubBottomY
   );
-  geometries.push(...hubGeometries);
+  geometries.push(hubGeom);
   
-  // 4. Legs with improved attachment
+  // 4. Legs - attach properly to hub
   const legAngleStep = (Math.PI * 2) / params.legCount;
   for (let i = 0; i < params.legCount; i++) {
     const angle = i * legAngleStep;
     const isCordLeg = params.showSocketHolder && i === params.cordExitLeg;
     
-    // Start leg from hub's outer edge (not inside) for seamless attachment
-    const hubAttachRadius = hubRadius * 0.7;
-    const topX = Math.cos(angle) * hubAttachRadius;
-    const topZ = Math.sin(angle) * hubAttachRadius;
+    // Leg starts at hub's outer edge at the bottom of the hub
+    const startRadius = hubRadius * 0.75;
+    const startX = Math.cos(angle) * startRadius;
+    const startZ = Math.sin(angle) * startRadius;
     
-    const bottomX = Math.cos(angle) * bottomSpreadRadius;
-    const bottomZ = Math.sin(angle) * bottomSpreadRadius;
+    // Leg ends at foot position on the ground
+    const endX = Math.cos(angle) * bottomSpreadRadius;
+    const endZ = Math.sin(angle) * bottomSpreadRadius;
     
-    // Leg starts slightly overlapping into hub for seamless connection
-    const startPoint = new THREE.Vector3(topX, hubBottomY + hubHeight * 0.15, topZ);
-    const endPoint = new THREE.Vector3(bottomX, footPadRadius * 0.4, bottomZ);
+    // Start point is at the bottom of the hub
+    const startPoint = new THREE.Vector3(startX, hubBottomY, startZ);
+    const endPoint = new THREE.Vector3(endX, 0, endZ);
     
-    geometries.push(generateParametricLeg(params, startPoint, endPoint));
+    const legGeom = generateParametricLeg(params, startPoint, endPoint);
+    if (legGeom.getAttribute('position')?.count > 0) {
+      geometries.push(legGeom);
+    }
     
-    // 5. Feet (with cord exit hole on designated leg)
+    // 5. Minimal feet
     const footGeom = generateFoot(
       params.footStyle,
       params.footScale,
-      footPadRadius,
-      new THREE.Vector3(bottomX, 0, bottomZ),
+      new THREE.Vector3(endX, 0, endZ),
       isCordLeg
     );
     if (footGeom) geometries.push(footGeom);
@@ -480,36 +372,36 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
   const geometries: THREE.BufferGeometry[] = [];
   
   const socketTop = params.height;
-  const canopyDiameter = 70 + params.rimSize * 0.3;
-  const canopyHeight = 20;
+  const canopyDiameter = 50 + params.rimSize * 0.2;
+  const canopyHeight = 15;
   const totalHeight = socketTop + params.cordLength + canopyHeight;
   
-  // 1. Canopy (ceiling mount)
-  const canopyGeom = new THREE.SphereGeometry(
-    canopyDiameter / 2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2
-  );
-  canopyGeom.scale(1, canopyHeight / (canopyDiameter / 2), 1);
-  canopyGeom.translate(0, totalHeight - canopyHeight, 0);
+  // 1. Clean canopy (ceiling mount)
+  const canopyPoints: THREE.Vector2[] = [];
+  canopyPoints.push(new THREE.Vector2(3, totalHeight - canopyHeight));
+  canopyPoints.push(new THREE.Vector2(canopyDiameter / 2, totalHeight - canopyHeight));
+  canopyPoints.push(new THREE.Vector2(canopyDiameter / 2 - 3, totalHeight));
+  canopyPoints.push(new THREE.Vector2(3, totalHeight));
+  const canopyGeom = new THREE.LatheGeometry(canopyPoints, 24);
   geometries.push(canopyGeom);
   
-  // 2. Cord (hollow tube for wiring)
-  const cordThickness = params.legThickness * 0.4;
+  // 2. Slim cord
+  const cordThickness = params.legThickness * 0.3;
   const cordGeom = new THREE.CylinderGeometry(cordThickness, cordThickness, params.cordLength, 8);
   cordGeom.translate(0, totalHeight - canopyHeight - params.cordLength / 2, 0);
   geometries.push(cordGeom);
   
-  // 3. Transition piece
-  const transitionHeight = 25;
-  const transitionGeom = new THREE.CylinderGeometry(
-    socket.outerRadius * 0.9,
-    cordThickness * 2.5,
-    transitionHeight,
-    24
-  );
-  transitionGeom.translate(0, socketTop + socket.depth + transitionHeight / 2, 0);
+  // 3. Clean transition piece
+  const transitionHeight = 12;
+  const transitionPoints: THREE.Vector2[] = [];
+  transitionPoints.push(new THREE.Vector2(0, socketTop + socket.depth));
+  transitionPoints.push(new THREE.Vector2(socket.outerRadius * 0.8, socketTop + socket.depth));
+  transitionPoints.push(new THREE.Vector2(cordThickness * 1.5, socketTop + socket.depth + transitionHeight));
+  transitionPoints.push(new THREE.Vector2(0, socketTop + socket.depth + transitionHeight));
+  const transitionGeom = new THREE.LatheGeometry(transitionPoints, 16);
   geometries.push(transitionGeom);
   
-  // 4. Socket holder (built into pendant - always shown)
+  // 4. Socket holder (if enabled)
   if (params.showSocketHolder) {
     geometries.push(generateSocketHolder(params, socketTop));
   }
@@ -525,34 +417,52 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   const socket = getSocketDimensions(params.rimSize);
   const geometries: THREE.BufferGeometry[] = [];
   
-  const backplateWidth = 90;
-  const backplateHeight = 120;
-  const wallThickness = 8;
+  const backplateWidth = 60;
+  const backplateHeight = 80;
+  const wallThickness = 6;
   const armAngleRad = (params.armAngle * Math.PI) / 180;
   
   const armEndZ = params.armLength * Math.cos(armAngleRad);
-  const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
-  const socketTopY = armEndY + socket.depth + 20;
+  const armEndY = backplateHeight * 0.6 + params.armLength * Math.sin(armAngleRad);
+  const socketTopY = armEndY + 15;
   
-  // 1. Backplate with cord channel
-  const backplateGeom = new THREE.BoxGeometry(backplateWidth, backplateHeight, wallThickness);
-  backplateGeom.translate(0, backplateHeight / 2, 0);
+  // 1. Clean backplate
+  const backplatePoints: THREE.Vector2[] = [];
+  backplatePoints.push(new THREE.Vector2(0, 0));
+  backplatePoints.push(new THREE.Vector2(backplateWidth / 2, 0));
+  backplatePoints.push(new THREE.Vector2(backplateWidth / 2, backplateHeight));
+  backplatePoints.push(new THREE.Vector2(0, backplateHeight));
+  
+  const backplateShape = new THREE.Shape();
+  backplateShape.moveTo(-backplateWidth / 2, 0);
+  backplateShape.lineTo(backplateWidth / 2, 0);
+  backplateShape.lineTo(backplateWidth / 2, backplateHeight);
+  backplateShape.lineTo(-backplateWidth / 2, backplateHeight);
+  backplateShape.lineTo(-backplateWidth / 2, 0);
+  
+  const backplateGeom = new THREE.ExtrudeGeometry(backplateShape, {
+    depth: wallThickness,
+    bevelEnabled: false
+  });
   geometries.push(backplateGeom);
   
   // 2. Arm (using parametric leg system)
-  const armStart = new THREE.Vector3(0, backplateHeight / 2, wallThickness / 2);
+  const armStart = new THREE.Vector3(0, backplateHeight * 0.6, wallThickness);
   const armEnd = new THREE.Vector3(0, armEndY, armEndZ);
-  geometries.push(generateParametricLeg(params, armStart, armEnd));
+  const armGeom = generateParametricLeg(params, armStart, armEnd);
+  if (armGeom.getAttribute('position')?.count > 0) {
+    geometries.push(armGeom);
+  }
   
-  // 3. Transition to socket area
-  const transitionHeight = 20;
-  const transitionGeom = new THREE.CylinderGeometry(
-    socket.outerRadius * 0.9,
-    params.legThickness * 0.8,
-    transitionHeight,
-    24
-  );
-  transitionGeom.translate(0, armEndY + transitionHeight / 2, armEndZ);
+  // 3. Clean transition to socket
+  const transitionHeight = 10;
+  const transitionPoints: THREE.Vector2[] = [];
+  transitionPoints.push(new THREE.Vector2(0, 0));
+  transitionPoints.push(new THREE.Vector2(socket.outerRadius * 0.7, 0));
+  transitionPoints.push(new THREE.Vector2(params.legThickness * 0.5, transitionHeight));
+  transitionPoints.push(new THREE.Vector2(0, transitionHeight));
+  const transitionGeom = new THREE.LatheGeometry(transitionPoints, 12);
+  transitionGeom.translate(0, armEndY, armEndZ);
   geometries.push(transitionGeom);
   
   // 4. Socket holder (if enabled)
@@ -564,25 +474,14 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   
   // 5. Cup socket at arm end
   const cupPoints: THREE.Vector2[] = [];
-  cupPoints.push(new THREE.Vector2(0, -socket.depth));
-  cupPoints.push(new THREE.Vector2(socket.innerRadius, -socket.depth));
-  cupPoints.push(new THREE.Vector2(socket.innerRadius, -2));
+  cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
+  cupPoints.push(new THREE.Vector2(socket.innerRadius, -socket.depth + 2));
+  cupPoints.push(new THREE.Vector2(socket.innerRadius, -1));
+  cupPoints.push(new THREE.Vector2(socket.outerRadius, 0));
+  cupPoints.push(new THREE.Vector2(socket.outerRadius, -socket.depth));
+  cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
   
-  const lipSteps = 8;
-  for (let i = 0; i <= lipSteps; i++) {
-    const t = i / lipSteps;
-    const angle = t * Math.PI / 2;
-    const curveRadius = socket.outerRadius - socket.innerRadius;
-    const x = socket.innerRadius + Math.sin(angle) * curveRadius;
-    const y = -2 + Math.cos(angle) * 2;
-    cupPoints.push(new THREE.Vector2(x, y));
-  }
-  
-  cupPoints.push(new THREE.Vector2(socket.outerRadius, -socket.depth + 2));
-  cupPoints.push(new THREE.Vector2(socket.outerRadius * 0.95, -socket.depth));
-  cupPoints.push(new THREE.Vector2(0, -socket.depth));
-  
-  const cupGeom = new THREE.LatheGeometry(cupPoints, 48);
+  const cupGeom = new THREE.LatheGeometry(cupPoints, 32);
   cupGeom.translate(0, socketTopY, armEndZ);
   geometries.push(cupGeom);
   
@@ -612,12 +511,18 @@ export function getParametricSocketDepth(rimSize: number): number {
 
 // Merge geometries helper
 function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  if (geometries.length === 0) return new THREE.BufferGeometry();
+  // Filter out empty geometries
+  const validGeometries = geometries.filter(geom => {
+    const pos = geom.getAttribute('position');
+    return pos && pos.count > 0;
+  });
+  
+  if (validGeometries.length === 0) return new THREE.BufferGeometry();
   
   let totalVertices = 0;
   let totalIndices = 0;
   
-  for (const geom of geometries) {
+  for (const geom of validGeometries) {
     const pos = geom.getAttribute('position');
     if (pos) totalVertices += pos.count;
     const idx = geom.getIndex();
@@ -632,7 +537,7 @@ function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeomet
   
   let vertexOffset = 0;
   
-  for (const geom of geometries) {
+  for (const geom of validGeometries) {
     const pos = geom.getAttribute('position');
     const norm = geom.getAttribute('normal');
     if (!pos) continue;
