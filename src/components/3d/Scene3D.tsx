@@ -6,7 +6,7 @@ import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
 import { ParametricStandParams } from '@/types/stand';
-import { getParametricSocketDepth } from '@/lib/parametric-stand-generators';
+import { getParametricPlugHeight } from '@/lib/parametric-stand-generators';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -44,11 +44,11 @@ const Scene3D = ({
   const scale = 0.01;
   const standVisible = standParams?.enabled;
   
-  // Calculate object position: drops into cup socket seamlessly
-  // Object base sits at: standHeight - socketDepth + small offset
-  const socketDepth = standParams ? getParametricSocketDepth(standParams.rimSize) : 10;
+  // Calculate object position: plug fits inside object's socket (invisible connection)
+  // Object sits flush on stand - plug hidden inside object's hollow base
+  const plugHeight = standParams?.plugHeight ?? 20;
   const objectYOffset = standVisible && standParams 
-    ? (standParams.height - socketDepth + 3 + params.height / 2) * scale 
+    ? (standParams.height - plugHeight + params.height / 2) * scale 
     : 0;
   
   return (
@@ -107,11 +107,11 @@ const Scene3D = ({
         
         <OrbitControls
           enablePan={true}
-          minDistance={2}
-          maxDistance={10}
-          minPolarAngle={Math.PI / 6}
-          maxPolarAngle={Math.PI / 2}
-          target={[0, 0, 0]}
+          minDistance={1}
+          maxDistance={15}
+          minPolarAngle={0}
+          maxPolarAngle={Math.PI}
+          target={[0, 0.5, 0]}
         />
       </Canvas>
     </div>
