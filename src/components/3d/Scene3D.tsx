@@ -44,14 +44,18 @@ const Scene3D = ({
   const scale = 0.01;
   const standVisible = standParams?.enabled;
   
-  // Calculate object position: collar sits INTO stand's socket cradle
-  // Object bottom = stand height - cradle depth (so collar nestles into cradle)
+  // Calculate object position when stand is enabled
+  // Object's collar (which hangs below body at y=0 to y=-collarHeight) should sit in stand's cradle
   const cradleDepth = standParams?.socketCradleDepth ?? 5;
   const rimHeight = params.rimHeight ?? 8;
+  const totalObjectHeight = params.height + (params.hasRimCollar ? rimHeight : 0);
   
-  // When stand is enabled, position object so its collar sits in the cradle
+  // When stand is enabled:
+  // - Stand's socket cradle is at y = standHeight - cradleDepth (top of stand)
+  // - Object's collar bottom is at y = -rimHeight (relative to object center)
+  // - We want collar bottom to sit at cradle level
   const objectYOffset = standVisible && standParams 
-    ? (standParams.height - cradleDepth + params.height / 2) * scale 
+    ? (standParams.height * scale) + (rimHeight * scale * 0.5) - (cradleDepth * scale)
     : 0;
   
   return (

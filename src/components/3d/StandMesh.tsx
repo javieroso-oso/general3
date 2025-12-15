@@ -15,11 +15,10 @@ interface StandMeshProps {
 const StandMesh = ({ params, showWireframe = false }: StandMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const wireframeRef = useRef<THREE.LineSegments>(null);
-  const scale = 0.01;
   
   // Rotate slowly
   useFrame(({ clock }) => {
-    const rotation = clock.elapsedTime * 0.15;
+    const rotation = clock.elapsedTime * 0.05;
     if (meshRef.current) meshRef.current.rotation.y = rotation;
     if (wireframeRef.current) wireframeRef.current.rotation.y = rotation;
   });
@@ -31,8 +30,7 @@ const StandMesh = ({ params, showWireframe = false }: StandMeshProps) => {
     
     const standGeo = generateParametricStandGeometry(params);
     
-    // Scale geometry
-    standGeo.scale(scale, scale, scale);
+    // Generator already applies SCALE internally - no additional scaling needed
     
     // Wireframe
     const wireGeo = new THREE.WireframeGeometry(standGeo);
