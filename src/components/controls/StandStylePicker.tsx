@@ -6,7 +6,9 @@ import {
   Triangle, 
   Circle, 
   Hexagon,
-  Sparkles 
+  Sparkles,
+  Footprints,
+  Columns
 } from 'lucide-react';
 
 interface StandStylePickerProps {
@@ -21,6 +23,9 @@ const styleIcons: Record<StandStyle, React.ReactNode> = {
   organic: <Circle className="w-5 h-5" />,
   retro: <Sparkles className="w-5 h-5" />,
   brutalist: <Hexagon className="w-5 h-5" />,
+  wooj_splayed: <Footprints className="w-5 h-5" />,
+  ribbed_pedestal: <Columns className="w-5 h-5" />,
+  floating_ring: <Circle className="w-5 h-5" />,
 };
 
 const StandStylePicker = ({ value, onChange }: StandStylePickerProps) => {

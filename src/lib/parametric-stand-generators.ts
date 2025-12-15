@@ -4,12 +4,14 @@ import {
   LegProfile, 
   HubStyle, 
   FootStyle,
-  getSocketHolderDims
+  getSocketHolderDims,
+  screwSpecs,
+  isWoojStyle
 } from '@/types/stand';
 
 // ============================================
 // PARAMETRIC STAND GENERATORS
-// Sleek, minimal stands with proper leg attachment
+// WOOJ-inspired sleek stands with modular mounting plates
 // ============================================
 
 // Socket dimensions for object connection (simple cup)
@@ -26,12 +28,299 @@ const getSocketDimensions = (rimSize: number) => {
   };
 };
 
-// Generate clean, minimal cup socket (where object sits)
+// ============================================
+// MOUNTING PLATE GENERATOR
+// Flat plate with screw holes for modular connection
+// ============================================
+
+function generateMountingPlate(params: ParametricStandParams, topY: number): THREE.BufferGeometry {
+  const { connection, rimSize } = params;
+  const plateRadius = rimSize / 2 + 5; // Slightly larger than rim
+  const plateThickness = connection.plateThickness;
+  const holeRadius = screwSpecs[connection.screwSize].holeDiameter / 2;
+  const holeCount = connection.holeCount;
+  
+  // Create main plate disc
+  const plateGeometry = new THREE.CylinderGeometry(
+    plateRadius, 
+    plateRadius, 
+    plateThickness, 
+    32
+  );
+  plateGeometry.translate(0, topY - plateThickness / 2, 0);
+  
+  // For screw holes, we'll create the positions (actual holes would need CSG)
+  // Instead, create a ring of small cylinders to indicate hole positions
+  const geometries: THREE.BufferGeometry[] = [plateGeometry];
+  
+  const holePositionRadius = plateRadius * 0.7;
+  
+  for (let i = 0; i < holeCount; i++) {
+    const angle = (i / holeCount) * Math.PI * 2;
+    const x = Math.cos(angle) * holePositionRadius;
+    const z = Math.sin(angle) * holePositionRadius;
+    
+    // Create hole indicator (chamfered edge around hole)
+    const chamferGeom = new THREE.TorusGeometry(holeRadius, 1, 8, 16);
+    chamferGeom.rotateX(Math.PI / 2);
+    chamferGeom.translate(x, topY, z);
+    geometries.push(chamferGeom);
+  }
+  
+  return mergeGeometries(geometries);
+}
+
+// ============================================
+// WOOJ SPLAYED TRIPOD
+// Ultra-thin straight legs meeting at hidden center point
+// ============================================
+
+function generateWoojSplayedTripod(params: ParametricStandParams): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  const plateTop = params.height;
+  const plateThickness = params.connection.plateThickness;
+  const plateBottom = plateTop - plateThickness;
+  
+  // 1. Mounting plate at top
+  geometries.push(generateMountingPlate(params, plateTop));
+  
+  // 2. Ultra-thin splayed legs
+  const legCount = params.legCount;
+  const legAngleStep = (Math.PI * 2) / legCount;
+  const legSpreadRad = (params.legSpread * Math.PI) / 180;
+  
+  // Legs start from edge of plate, angle outward to ground
+  const plateRadius = params.rimSize / 2 + 5;
+  const bottomSpreadRadius = plateRadius + plateBottom * Math.tan(legSpreadRad);
+  
+  for (let i = 0; i < legCount; i++) {
+    const angle = i * legAngleStep;
+    
+    // Start at plate edge
+    const startX = Math.cos(angle) * plateRadius * 0.8;
+    const startZ = Math.sin(angle) * plateRadius * 0.8;
+    
+    // End at floor, spread outward
+    const endX = Math.cos(angle) * bottomSpreadRadius;
+    const endZ = Math.sin(angle) * bottomSpreadRadius;
+    
+    const startPoint = new THREE.Vector3(startX, plateBottom, startZ);
+    const endPoint = new THREE.Vector3(endX, 0, endZ);
+    
+    // Generate thin leg
+    const legGeom = generateStraightLeg(params, startPoint, endPoint);
+    if (legGeom.getAttribute('position')?.count > 0) {
+      geometries.push(legGeom);
+    }
+    
+    // Minimal pointed feet
+    if (params.footStyle !== 'none') {
+      const footGeom = generateMinimalFoot(params, endPoint);
+      if (footGeom) geometries.push(footGeom);
+    }
+  }
+  
+  return mergeGeometries(geometries);
+}
+
+// Straight leg for WOOJ style (no curve, clean taper)
+function generateStraightLeg(
+  params: ParametricStandParams,
+  startPoint: THREE.Vector3,
+  endPoint: THREE.Vector3
+): THREE.BufferGeometry {
+  const { legThickness, legTaper, legProfile } = params;
+  
+  const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
+  const length = direction.length();
+  
+  if (length < 1) return new THREE.BufferGeometry();
+  
+  direction.normalize();
+  
+  // Simple straight path
+  const pathPoints: THREE.Vector3[] = [];
+  const segments = 12;
+  
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const point = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
+    pathPoints.push(point);
+  }
+  
+  const path = new THREE.CatmullRomCurve3(pathPoints, false, 'centripetal', 0.5);
+  
+  const radialSegments = legProfile === 'square' ? 4 : legProfile === 'angular' ? 6 : 8;
+  const baseRadius = legThickness / 2;
+  
+  // Create tube geometry
+  const tubeGeom = new THREE.TubeGeometry(path, segments, baseRadius, radialSegments, false);
+  
+  // Apply strong taper (WOOJ style has pointed ends)
+  if (legTaper > 0.01) {
+    const positions = tubeGeom.getAttribute('position');
+    
+    for (let i = 0; i < positions.count; i++) {
+      const vertex = new THREE.Vector3(
+        positions.getX(i),
+        positions.getY(i),
+        positions.getZ(i)
+      );
+      
+      // t based on Y (top to bottom)
+      const t = Math.max(0, Math.min(1, 1 - (vertex.y - endPoint.y) / (startPoint.y - endPoint.y)));
+      
+      const pathPoint = path.getPointAt(Math.min(1, Math.max(0, t)));
+      const offset = vertex.clone().sub(pathPoint);
+      
+      // Strong taper: 1 at top, very small at bottom
+      const taperScale = 1 - (t * legTaper * 0.9);
+      offset.multiplyScalar(Math.max(0.1, taperScale));
+      
+      const newPos = pathPoint.clone().add(offset);
+      positions.setXYZ(i, newPos.x, newPos.y, newPos.z);
+    }
+    
+    positions.needsUpdate = true;
+  }
+  
+  tubeGeom.computeVertexNormals();
+  return tubeGeom;
+}
+
+// Minimal pointed foot for WOOJ style
+function generateMinimalFoot(
+  params: ParametricStandParams,
+  position: THREE.Vector3
+): THREE.BufferGeometry | null {
+  const { footStyle, footScale } = params;
+  
+  if (footStyle === 'none') return null;
+  
+  const size = 3 * footScale;
+  
+  if (footStyle === 'spike') {
+    // Tiny pointed spike
+    const spikeGeom = new THREE.ConeGeometry(size, size * 2, 8);
+    spikeGeom.translate(position.x, position.y + size, position.z);
+    return spikeGeom;
+  }
+  
+  // Small sphere foot
+  const sphereGeom = new THREE.SphereGeometry(size, 8, 6);
+  sphereGeom.translate(position.x, position.y + size / 2, position.z);
+  return sphereGeom;
+}
+
+// ============================================
+// RIBBED PEDESTAL
+// Vertical fluted cylinder base
+// ============================================
+
+function generateRibbedPedestal(params: ParametricStandParams): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  const plateTop = params.height;
+  const pedestalHeight = params.height - params.connection.plateThickness;
+  const baseRadius = params.rimSize / 2 + 10;
+  const ribCount = params.ribCount || 16;
+  
+  // 1. Mounting plate at top
+  geometries.push(generateMountingPlate(params, plateTop));
+  
+  // 2. Ribbed cylinder (fluted)
+  // Create cylinder with vertical ribs using lathe geometry with wave
+  const points: THREE.Vector2[] = [];
+  const ribDepth = 3;
+  
+  // Create ribbed profile
+  for (let i = 0; i <= ribCount * 4; i++) {
+    const angle = (i / (ribCount * 4)) * Math.PI * 2;
+    const ribFactor = Math.cos(angle * ribCount) * 0.5 + 0.5;
+    const r = baseRadius - ribDepth * ribFactor;
+    
+    // Just one Y position, we'll extrude manually
+    if (i <= ribCount) {
+      points.push(new THREE.Vector2(r, 0));
+    }
+  }
+  
+  // Create ribbed cylinder using extrusion
+  const ribShape = new THREE.Shape();
+  const angleStep = (Math.PI * 2) / (ribCount * 4);
+  
+  for (let i = 0; i <= ribCount * 4; i++) {
+    const angle = i * angleStep;
+    const ribFactor = Math.cos(angle * ribCount) * 0.5 + 0.5;
+    const r = baseRadius - ribDepth * ribFactor;
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    
+    if (i === 0) {
+      ribShape.moveTo(x, z);
+    } else {
+      ribShape.lineTo(x, z);
+    }
+  }
+  ribShape.closePath();
+  
+  const extrudeSettings = {
+    depth: pedestalHeight,
+    bevelEnabled: true,
+    bevelThickness: 2,
+    bevelSize: 2,
+    bevelSegments: 2,
+  };
+  
+  const pedestalGeom = new THREE.ExtrudeGeometry(ribShape, extrudeSettings);
+  pedestalGeom.rotateX(-Math.PI / 2);
+  pedestalGeom.translate(0, 0, 0);
+  geometries.push(pedestalGeom);
+  
+  return mergeGeometries(geometries);
+}
+
+// ============================================
+// FLOATING RING
+// Simple torus ring at base with thin stem
+// ============================================
+
+function generateFloatingRing(params: ParametricStandParams): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  const plateTop = params.height;
+  const ringThickness = params.ringThickness || 6;
+  const ringRadius = params.rimSize / 2 + 15;
+  const stemHeight = params.height - ringThickness * 2;
+  
+  // 1. Mounting plate at top
+  geometries.push(generateMountingPlate(params, plateTop));
+  
+  // 2. Thin stem from plate to ring
+  const stemRadius = ringThickness / 2;
+  const stemGeom = new THREE.CylinderGeometry(stemRadius, stemRadius, stemHeight, 16);
+  stemGeom.translate(0, ringThickness + stemHeight / 2, 0);
+  geometries.push(stemGeom);
+  
+  // 3. Floating ring (torus) at base
+  const torusGeom = new THREE.TorusGeometry(ringRadius, ringThickness / 2, 16, 48);
+  torusGeom.rotateX(Math.PI / 2);
+  torusGeom.translate(0, ringThickness / 2, 0);
+  geometries.push(torusGeom);
+  
+  return mergeGeometries(geometries);
+}
+
+// ============================================
+// ORIGINAL STAND GENERATORS (with mounting plate integration)
+// ============================================
+
+// Generate clean, minimal cup socket (where object sits) - kept for pendant/wall
 function generateCupSocket(rimSize: number, topY: number): THREE.BufferGeometry {
   const socket = getSocketDimensions(rimSize);
   const points: THREE.Vector2[] = [];
   
-  // Simple, clean cup profile
   points.push(new THREE.Vector2(socket.innerRadius * 0.8, topY - socket.depth));
   points.push(new THREE.Vector2(socket.innerRadius, topY - socket.depth + 2));
   points.push(new THREE.Vector2(socket.innerRadius, topY - 1));
@@ -50,7 +339,6 @@ function generateSocketHolder(params: ParametricStandParams, topY: number): THRE
   const holderTopY = topY - 5;
   const holderBottomY = holderTopY - dims.height;
   
-  // Simple hollow cylinder for socket
   points.push(new THREE.Vector2(dims.cordHoleRadius, holderBottomY));
   points.push(new THREE.Vector2(dims.innerRadius, holderBottomY + 3));
   points.push(new THREE.Vector2(dims.innerRadius, holderTopY - 3));
@@ -62,7 +350,7 @@ function generateSocketHolder(params: ParametricStandParams, topY: number): THRE
   return new THREE.LatheGeometry(points, 24);
 }
 
-// Generate a robust leg using TubeGeometry with proper attachment
+// Generate a leg using TubeGeometry (for non-WOOJ styles)
 function generateParametricLeg(
   params: ParametricStandParams,
   startPoint: THREE.Vector3,
@@ -74,41 +362,33 @@ function generateParametricLeg(
   const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
   const length = direction.length();
   
-  if (length < 1) {
-    return new THREE.BufferGeometry();
-  }
+  if (length < 1) return new THREE.BufferGeometry();
   
   direction.normalize();
   
-  // Calculate perpendicular for outward curve direction (radially outward from center)
   const horizontalDir = new THREE.Vector3(startPoint.x, 0, startPoint.z).normalize();
   
-  // Generate path points - use LineCurve3 endpoints + optional curve
   const pathPoints: THREE.Vector3[] = [];
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     const point = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
     
-    // Add outward curve (radially outward, parabolic shape)
     if (legCurve > 0) {
       const curveAmount = legCurve * length * 0.1;
-      const curveFactor = 4 * t * (1 - t); // 0 at ends, 1 at middle
+      const curveFactor = 4 * t * (1 - t);
       point.addScaledVector(horizontalDir, curveFactor * curveAmount);
     }
     
     pathPoints.push(point);
   }
   
-  // Use simple path that DOES pass through endpoints
   const path = new THREE.CatmullRomCurve3(pathPoints, false, 'centripetal', 0.5);
   
   const radialSegments = legProfile === 'square' ? 4 : legProfile === 'angular' ? 6 : 8;
   const baseRadius = legThickness / 2;
   
-  // Create tube geometry
   const tubeGeom = new THREE.TubeGeometry(path, segments, baseRadius, radialSegments, false);
   
-  // Apply taper if needed
   if (legTaper > 0.01) {
     const positions = tubeGeom.getAttribute('position');
     
@@ -119,13 +399,8 @@ function generateParametricLeg(
         positions.getZ(i)
       );
       
-      // Estimate t based on Y position (top to bottom)
       const t = Math.max(0, Math.min(1, 1 - (vertex.y - endPoint.y) / (startPoint.y - endPoint.y)));
-      
-      // Find center point on path at this t
       const pathPoint = path.getPointAt(Math.min(1, Math.max(0, t)));
-      
-      // Scale radially from path center
       const offset = vertex.clone().sub(pathPoint);
       const taperScale = 1 - (t * legTaper * 0.5);
       offset.multiplyScalar(Math.max(0.5, taperScale));
@@ -141,7 +416,7 @@ function generateParametricLeg(
   return tubeGeom;
 }
 
-// Generate sleek, minimal hub with proper leg attachment zone
+// Generate hub (for non-WOOJ styles)
 function generateHub(
   hubStyle: HubStyle,
   hubScale: number,
@@ -149,20 +424,21 @@ function generateHub(
   topY: number,
   bottomY: number
 ): THREE.BufferGeometry {
-  const r = baseRadius; // Already includes hubScale from caller
-  const height = topY - bottomY;
+  if (hubStyle === 'hidden') {
+    return new THREE.BufferGeometry();
+  }
   
-  // Leg attachment zone is at 25% up from bottom - hub MUST extend to r at that Y
+  const r = baseRadius;
+  const height = topY - bottomY;
   const legAttachY = bottomY + height * 0.25;
   
   const points: THREE.Vector2[] = [];
   
   switch (hubStyle) {
     case 'sphere':
-      // Sphere with wide base for leg attachment
       points.push(new THREE.Vector2(0, bottomY));
       points.push(new THREE.Vector2(r * 0.7, bottomY));
-      points.push(new THREE.Vector2(r, legAttachY)); // Widest at leg attachment
+      points.push(new THREE.Vector2(r, legAttachY));
       points.push(new THREE.Vector2(r * 0.85, bottomY + height * 0.5));
       points.push(new THREE.Vector2(r * 0.6, topY - height * 0.15));
       points.push(new THREE.Vector2(r * 0.45, topY));
@@ -170,30 +446,27 @@ function generateHub(
       break;
       
     case 'disc':
-      // Wide disc - legs attach at outer edge
       points.push(new THREE.Vector2(0, bottomY));
       points.push(new THREE.Vector2(r * 1.1, bottomY));
-      points.push(new THREE.Vector2(r * 1.1, legAttachY)); // Leg attachment
+      points.push(new THREE.Vector2(r * 1.1, legAttachY));
       points.push(new THREE.Vector2(r * 0.9, bottomY + height * 0.5));
       points.push(new THREE.Vector2(r * 0.5, topY));
       points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'cone':
-      // Cone with base flare for legs
       points.push(new THREE.Vector2(0, bottomY));
       points.push(new THREE.Vector2(r, bottomY));
-      points.push(new THREE.Vector2(r, legAttachY)); // Leg attachment
+      points.push(new THREE.Vector2(r, legAttachY));
       points.push(new THREE.Vector2(r * 0.5, bottomY + height * 0.5));
       points.push(new THREE.Vector2(r * 0.25, topY));
       points.push(new THREE.Vector2(0, topY));
       break;
       
     case 'minimal':
-      // Clean minimal - legs visible attachment
       points.push(new THREE.Vector2(0, bottomY));
       points.push(new THREE.Vector2(r * 0.9, bottomY));
-      points.push(new THREE.Vector2(r, legAttachY)); // Widest for leg attachment
+      points.push(new THREE.Vector2(r, legAttachY));
       points.push(new THREE.Vector2(r * 0.6, bottomY + height * 0.5));
       points.push(new THREE.Vector2(r * 0.4, topY));
       points.push(new THREE.Vector2(0, topY));
@@ -201,10 +474,9 @@ function generateHub(
       
     case 'smooth':
     default:
-      // Smooth with clear leg attachment zone
       points.push(new THREE.Vector2(0, bottomY));
       points.push(new THREE.Vector2(r * 0.85, bottomY));
-      points.push(new THREE.Vector2(r, legAttachY)); // Widest at leg attachment
+      points.push(new THREE.Vector2(r, legAttachY));
       points.push(new THREE.Vector2(r * 0.8, bottomY + height * 0.5));
       points.push(new THREE.Vector2(r * 0.55, topY));
       points.push(new THREE.Vector2(0, topY));
@@ -214,7 +486,7 @@ function generateHub(
   return new THREE.LatheGeometry(points, 32);
 }
 
-// Generate minimal foot
+// Generate foot (for non-WOOJ styles)
 function generateFoot(
   footStyle: FootStyle,
   footScale: number,
@@ -228,7 +500,6 @@ function generateFoot(
   
   switch (footStyle) {
     case 'sphere':
-      // Small spherical foot
       for (let i = 0; i <= 8; i++) {
         const t = i / 8;
         const angle = t * Math.PI * 0.5;
@@ -239,7 +510,6 @@ function generateFoot(
       break;
       
     case 'spike':
-      // Small pointed spike
       points.push(new THREE.Vector2(0, 0));
       points.push(new THREE.Vector2(baseSize * 0.4, baseSize * 0.3));
       points.push(new THREE.Vector2(baseSize * 0.5, baseSize));
@@ -247,7 +517,6 @@ function generateFoot(
       break;
       
     case 'flare':
-      // Subtle flare
       if (hasCordExit) {
         points.push(new THREE.Vector2(3, 0));
         points.push(new THREE.Vector2(baseSize * 0.8, baseSize * 0.15));
@@ -262,7 +531,6 @@ function generateFoot(
       
     case 'pad':
     default:
-      // Simple pad
       if (hasCordExit) {
         points.push(new THREE.Vector2(3, 0));
       } else {
@@ -281,8 +549,8 @@ function generateFoot(
   return geom;
 }
 
-// Generate parametric tripod stand
-export function generateParametricTripod(params: ParametricStandParams): THREE.BufferGeometry {
+// Classic tripod with mounting plate (for non-WOOJ styles)
+function generateClassicTripod(params: ParametricStandParams): THREE.BufferGeometry {
   const socket = getSocketDimensions(params.rimSize);
   const geometries: THREE.BufferGeometry[] = [];
   
@@ -291,46 +559,43 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
   const hubTopY = socketTop - socket.depth;
   const hubBottomY = hubTopY - hubHeight;
   
-  // Hub radius - wider for better leg attachment
   const hubMaxRadius = socket.outerRadius * params.hubScale;
   
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
   const bottomSpreadRadius = hubMaxRadius * 2 + hubBottomY * Math.tan(legSpreadRad);
   
-  // 1. Cup socket (where object sits)
+  // 1. Cup socket
   geometries.push(generateCupSocket(params.rimSize, socketTop));
   
-  // 2. Socket holder for electrical socket (if enabled)
+  // 2. Socket holder (if enabled)
   if (params.showSocketHolder) {
     geometries.push(generateSocketHolder(params, socketTop - socket.depth));
   }
   
-  // 3. Hub - with clear leg attachment zone
-  const hubGeom = generateHub(
-    params.hubStyle,
-    params.hubScale,
-    hubMaxRadius,
-    hubTopY,
-    hubBottomY
-  );
-  geometries.push(hubGeom);
+  // 3. Hub
+  if (params.hubStyle !== 'hidden') {
+    const hubGeom = generateHub(
+      params.hubStyle,
+      params.hubScale,
+      hubMaxRadius,
+      hubTopY,
+      hubBottomY
+    );
+    geometries.push(hubGeom);
+  }
   
-  // 4. Legs - start INSIDE hub and extend down to floor
+  // 4. Legs
   const legAngleStep = (Math.PI * 2) / params.legCount;
-  
-  // Leg starts INSIDE the hub to ensure overlap (at hub center Y, smaller radius)
-  const legStartY = hubBottomY + hubHeight * 0.4; // Higher up in hub
-  const legStartRadius = hubMaxRadius * 0.5; // Closer to center
+  const legStartY = hubBottomY + hubHeight * 0.4;
+  const legStartRadius = hubMaxRadius * 0.5;
   
   for (let i = 0; i < params.legCount; i++) {
     const angle = i * legAngleStep;
     const isCordLeg = params.showSocketHolder && i === params.cordExitLeg;
     
-    // Leg starts INSIDE hub (overlaps with hub geometry)
     const startX = Math.cos(angle) * legStartRadius;
     const startZ = Math.sin(angle) * legStartRadius;
     
-    // Leg ends at foot position on the ground
     const endX = Math.cos(angle) * bottomSpreadRadius;
     const endZ = Math.sin(angle) * bottomSpreadRadius;
     
@@ -342,7 +607,6 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
       geometries.push(legGeom);
     }
     
-    // 5. Minimal feet
     const footGeom = generateFoot(
       params.footStyle,
       params.footScale,
@@ -355,6 +619,23 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
   return mergeGeometries(geometries);
 }
 
+// Generate parametric tripod stand (routes to appropriate generator)
+export function generateParametricTripod(params: ParametricStandParams): THREE.BufferGeometry {
+  // Route to WOOJ-style generators
+  if (params.style === 'wooj_splayed') {
+    return generateWoojSplayedTripod(params);
+  }
+  if (params.style === 'ribbed_pedestal') {
+    return generateRibbedPedestal(params);
+  }
+  if (params.style === 'floating_ring') {
+    return generateFloatingRing(params);
+  }
+  
+  // Classic style
+  return generateClassicTripod(params);
+}
+
 // Generate parametric pendant
 export function generateParametricPendant(params: ParametricStandParams): THREE.BufferGeometry {
   const socket = getSocketDimensions(params.rimSize);
@@ -365,7 +646,7 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
   const canopyHeight = 15;
   const totalHeight = socketTop + params.cordLength + canopyHeight;
   
-  // 1. Clean canopy (ceiling mount)
+  // 1. Clean canopy
   const canopyPoints: THREE.Vector2[] = [];
   canopyPoints.push(new THREE.Vector2(3, totalHeight - canopyHeight));
   canopyPoints.push(new THREE.Vector2(canopyDiameter / 2, totalHeight - canopyHeight));
@@ -380,7 +661,7 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
   cordGeom.translate(0, totalHeight - canopyHeight - params.cordLength / 2, 0);
   geometries.push(cordGeom);
   
-  // 3. Clean transition piece
+  // 3. Transition piece
   const transitionHeight = 12;
   const transitionPoints: THREE.Vector2[] = [];
   transitionPoints.push(new THREE.Vector2(0, socketTop + socket.depth));
@@ -395,8 +676,12 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
     geometries.push(generateSocketHolder(params, socketTop));
   }
   
-  // 5. Cup socket
-  geometries.push(generateCupSocket(params.rimSize, socketTop));
+  // 5. Mounting plate instead of cup socket for WOOJ styles
+  if (isWoojStyle(params.style)) {
+    geometries.push(generateMountingPlate(params, socketTop));
+  } else {
+    geometries.push(generateCupSocket(params.rimSize, socketTop));
+  }
   
   return mergeGeometries(geometries);
 }
@@ -416,12 +701,6 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   const socketTopY = armEndY + 15;
   
   // 1. Clean backplate
-  const backplatePoints: THREE.Vector2[] = [];
-  backplatePoints.push(new THREE.Vector2(0, 0));
-  backplatePoints.push(new THREE.Vector2(backplateWidth / 2, 0));
-  backplatePoints.push(new THREE.Vector2(backplateWidth / 2, backplateHeight));
-  backplatePoints.push(new THREE.Vector2(0, backplateHeight));
-  
   const backplateShape = new THREE.Shape();
   backplateShape.moveTo(-backplateWidth / 2, 0);
   backplateShape.lineTo(backplateWidth / 2, 0);
@@ -435,7 +714,7 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   });
   geometries.push(backplateGeom);
   
-  // 2. Arm (using parametric leg system)
+  // 2. Arm
   const armStart = new THREE.Vector3(0, backplateHeight * 0.6, wallThickness);
   const armEnd = new THREE.Vector3(0, armEndY, armEndZ);
   const armGeom = generateParametricLeg(params, armStart, armEnd);
@@ -443,7 +722,7 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
     geometries.push(armGeom);
   }
   
-  // 3. Clean transition to socket
+  // 3. Transition
   const transitionHeight = 10;
   const transitionPoints: THREE.Vector2[] = [];
   transitionPoints.push(new THREE.Vector2(0, 0));
@@ -461,18 +740,24 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
     geometries.push(holderGeom);
   }
   
-  // 5. Cup socket at arm end
-  const cupPoints: THREE.Vector2[] = [];
-  cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
-  cupPoints.push(new THREE.Vector2(socket.innerRadius, -socket.depth + 2));
-  cupPoints.push(new THREE.Vector2(socket.innerRadius, -1));
-  cupPoints.push(new THREE.Vector2(socket.outerRadius, 0));
-  cupPoints.push(new THREE.Vector2(socket.outerRadius, -socket.depth));
-  cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
-  
-  const cupGeom = new THREE.LatheGeometry(cupPoints, 32);
-  cupGeom.translate(0, socketTopY, armEndZ);
-  geometries.push(cupGeom);
+  // 5. Mounting plate or cup socket
+  if (isWoojStyle(params.style)) {
+    const plateGeom = generateMountingPlate(params, socketTopY);
+    plateGeom.translate(0, 0, armEndZ);
+    geometries.push(plateGeom);
+  } else {
+    const cupPoints: THREE.Vector2[] = [];
+    cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
+    cupPoints.push(new THREE.Vector2(socket.innerRadius, -socket.depth + 2));
+    cupPoints.push(new THREE.Vector2(socket.innerRadius, -1));
+    cupPoints.push(new THREE.Vector2(socket.outerRadius, 0));
+    cupPoints.push(new THREE.Vector2(socket.outerRadius, -socket.depth));
+    cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
+    
+    const cupGeom = new THREE.LatheGeometry(cupPoints, 32);
+    cupGeom.translate(0, socketTopY, armEndZ);
+    geometries.push(cupGeom);
+  }
   
   return mergeGeometries(geometries);
 }
@@ -500,7 +785,6 @@ export function getParametricSocketDepth(rimSize: number): number {
 
 // Merge geometries helper
 function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  // Filter out empty geometries
   const validGeometries = geometries.filter(geom => {
     const pos = geom.getAttribute('position');
     return pos && pos.count > 0;
