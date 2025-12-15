@@ -44,24 +44,26 @@ const Index = () => {
     setObjectType(type);
     const newParams = defaultParams[type];
     setParams(newParams);
-    // Auto-sync stand rim size with new object
-    setStandParams(prev => ({ ...prev, rimSize: newParams.rimSize }));
+    // Auto-sync stand plug size with new object socket
+    setStandParams(prev => ({ ...prev, plugSize: newParams.socketSize }));
   };
 
-  // Auto-sync stand rim size when object rim changes
+  // Auto-sync stand plug size when object socket changes
   const handleParamsChange = (newParams: ParametricParams) => {
     setParams(newParams);
-    // Keep stand rim synced with object rim
-    if (standParams.enabled && newParams.rimSize !== standParams.rimSize) {
-      setStandParams(prev => ({ ...prev, rimSize: newParams.rimSize }));
+    // Keep stand plug synced with object socket
+    if (standParams.enabled && newParams.socketSize !== standParams.plugSize) {
+      setStandParams(prev => ({ ...prev, plugSize: newParams.socketSize }));
     }
   };
 
-  // Auto-sync rim when enabling stand
+  // Auto-sync socket/plug when enabling stand
   const handleStandChange = (newStandParams: ParametricStandParams) => {
     if (newStandParams.enabled && !standParams.enabled) {
-      // Just enabled - sync rim size
-      setStandParams({ ...newStandParams, rimSize: params.rimSize });
+      // Just enabled - sync plug size and enable socket on object
+      setStandParams({ ...newStandParams, plugSize: params.socketSize });
+      // Auto-enable socket on object
+      setParams(prev => ({ ...prev, hasSocket: true }));
     } else {
       setStandParams(newStandParams);
     }
@@ -106,19 +108,19 @@ const Index = () => {
       return;
     }
     
-    if (standParams.rimSize !== params.rimSize) {
-      toast.warning('Stand rim size differs from object rim size', {
+    if (standParams.plugSize !== params.socketSize) {
+      toast.warning('Stand plug size differs from object socket size', {
         description: 'The parts may not fit together perfectly.',
       });
     }
     
-    const filename = `stand_${standParams.style}_${standParams.mountType}_rim${standParams.rimSize}mm_${Date.now()}.stl`;
+    const filename = `stand_${standParams.style}_${standParams.mountType}_${standParams.plugSize}mm_${Date.now()}.stl`;
     
     downloadParametricStandSTL(standParams, filename);
     toast.success('Stand STL exported!', {
       description: filename,
     });
-  }, [standParams, params.rimSize]);
+  }, [standParams, params.socketSize]);
 
   return (
     <Layout showFooter={false}>
@@ -170,7 +172,7 @@ const Index = () => {
               <TabsContent value="stand" className="mt-0 space-y-4">
                 <ParametricStandControls
                   params={standParams}
-                  objectRimSize={params.rimSize}
+                  objectSocketSize={params.socketSize}
                   objectType={objectType}
                   onChange={handleStandChange}
                 />

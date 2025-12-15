@@ -1,4 +1,4 @@
-import { StandParams, StandType, StandardRimSize } from '@/types/parametric';
+import { StandParams, StandType, SocketSize } from '@/types/parametric';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -8,11 +8,11 @@ import { Badge } from '@/components/ui/badge';
 
 interface StandControlsProps {
   params: StandParams;
-  objectRimSize: StandardRimSize;
+  objectSocketSize: SocketSize;
   onChange: (params: StandParams) => void;
 }
 
-const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) => {
+const StandControls = ({ params, objectSocketSize, onChange }: StandControlsProps) => {
   const handleChange = <K extends keyof StandParams>(key: K, value: StandParams[K]) => {
     onChange({ ...params, [key]: value });
   };
@@ -76,11 +76,11 @@ const StandControls = ({ params, objectRimSize, onChange }: StandControlsProps) 
                 Auto-matched to object
               </span>
               <p className="text-xs text-green-600 dark:text-green-500">
-                Socket fits {objectRimSize}mm rim seamlessly
+                Plug fits {objectSocketSize}mm socket
               </p>
             </div>
             <Badge variant="outline" className="text-green-600 border-green-300">
-              {objectRimSize}mm
+              {objectSocketSize}mm
             </Badge>
           </div>
 

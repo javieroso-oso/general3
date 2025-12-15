@@ -7,43 +7,43 @@ import { StandParams as MainStandParams } from '@/types/parametric';
 // ============================================
 
 interface TripodParams {
-  rimSize: number;
+  socketSize: number;  // Changed from rimSize
   height: number;
   legCount: 3 | 4;
   legSpread: number;
 }
 
 interface PendantParams {
-  rimSize: number;
+  socketSize: number;  // Changed from rimSize
   height: number;
   cordLength: number;
 }
 
 interface WallArmParams {
-  rimSize: number;
+  socketSize: number;  // Changed from rimSize
   height: number;
   armLength: number;
   armAngle: number;
 }
 
 // Socket cup dimensions - elegant cup that envelops the object base
-const getSocketDimensions = (rimSize: number) => {
-  const rimRadius = rimSize / 2;
+const getSocketDimensions = (socketSize: number) => {
+  const socketRadius = socketSize / 2;
   const clearance = 0.3; // Tight fit
   const wallThickness = 4;
   const cupDepth = 10; // Object drops 10mm into cup
   
   return {
-    innerRadius: rimRadius + clearance,
-    outerRadius: rimRadius + clearance + wallThickness,
+    innerRadius: socketRadius + clearance,
+    outerRadius: socketRadius + clearance + wallThickness,
     depth: cupDepth,
-    lipRadius: rimRadius + clearance + wallThickness + 2, // Slight flare at top
+    lipRadius: socketRadius + clearance + wallThickness + 2, // Slight flare at top
   };
 };
 
 // Generate elegant cup socket using lathe geometry for smooth curves
-function generateSmoothCupSocket(rimSize: number, topY: number): THREE.BufferGeometry {
-  const socket = getSocketDimensions(rimSize);
+function generateSmoothCupSocket(socketSize: number, topY: number): THREE.BufferGeometry {
+  const socket = getSocketDimensions(socketSize);
   
   // Create cup profile for lathe (cross-section from center outward)
   // Profile goes from bottom of cup, up the inner wall, curves over the lip
@@ -317,20 +317,20 @@ export function generateStandGeometry(params: MainStandParams): THREE.BufferGeom
   switch (params.type) {
     case 'tripod':
       return generateTripodStandGeometry({
-        rimSize: params.rimSize,
+        socketSize: params.socketSize,
         height: params.height,
         legCount: params.legCount,
         legSpread: params.legSpread,
       });
     case 'pendant':
       return generatePendantCordGeometry({
-        rimSize: params.rimSize,
+        socketSize: params.socketSize,
         height: params.height,
         cordLength: params.cordLength,
       });
     case 'wall_arm':
       return generateWallArmGeometry({
-        rimSize: params.rimSize,
+        socketSize: params.socketSize,
         height: params.height,
         armLength: params.armLength,
         armAngle: params.armAngle,

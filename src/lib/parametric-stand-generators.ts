@@ -5,107 +5,85 @@ import {
   HubStyle, 
   FootStyle,
   getSocketHolderDims,
-  screwSpecs,
+  plugSpecs,
   isWoojStyle
 } from '@/types/stand';
 
 // ============================================
 // PARAMETRIC STAND GENERATORS
-// WOOJ-inspired sleek stands with modular mounting plates
+// Internal plug system - plug fits inside object's socket
 // ============================================
 
-// Socket dimensions for object connection (simple cup)
-const getSocketDimensions = (rimSize: number) => {
-  const rimRadius = rimSize / 2;
-  const clearance = 0.5;
-  const wallThickness = 3;
-  const cupDepth = 8;
+// Plug dimensions (fits inside object's socket)
+const getPlugDimensions = (plugSize: number, plugHeight: number) => {
+  const plugRadius = plugSize / 2;
+  const clearance = plugSpecs.clearance;
   
   return {
-    innerRadius: rimRadius + clearance,
-    outerRadius: rimRadius + clearance + wallThickness,
-    depth: cupDepth,
+    radius: plugRadius - clearance,  // Slightly smaller for friction fit
+    height: plugHeight,
+    taperAngle: plugSpecs.taperAngle,
   };
 };
 
 // ============================================
-// MOUNTING PLATE GENERATOR
-// Flat plate with screw holes for modular connection
+// PLUG GENERATOR
+// Cylinder that fits inside object's socket
 // ============================================
 
-function generateMountingPlate(params: ParametricStandParams, topY: number): THREE.BufferGeometry {
-  const { connection, rimSize } = params;
-  const plateRadius = rimSize / 2 + 5; // Slightly larger than rim
-  const plateThickness = connection.plateThickness;
-  const holeRadius = screwSpecs[connection.screwSize].holeDiameter / 2;
-  const holeCount = connection.holeCount;
+function generatePlug(params: ParametricStandParams, topY: number): THREE.BufferGeometry {
+  const plug = getPlugDimensions(params.plugSize, params.plugHeight);
   
-  // Create main plate disc
-  const plateGeometry = new THREE.CylinderGeometry(
-    plateRadius, 
-    plateRadius, 
-    plateThickness, 
+  // Create slightly tapered plug for easy insertion
+  const topRadius = plug.radius;
+  const bottomRadius = plug.radius * 0.98; // Subtle taper
+  
+  const plugGeom = new THREE.CylinderGeometry(
+    topRadius, 
+    bottomRadius, 
+    plug.height, 
     32
   );
-  plateGeometry.translate(0, topY - plateThickness / 2, 0);
+  plugGeom.translate(0, topY - plug.height / 2, 0);
   
-  // For screw holes, we'll create the positions (actual holes would need CSG)
-  // Instead, create a ring of small cylinders to indicate hole positions
-  const geometries: THREE.BufferGeometry[] = [plateGeometry];
-  
-  const holePositionRadius = plateRadius * 0.7;
-  
-  for (let i = 0; i < holeCount; i++) {
-    const angle = (i / holeCount) * Math.PI * 2;
-    const x = Math.cos(angle) * holePositionRadius;
-    const z = Math.sin(angle) * holePositionRadius;
-    
-    // Create hole indicator (chamfered edge around hole)
-    const chamferGeom = new THREE.TorusGeometry(holeRadius, 1, 8, 16);
-    chamferGeom.rotateX(Math.PI / 2);
-    chamferGeom.translate(x, topY, z);
-    geometries.push(chamferGeom);
-  }
-  
-  return mergeGeometries(geometries);
+  return plugGeom;
 }
 
 // ============================================
 // WOOJ SPLAYED TRIPOD
-// Ultra-thin straight legs meeting at hidden center point
+// Ultra-thin straight legs with internal plug
 // ============================================
 
 function generateWoojSplayedTripod(params: ParametricStandParams): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  const plateTop = params.height;
-  const plateThickness = params.connection.plateThickness;
-  const plateBottom = plateTop - plateThickness;
+  const plugTop = params.height;
+  const plugBottom = plugTop - params.plugHeight;
   
-  // 1. Mounting plate at top
-  geometries.push(generateMountingPlate(params, plateTop));
+  // 1. Internal plug at top (hidden inside object)
+  geometries.push(generatePlug(params, plugTop));
   
   // 2. Ultra-thin splayed legs
   const legCount = params.legCount;
   const legAngleStep = (Math.PI * 2) / legCount;
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
   
-  // Legs start from edge of plate, angle outward to ground
-  const plateRadius = params.rimSize / 2 + 5;
-  const bottomSpreadRadius = plateRadius + plateBottom * Math.tan(legSpreadRad);
+  // Legs start from bottom edge of plug, angle outward to ground
+  const plugRadius = params.plugSize / 2 - plugSpecs.clearance;
+  const bottomSpreadRadius = plugRadius + plugBottom * Math.tan(legSpreadRad);
   
   for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep;
     
-    // Start at plate edge
-    const startX = Math.cos(angle) * plateRadius * 0.8;
-    const startZ = Math.sin(angle) * plateRadius * 0.8;
+    // Start at plug bottom edge
+    const startX = Math.cos(angle) * plugRadius * 0.8;
+    const startZ = Math.sin(angle) * plugRadius * 0.8;
     
     // End at floor, spread outward
     const endX = Math.cos(angle) * bottomSpreadRadius;
     const endZ = Math.sin(angle) * bottomSpreadRadius;
     
-    const startPoint = new THREE.Vector3(startX, plateBottom, startZ);
+    const startPoint = new THREE.Vector3(startX, plugBottom, startZ);
     const endPoint = new THREE.Vector3(endX, 0, endZ);
     
     // Generate thin leg
@@ -215,40 +193,24 @@ function generateMinimalFoot(
 
 // ============================================
 // RIBBED PEDESTAL
-// Vertical fluted cylinder base
+// Vertical fluted cylinder base with plug
 // ============================================
 
 function generateRibbedPedestal(params: ParametricStandParams): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  const plateTop = params.height;
-  const pedestalHeight = params.height - params.connection.plateThickness;
-  const baseRadius = params.rimSize / 2 + 10;
+  const plugTop = params.height;
+  const pedestalHeight = params.height - params.plugHeight;
+  const baseRadius = params.plugSize / 2 + 10;
   const ribCount = params.ribCount || 16;
   
-  // 1. Mounting plate at top
-  geometries.push(generateMountingPlate(params, plateTop));
+  // 1. Internal plug at top
+  geometries.push(generatePlug(params, plugTop));
   
   // 2. Ribbed cylinder (fluted)
-  // Create cylinder with vertical ribs using lathe geometry with wave
-  const points: THREE.Vector2[] = [];
-  const ribDepth = 3;
-  
-  // Create ribbed profile
-  for (let i = 0; i <= ribCount * 4; i++) {
-    const angle = (i / (ribCount * 4)) * Math.PI * 2;
-    const ribFactor = Math.cos(angle * ribCount) * 0.5 + 0.5;
-    const r = baseRadius - ribDepth * ribFactor;
-    
-    // Just one Y position, we'll extrude manually
-    if (i <= ribCount) {
-      points.push(new THREE.Vector2(r, 0));
-    }
-  }
-  
-  // Create ribbed cylinder using extrusion
   const ribShape = new THREE.Shape();
   const angleStep = (Math.PI * 2) / (ribCount * 4);
+  const ribDepth = 3;
   
   for (let i = 0; i <= ribCount * 4; i++) {
     const angle = i * angleStep;
@@ -283,21 +245,21 @@ function generateRibbedPedestal(params: ParametricStandParams): THREE.BufferGeom
 
 // ============================================
 // FLOATING RING
-// Simple torus ring at base with thin stem
+// Simple torus ring at base with plug
 // ============================================
 
 function generateFloatingRing(params: ParametricStandParams): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  const plateTop = params.height;
+  const plugTop = params.height;
   const ringThickness = params.ringThickness || 6;
-  const ringRadius = params.rimSize / 2 + 15;
-  const stemHeight = params.height - ringThickness * 2;
+  const ringRadius = params.plugSize / 2 + 15;
+  const stemHeight = params.height - params.plugHeight - ringThickness * 2;
   
-  // 1. Mounting plate at top
-  geometries.push(generateMountingPlate(params, plateTop));
+  // 1. Internal plug at top
+  geometries.push(generatePlug(params, plugTop));
   
-  // 2. Thin stem from plate to ring
+  // 2. Thin stem from plug to ring
   const stemRadius = ringThickness / 2;
   const stemGeom = new THREE.CylinderGeometry(stemRadius, stemRadius, stemHeight, 16);
   stemGeom.translate(0, ringThickness + stemHeight / 2, 0);
@@ -313,20 +275,26 @@ function generateFloatingRing(params: ParametricStandParams): THREE.BufferGeomet
 }
 
 // ============================================
-// ORIGINAL STAND GENERATORS (with mounting plate integration)
+// ORIGINAL STAND GENERATORS (with plug integration)
 // ============================================
 
 // Generate clean, minimal cup socket (where object sits) - kept for pendant/wall
-function generateCupSocket(rimSize: number, topY: number): THREE.BufferGeometry {
-  const socket = getSocketDimensions(rimSize);
-  const points: THREE.Vector2[] = [];
+function generateCupSocket(plugSize: number, topY: number): THREE.BufferGeometry {
+  const plugRadius = plugSize / 2;
+  const clearance = 0.5;
+  const wallThickness = 3;
+  const cupDepth = 8;
   
-  points.push(new THREE.Vector2(socket.innerRadius * 0.8, topY - socket.depth));
-  points.push(new THREE.Vector2(socket.innerRadius, topY - socket.depth + 2));
-  points.push(new THREE.Vector2(socket.innerRadius, topY - 1));
-  points.push(new THREE.Vector2(socket.outerRadius, topY));
-  points.push(new THREE.Vector2(socket.outerRadius, topY - socket.depth));
-  points.push(new THREE.Vector2(socket.innerRadius * 0.8, topY - socket.depth));
+  const innerRadius = plugRadius + clearance;
+  const outerRadius = plugRadius + clearance + wallThickness;
+  
+  const points: THREE.Vector2[] = [];
+  points.push(new THREE.Vector2(innerRadius * 0.8, topY - cupDepth));
+  points.push(new THREE.Vector2(innerRadius, topY - cupDepth + 2));
+  points.push(new THREE.Vector2(innerRadius, topY - 1));
+  points.push(new THREE.Vector2(outerRadius, topY));
+  points.push(new THREE.Vector2(outerRadius, topY - cupDepth));
+  points.push(new THREE.Vector2(innerRadius * 0.8, topY - cupDepth));
   
   return new THREE.LatheGeometry(points, 32);
 }
@@ -549,27 +517,28 @@ function generateFoot(
   return geom;
 }
 
-// Classic tripod with mounting plate (for non-WOOJ styles)
+// Classic tripod with plug (for non-WOOJ styles)
 function generateClassicTripod(params: ParametricStandParams): THREE.BufferGeometry {
-  const socket = getSocketDimensions(params.rimSize);
   const geometries: THREE.BufferGeometry[] = [];
   
-  const socketTop = params.height;
+  const plugTop = params.height;
+  const plugBottom = plugTop - params.plugHeight;
   const hubHeight = 20 * params.hubScale;
-  const hubTopY = socketTop - socket.depth;
+  const hubTopY = plugBottom;
   const hubBottomY = hubTopY - hubHeight;
   
-  const hubMaxRadius = socket.outerRadius * params.hubScale;
+  const plugRadius = params.plugSize / 2 - plugSpecs.clearance;
+  const hubMaxRadius = plugRadius * params.hubScale;
   
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
   const bottomSpreadRadius = hubMaxRadius * 2 + hubBottomY * Math.tan(legSpreadRad);
   
-  // 1. Cup socket
-  geometries.push(generateCupSocket(params.rimSize, socketTop));
+  // 1. Internal plug
+  geometries.push(generatePlug(params, plugTop));
   
   // 2. Socket holder (if enabled)
   if (params.showSocketHolder) {
-    geometries.push(generateSocketHolder(params, socketTop - socket.depth));
+    geometries.push(generateSocketHolder(params, plugBottom));
   }
   
   // 3. Hub
@@ -638,13 +607,12 @@ export function generateParametricTripod(params: ParametricStandParams): THREE.B
 
 // Generate parametric pendant
 export function generateParametricPendant(params: ParametricStandParams): THREE.BufferGeometry {
-  const socket = getSocketDimensions(params.rimSize);
   const geometries: THREE.BufferGeometry[] = [];
   
-  const socketTop = params.height;
-  const canopyDiameter = 50 + params.rimSize * 0.2;
+  const plugTop = params.height;
+  const canopyDiameter = 50 + params.plugSize * 0.2;
   const canopyHeight = 15;
-  const totalHeight = socketTop + params.cordLength + canopyHeight;
+  const totalHeight = plugTop + params.cordLength + canopyHeight;
   
   // 1. Clean canopy
   const canopyPoints: THREE.Vector2[] = [];
@@ -662,25 +630,26 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
   geometries.push(cordGeom);
   
   // 3. Transition piece
+  const plugRadius = params.plugSize / 2;
   const transitionHeight = 12;
   const transitionPoints: THREE.Vector2[] = [];
-  transitionPoints.push(new THREE.Vector2(0, socketTop + socket.depth));
-  transitionPoints.push(new THREE.Vector2(socket.outerRadius * 0.8, socketTop + socket.depth));
-  transitionPoints.push(new THREE.Vector2(cordThickness * 1.5, socketTop + socket.depth + transitionHeight));
-  transitionPoints.push(new THREE.Vector2(0, socketTop + socket.depth + transitionHeight));
+  transitionPoints.push(new THREE.Vector2(0, plugTop + params.plugHeight));
+  transitionPoints.push(new THREE.Vector2(plugRadius * 0.8, plugTop + params.plugHeight));
+  transitionPoints.push(new THREE.Vector2(cordThickness * 1.5, plugTop + params.plugHeight + transitionHeight));
+  transitionPoints.push(new THREE.Vector2(0, plugTop + params.plugHeight + transitionHeight));
   const transitionGeom = new THREE.LatheGeometry(transitionPoints, 16);
   geometries.push(transitionGeom);
   
   // 4. Socket holder (if enabled)
   if (params.showSocketHolder) {
-    geometries.push(generateSocketHolder(params, socketTop));
+    geometries.push(generateSocketHolder(params, plugTop));
   }
   
-  // 5. Mounting plate instead of cup socket for WOOJ styles
+  // 5. Internal plug or cup socket
   if (isWoojStyle(params.style)) {
-    geometries.push(generateMountingPlate(params, socketTop));
+    geometries.push(generatePlug(params, plugTop));
   } else {
-    geometries.push(generateCupSocket(params.rimSize, socketTop));
+    geometries.push(generateCupSocket(params.plugSize, plugTop));
   }
   
   return mergeGeometries(geometries);
@@ -688,7 +657,6 @@ export function generateParametricPendant(params: ParametricStandParams): THREE.
 
 // Generate parametric wall arm
 export function generateParametricWallArm(params: ParametricStandParams): THREE.BufferGeometry {
-  const socket = getSocketDimensions(params.rimSize);
   const geometries: THREE.BufferGeometry[] = [];
   
   const backplateWidth = 60;
@@ -723,10 +691,11 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
   }
   
   // 3. Transition
+  const plugRadius = params.plugSize / 2;
   const transitionHeight = 10;
   const transitionPoints: THREE.Vector2[] = [];
   transitionPoints.push(new THREE.Vector2(0, 0));
-  transitionPoints.push(new THREE.Vector2(socket.outerRadius * 0.7, 0));
+  transitionPoints.push(new THREE.Vector2(plugRadius * 0.7, 0));
   transitionPoints.push(new THREE.Vector2(params.legThickness * 0.5, transitionHeight));
   transitionPoints.push(new THREE.Vector2(0, transitionHeight));
   const transitionGeom = new THREE.LatheGeometry(transitionPoints, 12);
@@ -740,19 +709,21 @@ export function generateParametricWallArm(params: ParametricStandParams): THREE.
     geometries.push(holderGeom);
   }
   
-  // 5. Mounting plate or cup socket
+  // 5. Internal plug or cup socket
   if (isWoojStyle(params.style)) {
-    const plateGeom = generateMountingPlate(params, socketTopY);
-    plateGeom.translate(0, 0, armEndZ);
-    geometries.push(plateGeom);
+    const plugGeom = generatePlug(params, socketTopY);
+    plugGeom.translate(0, 0, armEndZ);
+    geometries.push(plugGeom);
   } else {
     const cupPoints: THREE.Vector2[] = [];
-    cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
-    cupPoints.push(new THREE.Vector2(socket.innerRadius, -socket.depth + 2));
-    cupPoints.push(new THREE.Vector2(socket.innerRadius, -1));
-    cupPoints.push(new THREE.Vector2(socket.outerRadius, 0));
-    cupPoints.push(new THREE.Vector2(socket.outerRadius, -socket.depth));
-    cupPoints.push(new THREE.Vector2(socket.innerRadius * 0.8, -socket.depth));
+    const innerRadius = plugRadius + 0.5;
+    const outerRadius = plugRadius + 3.5;
+    cupPoints.push(new THREE.Vector2(innerRadius * 0.8, -8));
+    cupPoints.push(new THREE.Vector2(innerRadius, -8 + 2));
+    cupPoints.push(new THREE.Vector2(innerRadius, -1));
+    cupPoints.push(new THREE.Vector2(outerRadius, 0));
+    cupPoints.push(new THREE.Vector2(outerRadius, -8));
+    cupPoints.push(new THREE.Vector2(innerRadius * 0.8, -8));
     
     const cupGeom = new THREE.LatheGeometry(cupPoints, 32);
     cupGeom.translate(0, socketTopY, armEndZ);
@@ -778,9 +749,9 @@ export function generateParametricStandGeometry(params: ParametricStandParams): 
   }
 }
 
-// Get socket depth for positioning
-export function getParametricSocketDepth(rimSize: number): number {
-  return getSocketDimensions(rimSize).depth;
+// Get plug height for positioning
+export function getParametricPlugHeight(params: ParametricStandParams): number {
+  return params.plugHeight;
 }
 
 // Merge geometries helper

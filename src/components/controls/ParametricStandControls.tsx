@@ -5,14 +5,13 @@ import {
   LegProfile,
   HubStyle,
   FootStyle,
-  ConnectionType,
-  ScrewSize,
-  MountingHoleCount,
+  PlugSize,
+  plugSizes,
   applyStylePreset,
   isWoojStyle
 } from '@/types/stand';
 import { SocketType } from '@/types/lamp';
-import { StandardRimSize, ObjectType } from '@/types/parametric';
+import { SocketSize, ObjectType } from '@/types/parametric';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -31,13 +30,11 @@ import {
   Plug,
   Circle,
   Columns,
-  Minus,
-  Wrench
 } from 'lucide-react';
 
 interface ParametricStandControlsProps {
   params: ParametricStandParams;
-  objectRimSize: StandardRimSize;
+  objectSocketSize: SocketSize;
   objectType: ObjectType;
   onChange: (params: ParametricStandParams) => void;
 }
@@ -76,28 +73,19 @@ const classicStyles: { id: StandStyle; name: string }[] = [
 
 const ParametricStandControls = ({ 
   params, 
-  objectRimSize,
+  objectSocketSize,
   objectType,
   onChange 
 }: ParametricStandControlsProps) => {
   const isLamp = objectType === 'lamp';
   const currentIsWooj = isWoojStyle(params.style);
+  const sizesMatch = params.plugSize === objectSocketSize;
   
   const handleChange = <K extends keyof ParametricStandParams>(
     key: K, 
     value: ParametricStandParams[K]
   ) => {
     onChange({ ...params, [key]: value });
-  };
-
-  const handleConnectionChange = <K extends keyof ParametricStandParams['connection']>(
-    key: K,
-    value: ParametricStandParams['connection'][K]
-  ) => {
-    onChange({ 
-      ...params, 
-      connection: { ...params.connection, [key]: value } 
-    });
   };
 
   const handleStyleChange = (style: StandStyle) => {
@@ -112,7 +100,7 @@ const ParametricStandControls = ({
         <div className="space-y-1">
           <Label className="text-sm font-medium">Add Stand</Label>
           <p className="text-xs text-muted-foreground">
-            Design a modular stand for your object
+            Internal plug fits flush inside object
           </p>
         </div>
         <Switch
@@ -157,24 +145,28 @@ const ParametricStandControls = ({
           </div>
 
           {/* Connection status */}
-          <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border border-primary/20">
-            <CheckCircle2 className="w-4 h-4 text-primary" />
+          <div className={`flex items-center gap-2 p-3 rounded-lg border ${
+            sizesMatch 
+              ? 'bg-primary/10 border-primary/20' 
+              : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900'
+          }`}>
+            <CheckCircle2 className={`w-4 h-4 ${sizesMatch ? 'text-primary' : 'text-amber-600'}`} />
             <div className="flex-1">
               <span className="text-sm font-medium">
-                Modular Connection
+                {sizesMatch ? 'Flush Connection' : 'Size Mismatch'}
               </span>
               <p className="text-xs text-muted-foreground">
-                {params.connection.holeCount}x {params.connection.screwSize} screws • {params.connection.plateThickness}mm plate
+                Plug: {params.plugSize}mm • Socket: {objectSocketSize}mm
               </p>
             </div>
-            <Badge variant="outline" className="text-primary border-primary/30">
-              {objectRimSize}mm
+            <Badge variant="outline" className={sizesMatch ? 'text-primary border-primary/30' : 'text-amber-600 border-amber-300'}>
+              {params.plugSize}mm
             </Badge>
           </div>
 
           {/* Tabs */}
           <Tabs defaultValue="style" className="w-full">
-            <TabsList className={`grid w-full ${isLamp ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <TabsList className={`grid w-full ${isLamp ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <TabsTrigger value="style" className="gap-1.5 text-xs">
                 <Palette className="w-3.5 h-3.5" />
                 Style
@@ -182,10 +174,6 @@ const ParametricStandControls = ({
               <TabsTrigger value="customize" className="gap-1.5 text-xs">
                 <Settings2 className="w-3.5 h-3.5" />
                 Tune
-              </TabsTrigger>
-              <TabsTrigger value="connection" className="gap-1.5 text-xs">
-                <Wrench className="w-3.5 h-3.5" />
-                Connect
               </TabsTrigger>
               {isLamp && (
                 <TabsTrigger value="hardware" className="gap-1.5 text-xs">
@@ -243,6 +231,40 @@ const ParametricStandControls = ({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Plug Size */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Connection Size</Label>
+                <Select
+                  value={String(params.plugSize)}
+                  onValueChange={(value) => handleChange('plugSize', Number(value) as PlugSize)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plugSizes.map((size) => (
+                      <SelectItem key={size} value={String(size)}>
+                        {size}mm {size === objectSocketSize && '(matches object)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Must match object socket size for flush fit
+                </p>
+              </div>
+
+              {/* Plug Height */}
+              <ParameterSlider
+                label="Plug Height"
+                value={params.plugHeight}
+                min={15}
+                max={30}
+                step={1}
+                unit="mm"
+                onChange={(v) => handleChange('plugHeight', v)}
+              />
               
               {/* Basic dimensions */}
               <ParameterSlider
@@ -280,7 +302,7 @@ const ParametricStandControls = ({
                     label="Leg Spread"
                     value={params.legSpread}
                     min={20}
-                    max={70}
+                    max={50}
                     step={1}
                     unit="°"
                     onChange={(v) => handleChange('legSpread', v)}
@@ -377,7 +399,7 @@ const ParametricStandControls = ({
                     label="Leg Thickness"
                     value={params.legThickness}
                     min={2}
-                    max={16}
+                    max={12}
                     step={0.5}
                     unit="mm"
                     onChange={(v) => handleChange('legThickness', v)}
@@ -479,112 +501,15 @@ const ParametricStandControls = ({
               )}
             </TabsContent>
 
-            {/* CONNECTION TAB */}
-            <TabsContent value="connection" className="space-y-4 mt-4">
-              <div className="p-3 bg-secondary/30 rounded-lg space-y-3">
-                <div className="flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-primary" />
-                  <Label className="text-sm font-medium">Mounting Hardware</Label>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Configure the screw connection between your object and stand
-                </p>
-              </div>
-
-              {/* Connection Type */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Connection Type</Label>
-                <Select
-                  value={params.connection.type}
-                  onValueChange={(value: ConnectionType) => handleConnectionChange('type', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="screw_insert">Screw + Heat-Set Insert</SelectItem>
-                    <SelectItem value="friction">Friction Fit (no hardware)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {params.connection.type === 'screw_insert' && (
-                <>
-                  {/* Screw Size */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Screw Size</Label>
-                    <Select
-                      value={params.connection.screwSize}
-                      onValueChange={(value: ScrewSize) => handleConnectionChange('screwSize', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="M3">M3 (lighter objects)</SelectItem>
-                        <SelectItem value="M4">M4 (heavier objects)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Hole Count */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Number of Screws</Label>
-                    <Select
-                      value={String(params.connection.holeCount)}
-                      onValueChange={(value) => handleConnectionChange('holeCount', Number(value) as MountingHoleCount)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="3">3 screws</SelectItem>
-                        <SelectItem value="4">4 screws</SelectItem>
-                        <SelectItem value="6">6 screws (heavy duty)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
-              {/* Plate Thickness */}
-              <ParameterSlider
-                label="Plate Thickness"
-                value={params.connection.plateThickness}
-                min={4}
-                max={8}
-                step={1}
-                unit="mm"
-                onChange={(v) => handleConnectionChange('plateThickness', v)}
-              />
-
-              {/* Hardware shopping list */}
-              {params.connection.type === 'screw_insert' && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">
-                    Hardware Shopping List:
-                  </p>
-                  <ul className="text-xs text-amber-600 dark:text-amber-500 space-y-0.5">
-                    <li>• {params.connection.holeCount}x {params.connection.screwSize} heat-set threaded inserts</li>
-                    <li>• {params.connection.holeCount}x {params.connection.screwSize} × 8-12mm screws</li>
-                    <li>• Soldering iron for insert installation</li>
-                  </ul>
-                </div>
-              )}
-            </TabsContent>
-
             {/* HARDWARE TAB (Lamps only) */}
             {isLamp && (
               <TabsContent value="hardware" className="space-y-4 mt-4">
                 {/* Socket holder toggle */}
                 <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
                   <div className="space-y-1">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <Lightbulb className="w-4 h-4" />
-                      Socket Holder
-                    </Label>
+                    <Label className="text-sm font-medium">Socket Holder</Label>
                     <p className="text-xs text-muted-foreground">
-                      Holds electrical bulb socket
+                      Integrated holder for electrical socket
                     </p>
                   </div>
                   <Switch
@@ -595,6 +520,7 @@ const ParametricStandControls = ({
 
                 {params.showSocketHolder && (
                   <>
+                    {/* Socket Type */}
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Socket Type</Label>
                       <Select
@@ -605,15 +531,16 @@ const ParametricStandControls = ({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="E26">E26 (Standard US)</SelectItem>
-                          <SelectItem value="E27">E27 (Standard EU)</SelectItem>
+                          <SelectItem value="E26">E26 (US Standard)</SelectItem>
+                          <SelectItem value="E27">E27 (EU Standard)</SelectItem>
                           <SelectItem value="E12">E12 (Candelabra)</SelectItem>
                           <SelectItem value="GU10">GU10 (Spotlight)</SelectItem>
-                          <SelectItem value="G9">G9 (Halogen)</SelectItem>
+                          <SelectItem value="G9">G9 (Halogen/LED)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
+                    {/* Cord Exit Leg (tripod only) */}
                     {params.mountType === 'tripod' && (
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Cord Exit Leg</Label>
@@ -625,7 +552,7 @@ const ParametricStandControls = ({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {Array.from({ length: params.legCount }).map((_, i) => (
+                            {Array.from({ length: params.legCount }, (_, i) => (
                               <SelectItem key={i} value={String(i)}>
                                 Leg {i + 1}
                               </SelectItem>
@@ -633,29 +560,21 @@ const ParametricStandControls = ({
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
-                          Power cord routes through this leg
+                          Which leg has the cord channel
                         </p>
                       </div>
                     )}
-
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900">
-                      <p className="text-xs text-amber-700 dark:text-amber-400">
-                        <strong>Hardware needed:</strong> {params.socketType} socket, 18/2 lamp cord with plug, LED bulb (10W max for PLA)
-                      </p>
-                    </div>
                   </>
                 )}
               </TabsContent>
             )}
           </Tabs>
 
-          {/* Info */}
-          <div className="p-3 bg-muted/50 rounded-lg flex items-start gap-2">
-            <Sparkles className="w-4 h-4 text-primary mt-0.5" />
+          {/* Info about flush connection */}
+          <div className="p-3 bg-muted/50 rounded-lg">
             <p className="text-xs text-muted-foreground">
-              {currentIsWooj 
-                ? 'WOOJ-inspired design with clean mounting plate. Object and stand connect via screws for easy assembly.'
-                : 'Classic style with traditional cup socket. Switch to WOOJ styles for modular screw connection.'}
+              <Sparkles className="w-3 h-3 inline mr-1" />
+              The stand's plug fits invisibly inside your object's hollow base for a seamless, flush connection.
             </p>
           </div>
         </>

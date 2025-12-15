@@ -1,15 +1,16 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
-// Standard rim sizes in mm - universal interface between objects and stands
-export type StandardRimSize = 60 | 80 | 100 | 120;
+// Standard socket sizes in mm - internal cavity for stand plug
+export type SocketSize = 40 | 50 | 60 | 70 | 80;
 
-export const standardRimSizes: StandardRimSize[] = [60, 80, 100, 120];
+export const socketSizes: SocketSize[] = [40, 50, 60, 70, 80];
 
-// Rim specifications
-export const rimSpecs = {
-  height: 8,        // Height of the rim ring in mm
-  lipDepth: 3,      // How far the lip extends inward in mm
-  socketDepth: 5,   // How deep the stand socket is in mm
+// Socket specifications (internal cavity at object base)
+export const socketSpecs = {
+  wallThickness: 2,     // mm - wall around socket cavity
+  minDepth: 15,         // mm
+  maxDepth: 30,         // mm
+  clearance: 0.4,       // mm - gap for plug to fit
 };
 
 export interface ParametricParams {
@@ -19,8 +20,10 @@ export interface ParametricParams {
   topRadius: number;
   wallThickness: number;
   
-  // Standard rim for universal stand compatibility
-  rimSize: StandardRimSize;
+  // Internal socket for stand connection (invisible flush mount)
+  socketSize: SocketSize;       // Internal cavity diameter
+  socketDepth: number;          // How deep the cavity goes (15-30mm)
+  hasSocket: boolean;           // Enable/disable socket
   
   // Organic deformations
   wobbleFrequency: number;
@@ -56,13 +59,13 @@ export type StandType = 'none' | 'tripod' | 'pendant' | 'wall_arm';
 export interface StandParams {
   enabled: boolean;
   type: StandType;
-  rimSize: StandardRimSize;  // Must match object rimSize for compatibility
-  height: number;            // Stand height in mm
+  socketSize: SocketSize;  // Must match object socketSize for compatibility
+  height: number;          // Stand height in mm
   // Tripod-specific
   legCount: 3 | 4;
-  legSpread: number;         // degrees
+  legSpread: number;       // degrees
   // Pendant-specific
-  cordLength: number;        // mm (visual only)
+  cordLength: number;      // mm (visual only)
   // Wall arm-specific
   armLength: number;
   armAngle: number;
@@ -71,7 +74,7 @@ export interface StandParams {
 export const defaultStandParams: StandParams = {
   enabled: false,
   type: 'none',
-  rimSize: 80,
+  socketSize: 60,
   height: 150,
   legCount: 3,
   legSpread: 35,
@@ -154,7 +157,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 40,           // mm
     topRadius: 35,            // mm
     wallThickness: 2.0,       // mm
-    rimSize: 80,              // Standard rim for universal stand compatibility
+    // Internal socket for stand plug
+    socketSize: 60,
+    socketDepth: 20,
+    hasSocket: false,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -176,7 +182,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 30,
     topRadius: 60,
     wallThickness: 1.6,
-    rimSize: 80,
+    socketSize: 60,
+    socketDepth: 20,
+    hasSocket: false,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -198,7 +206,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 35,
     topRadius: 25,
     wallThickness: 3.0,
-    rimSize: 100,
+    socketSize: 60,
+    socketDepth: 20,
+    hasSocket: false,
     wobbleFrequency: 3,
     wobbleAmplitude: 0.08,
     twistAngle: 30,

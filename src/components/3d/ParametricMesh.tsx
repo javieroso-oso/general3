@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType, printConstraints, rimSpecs } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints, socketSpecs } from '@/types/parametric';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -65,7 +65,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       baseRadius,
       topRadius,
       wallThickness,
-      rimSize,
+      socketSize,
+      socketDepth,
+      hasSocket,
       wobbleFrequency,
       wobbleAmplitude,
       twistAngle,
@@ -87,9 +89,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
     
-    // BLEND ZONE: Bottom portion smoothly transitions to standard rim size
+    // BLEND ZONE: Bottom portion smoothly transitions to socket diameter
     const blendZoneHeight = 12 * SCALE; // 12mm blend zone
-    const rimRadius = (rimSize / 2) * SCALE;
+    const socketRadius = (socketSize / 2) * SCALE;
 
     const segments = 64;
     const heightSegments = 64;
@@ -160,11 +162,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // SEAMLESS BLEND: At the bottom, smoothly blend to rim radius
+        // SEAMLESS BLEND: At the bottom, smoothly blend to socket radius
         const blendT = Math.min(1, y / blendZoneHeight);
         // Smooth easing function (ease-in-out)
         const smoothBlend = blendT * blendT * (3 - 2 * blendT);
-        r = rimRadius + (r - rimRadius) * smoothBlend;
+        r = socketRadius + (r - socketRadius) * smoothBlend;
 
         // Ensure minimum radius
         r = Math.max(r, wall * 2);

@@ -1,33 +1,20 @@
-import { StandardRimSize } from './parametric';
 import { SocketType, socketDimensions } from './lamp';
 
 // ============================================
-// MODULAR CONNECTION SYSTEM
-// Hardware-based connection between objects and stands
+// INTERNAL SOCKET/PLUG CONNECTION SYSTEM
+// Invisible flush mounting - plug fits inside object's hollow base
 // ============================================
 
-export type ConnectionType = 'friction' | 'screw_insert';
-export type ScrewSize = 'M3' | 'M4';
-export type MountingHoleCount = 3 | 4 | 6;
+// Standard plug/socket sizes (must match between object and stand)
+export type PlugSize = 40 | 50 | 60 | 70 | 80;
+export const plugSizes: PlugSize[] = [40, 50, 60, 70, 80];
 
-export interface ConnectionSpec {
-  type: ConnectionType;
-  screwSize: ScrewSize;
-  holeCount: MountingHoleCount;
-  plateThickness: number;  // 4-6mm
-}
-
-// Screw dimensions for 3D printing
-export const screwSpecs: Record<ScrewSize, { holeDiameter: number; insertLength: number }> = {
-  'M3': { holeDiameter: 4.0, insertLength: 5 },
-  'M4': { holeDiameter: 5.6, insertLength: 6 },
-};
-
-export const defaultConnectionSpec: ConnectionSpec = {
-  type: 'screw_insert',
-  screwSize: 'M4',
-  holeCount: 3,
-  plateThickness: 5,
+// Plug specifications
+export const plugSpecs = {
+  clearance: 0.4,       // mm - smaller than socket for friction fit
+  taperAngle: 1.5,      // degrees - slight taper for easy insertion
+  minHeight: 15,        // mm
+  maxHeight: 30,        // mm
 };
 
 // ============================================
@@ -103,14 +90,17 @@ export interface ParametricStandParams {
   enabled: boolean;
   mountType: StandMountType;
   style: StandStyle;
-  rimSize: StandardRimSize;
+  
+  // Internal plug connection (fits inside object's socket)
+  plugSize: PlugSize;       // Must match object's socketSize
+  plugHeight: number;       // 15-30mm, matches object's socketDepth
   
   // Dimensions
   height: number;
   
   // Tripod-specific
   legCount: 3 | 4 | 5 | 6;
-  legSpread: number;        // degrees
+  legSpread: number;        // degrees (tighter: 25-40°)
   
   // Pendant-specific
   cordLength: number;
@@ -121,7 +111,7 @@ export interface ParametricStandParams {
   
   // Parametric leg controls (override style defaults)
   legProfile: LegProfile;
-  legThickness: number;     // 4-20mm
+  legThickness: number;     // 2-12mm (thinner for sleek look)
   legCurve: number;         // 0-1
   legTwist: number;         // 0-360 degrees
   legTaper: number;         // 0-1
@@ -142,9 +132,6 @@ export interface ParametricStandParams {
   // WOOJ-specific params
   ribCount: number;         // For ribbed pedestal (12-24)
   ringThickness: number;    // For floating ring (4-10mm)
-  
-  // Connection system
-  connection: ConnectionSpec;
 }
 
 // Get socket holder dimensions based on socket type
@@ -301,22 +288,25 @@ export const defaultParametricStandParams: ParametricStandParams = {
   enabled: false,
   mountType: 'tripod',
   style: 'wooj_splayed',
-  rimSize: 80,
+  // Internal plug connection
+  plugSize: 60,
+  plugHeight: 20,
+  // Dimensions
   height: 150,
   legCount: 3,
-  legSpread: 50,
+  legSpread: 35,  // Tighter spread for sleek look
   cordLength: 500,
   armLength: 200,
   armAngle: 15,
   legProfile: 'round',
-  legThickness: 4,
+  legThickness: 3,  // Thinner legs
   legCurve: 0,
   legTwist: 0,
-  legTaper: 0.8,
+  legTaper: 0.85,
   hubStyle: 'hidden',
   hubScale: 1.0,
   footStyle: 'spike',
-  footScale: 0.5,
+  footScale: 0.4,
   // Hardware (for lamps)
   socketType: 'E26',
   showSocketHolder: false,
@@ -324,8 +314,6 @@ export const defaultParametricStandParams: ParametricStandParams = {
   // WOOJ params
   ribCount: 16,
   ringThickness: 6,
-  // Connection
-  connection: defaultConnectionSpec,
 };
 
 // Apply style preset to params
