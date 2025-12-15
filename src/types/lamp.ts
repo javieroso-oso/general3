@@ -378,10 +378,10 @@ export const defaultLampParams: LampParams = {
   baseRadius: 60,
   topRadius: 100,
   wallThickness: 2.0,
-  // Internal socket for stand plug
-  socketSize: 60,
-  socketDepth: 20,
-  hasSocket: false,
+  // Rim collar for stand connection
+  rimSize: 80,
+  rimHeight: 8,
+  hasRimCollar: false,
   wobbleFrequency: 0,
   wobbleAmplitude: 0,
   twistAngle: 0,

@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType, printConstraints, socketSpecs } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints, rimCollarSpecs } from '@/types/parametric';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -58,16 +58,17 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.LineSegments>(null);
+  const collarRef = useRef<THREE.Mesh>(null);
 
-  const { bodyGeometry, wireframeGeo } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, collarGeometry } = useMemo(() => {
     const {
       height,
       baseRadius,
       topRadius,
       wallThickness,
-      socketSize,
-      socketDepth,
-      hasSocket,
+      rimSize,
+      rimHeight,
+      hasRimCollar,
       wobbleFrequency,
       wobbleAmplitude,
       twistAngle,
@@ -89,18 +90,25 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
     
-    // BLEND ZONE: Bottom portion smoothly transitions to socket diameter
-    const blendZoneHeight = 12 * SCALE; // 12mm blend zone
-    const socketRadius = (socketSize / 2) * SCALE;
+    // Rim collar dimensions
+    const collarRadius = (rimSize / 2) * SCALE;
+    const collarHeight = rimHeight * SCALE;
+    
+    // Blend zone: transition from collar to organic body
+    const blendZoneHeight = hasRimCollar ? collarHeight + (15 * SCALE) : 12 * SCALE;
+    const baseBlendRadius = hasRimCollar ? collarRadius : bRad;
 
     const segments = 64;
     const heightSegments = 64;
 
     const outerVerts: number[] = [];
+    
+    // Start above collar if present
+    const bodyStartY = hasRimCollar ? collarHeight : 0;
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
-      const y = t * h;
+      const y = bodyStartY + t * (h - bodyStartY);
 
       // Base profile interpolation
       let radius: number;
@@ -162,11 +170,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // SEAMLESS BLEND: At the bottom, smoothly blend to socket radius
-        const blendT = Math.min(1, y / blendZoneHeight);
-        // Smooth easing function (ease-in-out)
+        // Seamless blend at the bottom
+        const heightFromBase = y - bodyStartY;
+        const blendT = Math.min(1, heightFromBase / (blendZoneHeight - bodyStartY));
         const smoothBlend = blendT * blendT * (3 - 2 * blendT);
-        r = socketRadius + (r - socketRadius) * smoothBlend;
+        r = baseBlendRadius + (r - baseBlendRadius) * smoothBlend;
 
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
@@ -200,19 +208,44 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
+    
+    // Collar geometry (visible solid cylinder at base)
+    let collarGeo: THREE.BufferGeometry | null = null;
+    if (hasRimCollar) {
+      collarGeo = new THREE.CylinderGeometry(
+        collarRadius,
+        collarRadius,
+        collarHeight,
+        32
+      );
+      collarGeo.translate(0, collarHeight / 2, 0);
+    }
 
-    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo };
+    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, collarGeometry: collarGeo };
   }, [params, type]);
 
   useFrame((state) => {
     const rotation = state.clock.elapsedTime * 0.05;
     if (meshRef.current) meshRef.current.rotation.y = rotation;
     if (wireRef.current) wireRef.current.rotation.y = rotation;
+    if (collarRef.current) collarRef.current.rotation.y = rotation;
   });
 
   return (
     <group position={[0, -params.height * SCALE * 0.5, 0]}>
-      {/* Unified organic body with seamless rim blend */}
+      {/* Visible rim collar at base */}
+      {collarGeometry && (
+        <mesh ref={collarRef} geometry={collarGeometry} castShadow receiveShadow>
+          <meshStandardMaterial
+            color="#d4d4d4"
+            roughness={0.4}
+            metalness={0.1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      
+      {/* Organic body */}
       <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color="#e8e8e8"
