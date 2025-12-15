@@ -93,22 +93,22 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Rim collar dimensions
     const collarRadius = (rimSize / 2) * SCALE;
     const collarHeight = rimHeight * SCALE;
-    
-    // Blend zone: transition from collar to organic body
-    const blendZoneHeight = hasRimCollar ? collarHeight + (15 * SCALE) : 12 * SCALE;
-    const baseBlendRadius = hasRimCollar ? collarRadius : bRad;
 
     const segments = 64;
     const heightSegments = 64;
 
     const outerVerts: number[] = [];
     
-    // Start above collar if present
-    const bodyStartY = hasRimCollar ? collarHeight : 0;
+    // Body starts at ground (collar is separate mesh)
+    const bodyStartY = 0;
+    
+    // Blend zone for smooth transition at base
+    const blendZoneHeight = 20 * SCALE;
+    const baseBlendRadius = hasRimCollar ? collarRadius : bRad;
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
-      const y = bodyStartY + t * (h - bodyStartY);
+      const y = t * h;
 
       // Base profile interpolation
       let radius: number;
@@ -170,11 +170,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // Seamless blend at the bottom
-        const heightFromBase = y - bodyStartY;
-        const blendT = Math.min(1, heightFromBase / (blendZoneHeight - bodyStartY));
-        const smoothBlend = blendT * blendT * (3 - 2 * blendT);
-        r = baseBlendRadius + (r - baseBlendRadius) * smoothBlend;
+        // Seamless blend at the bottom - smooth transition from collar radius
+        if (hasRimCollar && y < blendZoneHeight) {
+          const blendT = y / blendZoneHeight;
+          const smoothBlend = blendT * blendT * (3 - 2 * blendT); // Hermite interpolation
+          r = collarRadius + (r - collarRadius) * smoothBlend;
+        }
 
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
@@ -209,16 +210,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Collar geometry (visible solid cylinder at base)
+    // Collar geometry (visible solid cylinder at base) - sits BELOW the body
     let collarGeo: THREE.BufferGeometry | null = null;
     if (hasRimCollar) {
+      // Collar sits below the organic body, creating a clean mounting point
       collarGeo = new THREE.CylinderGeometry(
         collarRadius,
-        collarRadius,
+        collarRadius * 1.02, // Slightly wider at bottom for stability
         collarHeight,
         32
       );
-      collarGeo.translate(0, collarHeight / 2, 0);
+      // Position collar so top aligns with body bottom (y=0)
+      collarGeo.translate(0, -collarHeight / 2, 0);
     }
 
     return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, collarGeometry: collarGeo };
@@ -231,9 +234,13 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     if (collarRef.current) collarRef.current.rotation.y = rotation;
   });
 
+  // Center the entire object vertically
+  const totalHeight = params.height * SCALE + (params.hasRimCollar ? params.rimHeight * SCALE : 0);
+  const yOffset = -totalHeight * 0.5 + (params.hasRimCollar ? params.rimHeight * SCALE : 0);
+  
   return (
-    <group position={[0, -params.height * SCALE * 0.5, 0]}>
-      {/* Visible rim collar at base */}
+    <group position={[0, yOffset, 0]}>
+      {/* Visible rim collar at base (below body) */}
       {collarGeometry && (
         <mesh ref={collarRef} geometry={collarGeometry} castShadow receiveShadow>
           <meshStandardMaterial
@@ -245,7 +252,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         </mesh>
       )}
       
-      {/* Organic body */}
+      {/* Organic body (starts at y=0, collar is below) */}
       <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color="#e8e8e8"
