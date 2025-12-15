@@ -2,18 +2,51 @@ import { StandardRimSize } from './parametric';
 import { SocketType, socketDimensions } from './lamp';
 
 // ============================================
+// MODULAR CONNECTION SYSTEM
+// Hardware-based connection between objects and stands
+// ============================================
+
+export type ConnectionType = 'friction' | 'screw_insert';
+export type ScrewSize = 'M3' | 'M4';
+export type MountingHoleCount = 3 | 4 | 6;
+
+export interface ConnectionSpec {
+  type: ConnectionType;
+  screwSize: ScrewSize;
+  holeCount: MountingHoleCount;
+  plateThickness: number;  // 4-6mm
+}
+
+// Screw dimensions for 3D printing
+export const screwSpecs: Record<ScrewSize, { holeDiameter: number; insertLength: number }> = {
+  'M3': { holeDiameter: 4.0, insertLength: 5 },
+  'M4': { holeDiameter: 5.6, insertLength: 6 },
+};
+
+export const defaultConnectionSpec: ConnectionSpec = {
+  type: 'screw_insert',
+  screwSize: 'M4',
+  holeCount: 3,
+  plateThickness: 5,
+};
+
+// ============================================
 // STAND STYLE SYSTEM
-// Hybrid approach: Style presets + Parametric control
+// WOOJ-inspired minimal aesthetics
 // ============================================
 
 // Stand style defines the overall aesthetic
 export type StandStyle = 
-  | 'minimalist'    // Clean, thin lines
-  | 'industrial'    // Chunky, raw metal look
-  | 'art_deco'      // Geometric, tapered, elegant
-  | 'organic'       // Curved, flowing, natural
-  | 'retro'         // Mid-century modern feel
-  | 'brutalist';    // Bold, angular, heavy
+  | 'minimalist'       // Clean, thin lines
+  | 'industrial'       // Chunky, raw metal look
+  | 'art_deco'         // Geometric, tapered, elegant
+  | 'organic'          // Curved, flowing, natural
+  | 'retro'            // Mid-century modern feel
+  | 'brutalist'        // Bold, angular, heavy
+  // WOOJ-inspired styles
+  | 'wooj_splayed'     // Thin straight legs, no visible hub (Wavy lamp style)
+  | 'ribbed_pedestal'  // Vertical fluted cylinder base (Brut lamp style)
+  | 'floating_ring';   // Simple torus ring at base (Kinoko lamp style)
 
 // Stand type for mounting
 export type StandMountType = 'tripod' | 'pendant' | 'wall_arm';
@@ -33,7 +66,8 @@ export type HubStyle =
   | 'sphere'        // Spherical hub
   | 'disc'          // Flat disc
   | 'cone'          // Conical hub
-  | 'minimal';      // Nearly invisible
+  | 'minimal'       // Nearly invisible
+  | 'hidden';       // No hub - legs attach directly to plate
 
 // Foot style
 export type FootStyle = 
@@ -58,6 +92,10 @@ export interface StandStylePreset {
   legTaper: number;                 // 0 = uniform, 1 = strong taper
   hubSize: number;                  // 0.5 = small, 2.0 = large
   footSize: number;                 // 0.5 = small, 2.0 = large
+  // WOOJ-specific
+  legSpreadOverride?: number;       // Override leg spread angle
+  ribCount?: number;                // For ribbed pedestal
+  isWoojStyle?: boolean;            // Enables special WOOJ rendering
 }
 
 // Full parametric stand params
@@ -100,6 +138,13 @@ export interface ParametricStandParams {
   socketType: SocketType;
   showSocketHolder: boolean;
   cordExitLeg: number;      // Which leg the cord exits (0-based index)
+  
+  // WOOJ-specific params
+  ribCount: number;         // For ribbed pedestal (12-24)
+  ringThickness: number;    // For floating ring (4-10mm)
+  
+  // Connection system
+  connection: ConnectionSpec;
 }
 
 // Get socket holder dimensions based on socket type
@@ -116,6 +161,7 @@ export function getSocketHolderDims(socketType: SocketType) {
 
 // Style presets library
 export const standStylePresets: StandStylePreset[] = [
+  // Original styles
   {
     id: 'minimalist',
     name: 'Minimalist',
@@ -200,33 +246,86 @@ export const standStylePresets: StandStylePreset[] = [
     hubSize: 1.4,
     footSize: 1.5,
   },
+  // WOOJ-inspired styles
+  {
+    id: 'wooj_splayed',
+    name: 'WOOJ Splayed',
+    description: 'Ultra-thin straight legs with no visible hub',
+    legProfile: 'round',
+    hubStyle: 'hidden',
+    footStyle: 'spike',
+    legThicknessMultiplier: 0.4,
+    legCurveAmount: 0,
+    legTwistAmount: 0,
+    legTaper: 0.8,
+    hubSize: 0,
+    footSize: 0.5,
+    legSpreadOverride: 50,
+    isWoojStyle: true,
+  },
+  {
+    id: 'ribbed_pedestal',
+    name: 'Ribbed Pedestal',
+    description: 'Elegant fluted cylinder base',
+    legProfile: 'round',
+    hubStyle: 'hidden',
+    footStyle: 'none',
+    legThicknessMultiplier: 1,
+    legCurveAmount: 0,
+    legTwistAmount: 0,
+    legTaper: 0,
+    hubSize: 0,
+    footSize: 0,
+    ribCount: 16,
+    isWoojStyle: true,
+  },
+  {
+    id: 'floating_ring',
+    name: 'Floating Ring',
+    description: 'Minimal torus ring at base',
+    legProfile: 'round',
+    hubStyle: 'hidden',
+    footStyle: 'none',
+    legThicknessMultiplier: 0.5,
+    legCurveAmount: 0,
+    legTwistAmount: 0,
+    legTaper: 0,
+    hubSize: 0,
+    footSize: 0,
+    isWoojStyle: true,
+  },
 ];
 
 // Default parametric stand params
 export const defaultParametricStandParams: ParametricStandParams = {
   enabled: false,
   mountType: 'tripod',
-  style: 'minimalist',
+  style: 'wooj_splayed',
   rimSize: 80,
   height: 150,
   legCount: 3,
-  legSpread: 35,
+  legSpread: 50,
   cordLength: 500,
   armLength: 200,
   armAngle: 15,
   legProfile: 'round',
-  legThickness: 8,
+  legThickness: 4,
   legCurve: 0,
   legTwist: 0,
-  legTaper: 0.3,
-  hubStyle: 'minimal',
+  legTaper: 0.8,
+  hubStyle: 'hidden',
   hubScale: 1.0,
-  footStyle: 'pad',
-  footScale: 1.0,
+  footStyle: 'spike',
+  footScale: 0.5,
   // Hardware (for lamps)
   socketType: 'E26',
   showSocketHolder: false,
   cordExitLeg: 0,
+  // WOOJ params
+  ribCount: 16,
+  ringThickness: 6,
+  // Connection
+  connection: defaultConnectionSpec,
 };
 
 // Apply style preset to params
@@ -249,10 +348,18 @@ export function applyStylePreset(
     hubScale: preset.hubSize,
     footStyle: preset.footStyle,
     footScale: preset.footSize,
+    legSpread: preset.legSpreadOverride ?? params.legSpread,
+    ribCount: preset.ribCount ?? params.ribCount,
   };
 }
 
 // Get style preset by ID
 export function getStylePreset(style: StandStyle): StandStylePreset | undefined {
   return standStylePresets.find(p => p.id === style);
+}
+
+// Check if style is a WOOJ-inspired style
+export function isWoojStyle(style: StandStyle): boolean {
+  const preset = getStylePreset(style);
+  return preset?.isWoojStyle ?? false;
 }
