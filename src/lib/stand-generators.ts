@@ -83,12 +83,12 @@ function generateSmoothCupSocket(socketSize: number, topY: number): THREE.Buffer
 export function generateTripodStandGeometry(params: TripodParams): THREE.BufferGeometry {
   const legCount = params.legCount;
   const legAngleStep = (Math.PI * 2) / legCount;
-  const socket = getSocketDimensions(params.rimSize);
+  const socket = getSocketDimensions(params.socketSize);
   
-  // Scale leg thickness with rim size for proportion
-  const legThickness = 6 + params.rimSize * 0.05;
+  // Scale leg thickness with socket size for proportion
+  const legThickness = 6 + params.socketSize * 0.05;
   const hubRadius = socket.outerRadius * 0.8;
-  const footPadRadius = 12 + params.rimSize * 0.08;
+  const footPadRadius = 12 + params.socketSize * 0.08;
   const footPadHeight = 4;
   
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
@@ -101,7 +101,7 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
   const geometries: THREE.BufferGeometry[] = [];
   
   // 1. SMOOTH CUP SOCKET at top
-  const cupGeom = generateSmoothCupSocket(params.rimSize, socketTop);
+  const cupGeom = generateSmoothCupSocket(params.socketSize, socketTop);
   geometries.push(cupGeom);
   
   // 2. CENTRAL HUB (tapered cylinder blending into socket)
@@ -172,8 +172,8 @@ export function generateTripodStandGeometry(params: TripodParams): THREE.BufferG
 
 // Generate pendant bracket with elegant cup socket
 export function generatePendantCordGeometry(params: PendantParams): THREE.BufferGeometry {
-  const socket = getSocketDimensions(params.rimSize);
-  const canopyDiameter = 70 + params.rimSize * 0.3;
+  const socket = getSocketDimensions(params.socketSize);
+  const canopyDiameter = 70 + params.socketSize * 0.3;
   const canopyHeight = 20;
   
   const geometries: THREE.BufferGeometry[] = [];
@@ -211,7 +211,7 @@ export function generatePendantCordGeometry(params: PendantParams): THREE.Buffer
   geometries.push(transitionGeom);
   
   // 4. CUP SOCKET (inverted for pendant - object hangs INTO it)
-  const cupGeom = generateSmoothCupSocket(params.rimSize, socketTop);
+  const cupGeom = generateSmoothCupSocket(params.socketSize, socketTop);
   geometries.push(cupGeom);
   
   return mergeGeometries(geometries);
@@ -219,11 +219,11 @@ export function generatePendantCordGeometry(params: PendantParams): THREE.Buffer
 
 // Generate wall arm with elegant cup socket
 export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeometry {
-  const socket = getSocketDimensions(params.rimSize);
+  const socket = getSocketDimensions(params.socketSize);
   const backplateWidth = 90;
   const backplateHeight = 120;
   const wallThickness = 6;
-  const armThickness = 10 + params.rimSize * 0.04;
+  const armThickness = 10 + params.socketSize * 0.04;
   const armAngleRad = (params.armAngle * Math.PI) / 180;
   
   const geometries: THREE.BufferGeometry[] = [];
@@ -267,7 +267,7 @@ export function generateWallArmGeometry(params: WallArmParams): THREE.BufferGeom
   geometries.push(transitionGeom);
   
   // 4. CUP SOCKET at arm end
-  const cupGeom = generateSmoothCupSocketAt(params.rimSize, armEndY, armEndZ);
+  const cupGeom = generateSmoothCupSocketAt(params.socketSize, armEndY, armEndZ);
   geometries.push(cupGeom);
   
   return mergeGeometries(geometries);
