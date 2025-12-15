@@ -1,72 +1,83 @@
 import * as THREE from 'three';
-import { ParametricStandParams, plugSpecs } from '@/types/stand';
+import { ParametricStandParams, socketCradleSpecs } from '@/types/stand';
 
 // ============================================
-// SIMPLE STAND GENERATOR
-// Clean legs with rounded ends, properly attached
+// UNIVERSAL STANDARD RIM COLLAR SYSTEM
+// Stand generators with socket cradle at top
 // ============================================
 
-const getPlugDimensions = (plugSize: number, plugHeight: number) => {
-  const plugRadius = plugSize / 2;
-  const clearance = plugSpecs.clearance;
-  
-  return {
-    radius: plugRadius - clearance,
-    height: plugHeight,
-  };
-};
+const SCALE = 0.01; // mm to scene units
 
-// Generate internal plug (hidden inside object)
-function generatePlug(params: ParametricStandParams, topY: number): THREE.BufferGeometry {
-  const plug = getPlugDimensions(params.plugSize, params.plugHeight);
-  
-  const plugGeom = new THREE.CylinderGeometry(
-    plug.radius,
-    plug.radius * 0.98,
-    plug.height,
-    32
-  );
-  plugGeom.translate(0, topY - plug.height / 2, 0);
-  
-  return plugGeom;
+// Get socket cradle dimensions
+function getSocketCradleDims(socketSize: number, depth: number) {
+  const innerRadius = (socketSize / 2) + socketCradleSpecs.clearance;
+  const outerRadius = innerRadius + socketCradleSpecs.wallThickness;
+  return { innerRadius, outerRadius, depth };
 }
 
-// Generate a single leg with rounded ends
-function generateLeg(
-  params: ParametricStandParams,
-  startPoint: THREE.Vector3,
-  endPoint: THREE.Vector3
+// Generate socket cradle ring (where object's collar sits)
+function generateSocketCradle(
+  socketSize: number,
+  cradleDepth: number,
+  centerY: number
 ): THREE.BufferGeometry {
-  const { legThickness, legTaper, legProfile } = params;
+  const cradle = getSocketCradleDims(socketSize, cradleDepth);
+  
+  // Create ring shape
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, cradle.outerRadius * SCALE, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, cradle.innerRadius * SCALE, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  
+  const extrudeSettings = {
+    depth: cradle.depth * SCALE,
+    bevelEnabled: false,
+  };
+  
+  const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  geom.rotateX(-Math.PI / 2);
+  geom.translate(0, centerY, 0);
+  
+  return geom;
+}
+
+// Generate a single leg with rounded end
+function generateLeg(
+  startPoint: THREE.Vector3,
+  endPoint: THREE.Vector3,
+  thickness: number,
+  taper: number,
+  profile: 'round' | 'square' | 'angular'
+): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
   const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
   const length = direction.length();
   
-  if (length < 1) return new THREE.BufferGeometry();
+  if (length < 0.01) return new THREE.BufferGeometry();
   
   direction.normalize();
   
-  // Create path points for leg
+  // Create path
   const pathPoints: THREE.Vector3[] = [];
-  const segments = 16;
+  const segments = 12;
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
-    const point = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
-    pathPoints.push(point);
+    pathPoints.push(new THREE.Vector3().lerpVectors(startPoint, endPoint, t));
   }
   
   const path = new THREE.CatmullRomCurve3(pathPoints, false, 'centripetal', 0.5);
   
-  const radialSegments = legProfile === 'square' ? 4 : legProfile === 'angular' ? 6 : 12;
-  const baseRadius = legThickness / 2;
+  const radialSegments = profile === 'square' ? 4 : profile === 'angular' ? 6 : 12;
+  const baseRadius = (thickness / 2) * SCALE;
   
-  // Create tube geometry for the leg
+  // Create tube
   const tubeGeom = new THREE.TubeGeometry(path, segments, baseRadius, radialSegments, false);
   
-  // Apply taper if needed
-  if (legTaper > 0.01) {
+  // Apply taper
+  if (taper > 0.01) {
     const positions = tubeGeom.getAttribute('position');
     
     for (let i = 0; i < positions.count; i++) {
@@ -76,12 +87,15 @@ function generateLeg(
         positions.getZ(i)
       );
       
-      const t = Math.max(0, Math.min(1, 1 - (vertex.y - endPoint.y) / (startPoint.y - endPoint.y)));
-      const pathPoint = path.getPointAt(Math.min(1, Math.max(0, t)));
+      // Calculate t based on Y position
+      const t = Math.max(0, Math.min(1, (vertex.y - endPoint.y) / (startPoint.y - endPoint.y)));
+      
+      // Find closest point on path
+      const pathPoint = path.getPointAt(1 - t);
       const offset = vertex.clone().sub(pathPoint);
       
-      // Taper from top (full thickness) to bottom (reduced)
-      const taperScale = 1 - (t * legTaper * 0.7);
+      // Taper: thicker at top, thinner at bottom
+      const taperScale = 1 - ((1 - t) * taper * 0.7);
       offset.multiplyScalar(Math.max(0.3, taperScale));
       
       const newPos = pathPoint.clone().add(offset);
@@ -94,8 +108,8 @@ function generateLeg(
   tubeGeom.computeVertexNormals();
   geometries.push(tubeGeom);
   
-  // Add rounded end (sphere at bottom of leg)
-  const endRadius = baseRadius * (1 - legTaper * 0.7);
+  // Rounded end sphere
+  const endRadius = baseRadius * (1 - taper * 0.7);
   const sphereGeom = new THREE.SphereGeometry(Math.max(endRadius, baseRadius * 0.3), 12, 8);
   sphereGeom.translate(endPoint.x, endPoint.y, endPoint.z);
   geometries.push(sphereGeom);
@@ -103,39 +117,60 @@ function generateLeg(
   return mergeGeometries(geometries);
 }
 
-// Generate simple tripod stand
+// ============================================
+// TRIPOD STAND - WOOJ-inspired thin legs
+// ============================================
 export function generateTripodStand(params: ParametricStandParams): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  const plugTop = params.height;
-  const plugBottom = plugTop - params.plugHeight;
-  const plugRadius = params.plugSize / 2 - plugSpecs.clearance;
+  const standHeight = params.height * SCALE;
+  const cradleY = standHeight;
+  const cradleDepth = params.socketCradleDepth;
+  const socketRadius = (params.socketSize / 2) * SCALE;
   
-  // 1. Internal plug at top (hidden inside object)
-  geometries.push(generatePlug(params, plugTop));
+  // 1. Socket cradle at top
+  geometries.push(generateSocketCradle(params.socketSize, cradleDepth, cradleY - cradleDepth * SCALE));
   
-  // 2. Legs - attach directly to bottom edge of plug
+  // 2. Thin disc under cradle (visual connection point)
+  const discGeom = new THREE.CylinderGeometry(
+    socketRadius + socketCradleSpecs.wallThickness * SCALE,
+    socketRadius + socketCradleSpecs.wallThickness * SCALE * 1.2,
+    3 * SCALE,
+    32
+  );
+  discGeom.translate(0, cradleY - cradleDepth * SCALE - 1.5 * SCALE, 0);
+  geometries.push(discGeom);
+  
+  // 3. Legs - attach from edge of disc
   const legCount = params.legCount;
   const legAngleStep = (Math.PI * 2) / legCount;
   const legSpreadRad = (params.legSpread * Math.PI) / 180;
   
-  // Calculate where legs end at ground level
-  const bottomSpreadRadius = plugRadius + plugBottom * Math.tan(legSpreadRad);
+  const legStartRadius = socketRadius + socketCradleSpecs.wallThickness * SCALE * 0.8;
+  const legStartY = cradleY - cradleDepth * SCALE - 3 * SCALE;
+  
+  // Calculate ground spread
+  const groundSpreadRadius = legStartRadius + legStartY * Math.tan(legSpreadRad);
   
   for (let i = 0; i < legCount; i++) {
     const angle = i * legAngleStep;
     
-    // Start at bottom edge of plug
-    const startX = Math.cos(angle) * plugRadius * 0.9;
-    const startZ = Math.sin(angle) * plugRadius * 0.9;
-    const startPoint = new THREE.Vector3(startX, plugBottom, startZ);
+    const startX = Math.cos(angle) * legStartRadius;
+    const startZ = Math.sin(angle) * legStartRadius;
+    const startPoint = new THREE.Vector3(startX, legStartY, startZ);
     
-    // End at ground, spread outward
-    const endX = Math.cos(angle) * bottomSpreadRadius;
-    const endZ = Math.sin(angle) * bottomSpreadRadius;
+    const endX = Math.cos(angle) * groundSpreadRadius;
+    const endZ = Math.sin(angle) * groundSpreadRadius;
     const endPoint = new THREE.Vector3(endX, 0, endZ);
     
-    const legGeom = generateLeg(params, startPoint, endPoint);
+    const legGeom = generateLeg(
+      startPoint,
+      endPoint,
+      params.legThickness,
+      params.legTaper,
+      params.legProfile
+    );
+    
     if (legGeom.getAttribute('position')?.count > 0) {
       geometries.push(legGeom);
     }
@@ -144,82 +179,179 @@ export function generateTripodStand(params: ParametricStandParams): THREE.Buffer
   return mergeGeometries(geometries);
 }
 
-// Generate pendant bracket
-export function generatePendantBracket(params: ParametricStandParams): THREE.BufferGeometry {
+// ============================================
+// RIBBED PEDESTAL - Brut lamp inspired
+// ============================================
+export function generateRibbedPedestal(params: ParametricStandParams): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  const plugTop = params.height;
-  const canopyDiameter = 60;
-  const canopyHeight = 15;
-  const cordRadius = 3;
+  const standHeight = params.height * SCALE;
+  const cradleY = standHeight;
+  const cradleDepth = params.socketCradleDepth;
   
-  const totalHeight = plugTop + params.cordLength + canopyHeight;
+  // 1. Socket cradle at top
+  geometries.push(generateSocketCradle(params.socketSize, cradleDepth, cradleY - cradleDepth * SCALE));
+  
+  // 2. Ribbed cylinder body
+  const pedestalRadius = (params.pedestalDiameter / 2) * SCALE;
+  const pedestalHeight = standHeight - cradleDepth * SCALE;
+  const ribCount = params.ribCount;
+  const ribDepth = params.ribDepth * SCALE;
+  const baseFlare = params.baseFlare;
+  
+  // Create ribbed profile using lathe geometry
+  const points: THREE.Vector2[] = [];
+  const ribSegments = 32;
+  
+  for (let i = 0; i <= ribSegments; i++) {
+    const t = i / ribSegments;
+    const y = t * pedestalHeight;
+    
+    // Base radius with flare at bottom
+    let radius = pedestalRadius;
+    if (baseFlare > 0) {
+      const flareT = 1 - t;
+      radius += flareT * flareT * baseFlare * pedestalRadius * 0.3;
+    }
+    
+    points.push(new THREE.Vector2(radius, y));
+  }
+  
+  const latheGeom = new THREE.LatheGeometry(points, ribCount * 2);
+  
+  // Apply rib pattern by modifying vertices
+  const positions = latheGeom.getAttribute('position');
+  
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const z = positions.getZ(i);
+    
+    const angle = Math.atan2(z, x);
+    const ribPhase = angle * ribCount;
+    const ribFactor = (Math.sin(ribPhase) + 1) / 2; // 0-1
+    
+    const currentRadius = Math.sqrt(x * x + z * z);
+    const newRadius = currentRadius - ribDepth * ribFactor;
+    
+    const newX = Math.cos(angle) * newRadius;
+    const newZ = Math.sin(angle) * newRadius;
+    
+    positions.setXYZ(i, newX, y, newZ);
+  }
+  
+  positions.needsUpdate = true;
+  latheGeom.computeVertexNormals();
+  geometries.push(latheGeom);
+  
+  // 3. Solid base disc
+  const baseRadius = pedestalRadius * (1 + baseFlare * 0.3);
+  const baseGeom = new THREE.CylinderGeometry(baseRadius, baseRadius * 1.05, 4 * SCALE, 32);
+  baseGeom.translate(0, 2 * SCALE, 0);
+  geometries.push(baseGeom);
+  
+  return mergeGeometries(geometries);
+}
+
+// ============================================
+// PENDANT - Ceiling hung with cord
+// ============================================
+export function generatePendant(params: ParametricStandParams): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  const cradleDepth = params.socketCradleDepth;
+  const canopyRadius = (params.canopyDiameter / 2) * SCALE;
+  const cordRadius = 3 * SCALE;
+  const cordLength = params.cordLength * SCALE;
+  
+  // Position: canopy at top, cradle at bottom
+  const canopyY = cordLength + 15 * SCALE;
+  const cradleY = 0;
   
   // 1. Canopy dome at ceiling
   const canopyGeom = new THREE.SphereGeometry(
-    canopyDiameter / 2,
+    canopyRadius,
     24, 12,
     0, Math.PI * 2,
     0, Math.PI / 2
   );
-  canopyGeom.scale(1, canopyHeight / (canopyDiameter / 2), 1);
-  canopyGeom.translate(0, totalHeight - canopyHeight, 0);
+  canopyGeom.scale(1, 0.4, 1);
+  canopyGeom.translate(0, canopyY, 0);
   geometries.push(canopyGeom);
   
   // 2. Cord
-  const cordGeom = new THREE.CylinderGeometry(cordRadius, cordRadius, params.cordLength, 8);
-  cordGeom.translate(0, totalHeight - canopyHeight - params.cordLength / 2, 0);
+  const cordGeom = new THREE.CylinderGeometry(cordRadius, cordRadius, cordLength, 8);
+  cordGeom.translate(0, canopyY - cordLength / 2, 0);
   geometries.push(cordGeom);
   
-  // 3. Internal plug
-  geometries.push(generatePlug(params, plugTop));
+  // 3. Socket cradle at bottom (hanging down)
+  geometries.push(generateSocketCradle(params.socketSize, cradleDepth, cradleY));
+  
+  // 4. Connection disc between cord and cradle
+  const socketRadius = (params.socketSize / 2 + socketCradleSpecs.wallThickness) * SCALE;
+  const discGeom = new THREE.CylinderGeometry(socketRadius, socketRadius, 5 * SCALE, 32);
+  discGeom.translate(0, cradleY + cradleDepth * SCALE + 2.5 * SCALE, 0);
+  geometries.push(discGeom);
   
   return mergeGeometries(geometries);
 }
 
-// Generate wall arm
-export function generateWallArm(params: ParametricStandParams): THREE.BufferGeometry {
+// ============================================
+// WALL PLATE - Wall mounted with arm
+// ============================================
+export function generateWallPlate(params: ParametricStandParams): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  const backplateWidth = 80;
-  const backplateHeight = 100;
-  const wallThickness = 5;
-  const armRadius = 6;
-  const armAngleRad = (params.armAngle * Math.PI) / 180;
+  const plateWidth = params.plateWidth * SCALE;
+  const plateHeight = params.plateHeight * SCALE;
+  const plateThickness = 8 * SCALE;
+  const armLength = params.armLength * SCALE;
+  const armAngle = (params.armAngle * Math.PI) / 180;
+  const armRadius = 6 * SCALE;
+  const cradleDepth = params.socketCradleDepth;
   
-  const armEndZ = params.armLength * Math.cos(armAngleRad);
-  const armEndY = backplateHeight / 2 + params.armLength * Math.sin(armAngleRad);
-  
-  // 1. Backplate
-  const backplateGeom = new THREE.BoxGeometry(backplateWidth, backplateHeight, wallThickness);
-  backplateGeom.translate(0, backplateHeight / 2, 0);
+  // 1. Wall backplate (rounded rectangle)
+  const backplateGeom = new THREE.BoxGeometry(plateWidth, plateHeight, plateThickness);
+  backplateGeom.translate(0, plateHeight / 2, -plateThickness / 2);
   geometries.push(backplateGeom);
   
-  // 2. Arm
-  const armGeom = new THREE.CylinderGeometry(armRadius, armRadius, params.armLength, 16);
-  armGeom.rotateX(Math.PI / 2 - armAngleRad);
-  armGeom.translate(
-    0,
-    backplateHeight / 2 + params.armLength / 2 * Math.sin(armAngleRad),
-    params.armLength / 2 * Math.cos(armAngleRad)
-  );
+  // 2. Arm extending from wall
+  const armStartY = plateHeight / 2;
+  const armEndY = armStartY + Math.sin(armAngle) * armLength;
+  const armEndZ = Math.cos(armAngle) * armLength;
+  
+  const armGeom = new THREE.CylinderGeometry(armRadius, armRadius * 0.9, armLength, 16);
+  armGeom.rotateX(Math.PI / 2 - armAngle);
+  armGeom.translate(0, armStartY + (armEndY - armStartY) / 2, armEndZ / 2);
   geometries.push(armGeom);
   
-  // 3. Plug at end of arm
-  const plugRadius = params.plugSize / 2 - plugSpecs.clearance;
-  const plugGeom = new THREE.CylinderGeometry(plugRadius, plugRadius * 0.98, params.plugHeight, 32);
-  plugGeom.translate(0, armEndY + params.plugHeight / 2, armEndZ);
-  geometries.push(plugGeom);
+  // 3. Socket cradle at end of arm
+  const cradleGeom = generateSocketCradle(params.socketSize, cradleDepth, armEndY);
+  cradleGeom.translate(0, 0, armEndZ);
+  geometries.push(cradleGeom);
   
   return mergeGeometries(geometries);
 }
 
-// Get plug height for positioning calculations
-export function getParametricPlugHeight(params: ParametricStandParams): number {
-  return params.plugHeight;
+// ============================================
+// FLAT BACK - Object sits flat against wall
+// ============================================
+export function generateFlatBack(params: ParametricStandParams): THREE.BufferGeometry {
+  // For flat back, we just generate a mounting disc
+  // The object itself should have a flat back
+  const discRadius = (params.socketSize / 2 + 10) * SCALE;
+  const discThickness = 5 * SCALE;
+  
+  const discGeom = new THREE.CylinderGeometry(discRadius, discRadius, discThickness, 32);
+  discGeom.rotateX(Math.PI / 2);
+  discGeom.translate(0, discRadius, -discThickness / 2);
+  
+  return discGeom;
 }
 
-// Main generator function
+// ============================================
+// MAIN GENERATOR
+// ============================================
 export function generateParametricStandGeometry(params: ParametricStandParams): THREE.BufferGeometry {
   if (!params.enabled) {
     return new THREE.BufferGeometry();
@@ -228,16 +360,27 @@ export function generateParametricStandGeometry(params: ParametricStandParams): 
   switch (params.mountType) {
     case 'tripod':
       return generateTripodStand(params);
+    case 'ribbed_pedestal':
+      return generateRibbedPedestal(params);
     case 'pendant':
-      return generatePendantBracket(params);
-    case 'wall_arm':
-      return generateWallArm(params);
+      return generatePendant(params);
+    case 'wall_plate':
+      return generateWallPlate(params);
+    case 'flat_back':
+      return generateFlatBack(params);
     default:
       return new THREE.BufferGeometry();
   }
 }
 
-// Helper: Merge geometries
+// Get socket cradle depth for positioning calculations
+export function getSocketCradleDepth(params: ParametricStandParams): number {
+  return params.socketCradleDepth;
+}
+
+// ============================================
+// HELPER: Merge geometries
+// ============================================
 function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (geometries.length === 0) return new THREE.BufferGeometry();
   

@@ -6,7 +6,7 @@ import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
 import { ParametricStandParams } from '@/types/stand';
-import { getParametricPlugHeight } from '@/lib/parametric-stand-generators';
+import { getSocketCradleDepth } from '@/lib/parametric-stand-generators';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -44,11 +44,14 @@ const Scene3D = ({
   const scale = 0.01;
   const standVisible = standParams?.enabled;
   
-  // Calculate object position: plug fits inside object's socket (invisible connection)
-  // Object sits flush on stand - plug hidden inside object's hollow base
-  const plugHeight = standParams?.plugHeight ?? 20;
+  // Calculate object position: collar sits INTO stand's socket cradle
+  // Object bottom = stand height - cradle depth (so collar nestles into cradle)
+  const cradleDepth = standParams?.socketCradleDepth ?? 5;
+  const rimHeight = params.rimHeight ?? 8;
+  
+  // When stand is enabled, position object so its collar sits in the cradle
   const objectYOffset = standVisible && standParams 
-    ? (standParams.height - plugHeight + params.height / 2) * scale 
+    ? (standParams.height - cradleDepth + params.height / 2) * scale 
     : 0;
   
   return (
@@ -88,7 +91,7 @@ const Scene3D = ({
                 />
               )}
               
-              {/* Parametric object - nestles into stand cup */}
+              {/* Parametric object - collar nestles into stand's socket cradle */}
               <group position={[0, objectYOffset, 0]}>
                 <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
               </group>

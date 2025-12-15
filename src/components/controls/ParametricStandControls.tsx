@@ -2,10 +2,10 @@ import {
   ParametricStandParams, 
   StandMountType,
   LegProfile,
-  PlugSize,
-  plugSizes,
+  RimSize,
+  rimSizes,
 } from '@/types/stand';
-import { SocketSize, ObjectType } from '@/types/parametric';
+import { ObjectType } from '@/types/parametric';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -16,22 +16,24 @@ import {
   Cable, 
   Grip, 
   CheckCircle2,
+  Cylinder,
+  Square,
 } from 'lucide-react';
 
 interface ParametricStandControlsProps {
   params: ParametricStandParams;
-  objectSocketSize: SocketSize;
+  objectRimSize: RimSize;
   objectType: ObjectType;
   onChange: (params: ParametricStandParams) => void;
 }
 
 const ParametricStandControls = ({ 
   params, 
-  objectSocketSize,
+  objectRimSize,
   objectType,
   onChange 
 }: ParametricStandControlsProps) => {
-  const sizesMatch = params.plugSize === objectSocketSize;
+  const sizesMatch = params.socketSize === objectRimSize;
   
   const handleChange = <K extends keyof ParametricStandParams>(
     key: K, 
@@ -47,7 +49,7 @@ const ParametricStandControls = ({
         <div className="space-y-0.5">
           <Label className="text-sm font-medium">Add Stand</Label>
           <p className="text-xs text-muted-foreground">
-            Plug fits inside object's socket
+            Object's collar sits into stand's socket cradle
           </p>
         </div>
         <Switch
@@ -60,19 +62,25 @@ const ParametricStandControls = ({
         <>
           {/* Mount Type */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Mount Type</Label>
+            <Label className="text-sm font-medium">Stand Type</Label>
             <Select
               value={params.mountType}
               onValueChange={(value: StandMountType) => handleChange('mountType', value)}
             >
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-background border shadow-lg z-50">
                 <SelectItem value="tripod">
                   <div className="flex items-center gap-2">
                     <Footprints className="w-4 h-4" />
-                    <span>Tripod</span>
+                    <span>Tripod (WOOJ-style)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="ribbed_pedestal">
+                  <div className="flex items-center gap-2">
+                    <Cylinder className="w-4 h-4" />
+                    <span>Ribbed Pedestal</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="pendant">
@@ -81,10 +89,16 @@ const ParametricStandControls = ({
                     <span>Pendant</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="wall_arm">
+                <SelectItem value="wall_plate">
                   <div className="flex items-center gap-2">
                     <Grip className="w-4 h-4" />
-                    <span>Wall Arm</span>
+                    <span>Wall Plate + Arm</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="flat_back">
+                  <div className="flex items-center gap-2">
+                    <Square className="w-4 h-4" />
+                    <span>Flat Back (wall mount)</span>
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -100,43 +114,43 @@ const ParametricStandControls = ({
             <CheckCircle2 className={`w-4 h-4 ${sizesMatch ? 'text-primary' : 'text-amber-600'}`} />
             <div className="flex-1">
               <span className="text-sm font-medium">
-                {sizesMatch ? 'Sizes Match' : 'Size Mismatch'}
+                {sizesMatch ? 'Connection Matched' : 'Size Mismatch'}
               </span>
               <p className="text-xs text-muted-foreground">
-                Plug: {params.plugSize}mm • Socket: {objectSocketSize}mm
+                Socket: {params.socketSize}mm • Object collar: {objectRimSize}mm
               </p>
             </div>
           </div>
 
-          {/* Plug Size */}
+          {/* Socket Size */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Connection Size</Label>
+            <Label className="text-sm font-medium">Socket Cradle Size</Label>
             <Select
-              value={String(params.plugSize)}
-              onValueChange={(value) => handleChange('plugSize', Number(value) as PlugSize)}
+              value={String(params.socketSize)}
+              onValueChange={(value) => handleChange('socketSize', Number(value) as RimSize)}
             >
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {plugSizes.map((size) => (
+              <SelectContent className="bg-background border shadow-lg z-50">
+                {rimSizes.map((size) => (
                   <SelectItem key={size} value={String(size)}>
-                    {size}mm {size === objectSocketSize && '✓'}
+                    {size}mm {size === objectRimSize && '✓ matches'}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Plug Height */}
+          {/* Socket Cradle Depth */}
           <ParameterSlider
-            label="Plug Height"
-            value={params.plugHeight}
-            min={15}
-            max={30}
-            step={1}
+            label="Cradle Depth"
+            value={params.socketCradleDepth}
+            min={3}
+            max={10}
+            step={0.5}
             unit="mm"
-            onChange={(v) => handleChange('plugHeight', v)}
+            onChange={(v) => handleChange('socketCradleDepth', v)}
           />
           
           {/* Stand Height */}
@@ -144,7 +158,7 @@ const ParametricStandControls = ({
             label="Stand Height"
             value={params.height}
             min={50}
-            max={300}
+            max={250}
             step={5}
             unit="mm"
             onChange={(v) => handleChange('height', v)}
@@ -153,20 +167,22 @@ const ParametricStandControls = ({
           {/* Tripod-specific controls */}
           {params.mountType === 'tripod' && (
             <>
+              <div className="pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Tripod Settings</Label>
+              </div>
+              
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Number of Legs</Label>
                 <Select
                   value={String(params.legCount)}
-                  onValueChange={(value) => handleChange('legCount', Number(value) as 3 | 4 | 5 | 6)}
+                  onValueChange={(value) => handleChange('legCount', Number(value) as 3 | 4)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-background border shadow-lg z-50">
                     <SelectItem value="3">3 Legs</SelectItem>
                     <SelectItem value="4">4 Legs</SelectItem>
-                    <SelectItem value="5">5 Legs</SelectItem>
-                    <SelectItem value="6">6 Legs</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -174,7 +190,7 @@ const ParametricStandControls = ({
               <ParameterSlider
                 label="Leg Spread"
                 value={params.legSpread}
-                min={15}
+                min={20}
                 max={45}
                 step={1}
                 unit="°"
@@ -187,10 +203,10 @@ const ParametricStandControls = ({
                   value={params.legProfile}
                   onValueChange={(value: LegProfile) => handleChange('legProfile', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-background border shadow-lg z-50">
                     <SelectItem value="round">Round</SelectItem>
                     <SelectItem value="square">Square</SelectItem>
                     <SelectItem value="angular">Hexagonal</SelectItem>
@@ -201,7 +217,7 @@ const ParametricStandControls = ({
               <ParameterSlider
                 label="Leg Thickness"
                 value={params.legThickness}
-                min={2}
+                min={3}
                 max={10}
                 step={0.5}
                 unit="mm"
@@ -219,37 +235,125 @@ const ParametricStandControls = ({
             </>
           )}
 
-          {/* Pendant controls */}
-          {params.mountType === 'pendant' && (
-            <ParameterSlider
-              label="Cord Length"
-              value={params.cordLength}
-              min={100}
-              max={1000}
-              step={50}
-              unit="mm"
-              onChange={(v) => handleChange('cordLength', v)}
-            />
+          {/* Ribbed pedestal controls */}
+          {params.mountType === 'ribbed_pedestal' && (
+            <>
+              <div className="pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Pedestal Settings</Label>
+              </div>
+              
+              <ParameterSlider
+                label="Pedestal Diameter"
+                value={params.pedestalDiameter}
+                min={50}
+                max={150}
+                step={5}
+                unit="mm"
+                onChange={(v) => handleChange('pedestalDiameter', v)}
+              />
+
+              <ParameterSlider
+                label="Rib Count"
+                value={params.ribCount}
+                min={12}
+                max={32}
+                step={2}
+                onChange={(v) => handleChange('ribCount', v)}
+              />
+
+              <ParameterSlider
+                label="Rib Depth"
+                value={params.ribDepth}
+                min={1}
+                max={5}
+                step={0.5}
+                unit="mm"
+                onChange={(v) => handleChange('ribDepth', v)}
+              />
+
+              <ParameterSlider
+                label="Base Flare"
+                value={params.baseFlare}
+                min={0}
+                max={0.5}
+                step={0.05}
+                onChange={(v) => handleChange('baseFlare', v)}
+              />
+            </>
           )}
 
-          {/* Wall arm controls */}
-          {params.mountType === 'wall_arm' && (
+          {/* Pendant controls */}
+          {params.mountType === 'pendant' && (
             <>
+              <div className="pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Pendant Settings</Label>
+              </div>
+              
+              <ParameterSlider
+                label="Cord Length"
+                value={params.cordLength}
+                min={100}
+                max={1000}
+                step={50}
+                unit="mm"
+                onChange={(v) => handleChange('cordLength', v)}
+              />
+
+              <ParameterSlider
+                label="Canopy Diameter"
+                value={params.canopyDiameter}
+                min={60}
+                max={120}
+                step={10}
+                unit="mm"
+                onChange={(v) => handleChange('canopyDiameter', v)}
+              />
+            </>
+          )}
+
+          {/* Wall plate controls */}
+          {params.mountType === 'wall_plate' && (
+            <>
+              <div className="pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Wall Mount Settings</Label>
+              </div>
+              
+              <ParameterSlider
+                label="Plate Width"
+                value={params.plateWidth}
+                min={60}
+                max={150}
+                step={10}
+                unit="mm"
+                onChange={(v) => handleChange('plateWidth', v)}
+              />
+
+              <ParameterSlider
+                label="Plate Height"
+                value={params.plateHeight}
+                min={60}
+                max={150}
+                step={10}
+                unit="mm"
+                onChange={(v) => handleChange('plateHeight', v)}
+              />
+
               <ParameterSlider
                 label="Arm Length"
                 value={params.armLength}
                 min={100}
-                max={400}
+                max={300}
                 step={10}
                 unit="mm"
                 onChange={(v) => handleChange('armLength', v)}
               />
+
               <ParameterSlider
                 label="Arm Angle"
                 value={params.armAngle}
-                min={0}
-                max={45}
-                step={1}
+                min={-30}
+                max={30}
+                step={5}
                 unit="°"
                 onChange={(v) => handleChange('armAngle', v)}
               />
