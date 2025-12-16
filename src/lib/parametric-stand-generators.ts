@@ -8,22 +8,27 @@ import { ParametricStandParams, socketCradleSpecs } from '@/types/stand';
 
 const SCALE = 0.01; // mm to scene units
 
+// Socket cradle wall thickness (thicker for visibility)
+const CRADLE_WALL = 4; // mm
+
 // Get socket cradle dimensions
 function getSocketCradleDims(socketSize: number, depth: number) {
   const innerRadius = (socketSize / 2) + socketCradleSpecs.clearance;
-  const outerRadius = innerRadius + socketCradleSpecs.wallThickness;
+  const outerRadius = innerRadius + CRADLE_WALL;
   return { innerRadius, outerRadius, depth };
 }
 
 // Generate socket cradle ring (where object's collar sits)
+// Creates a visible ring with inner lip for the collar to seat into
 function generateSocketCradle(
   socketSize: number,
   cradleDepth: number,
   centerY: number
 ): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
   const cradle = getSocketCradleDims(socketSize, cradleDepth);
   
-  // Create ring shape
+  // Main cradle ring (thicker walls for visibility)
   const shape = new THREE.Shape();
   shape.absarc(0, 0, cradle.outerRadius * SCALE, 0, Math.PI * 2, false);
   const hole = new THREE.Path();
@@ -35,11 +40,37 @@ function generateSocketCradle(
     bevelEnabled: false,
   };
   
-  const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-  geom.rotateX(-Math.PI / 2);
-  geom.translate(0, centerY, 0);
+  const mainRing = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  mainRing.rotateX(-Math.PI / 2);
+  mainRing.translate(0, centerY, 0);
+  geometries.push(mainRing);
   
-  return geom;
+  // Inner lip (small ridge at bottom of cradle for collar to rest on)
+  const lipHeight = 1.5 * SCALE;
+  const lipWidth = 2 * SCALE;
+  const lipShape = new THREE.Shape();
+  lipShape.absarc(0, 0, cradle.innerRadius * SCALE, 0, Math.PI * 2, false);
+  const lipHole = new THREE.Path();
+  lipHole.absarc(0, 0, (cradle.innerRadius - 2) * SCALE, 0, Math.PI * 2, true);
+  lipShape.holes.push(lipHole);
+  
+  const lip = new THREE.ExtrudeGeometry(lipShape, { depth: lipHeight, bevelEnabled: false });
+  lip.rotateX(-Math.PI / 2);
+  lip.translate(0, centerY, 0);
+  geometries.push(lip);
+  
+  // Top rim highlight (thin ring at top of cradle)
+  const rimGeom = new THREE.TorusGeometry(
+    (cradle.outerRadius - CRADLE_WALL / 2) * SCALE,
+    0.8 * SCALE,
+    8,
+    32
+  );
+  rimGeom.rotateX(Math.PI / 2);
+  rimGeom.translate(0, centerY + cradle.depth * SCALE, 0);
+  geometries.push(rimGeom);
+  
+  return mergeGeometries(geometries);
 }
 
 // Generate a single leg with rounded end

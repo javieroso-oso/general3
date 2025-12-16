@@ -234,25 +234,24 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     if (collarRef.current) collarRef.current.rotation.y = rotation;
   });
 
-  // Center the entire object vertically
-  const totalHeight = params.height * SCALE + (params.hasRimCollar ? params.rimHeight * SCALE : 0);
-  const yOffset = -totalHeight * 0.5 + (params.hasRimCollar ? params.rimHeight * SCALE : 0);
+  // Collar height in scene units
+  const collarHeightScene = params.hasRimCollar ? params.rimHeight * SCALE : 0;
   
   return (
-    <group position={[0, yOffset, 0]}>
-      {/* Visible rim collar at base (below body) */}
+    <group>
+      {/* Visible rim collar at base (below body, y=0 to y=-collarHeight) */}
       {collarGeometry && (
         <mesh ref={collarRef} geometry={collarGeometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color="#d4d4d4"
-            roughness={0.4}
-            metalness={0.1}
+            color="#c4c4c4"
+            roughness={0.35}
+            metalness={0.15}
             side={THREE.DoubleSide}
           />
         </mesh>
       )}
       
-      {/* Organic body (starts at y=0, collar is below) */}
+      {/* Organic body (starts at y=0, goes up) */}
       <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color="#e8e8e8"
