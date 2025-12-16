@@ -1,4 +1,4 @@
-import { SocketType, socketDimensions } from './lamp';
+import { SocketType, BulbShape, socketDimensions } from './lamp';
 import { RimSize, rimSizes } from './parametric';
 
 // ============================================
@@ -9,7 +9,7 @@ import { RimSize, rimSizes } from './parametric';
 
 // Socket cradle specifications (where object's collar sits)
 export const socketCradleSpecs = {
-  wallThickness: 3,     // mm - cradle wall thickness
+  wallThickness: 4,     // mm - cradle wall thickness (increased for visibility)
   defaultDepth: 5,      // mm - how deep collar sits
   clearance: 0.5,       // mm - gap for easy fit
 };
@@ -64,6 +64,12 @@ export interface ParametricStandParams {
   // Hardware integration (for lamps)
   socketType: SocketType;
   showSocketHolder: boolean;
+  
+  // Hardware preview (bulb visualization)
+  bulbShape: BulbShape;
+  bulbWattage: number;
+  showHardwarePreview: boolean;
+  showHeatZone: boolean;
 }
 
 // Get socket holder dimensions based on socket type
@@ -116,6 +122,12 @@ export const defaultParametricStandParams: ParametricStandParams = {
   // Hardware
   socketType: 'E26',
   showSocketHolder: false,
+  
+  // Hardware preview
+  bulbShape: 'A19',
+  bulbWattage: 10,
+  showHardwarePreview: false,
+  showHeatZone: true,
 };
 
 // Re-export for convenience

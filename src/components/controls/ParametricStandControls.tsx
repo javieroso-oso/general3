@@ -6,6 +6,7 @@ import {
   rimSizes,
 } from '@/types/stand';
 import { ObjectType } from '@/types/parametric';
+import { SocketType, BulbShape, socketDimensions, bulbDimensions } from '@/types/lamp';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -18,6 +19,9 @@ import {
   CheckCircle2,
   Cylinder,
   Square,
+  Lightbulb,
+  Flame,
+  ThermometerSun,
 } from 'lucide-react';
 
 interface ParametricStandControlsProps {
@@ -357,6 +361,116 @@ const ParametricStandControls = ({
                 unit="°"
                 onChange={(v) => handleChange('armAngle', v)}
               />
+            </>
+          )}
+
+          {/* Lamp Hardware Controls (only for lamp type) */}
+          {objectType === 'lamp' && (
+            <>
+              <div className="pt-4 border-t">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lightbulb className="w-4 h-4 text-primary" />
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Lamp Hardware</Label>
+                </div>
+              </div>
+              
+              {/* Show Hardware Preview Toggle */}
+              <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Preview Hardware</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Show socket, bulb, and heat zones
+                  </p>
+                </div>
+                <Switch
+                  checked={params.showHardwarePreview}
+                  onCheckedChange={(checked) => handleChange('showHardwarePreview', checked)}
+                />
+              </div>
+
+              {params.showHardwarePreview && (
+                <>
+                  {/* Socket Type */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Socket Type</Label>
+                    <Select
+                      value={params.socketType}
+                      onValueChange={(value: SocketType) => handleChange('socketType', value)}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        <SelectItem value="E26">E26 (US Standard)</SelectItem>
+                        <SelectItem value="E27">E27 (EU Standard)</SelectItem>
+                        <SelectItem value="E12">E12 (Candelabra)</SelectItem>
+                        <SelectItem value="GU10">GU10 (Spotlight)</SelectItem>
+                        <SelectItem value="G9">G9 (Bi-Pin)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Bulb Shape */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Bulb Shape</Label>
+                    <Select
+                      value={params.bulbShape}
+                      onValueChange={(value: BulbShape) => handleChange('bulbShape', value)}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        <SelectItem value="A19">A19 (Standard)</SelectItem>
+                        <SelectItem value="A21">A21 (Large)</SelectItem>
+                        <SelectItem value="Globe">Globe</SelectItem>
+                        <SelectItem value="Candle">Candle</SelectItem>
+                        <SelectItem value="Edison">Edison (Vintage)</SelectItem>
+                        <SelectItem value="Tube">Tube</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Bulb Wattage */}
+                  <ParameterSlider
+                    label="Bulb Wattage (LED)"
+                    value={params.bulbWattage}
+                    min={3}
+                    max={25}
+                    step={1}
+                    unit="W"
+                    onChange={(v) => handleChange('bulbWattage', v)}
+                  />
+
+                  {/* Heat Zone Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900">
+                    <div className="flex items-center gap-2">
+                      <ThermometerSun className="w-4 h-4 text-amber-600" />
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">Show Heat Zone</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Visualize thermal clearance
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={params.showHeatZone}
+                      onCheckedChange={(checked) => handleChange('showHeatZone', checked)}
+                    />
+                  </div>
+
+                  {/* Heat warning for high wattage */}
+                  {params.bulbWattage > 15 && (
+                    <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-900">
+                      <Flame className="w-4 h-4 text-red-500 mt-0.5" />
+                      <div className="text-xs text-red-700 dark:text-red-300">
+                        <strong>Heat Warning:</strong> {params.bulbWattage}W may exceed safe limits for PLA. 
+                        Consider PETG or ABS for higher wattage, or use LED bulbs ≤15W.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </>
           )}
         </>
