@@ -14,6 +14,7 @@ export interface ParametricParams {
   legSpread: number;          // Angle in degrees (15-45)
   legThickness: number;       // Leg thickness in mm (4-8)
   legTaper: number;           // Taper factor (0-1)
+  legInset: number;           // How far inward from edge (0-1)
   
   // Organic deformations
   wobbleFrequency: number;
@@ -158,6 +159,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     legSpread: 25,
     legThickness: 5,
     legTaper: 0.5,
+    legInset: 0.3,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -187,6 +189,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     legSpread: 30,
     legThickness: 4,
     legTaper: 0.6,
+    legInset: 0.3,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -216,6 +219,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     legSpread: 20,
     legThickness: 6,
     legTaper: 0.4,
+    legInset: 0.3,
     wobbleFrequency: 3,
     wobbleAmplitude: 0.08,
     twistAngle: 30,

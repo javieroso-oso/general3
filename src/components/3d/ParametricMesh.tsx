@@ -85,6 +85,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       legSpread,
       legThickness,
       legTaper,
+      legInset,
     } = params;
 
     // Scale to scene units
@@ -187,6 +188,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
+    // Add base cap (solid bottom disc)
+    const baseCenterIdx = vertices.length / 3;
+    vertices.push(0, 0, 0); // Center point at base
+    
+    // Connect first ring of vertices to center to create base cap
+    for (let j = 0; j < segments; j++) {
+      const a = j;
+      const b = j + 1;
+      indices.push(baseCenterIdx, a, b); // Winding order for bottom face
+    }
+
     const bodyGeo = new THREE.BufferGeometry();
     bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     bodyGeo.setIndex(indices);
@@ -211,7 +223,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         legHeight,
         legSpread,
         legThickness,
-        legTaper
+        legTaper,
+        legInset
       );
       
       // Scale leg geometry to scene units

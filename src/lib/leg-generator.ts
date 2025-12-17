@@ -10,7 +10,8 @@ export function generateLegs(
   legHeight: number,       // mm - how tall the legs are
   legSpread: number,       // degrees - angle outward from vertical
   legThickness: number,    // mm - leg diameter
-  legTaper: number         // 0-1 - taper factor (1 = full taper to point)
+  legTaper: number,        // 0-1 - taper factor (1 = full taper to point)
+  legInset: number = 0.3   // 0-1 - how far inward from edge (0 = edge, 1 = center)
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
@@ -18,12 +19,15 @@ export function generateLegs(
   const segments = 8; // Segments around each leg
   const heightSegments = 12;
   
+  // Calculate attach radius based on inset (max 70% inward from edge)
+  const attachRadius = baseRadius * (1 - legInset * 0.7);
+  
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
     
-    // Leg attachment point at base edge
-    const attachX = Math.cos(angle) * baseRadius;
-    const attachZ = Math.sin(angle) * baseRadius;
+    // Leg attachment point at inset radius
+    const attachX = Math.cos(angle) * attachRadius;
+    const attachZ = Math.sin(angle) * attachRadius;
     
     // Leg extends outward and down
     // Direction: outward from center at spreadRad angle from vertical

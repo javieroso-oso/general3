@@ -162,6 +162,14 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               step={0.1}
               onChange={handleChange('legTaper')}
             />
+            <ParameterSlider
+              label="Leg Inset"
+              value={params.legInset}
+              min={0}
+              max={0.8}
+              step={0.05}
+              onChange={handleChange('legInset')}
+            />
           </div>
         )}
       </div>
