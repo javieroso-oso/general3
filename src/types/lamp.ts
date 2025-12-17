@@ -385,6 +385,7 @@ export const defaultLampParams: LampParams = {
   legSpread: 30,
   legThickness: 4,
   legTaper: 0.6,
+  legInset: 0.3,
   wobbleFrequency: 0,
   wobbleAmplitude: 0,
   twistAngle: 0,
