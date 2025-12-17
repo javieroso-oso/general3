@@ -1,412 +1,373 @@
 import * as THREE from 'three';
-import { ParametricStandParams, socketCradleSpecs } from '@/types/stand';
+import { 
+  ConstrainedStandParams, 
+  ShadeGeometry,
+  calculateStandDimensions,
+  columnThicknessValues,
+  footSpreadAngles,
+  WIRE_CHANNEL_DIAMETER,
+  ParametricStandParams,
+  socketCradleSpecs,
+} from '@/types/stand';
 
 // ============================================
-// UNIVERSAL STANDARD RIM COLLAR SYSTEM
-// Stand generators with socket cradle at top
+// CONSTRAINED STAND GENERATORS
+// All stands prioritize stability and manufacturability
 // ============================================
 
 const SCALE = 0.01; // mm to scene units
 
-// Socket cradle wall thickness (thicker for visibility)
-const CRADLE_WALL = 4; // mm
-
-// Get socket cradle dimensions
-function getSocketCradleDims(socketSize: number, depth: number) {
-  const innerRadius = (socketSize / 2) + socketCradleSpecs.clearance;
-  const outerRadius = innerRadius + CRADLE_WALL;
-  return { innerRadius, outerRadius, depth };
-}
-
-// Generate socket cradle ring (where object's collar sits)
-// Creates a visible ring with inner lip for the collar to seat into
-function generateSocketCradle(
-  socketSize: number,
-  cradleDepth: number,
+// ============================================
+// SOCKET CONNECTOR (shared across all stands)
+// ============================================
+function generateSocketConnector(
+  connectorDiameter: number,
   centerY: number
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
-  const cradle = getSocketCradleDims(socketSize, cradleDepth);
   
-  // Main cradle ring (thicker walls for visibility)
+  const innerRadius = (connectorDiameter / 2) * SCALE;
+  const wallThickness = 3 * SCALE;
+  const outerRadius = innerRadius + wallThickness;
+  const depth = 6 * SCALE;
+  
+  // Ring connector
   const shape = new THREE.Shape();
-  shape.absarc(0, 0, cradle.outerRadius * SCALE, 0, Math.PI * 2, false);
+  shape.absarc(0, 0, outerRadius, 0, Math.PI * 2, false);
   const hole = new THREE.Path();
-  hole.absarc(0, 0, cradle.innerRadius * SCALE, 0, Math.PI * 2, true);
+  hole.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
   shape.holes.push(hole);
   
-  const extrudeSettings = {
-    depth: cradle.depth * SCALE,
-    bevelEnabled: false,
-  };
-  
-  const mainRing = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-  mainRing.rotateX(-Math.PI / 2);
-  mainRing.translate(0, centerY, 0);
-  geometries.push(mainRing);
-  
-  // Inner lip (small ridge at bottom of cradle for collar to rest on)
-  const lipHeight = 1.5 * SCALE;
-  const lipWidth = 2 * SCALE;
-  const lipShape = new THREE.Shape();
-  lipShape.absarc(0, 0, cradle.innerRadius * SCALE, 0, Math.PI * 2, false);
-  const lipHole = new THREE.Path();
-  lipHole.absarc(0, 0, (cradle.innerRadius - 2) * SCALE, 0, Math.PI * 2, true);
-  lipShape.holes.push(lipHole);
-  
-  const lip = new THREE.ExtrudeGeometry(lipShape, { depth: lipHeight, bevelEnabled: false });
-  lip.rotateX(-Math.PI / 2);
-  lip.translate(0, centerY, 0);
-  geometries.push(lip);
-  
-  // Top rim highlight (thin ring at top of cradle)
-  const rimGeom = new THREE.TorusGeometry(
-    (cradle.outerRadius - CRADLE_WALL / 2) * SCALE,
-    0.8 * SCALE,
-    8,
-    32
-  );
-  rimGeom.rotateX(Math.PI / 2);
-  rimGeom.translate(0, centerY + cradle.depth * SCALE, 0);
-  geometries.push(rimGeom);
+  const ring = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+  ring.rotateX(-Math.PI / 2);
+  ring.translate(0, centerY, 0);
+  geometries.push(ring);
   
   return mergeGeometries(geometries);
 }
 
-// Generate a single leg with rounded end
-function generateLeg(
-  startPoint: THREE.Vector3,
-  endPoint: THREE.Vector3,
-  thickness: number,
-  taper: number,
-  profile: 'round' | 'square' | 'angular'
+// ============================================
+// WIRE CHANNEL (hidden internal)
+// ============================================
+function generateWireChannel(
+  startY: number,
+  endY: number,
+  centerX: number = 0,
+  centerZ: number = 0
+): THREE.BufferGeometry {
+  const radius = (WIRE_CHANNEL_DIAMETER / 2) * SCALE;
+  const height = Math.abs(endY - startY);
+  
+  const channel = new THREE.CylinderGeometry(radius, radius, height, 16);
+  channel.translate(centerX, (startY + endY) / 2, centerZ);
+  
+  return channel;
+}
+
+// ============================================
+// 1. COLUMN STAND (Akari-style)
+// Minimal vertical column - disappears visually
+// ============================================
+function generateColumnStand(
+  params: ConstrainedStandParams,
+  shade: ShadeGeometry
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
+  const dims = calculateStandDimensions(shade, params);
   
-  const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
-  const length = direction.length();
+  const standHeight = params.overallHeight * SCALE;
+  const baseDiameter = dims.baseDiameter * SCALE;
+  const baseThickness = dims.baseThickness * SCALE;
+  const columnDiameter = dims.columnDiameter * SCALE;
+  const connectorDiameter = dims.connectorDiameter;
   
-  if (length < 0.01) return new THREE.BufferGeometry();
-  
-  direction.normalize();
-  
-  // Create path
-  const pathPoints: THREE.Vector3[] = [];
-  const segments = 12;
-  
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    pathPoints.push(new THREE.Vector3().lerpVectors(startPoint, endPoint, t));
-  }
-  
-  const path = new THREE.CatmullRomCurve3(pathPoints, false, 'centripetal', 0.5);
-  
-  const radialSegments = profile === 'square' ? 4 : profile === 'angular' ? 6 : 12;
-  const baseRadius = (thickness / 2) * SCALE;
-  
-  // Create tube
-  const tubeGeom = new THREE.TubeGeometry(path, segments, baseRadius, radialSegments, false);
-  
-  // Apply taper
-  if (taper > 0.01) {
-    const positions = tubeGeom.getAttribute('position');
-    
-    for (let i = 0; i < positions.count; i++) {
-      const vertex = new THREE.Vector3(
-        positions.getX(i),
-        positions.getY(i),
-        positions.getZ(i)
-      );
-      
-      // Calculate t based on Y position
-      const t = Math.max(0, Math.min(1, (vertex.y - endPoint.y) / (startPoint.y - endPoint.y)));
-      
-      // Find closest point on path
-      const pathPoint = path.getPointAt(1 - t);
-      const offset = vertex.clone().sub(pathPoint);
-      
-      // Taper: thicker at top, thinner at bottom
-      const taperScale = 1 - ((1 - t) * taper * 0.7);
-      offset.multiplyScalar(Math.max(0.3, taperScale));
-      
-      const newPos = pathPoint.clone().add(offset);
-      positions.setXYZ(i, newPos.x, newPos.y, newPos.z);
-    }
-    
-    positions.needsUpdate = true;
-  }
-  
-  tubeGeom.computeVertexNormals();
-  geometries.push(tubeGeom);
-  
-  // Rounded end sphere
-  const endRadius = baseRadius * (1 - taper * 0.7);
-  const sphereGeom = new THREE.SphereGeometry(Math.max(endRadius, baseRadius * 0.3), 12, 8);
-  sphereGeom.translate(endPoint.x, endPoint.y, endPoint.z);
-  geometries.push(sphereGeom);
-  
-  return mergeGeometries(geometries);
-}
-
-// ============================================
-// TRIPOD STAND - WOOJ-inspired thin legs
-// ============================================
-export function generateTripodStand(params: ParametricStandParams): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
-  
-  const standHeight = params.height * SCALE;
-  const cradleY = standHeight;
-  const cradleDepth = params.socketCradleDepth;
-  const socketRadius = (params.socketSize / 2) * SCALE;
-  
-  // 1. Socket cradle at top
-  geometries.push(generateSocketCradle(params.socketSize, cradleDepth, cradleY - cradleDepth * SCALE));
-  
-  // 2. Thin disc under cradle (visual connection point)
-  const discGeom = new THREE.CylinderGeometry(
-    socketRadius + socketCradleSpecs.wallThickness * SCALE,
-    socketRadius + socketCradleSpecs.wallThickness * SCALE * 1.2,
-    3 * SCALE,
+  // 1. Solid circular base (stable, flat bottom for printing)
+  const baseGeom = new THREE.CylinderGeometry(
+    baseDiameter / 2,
+    baseDiameter / 2,
+    baseThickness,
     32
   );
-  discGeom.translate(0, cradleY - cradleDepth * SCALE - 1.5 * SCALE, 0);
-  geometries.push(discGeom);
-  
-  // 3. Legs - attach from edge of disc
-  const legCount = params.legCount;
-  const legAngleStep = (Math.PI * 2) / legCount;
-  const legSpreadRad = (params.legSpread * Math.PI) / 180;
-  
-  const legStartRadius = socketRadius + socketCradleSpecs.wallThickness * SCALE * 0.8;
-  const legStartY = cradleY - cradleDepth * SCALE - 3 * SCALE;
-  
-  // Calculate ground spread
-  const groundSpreadRadius = legStartRadius + legStartY * Math.tan(legSpreadRad);
-  
-  for (let i = 0; i < legCount; i++) {
-    const angle = i * legAngleStep;
-    
-    const startX = Math.cos(angle) * legStartRadius;
-    const startZ = Math.sin(angle) * legStartRadius;
-    const startPoint = new THREE.Vector3(startX, legStartY, startZ);
-    
-    const endX = Math.cos(angle) * groundSpreadRadius;
-    const endZ = Math.sin(angle) * groundSpreadRadius;
-    const endPoint = new THREE.Vector3(endX, 0, endZ);
-    
-    const legGeom = generateLeg(
-      startPoint,
-      endPoint,
-      params.legThickness,
-      params.legTaper,
-      params.legProfile
-    );
-    
-    if (legGeom.getAttribute('position')?.count > 0) {
-      geometries.push(legGeom);
-    }
-  }
-  
-  return mergeGeometries(geometries);
-}
-
-// ============================================
-// RIBBED PEDESTAL - Brut lamp inspired
-// ============================================
-export function generateRibbedPedestal(params: ParametricStandParams): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
-  
-  const standHeight = params.height * SCALE;
-  const cradleY = standHeight;
-  const cradleDepth = params.socketCradleDepth;
-  
-  // 1. Socket cradle at top
-  geometries.push(generateSocketCradle(params.socketSize, cradleDepth, cradleY - cradleDepth * SCALE));
-  
-  // 2. Ribbed cylinder body
-  const pedestalRadius = (params.pedestalDiameter / 2) * SCALE;
-  const pedestalHeight = standHeight - cradleDepth * SCALE;
-  const ribCount = params.ribCount;
-  const ribDepth = params.ribDepth * SCALE;
-  const baseFlare = params.baseFlare;
-  
-  // Create ribbed profile using lathe geometry
-  const points: THREE.Vector2[] = [];
-  const ribSegments = 32;
-  
-  for (let i = 0; i <= ribSegments; i++) {
-    const t = i / ribSegments;
-    const y = t * pedestalHeight;
-    
-    // Base radius with flare at bottom
-    let radius = pedestalRadius;
-    if (baseFlare > 0) {
-      const flareT = 1 - t;
-      radius += flareT * flareT * baseFlare * pedestalRadius * 0.3;
-    }
-    
-    points.push(new THREE.Vector2(radius, y));
-  }
-  
-  const latheGeom = new THREE.LatheGeometry(points, ribCount * 2);
-  
-  // Apply rib pattern by modifying vertices
-  const positions = latheGeom.getAttribute('position');
-  
-  for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i);
-    const y = positions.getY(i);
-    const z = positions.getZ(i);
-    
-    const angle = Math.atan2(z, x);
-    const ribPhase = angle * ribCount;
-    const ribFactor = (Math.sin(ribPhase) + 1) / 2; // 0-1
-    
-    const currentRadius = Math.sqrt(x * x + z * z);
-    const newRadius = currentRadius - ribDepth * ribFactor;
-    
-    const newX = Math.cos(angle) * newRadius;
-    const newZ = Math.sin(angle) * newRadius;
-    
-    positions.setXYZ(i, newX, y, newZ);
-  }
-  
-  positions.needsUpdate = true;
-  latheGeom.computeVertexNormals();
-  geometries.push(latheGeom);
-  
-  // 3. Solid base disc
-  const baseRadius = pedestalRadius * (1 + baseFlare * 0.3);
-  const baseGeom = new THREE.CylinderGeometry(baseRadius, baseRadius * 1.05, 4 * SCALE, 32);
-  baseGeom.translate(0, 2 * SCALE, 0);
+  baseGeom.translate(0, baseThickness / 2, 0);
   geometries.push(baseGeom);
   
+  // 2. Straight column (no taper, no curves - just functional)
+  const columnHeight = standHeight - baseThickness;
+  const columnGeom = new THREE.CylinderGeometry(
+    columnDiameter / 2,
+    columnDiameter / 2,
+    columnHeight,
+    24
+  );
+  columnGeom.translate(0, baseThickness + columnHeight / 2, 0);
+  geometries.push(columnGeom);
+  
+  // 3. Socket connector at top
+  geometries.push(generateSocketConnector(connectorDiameter, standHeight));
+  
+  // 4. Wire channel (internal, not visible in final print)
+  if (params.showWire) {
+    geometries.push(generateWireChannel(0, standHeight));
+  }
+  
   return mergeGeometries(geometries);
 }
 
 // ============================================
-// PENDANT - Ceiling hung with cord
+// 2. DISC BASE + ROD (Wooj-style)
+// Graphic base disc with thin vertical rod
 // ============================================
-export function generatePendant(params: ParametricStandParams): THREE.BufferGeometry {
+function generateDiscBaseStand(
+  params: ConstrainedStandParams,
+  shade: ShadeGeometry
+): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
+  const dims = calculateStandDimensions(shade, params);
   
-  const cradleDepth = params.socketCradleDepth;
-  const canopyRadius = (params.canopyDiameter / 2) * SCALE;
-  const cordRadius = 3 * SCALE;
-  const cordLength = params.cordLength * SCALE;
+  const standHeight = params.overallHeight * SCALE;
+  const baseDiameter = dims.baseDiameter * SCALE;
+  const baseThickness = dims.baseThickness * SCALE;
+  const rodDiameter = params.rodThickness * SCALE;
+  const connectorDiameter = dims.connectorDiameter;
   
-  // Position: canopy at top, cradle at bottom
-  const canopyY = cordLength + 15 * SCALE;
-  const cradleY = 0;
+  // 1. Heavy disc base (weighted for stability)
+  const discGeom = new THREE.CylinderGeometry(
+    baseDiameter / 2,
+    baseDiameter / 2,
+    baseThickness,
+    48
+  );
+  discGeom.translate(0, baseThickness / 2, 0);
+  geometries.push(discGeom);
   
-  // 1. Canopy dome at ceiling
+  // 2. Thin centered rod
+  const rodHeight = standHeight - baseThickness;
+  const rodGeom = new THREE.CylinderGeometry(
+    rodDiameter / 2,
+    rodDiameter / 2,
+    rodHeight,
+    16
+  );
+  rodGeom.translate(0, baseThickness + rodHeight / 2, 0);
+  geometries.push(rodGeom);
+  
+  // 3. Small transition disc at top (rod to connector)
+  const transitionDiameter = rodDiameter * 2;
+  const transitionGeom = new THREE.CylinderGeometry(
+    transitionDiameter / 2,
+    rodDiameter / 2,
+    8 * SCALE,
+    16
+  );
+  transitionGeom.translate(0, standHeight - 4 * SCALE, 0);
+  geometries.push(transitionGeom);
+  
+  // 4. Socket connector at top
+  geometries.push(generateSocketConnector(connectorDiameter, standHeight));
+  
+  return mergeGeometries(geometries);
+}
+
+// ============================================
+// 3. TRIPOD STAND
+// Three identical legs, central hub
+// Fixed angles 15-25°, all legs identical
+// ============================================
+function generateTripodStand(
+  params: ConstrainedStandParams,
+  shade: ShadeGeometry
+): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  const dims = calculateStandDimensions(shade, params);
+  
+  const standHeight = params.overallHeight * SCALE;
+  const legAngle = dims.legAngle;
+  const legThickness = params.legThickness * SCALE;
+  const connectorDiameter = dims.connectorDiameter;
+  
+  // Central hub at top
+  const hubRadius = connectorDiameter / 2 * SCALE + 5 * SCALE;
+  const hubHeight = 12 * SCALE;
+  const hubGeom = new THREE.CylinderGeometry(hubRadius, hubRadius * 0.8, hubHeight, 24);
+  hubGeom.translate(0, standHeight - hubHeight / 2, 0);
+  geometries.push(hubGeom);
+  
+  // Socket connector at top
+  geometries.push(generateSocketConnector(connectorDiameter, standHeight));
+  
+  // 3 identical legs
+  const legCount = 3;
+  const legAngleRad = (legAngle * Math.PI) / 180;
+  
+  for (let i = 0; i < legCount; i++) {
+    const rotationAngle = (i / legCount) * Math.PI * 2;
+    
+    // Leg start at hub edge
+    const startRadius = hubRadius * 0.9;
+    const startY = standHeight - hubHeight;
+    const startX = Math.cos(rotationAngle) * startRadius;
+    const startZ = Math.sin(rotationAngle) * startRadius;
+    
+    // Leg end at ground (spread outward)
+    const footSpread = startRadius + startY * Math.tan(legAngleRad);
+    const endX = Math.cos(rotationAngle) * footSpread;
+    const endZ = Math.sin(rotationAngle) * footSpread;
+    
+    // Create leg as tube
+    const path = new THREE.LineCurve3(
+      new THREE.Vector3(startX, startY, startZ),
+      new THREE.Vector3(endX, 0, endZ)
+    );
+    
+    const legGeom = new THREE.TubeGeometry(path, 8, legThickness / 2, 12, false);
+    geometries.push(legGeom);
+    
+    // Foot pad (small sphere at base)
+    const footGeom = new THREE.SphereGeometry(legThickness * 0.8, 12, 8);
+    footGeom.translate(endX, legThickness * 0.3, endZ);
+    geometries.push(footGeom);
+  }
+  
+  // Central wire channel
+  if (params.showWire) {
+    geometries.push(generateWireChannel(0, standHeight));
+  }
+  
+  return mergeGeometries(geometries);
+}
+
+// ============================================
+// 4. PENDANT (Ceiling mounted)
+// No stand - just canopy and cable
+// ============================================
+function generatePendantStand(
+  params: ConstrainedStandParams,
+  shade: ShadeGeometry
+): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  const dims = calculateStandDimensions(shade, params);
+  
+  const cableLength = params.cableLength * SCALE;
+  const cableRadius = dims.cableRadius * SCALE;
+  const canopyMultiplier = { small: 0.6, medium: 0.8, large: 1.0 }[params.canopySize];
+  const canopyDiameter = shade.maxDiameter * 0.4 * canopyMultiplier * SCALE;
+  const connectorDiameter = dims.connectorDiameter;
+  
+  // Position: canopy at top, shade connector at bottom
+  const canopyY = cableLength + 20 * SCALE;
+  const connectorY = 0;
+  
+  // 1. Ceiling canopy (dome)
   const canopyGeom = new THREE.SphereGeometry(
-    canopyRadius,
+    canopyDiameter / 2,
     24, 12,
     0, Math.PI * 2,
     0, Math.PI / 2
   );
-  canopyGeom.scale(1, 0.4, 1);
+  canopyGeom.scale(1, 0.35, 1);
   canopyGeom.translate(0, canopyY, 0);
   geometries.push(canopyGeom);
   
-  // 2. Cord
-  const cordGeom = new THREE.CylinderGeometry(cordRadius, cordRadius, cordLength, 8);
-  cordGeom.translate(0, canopyY - cordLength / 2, 0);
-  geometries.push(cordGeom);
+  // 2. Cable (centered, always)
+  const cableGeom = new THREE.CylinderGeometry(
+    cableRadius,
+    cableRadius,
+    cableLength,
+    12
+  );
+  cableGeom.translate(0, canopyY - cableLength / 2, 0);
+  geometries.push(cableGeom);
   
-  // 3. Socket cradle at bottom (hanging down)
-  geometries.push(generateSocketCradle(params.socketSize, cradleDepth, cradleY));
+  // 3. Strain relief at cable end
+  const reliefGeom = new THREE.CylinderGeometry(
+    cableRadius * 2,
+    cableRadius * 1.5,
+    10 * SCALE,
+    12
+  );
+  reliefGeom.translate(0, connectorY + 10 * SCALE, 0);
+  geometries.push(reliefGeom);
   
-  // 4. Connection disc between cord and cradle
-  const socketRadius = (params.socketSize / 2 + socketCradleSpecs.wallThickness) * SCALE;
-  const discGeom = new THREE.CylinderGeometry(socketRadius, socketRadius, 5 * SCALE, 32);
-  discGeom.translate(0, cradleY + cradleDepth * SCALE + 2.5 * SCALE, 0);
-  geometries.push(discGeom);
-  
-  return mergeGeometries(geometries);
-}
-
-// ============================================
-// WALL PLATE - Wall mounted with arm
-// ============================================
-export function generateWallPlate(params: ParametricStandParams): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
-  
-  const plateWidth = params.plateWidth * SCALE;
-  const plateHeight = params.plateHeight * SCALE;
-  const plateThickness = 8 * SCALE;
-  const armLength = params.armLength * SCALE;
-  const armAngle = (params.armAngle * Math.PI) / 180;
-  const armRadius = 6 * SCALE;
-  const cradleDepth = params.socketCradleDepth;
-  
-  // 1. Wall backplate (rounded rectangle)
-  const backplateGeom = new THREE.BoxGeometry(plateWidth, plateHeight, plateThickness);
-  backplateGeom.translate(0, plateHeight / 2, -plateThickness / 2);
-  geometries.push(backplateGeom);
-  
-  // 2. Arm extending from wall
-  const armStartY = plateHeight / 2;
-  const armEndY = armStartY + Math.sin(armAngle) * armLength;
-  const armEndZ = Math.cos(armAngle) * armLength;
-  
-  const armGeom = new THREE.CylinderGeometry(armRadius, armRadius * 0.9, armLength, 16);
-  armGeom.rotateX(Math.PI / 2 - armAngle);
-  armGeom.translate(0, armStartY + (armEndY - armStartY) / 2, armEndZ / 2);
-  geometries.push(armGeom);
-  
-  // 3. Socket cradle at end of arm
-  const cradleGeom = generateSocketCradle(params.socketSize, cradleDepth, armEndY);
-  cradleGeom.translate(0, 0, armEndZ);
-  geometries.push(cradleGeom);
+  // 4. Socket connector at bottom
+  geometries.push(generateSocketConnector(connectorDiameter, connectorY));
   
   return mergeGeometries(geometries);
 }
 
 // ============================================
-// FLAT BACK - Object sits flat against wall
+// MAIN GENERATOR (NEW API)
 // ============================================
-export function generateFlatBack(params: ParametricStandParams): THREE.BufferGeometry {
-  // For flat back, we just generate a mounting disc
-  // The object itself should have a flat back
-  const discRadius = (params.socketSize / 2 + 10) * SCALE;
-  const discThickness = 5 * SCALE;
+export function generateConstrainedStandGeometry(
+  params: ConstrainedStandParams,
+  shade: ShadeGeometry
+): THREE.BufferGeometry {
+  if (!params.enabled) {
+    return new THREE.BufferGeometry();
+  }
   
-  const discGeom = new THREE.CylinderGeometry(discRadius, discRadius, discThickness, 32);
-  discGeom.rotateX(Math.PI / 2);
-  discGeom.translate(0, discRadius, -discThickness / 2);
-  
-  return discGeom;
+  switch (params.archetype) {
+    case 'column':
+      return generateColumnStand(params, shade);
+    case 'disc_base':
+      return generateDiscBaseStand(params, shade);
+    case 'tripod':
+      return generateTripodStand(params, shade);
+    case 'pendant':
+      return generatePendantStand(params, shade);
+    default:
+      return new THREE.BufferGeometry();
+  }
 }
 
 // ============================================
-// MAIN GENERATOR
+// LEGACY API (for backward compatibility)
 // ============================================
 export function generateParametricStandGeometry(params: ParametricStandParams): THREE.BufferGeometry {
   if (!params.enabled) {
     return new THREE.BufferGeometry();
   }
   
-  switch (params.mountType) {
-    case 'tripod':
-      return generateTripodStand(params);
-    case 'ribbed_pedestal':
-      return generateRibbedPedestal(params);
-    case 'pendant':
-      return generatePendant(params);
-    case 'wall_plate':
-      return generateWallPlate(params);
-    case 'flat_back':
-      return generateFlatBack(params);
-    default:
-      return new THREE.BufferGeometry();
-  }
+  // Convert legacy params to new format
+  const archetypeMap: Record<string, 'column' | 'disc_base' | 'tripod' | 'pendant'> = {
+    'tripod': 'tripod',
+    'ribbed_pedestal': 'column',
+    'pendant': 'pendant',
+    'wall_plate': 'disc_base',
+    'flat_back': 'disc_base',
+    'column': 'column',
+    'disc_base': 'disc_base',
+  };
+  
+  const newParams: ConstrainedStandParams = {
+    enabled: params.enabled,
+    archetype: archetypeMap[params.mountType] || 'disc_base',
+    overallHeight: params.height,
+    baseSize: 'medium',
+    columnThickness: 'standard',
+    rodThickness: 10,
+    footSpread: 'medium',
+    legThickness: params.legThickness,
+    cableLength: params.cordLength,
+    canopySize: 'medium',
+    socketType: params.socketType,
+    bulbShape: params.bulbShape,
+    bulbWattage: params.bulbWattage,
+    showHardwarePreview: params.showHardwarePreview,
+    showHeatZone: params.showHeatZone,
+    showWire: false,
+  };
+  
+  const shade: ShadeGeometry = {
+    maxDiameter: params.socketSize * 2.5,
+    height: params.height,
+    rimSize: params.socketSize,
+  };
+  
+  return generateConstrainedStandGeometry(newParams, shade);
 }
 
-// Get socket cradle depth for positioning calculations
 export function getSocketCradleDepth(params: ParametricStandParams): number {
-  return params.socketCradleDepth;
+  return params.socketCradleDepth || 5;
 }
 
 // ============================================
