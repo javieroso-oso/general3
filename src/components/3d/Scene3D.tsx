@@ -1,13 +1,13 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera, Grid } from '@react-three/drei';
-import { Suspense, useMemo } from 'react';
+import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
 import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
 import SocketMesh from './SocketMesh';
 import BulbMesh from './BulbMesh';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
-import { ConstrainedStandParams, ShadeGeometry, toLegacyParams } from '@/types/stand';
+import { ParametricStandParams } from '@/types/stand';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -18,7 +18,7 @@ interface Scene3DProps {
   gcodeLayer?: number;
   gcodeShowAll?: boolean;
   gcodeAnimate?: boolean;
-  standParams?: ConstrainedStandParams;
+  standParams?: ParametricStandParams;
 }
 
 const defaultSettings: PrintSettings = {
@@ -46,28 +46,27 @@ const Scene3D = ({
 }: Scene3DProps) => {
   const standVisible = standParams?.enabled;
   
-  // Derive shade geometry from object params
-  const shadeGeometry: ShadeGeometry = useMemo(() => ({
-    maxDiameter: Math.max(params.baseRadius, params.topRadius) * 2,
-    height: params.height,
-    rimSize: params.rimSize,
-  }), [params.baseRadius, params.topRadius, params.height, params.rimSize]);
+  // Position calculations:
+  // - Stand base sits at y=0 (ground)
+  // - Stand socket cradle top is at y=standHeight
+  // - Object's collar (y=0 to y=-collarHeight) needs to sit IN the cradle
+  // - Object position: collar bottom at (standHeight - cradleDepth)
   
-  // Convert to legacy params for existing stand mesh
-  const legacyStandParams = useMemo(() => 
-    standParams ? toLegacyParams(standParams, shadeGeometry) : null
-  , [standParams, shadeGeometry]);
-  
-  const standHeight = standParams?.overallHeight ?? 120;
-  const cradleDepth = 5; // Fixed connector depth
+  const standHeight = standParams?.height ?? 120;
+  const cradleDepth = standParams?.socketCradleDepth ?? 5;
   const collarHeight = params.hasRimCollar ? params.rimHeight : 0;
   
+  // When stand enabled: position object so its collar sits into the cradle
+  // Collar goes from y=0 to y=-collarHeight relative to object origin
+  // We want collar bottom (y=-collarHeight) to be at (standHeight - cradleDepth)
+  // So object origin should be at: standHeight - cradleDepth + collarHeight
   const objectYOffset = standVisible 
     ? (standHeight - cradleDepth + collarHeight) * SCALE
-    : collarHeight * SCALE;
+    : collarHeight * SCALE; // Without stand, collar bottom at y=0
   
+  // Hardware positioning (socket sits at top of stand, inside cradle)
   const showHardware = type === 'lamp' && standVisible && standParams?.showHardwarePreview;
-  const socketMountingHeight = standHeight;
+  const socketMountingHeight = standHeight; // Top of stand
   
   return (
     <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-secondary/30 to-secondary/60">
@@ -99,9 +98,9 @@ const Scene3D = ({
           {viewMode === 'model' ? (
             <group>
               {/* Stand (base at y=0) */}
-              {standVisible && legacyStandParams && (
+              {standVisible && standParams && (
                 <StandMesh
-                  params={legacyStandParams}
+                  params={standParams}
                   showWireframe={showWireframe}
                 />
               )}

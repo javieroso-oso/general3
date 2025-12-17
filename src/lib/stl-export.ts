@@ -447,38 +447,14 @@ export function downloadGCode(
 export { downloadStandSTL } from './lamp-stl-export';
 
 // Export parametric stand to STL
-import { ParametricStandParams, ConstrainedStandParams, ShadeGeometry, defaultShadeGeometry } from '@/types/stand';
-import { generateParametricStandGeometry, generateConstrainedStandGeometry } from './parametric-stand-generators';
+import { ParametricStandParams } from '@/types/stand';
+import { generateParametricStandGeometry } from './parametric-stand-generators';
 
 export function downloadParametricStandSTL(
   params: ParametricStandParams,
   filename: string = 'stand.stl'
 ): void {
   const geometry = generateParametricStandGeometry(params);
-  const mesh = new THREE.Mesh(geometry);
-  
-  const exporter = new STLExporter();
-  const result = exporter.parse(mesh);
-  
-  const blob = new Blob([result], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  URL.revokeObjectURL(url);
-}
-
-export function downloadConstrainedStandSTL(
-  params: ConstrainedStandParams,
-  shade: ShadeGeometry = defaultShadeGeometry,
-  filename: string = 'stand.stl'
-): void {
-  const geometry = generateConstrainedStandGeometry(params, shade);
   const mesh = new THREE.Mesh(geometry);
   
   const exporter = new STLExporter();

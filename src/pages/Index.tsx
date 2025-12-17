@@ -18,12 +18,10 @@ import {
   analyzePrint,
 } from '@/types/parametric';
 import { 
-  ConstrainedStandParams,
-  defaultConstrainedStandParams,
-  ShadeGeometry,
-  getStandProductName,
+  ParametricStandParams, 
+  defaultParametricStandParams 
 } from '@/types/stand';
-import { downloadSTL, downloadGCode, downloadConstrainedStandSTL } from '@/lib/stl-export';
+import { downloadSTL, downloadGCode, downloadParametricStandSTL } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, Footprints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,32 +38,35 @@ const Index = () => {
   const [gcodeLayer, setGcodeLayer] = useState(0);
   const [gcodeShowAll, setGcodeShowAll] = useState(true);
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
-  const [standParams, setStandParams] = useState<ConstrainedStandParams>(defaultConstrainedStandParams);
-
-  // Derive shade geometry from object params for auto-sizing
-  const shadeGeometry: ShadeGeometry = useMemo(() => ({
-    maxDiameter: Math.max(params.baseRadius, params.topRadius) * 2,
-    height: params.height,
-    rimSize: params.rimSize,
-  }), [params.baseRadius, params.topRadius, params.height, params.rimSize]);
+  const [standParams, setStandParams] = useState<ParametricStandParams>(defaultParametricStandParams);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
     const newParams = defaultParams[type];
     setParams(newParams);
+    // Auto-sync stand socket size with new object rim
+    setStandParams(prev => ({ ...prev, socketSize: newParams.rimSize }));
   };
 
+  // Auto-sync stand socket size when object rim changes
   const handleParamsChange = (newParams: ParametricParams) => {
     setParams(newParams);
+    // Keep stand socket synced with object rim
+    if (standParams.enabled && newParams.rimSize !== standParams.socketSize) {
+      setStandParams(prev => ({ ...prev, socketSize: newParams.rimSize }));
+    }
   };
 
-  // Handle stand param changes
-  const handleStandChange = (newStandParams: ConstrainedStandParams) => {
+  // Auto-sync socket when enabling stand
+  const handleStandChange = (newStandParams: ParametricStandParams) => {
     if (newStandParams.enabled && !standParams.enabled) {
-      // Just enabled - auto-enable rim collar on object
+      // Just enabled - sync socket size and enable rim collar on object
+      setStandParams({ ...newStandParams, socketSize: params.rimSize });
+      // Auto-enable rim collar on object
       setParams(prev => ({ ...prev, hasRimCollar: true }));
+    } else {
+      setStandParams(newStandParams);
     }
-    setStandParams(newStandParams);
   };
 
   const analysis = useMemo(() => 
@@ -107,14 +108,19 @@ const Index = () => {
       return;
     }
     
-    const productName = getStandProductName(standParams.archetype);
-    const filename = `${productName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.stl`;
+    if (standParams.socketSize !== params.rimSize) {
+      toast.warning('Stand socket size differs from object rim size', {
+        description: 'The parts may not fit together perfectly.',
+      });
+    }
     
-    downloadConstrainedStandSTL(standParams, shadeGeometry, filename);
+    const filename = `stand_${standParams.mountType}_${standParams.socketSize}mm_${Date.now()}.stl`;
+    
+    downloadParametricStandSTL(standParams, filename);
     toast.success('Stand STL exported!', {
       description: filename,
     });
-  }, [standParams, shadeGeometry]);
+  }, [standParams, params.rimSize]);
 
   return (
     <Layout showFooter={false}>
@@ -166,7 +172,7 @@ const Index = () => {
               <TabsContent value="stand" className="mt-0 space-y-4">
                 <ParametricStandControls
                   params={standParams}
-                  shadeGeometry={shadeGeometry}
+                  objectRimSize={params.rimSize}
                   objectType={objectType}
                   onChange={handleStandChange}
                 />
