@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -73,6 +73,17 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   const handleOverhangMapToggle = (enabled: boolean) => {
     onParamsChange({ ...params, showOverhangMap: enabled });
   };
+  
+  const handleLegsToggle = (enabled: boolean) => {
+    onParamsChange({ ...params, addLegs: enabled });
+    if (enabled) {
+      toast.success('Legs enabled');
+    }
+  };
+  
+  const handleLegCountChange = (count: 3 | 4) => {
+    onParamsChange({ ...params, legCount: count });
+  };
 
   return (
     <motion.div
@@ -81,6 +92,80 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       transition={{ duration: 0.3 }}
       className="space-y-3"
     >
+      {/* Legs Toggle */}
+      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Footprints className={cn("w-4 h-4", params.addLegs ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="add-legs" className="text-sm font-medium">Add Legs</Label>
+          </div>
+          <Switch 
+            id="add-legs" 
+            checked={params.addLegs} 
+            onCheckedChange={handleLegsToggle}
+          />
+        </div>
+        
+        {params.addLegs && (
+          <div className="space-y-3 pt-2 border-t border-border/50">
+            <div className="flex gap-2">
+              <Button
+                variant={params.legCount === 3 ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1"
+                onClick={() => handleLegCountChange(3)}
+              >
+                3 Legs
+              </Button>
+              <Button
+                variant={params.legCount === 4 ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1"
+                onClick={() => handleLegCountChange(4)}
+              >
+                4 Legs
+              </Button>
+            </div>
+            
+            <ParameterSlider
+              label="Leg Height"
+              value={params.legHeight}
+              min={30}
+              max={200}
+              step={5}
+              unit="mm"
+              onChange={handleChange('legHeight')}
+            />
+            <ParameterSlider
+              label="Leg Spread"
+              value={params.legSpread}
+              min={15}
+              max={45}
+              step={1}
+              unit="°"
+              onChange={handleChange('legSpread')}
+            />
+            <ParameterSlider
+              label="Leg Thickness"
+              value={params.legThickness}
+              min={3}
+              max={10}
+              step={0.5}
+              unit="mm"
+              onChange={handleChange('legThickness')}
+            />
+            <ParameterSlider
+              label="Leg Taper"
+              value={params.legTaper}
+              min={0}
+              max={0.8}
+              step={0.1}
+              onChange={handleChange('legTaper')}
+            />
+          </div>
+        )}
+      </div>
+      
       {/* Support-Free Mode Toggle */}
       <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
