@@ -29,6 +29,16 @@ const defaultSettings: PrintSettings = {
   material: 'PLA',
   supportEnabled: false,
   brimWidth: 5,
+  printMode: 'standard',
+  spiralVase: false,
+  nonPlanar: {
+    maxZAngle: 30,
+    curvedLayers: false,
+    topSurfaceOptimized: false,
+    adaptiveLayerHeight: false,
+    minLayerHeight: 0.1,
+    maxLayerHeight: 0.3,
+  },
 };
 
 const SCALE = 0.01; // mm to scene units
