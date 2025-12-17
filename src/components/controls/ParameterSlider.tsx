@@ -1,5 +1,6 @@
 import { Slider } from '@/components/ui/slider';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface ParameterSliderProps {
   label: string;
@@ -9,6 +10,7 @@ interface ParameterSliderProps {
   step: number;
   unit?: string;
   onChange: (value: number) => void;
+  constrained?: boolean;
 }
 
 const ParameterSlider = ({
@@ -19,6 +21,7 @@ const ParameterSlider = ({
   step,
   unit = '',
   onChange,
+  constrained = false,
 }: ParameterSliderProps) => {
   return (
     <motion.div
@@ -27,8 +30,12 @@ const ParameterSlider = ({
       className="space-y-3"
     >
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-text-secondary">
+        <label className={cn(
+          "text-sm font-medium",
+          constrained ? "text-amber-600" : "text-text-secondary"
+        )}>
           {label}
+          {constrained && <span className="ml-1 text-xs">(limited)</span>}
         </label>
         <span className="text-sm font-semibold text-foreground tabular-nums">
           {value.toFixed(step < 1 ? 2 : 0)}{unit}
@@ -40,7 +47,7 @@ const ParameterSlider = ({
         max={max}
         step={step}
         onValueChange={([val]) => onChange(val)}
-        className="cursor-pointer"
+        className={cn("cursor-pointer", constrained && "opacity-80")}
       />
     </motion.div>
   );

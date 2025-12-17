@@ -82,7 +82,11 @@ const PrintAnalysisPanel = ({ analysis, settings }: PrintAnalysisPanelProps) => 
       {/* Status */}
       <div className={cn(
         "flex items-center gap-3 p-4 rounded-xl",
-        analysis.isValid ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-destructive/10 border border-destructive/30"
+        analysis.guaranteedSupportFree 
+          ? "bg-emerald-500/15 border border-emerald-500/40"
+          : analysis.isValid 
+            ? "bg-emerald-500/10 border border-emerald-500/30" 
+            : "bg-destructive/10 border border-destructive/30"
       )}>
         {analysis.isValid ? (
           <CheckCircle className="w-6 h-6 text-emerald-500" />
@@ -94,12 +98,18 @@ const PrintAnalysisPanel = ({ analysis, settings }: PrintAnalysisPanelProps) => 
             "font-semibold",
             analysis.isValid ? "text-emerald-600" : "text-destructive"
           )}>
-            {analysis.isValid ? "Ready to Print" : "Issues Detected"}
+            {analysis.guaranteedSupportFree 
+              ? "Support-Free Guaranteed" 
+              : analysis.isValid 
+                ? "Ready to Print" 
+                : "Issues Detected"}
           </p>
           <p className="text-sm text-text-muted">
-            {analysis.warnings.length === 0 
-              ? "All parameters within printable limits"
-              : `${analysis.warnings.filter(w => w.type === 'error').length} errors, ${analysis.warnings.filter(w => w.type === 'warning').length} warnings`
+            {analysis.guaranteedSupportFree
+              ? "No supports needed - all overhangs ≤45°"
+              : analysis.warnings.length === 0 
+                ? "All parameters within printable limits"
+                : `${analysis.warnings.filter(w => w.type === 'error').length} errors, ${analysis.warnings.filter(w => w.type === 'warning').length} warnings`
             }
           </p>
         </div>

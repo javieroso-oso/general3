@@ -49,6 +49,10 @@ export interface ParametricParams {
   // Base for printing
   baseThickness: number;
   baseType: 'flat' | 'rounded' | 'pedestal';
+  
+  // Support-free printing mode
+  supportFreeMode: boolean;
+  showOverhangMap: boolean;
 }
 
 // Stand types for modular stand system
@@ -103,6 +107,7 @@ export interface PrintAnalysis {
   baseContactArea: number;    // mm²
   centerOfMass: { x: number; y: number; z: number };
   needsSupport: boolean;
+  guaranteedSupportFree: boolean;  // true when supportFreeMode is on and constraints met
 }
 
 export interface PrintWarning {
@@ -174,6 +179,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 1,
     baseThickness: 2.0,
     baseType: 'flat',
+    supportFreeMode: false,
+    showOverhangMap: false,
   },
   lamp: {
     height: 100,
@@ -198,6 +205,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 1,
     baseThickness: 2.4,
     baseType: 'flat',
+    supportFreeMode: false,
+    showOverhangMap: false,
   },
   sculpture: {
     height: 150,
@@ -222,6 +231,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 2,
     baseThickness: 3.0,
     baseType: 'pedestal',
+    supportFreeMode: false,
+    showOverhangMap: false,
   },
 };
 
@@ -314,6 +325,9 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
   
   const isValid = !warnings.some(w => w.type === 'error');
   
+  // Check if support-free mode guarantees no supports needed
+  const guaranteedSupportFree = params.supportFreeMode && maxOverhang <= printConstraints.maxOverhangAngle;
+  
   return {
     isValid,
     warnings,
@@ -326,6 +340,7 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     baseContactArea: baseArea,
     centerOfMass: { x: 0, y: params.height * 0.4, z: 0 },
     needsSupport,
+    guaranteedSupportFree,
   };
 }
 

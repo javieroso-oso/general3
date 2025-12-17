@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints, rimCollarSpecs } from '@/types/parametric';
+import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -60,7 +61,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
   const wireRef = useRef<THREE.LineSegments>(null);
   const collarRef = useRef<THREE.Mesh>(null);
 
-  const { bodyGeometry, wireframeGeo, collarGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, collarGeometry, overhangColors } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -206,6 +207,13 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     bodyGeo.setIndex(indices);
     bodyGeo.computeVertexNormals();
+    
+    // Generate overhang colors if enabled
+    let overhangColorArray: Float32Array | null = null;
+    if (params.showOverhangMap) {
+      overhangColorArray = getOverhangVertexColors(params, heightSegments, segments);
+      bodyGeo.setAttribute('color', new THREE.Float32BufferAttribute(overhangColorArray, 3));
+    }
 
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
@@ -224,7 +232,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       collarGeo.translate(0, -collarHeight / 2, 0);
     }
 
-    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, collarGeometry: collarGeo };
+    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, collarGeometry: collarGeo, overhangColors: overhangColorArray };
   }, [params, type]);
 
   useFrame((state) => {
@@ -254,7 +262,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       {/* Organic body (starts at y=0, goes up) */}
       <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
-          color="#e8e8e8"
+          color={params.showOverhangMap ? "#ffffff" : "#e8e8e8"}
+          vertexColors={params.showOverhangMap}
           roughness={0.55}
           metalness={0.05}
           side={THREE.DoubleSide}
