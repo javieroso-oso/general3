@@ -1,16 +1,5 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
-// Standard rim collar sizes in mm (visible collar at object base)
-export type RimSize = 60 | 80 | 100 | 120;
-export const rimSizes: RimSize[] = [60, 80, 100, 120];
-
-// Rim collar specifications
-export const rimCollarSpecs = {
-  height: 8,            // mm - collar height
-  wallThickness: 3,     // mm - collar wall thickness
-  clearance: 0.5,       // mm - gap for socket cradle fit
-};
-
 export interface ParametricParams {
   // Basic dimensions (mm for printing)
   height: number;
@@ -18,10 +7,13 @@ export interface ParametricParams {
   topRadius: number;
   wallThickness: number;
   
-  // Visible rim collar for stand connection
-  rimSize: RimSize;           // Collar diameter (60, 80, 100, 120mm)
-  rimHeight: number;          // Collar height (default 8mm)
-  hasRimCollar: boolean;      // Enable/disable collar
+  // Integrated legs (extending from base)
+  addLegs: boolean;
+  legCount: 3 | 4;
+  legHeight: number;          // Stand height in mm
+  legSpread: number;          // Angle in degrees (15-45)
+  legThickness: number;       // Leg thickness in mm (4-8)
+  legTaper: number;           // Taper factor (0-1)
   
   // Organic deformations
   wobbleFrequency: number;
@@ -54,36 +46,6 @@ export interface ParametricParams {
   supportFreeMode: boolean;
   showOverhangMap: boolean;
 }
-
-// Stand types for modular stand system
-export type StandType = 'none' | 'tripod' | 'pendant' | 'wall_arm';
-
-export interface StandParams {
-  enabled: boolean;
-  type: StandType;
-  rimSize: RimSize;      // Must match object rimSize for compatibility
-  height: number;        // Stand height in mm
-  // Tripod-specific
-  legCount: 3 | 4;
-  legSpread: number;     // degrees
-  // Pendant-specific
-  cordLength: number;    // mm (visual only)
-  // Wall arm-specific
-  armLength: number;
-  armAngle: number;
-}
-
-export const defaultStandParams: StandParams = {
-  enabled: false,
-  type: 'none',
-  rimSize: 80,
-  height: 150,
-  legCount: 3,
-  legSpread: 30,
-  cordLength: 500,
-  armLength: 200,
-  armAngle: 15,
-};
 
 // Print modes
 export type PrintMode = 'standard' | 'vase_spiral' | 'non_planar';
@@ -186,14 +148,16 @@ export const printConstraints = {
 
 export const defaultParams: Record<ObjectType, ParametricParams> = {
   vase: {
-    height: 120,              // mm
-    baseRadius: 40,           // mm
-    topRadius: 35,            // mm
-    wallThickness: 2.0,       // mm
-    // Visible rim collar for stand connection
-    rimSize: 80,
-    rimHeight: 8,
-    hasRimCollar: false,
+    height: 120,
+    baseRadius: 40,
+    topRadius: 35,
+    wallThickness: 2.0,
+    addLegs: false,
+    legCount: 3,
+    legHeight: 80,
+    legSpread: 25,
+    legThickness: 5,
+    legTaper: 0.5,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -217,9 +181,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 30,
     topRadius: 60,
     wallThickness: 1.6,
-    rimSize: 80,
-    rimHeight: 8,
-    hasRimCollar: false,
+    addLegs: false,
+    legCount: 3,
+    legHeight: 100,
+    legSpread: 30,
+    legThickness: 4,
+    legTaper: 0.6,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -243,9 +210,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseRadius: 35,
     topRadius: 25,
     wallThickness: 3.0,
-    rimSize: 80,
-    rimHeight: 8,
-    hasRimCollar: false,
+    addLegs: false,
+    legCount: 4,
+    legHeight: 60,
+    legSpread: 20,
+    legThickness: 6,
+    legTaper: 0.4,
     wobbleFrequency: 3,
     wobbleAmplitude: 0.08,
     twistAngle: 30,

@@ -8,7 +8,6 @@ import ObjectTypeTabs from '@/components/controls/ObjectTypeTabs';
 import PrintAnalysisPanel from '@/components/controls/PrintAnalysisPanel';
 import PrintSettingsPanel from '@/components/controls/PrintSettingsPanel';
 import BatchGenerator from '@/components/controls/BatchGenerator';
-import ParametricStandControls from '@/components/controls/ParametricStandControls';
 import { 
   ParametricParams, 
   ObjectType, 
@@ -17,13 +16,9 @@ import {
   defaultPrintSettings,
   analyzePrint,
 } from '@/types/parametric';
-import { 
-  ParametricStandParams, 
-  defaultParametricStandParams 
-} from '@/types/stand';
-import { downloadSTL, downloadGCode, downloadParametricStandSTL } from '@/lib/stl-export';
+import { downloadSTL, downloadGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, Footprints } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -38,35 +33,10 @@ const Index = () => {
   const [gcodeLayer, setGcodeLayer] = useState(0);
   const [gcodeShowAll, setGcodeShowAll] = useState(true);
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
-  const [standParams, setStandParams] = useState<ParametricStandParams>(defaultParametricStandParams);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
-    const newParams = defaultParams[type];
-    setParams(newParams);
-    // Auto-sync stand socket size with new object rim
-    setStandParams(prev => ({ ...prev, socketSize: newParams.rimSize }));
-  };
-
-  // Auto-sync stand socket size when object rim changes
-  const handleParamsChange = (newParams: ParametricParams) => {
-    setParams(newParams);
-    // Keep stand socket synced with object rim
-    if (standParams.enabled && newParams.rimSize !== standParams.socketSize) {
-      setStandParams(prev => ({ ...prev, socketSize: newParams.rimSize }));
-    }
-  };
-
-  // Auto-sync socket when enabling stand
-  const handleStandChange = (newStandParams: ParametricStandParams) => {
-    if (newStandParams.enabled && !standParams.enabled) {
-      // Just enabled - sync socket size and enable rim collar on object
-      setStandParams({ ...newStandParams, socketSize: params.rimSize });
-      // Auto-enable rim collar on object
-      setParams(prev => ({ ...prev, hasRimCollar: true }));
-    } else {
-      setStandParams(newStandParams);
-    }
+    setParams(defaultParams[type]);
   };
 
   const analysis = useMemo(() => 
@@ -102,26 +72,6 @@ const Index = () => {
     });
   }, [params, objectType, printSettings, analysis.isValid]);
 
-  const handleExportStand = useCallback(() => {
-    if (!standParams.enabled) {
-      toast.error('No stand configured');
-      return;
-    }
-    
-    if (standParams.socketSize !== params.rimSize) {
-      toast.warning('Stand socket size differs from object rim size', {
-        description: 'The parts may not fit together perfectly.',
-      });
-    }
-    
-    const filename = `stand_${standParams.mountType}_${standParams.socketSize}mm_${Date.now()}.stl`;
-    
-    downloadParametricStandSTL(standParams, filename);
-    toast.success('Stand STL exported!', {
-      description: filename,
-    });
-  }, [standParams, params.rimSize]);
-
   return (
     <Layout showFooter={false}>
       <div className="h-[calc(100vh-4rem)] flex flex-col lg:flex-row">
@@ -138,14 +88,10 @@ const Index = () => {
 
           {/* Tabbed Controls */}
           <Tabs defaultValue="design" className="flex-1 flex flex-col">
-            <TabsList className="mx-4 mt-4 grid grid-cols-5">
+            <TabsList className="mx-4 mt-4 grid grid-cols-4">
               <TabsTrigger value="design" className="text-xs gap-1">
                 <Layers className="w-3 h-3" />
                 Design
-              </TabsTrigger>
-              <TabsTrigger value="stand" className="text-xs gap-1">
-                <Footprints className="w-3 h-3" />
-                Stand
               </TabsTrigger>
               <TabsTrigger value="print" className="text-xs gap-1">
                 <Settings2 className="w-3 h-3" />
@@ -165,16 +111,7 @@ const Index = () => {
                 <ParameterControls
                   params={params}
                   type={objectType}
-                  onParamsChange={handleParamsChange}
-                />
-              </TabsContent>
-
-              <TabsContent value="stand" className="mt-0 space-y-4">
-                <ParametricStandControls
-                  params={standParams}
-                  objectRimSize={params.rimSize}
-                  objectType={objectType}
-                  onChange={handleStandChange}
+                  onParamsChange={setParams}
                 />
               </TabsContent>
 
@@ -255,7 +192,6 @@ const Index = () => {
               gcodeLayer={gcodeLayer}
               gcodeShowAll={gcodeShowAll}
               gcodeAnimate={gcodeAnimate}
-              standParams={standParams}
             />
             
             {/* Dimensions overlay */}
@@ -263,6 +199,11 @@ const Index = () => {
               <div className="text-text-muted">
                 {params.height}mm × Ø{params.baseRadius * 2}mm
               </div>
+              {params.addLegs && (
+                <div className="text-primary mt-1">
+                  + {params.legHeight}mm legs
+                </div>
+              )}
               {viewMode === 'gcode' && (
                 <div className="text-primary mt-1">
                   Layer {gcodeAnimate ? '...' : gcodeLayer + 1} / {totalLayers}
@@ -324,19 +265,8 @@ const Index = () => {
               size="lg"
             >
               <Download className="w-5 h-5" />
-              Export Object
+              Export STL
             </Button>
-            {standParams.enabled && (
-              <Button 
-                onClick={handleExportStand} 
-                variant="outline"
-                className="gap-2"
-                size="lg"
-              >
-                <Footprints className="w-5 h-5" />
-                Export Stand
-              </Button>
-            )}
             <Button 
               onClick={handleExportGCode} 
               disabled={!analysis.isValid}

@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType, printConstraints, rimCollarSpecs } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
+import { generateLegs } from '@/lib/leg-generator';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -57,19 +58,14 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
 const SCALE = 0.01;
 
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const wireRef = useRef<THREE.LineSegments>(null);
-  const collarRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
 
-  const { bodyGeometry, wireframeGeo, collarGeometry, overhangColors } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors } = useMemo(() => {
     const {
       height,
       baseRadius,
       topRadius,
       wallThickness,
-      rimSize,
-      rimHeight,
-      hasRimCollar,
       wobbleFrequency,
       wobbleAmplitude,
       twistAngle,
@@ -83,6 +79,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       lipHeight,
       organicNoise,
       noiseScale,
+      addLegs,
+      legCount,
+      legHeight,
+      legSpread,
+      legThickness,
+      legTaper,
     } = params;
 
     // Scale to scene units
@@ -90,22 +92,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const bRad = baseRadius * SCALE;
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
-    
-    // Rim collar dimensions
-    const collarRadius = (rimSize / 2) * SCALE;
-    const collarHeight = rimHeight * SCALE;
 
     const segments = 64;
     const heightSegments = 64;
 
     const outerVerts: number[] = [];
-    
-    // Body starts at ground (collar is separate mesh)
-    const bodyStartY = 0;
-    
-    // Blend zone for smooth transition at base
-    const blendZoneHeight = 20 * SCALE;
-    const baseBlendRadius = hasRimCollar ? collarRadius : bRad;
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
@@ -171,13 +162,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // Seamless blend at the bottom - smooth transition from collar radius
-        if (hasRimCollar && y < blendZoneHeight) {
-          const blendT = y / blendZoneHeight;
-          const smoothBlend = blendT * blendT * (3 - 2 * blendT); // Hermite interpolation
-          r = collarRadius + (r - collarRadius) * smoothBlend;
-        }
-
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
 
@@ -218,49 +202,47 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Collar geometry (visible solid cylinder at base) - sits BELOW the body
-    let collarGeo: THREE.BufferGeometry | null = null;
-    if (hasRimCollar) {
-      // Collar sits below the organic body, creating a clean mounting point
-      collarGeo = new THREE.CylinderGeometry(
-        collarRadius,
-        collarRadius * 1.02, // Slightly wider at bottom for stability
-        collarHeight,
-        32
+    // Generate legs if enabled
+    let legGeo: THREE.BufferGeometry | null = null;
+    if (addLegs) {
+      const legGeoMM = generateLegs(
+        baseRadius,
+        legCount,
+        legHeight,
+        legSpread,
+        legThickness,
+        legTaper
       );
-      // Position collar so top aligns with body bottom (y=0)
-      collarGeo.translate(0, -collarHeight / 2, 0);
+      
+      // Scale leg geometry to scene units
+      legGeoMM.scale(SCALE, SCALE, SCALE);
+      legGeo = legGeoMM;
     }
 
-    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, collarGeometry: collarGeo, overhangColors: overhangColorArray };
+    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, legGeometry: legGeo, overhangColors: overhangColorArray };
   }, [params, type]);
 
   useFrame((state) => {
     const rotation = state.clock.elapsedTime * 0.05;
-    if (meshRef.current) meshRef.current.rotation.y = rotation;
-    if (wireRef.current) wireRef.current.rotation.y = rotation;
-    if (collarRef.current) collarRef.current.rotation.y = rotation;
+    if (groupRef.current) groupRef.current.rotation.y = rotation;
   });
 
-  // Collar height in scene units
-  const collarHeightScene = params.hasRimCollar ? params.rimHeight * SCALE : 0;
-  
   return (
-    <group>
-      {/* Visible rim collar at base (below body, y=0 to y=-collarHeight) */}
-      {collarGeometry && (
-        <mesh ref={collarRef} geometry={collarGeometry} castShadow receiveShadow>
+    <group ref={groupRef}>
+      {/* Legs (extend downward from base) */}
+      {legGeometry && (
+        <mesh geometry={legGeometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color="#c4c4c4"
-            roughness={0.35}
-            metalness={0.15}
+            color="#d4d4d4"
+            roughness={0.4}
+            metalness={0.1}
             side={THREE.DoubleSide}
           />
         </mesh>
       )}
       
       {/* Organic body (starts at y=0, goes up) */}
-      <mesh ref={meshRef} geometry={bodyGeometry} castShadow receiveShadow>
+      <mesh geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color={params.showOverhangMap ? "#ffffff" : "#e8e8e8"}
           vertexColors={params.showOverhangMap}
@@ -271,7 +253,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       </mesh>
       
       {showWireframe && (
-        <lineSegments ref={wireRef} geometry={wireframeGeo}>
+        <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
         </lineSegments>
       )}

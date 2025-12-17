@@ -2,12 +2,8 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera, Grid } from '@react-three/drei';
 import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
-import StandMesh from './StandMesh';
 import GCodePreview from './GCodePreview';
-import SocketMesh from './SocketMesh';
-import BulbMesh from './BulbMesh';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
-import { ParametricStandParams } from '@/types/stand';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -18,7 +14,6 @@ interface Scene3DProps {
   gcodeLayer?: number;
   gcodeShowAll?: boolean;
   gcodeAnimate?: boolean;
-  standParams?: ParametricStandParams;
 }
 
 const defaultSettings: PrintSettings = {
@@ -52,31 +47,10 @@ const Scene3D = ({
   gcodeLayer = 0,
   gcodeShowAll = true,
   gcodeAnimate = false,
-  standParams,
 }: Scene3DProps) => {
-  const standVisible = standParams?.enabled;
-  
-  // Position calculations:
-  // - Stand base sits at y=0 (ground)
-  // - Stand socket cradle top is at y=standHeight
-  // - Object's collar (y=0 to y=-collarHeight) needs to sit IN the cradle
-  // - Object position: collar bottom at (standHeight - cradleDepth)
-  
-  const standHeight = standParams?.height ?? 120;
-  const cradleDepth = standParams?.socketCradleDepth ?? 5;
-  const collarHeight = params.hasRimCollar ? params.rimHeight : 0;
-  
-  // When stand enabled: position object so its collar sits into the cradle
-  // Collar goes from y=0 to y=-collarHeight relative to object origin
-  // We want collar bottom (y=-collarHeight) to be at (standHeight - cradleDepth)
-  // So object origin should be at: standHeight - cradleDepth + collarHeight
-  const objectYOffset = standVisible 
-    ? (standHeight - cradleDepth + collarHeight) * SCALE
-    : collarHeight * SCALE; // Without stand, collar bottom at y=0
-  
-  // Hardware positioning (socket sits at top of stand, inside cradle)
-  const showHardware = type === 'lamp' && standVisible && standParams?.showHardwarePreview;
-  const socketMountingHeight = standHeight; // Top of stand
+  // When legs are enabled, lift the entire object so legs touch ground
+  const legHeight = params.addLegs ? params.legHeight : 0;
+  const objectYOffset = legHeight * SCALE;
   
   return (
     <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-secondary/30 to-secondary/60">
@@ -106,38 +80,8 @@ const Scene3D = ({
         
         <Suspense fallback={null}>
           {viewMode === 'model' ? (
-            <group>
-              {/* Stand (base at y=0) */}
-              {standVisible && standParams && (
-                <StandMesh
-                  params={standParams}
-                  showWireframe={showWireframe}
-                />
-              )}
-              
-              {/* Lamp hardware (socket and bulb) */}
-              {showHardware && standParams && (
-                <>
-                  <SocketMesh
-                    socketType={standParams.socketType}
-                    mountingHeight={socketMountingHeight}
-                    visible={true}
-                  />
-                  <BulbMesh
-                    bulbShape={standParams.bulbShape}
-                    socketType={standParams.socketType}
-                    mountingHeight={socketMountingHeight}
-                    wattage={standParams.bulbWattage}
-                    showHeatZone={standParams.showHeatZone}
-                    visible={true}
-                  />
-                </>
-              )}
-              
-              {/* Parametric object - collar nestles into stand's socket cradle */}
-              <group position={[0, objectYOffset, 0]}>
-                <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
-              </group>
+            <group position={[0, objectYOffset, 0]}>
+              <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
             </group>
           ) : (
             <GCodePreview 

@@ -378,10 +378,13 @@ export const defaultLampParams: LampParams = {
   baseRadius: 60,
   topRadius: 100,
   wallThickness: 2.0,
-  // Rim collar for stand connection
-  rimSize: 80,
-  rimHeight: 8,
-  hasRimCollar: false,
+  // Integrated legs
+  addLegs: false,
+  legCount: 3,
+  legHeight: 100,
+  legSpread: 30,
+  legThickness: 4,
+  legTaper: 0.6,
   wobbleFrequency: 0,
   wobbleAmplitude: 0,
   twistAngle: 0,
