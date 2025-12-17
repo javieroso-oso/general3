@@ -85,6 +85,19 @@ export const defaultStandParams: StandParams = {
   armAngle: 15,
 };
 
+// Print modes
+export type PrintMode = 'standard' | 'vase_spiral' | 'non_planar';
+
+// Non-planar printing settings
+export interface NonPlanarSettings {
+  maxZAngle: number;           // Maximum nozzle tilt angle (degrees, typically 15-45°)
+  curvedLayers: boolean;       // Enable curved layer paths
+  topSurfaceOptimized: boolean; // Optimize top surface with curved layers
+  adaptiveLayerHeight: boolean; // Vary layer height based on surface angle
+  minLayerHeight: number;       // Minimum layer height for adaptive (mm)
+  maxLayerHeight: number;       // Maximum layer height for adaptive (mm)
+}
+
 export interface PrintSettings {
   layerHeight: number;        // mm
   nozzleDiameter: number;     // mm
@@ -93,6 +106,11 @@ export interface PrintSettings {
   material: 'PLA' | 'PETG' | 'ABS' | 'TPU';
   supportEnabled: boolean;
   brimWidth: number;          // mm
+  
+  // Advanced print modes
+  printMode: PrintMode;
+  spiralVase: boolean;        // Spiral vase mode (single wall, continuous Z)
+  nonPlanar: NonPlanarSettings;
 }
 
 export interface PrintAnalysis {
@@ -124,6 +142,15 @@ export interface Preset {
   params: ParametricParams;
 }
 
+export const defaultNonPlanarSettings: NonPlanarSettings = {
+  maxZAngle: 30,
+  curvedLayers: false,
+  topSurfaceOptimized: false,
+  adaptiveLayerHeight: false,
+  minLayerHeight: 0.1,
+  maxLayerHeight: 0.3,
+};
+
 export const defaultPrintSettings: PrintSettings = {
   layerHeight: 0.2,
   nozzleDiameter: 0.4,
@@ -132,6 +159,9 @@ export const defaultPrintSettings: PrintSettings = {
   material: 'PLA',
   supportEnabled: false,
   brimWidth: 5,
+  printMode: 'standard',
+  spiralVase: false,
+  nonPlanar: defaultNonPlanarSettings,
 };
 
 // Material densities in g/cm³

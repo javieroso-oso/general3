@@ -292,7 +292,50 @@ export function downloadSTL(
 // Generate G-code toolpath data
 export interface GCodeLayer {
   z: number;
-  paths: Array<{ x: number; y: number }[]>;
+  paths: Array<{ x: number; y: number; z?: number }[]>;  // z is for non-planar
+}
+
+// Generate spiral vase G-code layers (continuous Z movement)
+export function generateSpiralVaseLayers(
+  params: ParametricParams,
+  type: ObjectType,
+  settings: PrintSettings
+): GCodeLayer[] {
+  const layers: GCodeLayer[] = [];
+  const { height, twistAngle } = params;
+  const { layerHeight } = settings;
+  
+  const totalLayers = Math.ceil(height / layerHeight);
+  const segments = 64; // Points per revolution
+  const totalPoints = totalLayers * segments;
+  
+  // Single continuous spiral path
+  const spiralPath: { x: number; y: number; z: number }[] = [];
+  
+  for (let i = 0; i <= totalPoints; i++) {
+    const progress = i / totalPoints;
+    const z = progress * height;
+    const t = z / height;
+    const revolutions = i / segments;
+    const theta = revolutions * Math.PI * 2;
+    const twistRad = (twistAngle * Math.PI / 180) * t;
+    
+    const outerR = getRadiusAtHeight(t, params, type, theta + twistRad);
+    
+    spiralPath.push({
+      x: Math.cos(theta + twistRad) * outerR,
+      y: Math.sin(theta + twistRad) * outerR,
+      z: z,
+    });
+  }
+  
+  // Return as single layer with spiral path
+  layers.push({
+    z: 0,
+    paths: [spiralPath],
+  });
+  
+  return layers;
 }
 
 export function generateGCodeLayers(
@@ -300,6 +343,11 @@ export function generateGCodeLayers(
   type: ObjectType,
   settings: PrintSettings
 ): GCodeLayer[] {
+  // Use spiral mode if enabled
+  if (settings.spiralVase || settings.printMode === 'vase_spiral') {
+    return generateSpiralVaseLayers(params, type, settings);
+  }
+  
   const layers: GCodeLayer[] = [];
   const { height, wallThickness, twistAngle } = params;
   const { layerHeight, nozzleDiameter } = settings;
@@ -348,6 +396,8 @@ export function generateGCode(
 ): string {
   const layers = generateGCodeLayers(params, type, settings);
   const { printSpeed, layerHeight, material } = settings;
+  const isSpiralVase = settings.spiralVase || settings.printMode === 'vase_spiral';
+  const isNonPlanar = settings.printMode === 'non_planar';
   
   const lines: string[] = [];
   
@@ -357,7 +407,15 @@ export function generateGCode(
   lines.push(`; Height: ${params.height}mm`);
   lines.push(`; Material: ${material}`);
   lines.push(`; Layer Height: ${layerHeight}mm`);
-  lines.push(`; Layers: ${layers.length}`);
+  lines.push(`; Print Mode: ${settings.printMode}`);
+  if (isSpiralVase) {
+    lines.push('; Mode: Spiral Vase (continuous Z movement)');
+  }
+  if (isNonPlanar) {
+    lines.push(`; Non-Planar: Max Z Angle ${settings.nonPlanar.maxZAngle}°`);
+    lines.push('; Note: Requires non-planar capable slicer/printer');
+  }
+  lines.push(`; Layers: ${isSpiralVase ? 'Continuous spiral' : layers.length}`);
   lines.push('');
   lines.push('G21 ; Set units to millimeters');
   lines.push('G90 ; Use absolute positioning');
@@ -387,27 +445,51 @@ export function generateGCode(
   const nozzleDiameter = settings.nozzleDiameter;
   const extrusionMultiplier = (layerHeight * nozzleDiameter) / (Math.PI * Math.pow(filamentDiameter / 2, 2));
   
-  layers.forEach((layer, layerIndex) => {
-    lines.push(`; Layer ${layerIndex + 1} / ${layers.length}`);
-    lines.push(`G1 Z${layer.z.toFixed(3)} F1000`);
+  if (isSpiralVase && layers.length > 0 && layers[0].paths.length > 0) {
+    // Spiral vase mode - continuous Z movement
+    lines.push('; Spiral Vase Mode - Continuous extrusion');
+    const spiralPath = layers[0].paths[0];
     
-    layer.paths.forEach((path, pathIndex) => {
-      if (path.length < 2) return;
+    if (spiralPath.length > 0) {
+      const firstPoint = spiralPath[0];
+      lines.push(`G0 X${firstPoint.x.toFixed(3)} Y${firstPoint.y.toFixed(3)} Z${(firstPoint.z || 0).toFixed(3)} F3000`);
       
-      // Move to start
-      lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F3000`);
-      
-      // Extrude along path
-      for (let i = 1; i < path.length; i++) {
-        const dx = path[i].x - path[i - 1].x;
-        const dy = path[i].y - path[i - 1].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+      for (let i = 1; i < spiralPath.length; i++) {
+        const point = spiralPath[i];
+        const prevPoint = spiralPath[i - 1];
+        const dx = point.x - prevPoint.x;
+        const dy = point.y - prevPoint.y;
+        const dz = (point.z || 0) - (prevPoint.z || 0);
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         e += dist * extrusionMultiplier;
         
-        lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+        lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} Z${(point.z || 0).toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
       }
+    }
+  } else {
+    // Standard layer-by-layer printing
+    layers.forEach((layer, layerIndex) => {
+      lines.push(`; Layer ${layerIndex + 1} / ${layers.length}`);
+      lines.push(`G1 Z${layer.z.toFixed(3)} F1000`);
+      
+      layer.paths.forEach((path, pathIndex) => {
+        if (path.length < 2) return;
+        
+        // Move to start
+        lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F3000`);
+        
+        // Extrude along path
+        for (let i = 1; i < path.length; i++) {
+          const dx = path[i].x - path[i - 1].x;
+          const dy = path[i].y - path[i - 1].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          e += dist * extrusionMultiplier;
+          
+          lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+        }
+      });
     });
-  });
+  }
   
   // G-code footer
   lines.push('');
