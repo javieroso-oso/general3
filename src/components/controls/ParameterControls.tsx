@@ -1,11 +1,14 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Grid3X3 } from 'lucide-react';
+import { RotateCcw, Shield, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints } from '@/types/parametric';
+import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 
@@ -39,12 +42,36 @@ const Section = ({ title, defaultOpen = true, children }: SectionProps) => {
 
 const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsProps) => {
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
-    onParamsChange({ ...params, [key]: value });
+    let newParams = { ...params, [key]: value };
+    
+    // If support-free mode is on, apply constraints
+    if (params.supportFreeMode) {
+      newParams = applySupportFreeConstraints(newParams);
+    }
+    
+    onParamsChange(newParams);
   };
 
   const handleReset = () => {
     onParamsChange(defaultParams[type]);
     toast.success('Parameters reset');
+  };
+  
+  // Get support-free constraints
+  const constraints = useMemo(() => getSupportFreeConstraints(params), [params]);
+  const compliance = useMemo(() => checkSupportFreeCompliance(params), [params]);
+  
+  const handleSupportFreeModeToggle = (enabled: boolean) => {
+    let newParams = { ...params, supportFreeMode: enabled };
+    if (enabled) {
+      newParams = applySupportFreeConstraints(newParams);
+      toast.success('Support-free mode enabled - parameters constrained');
+    }
+    onParamsChange(newParams);
+  };
+  
+  const handleOverhangMapToggle = (enabled: boolean) => {
+    onParamsChange({ ...params, showOverhangMap: enabled });
   };
 
   return (
@@ -54,6 +81,47 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       transition={{ duration: 0.3 }}
       className="space-y-3"
     >
+      {/* Support-Free Mode Toggle */}
+      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className={cn("w-4 h-4", params.supportFreeMode ? "text-emerald-500" : "text-muted-foreground")} />
+            <Label htmlFor="support-free" className="text-sm font-medium">Support-Free Mode</Label>
+          </div>
+          <Switch 
+            id="support-free" 
+            checked={params.supportFreeMode} 
+            onCheckedChange={handleSupportFreeModeToggle}
+          />
+        </div>
+        
+        {params.supportFreeMode && (
+          <div className={cn(
+            "text-xs p-2 rounded",
+            compliance.isCompliant 
+              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/30"
+              : "bg-amber-500/10 text-amber-600 border border-amber-500/30"
+          )}>
+            {compliance.isCompliant 
+              ? "✓ All parameters within support-free limits"
+              : `Max overhang: ${compliance.maxOverhang.toFixed(0)}° (limit: 45°)`
+            }
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Eye className={cn("w-4 h-4", params.showOverhangMap ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="overhang-map" className="text-xs">Show Overhang Map</Label>
+          </div>
+          <Switch 
+            id="overhang-map" 
+            checked={params.showOverhangMap} 
+            onCheckedChange={handleOverhangMapToggle}
+          />
+        </div>
+      </div>
+      
       <Button variant="outline" size="sm" onClick={handleReset} className="w-full gap-2">
         <RotateCcw className="w-4 h-4" />
         Reset to Default
@@ -122,9 +190,10 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Bulge Amount"
           value={params.bulgeAmount}
           min={0}
-          max={0.5}
+          max={params.supportFreeMode ? constraints.bulgeAmount.max : 0.5}
           step={0.02}
           onChange={handleChange('bulgeAmount')}
+          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Pinch"
@@ -138,9 +207,10 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Asymmetry"
           value={params.asymmetry}
           min={0}
-          max={0.1}
+          max={params.supportFreeMode ? constraints.asymmetry.max : 0.1}
           step={0.01}
           onChange={handleChange('asymmetry')}
+          constrained={params.supportFreeMode}
         />
       </Section>
 
@@ -167,9 +237,10 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Wobble Depth"
           value={params.wobbleAmplitude}
           min={0}
-          max={0.15}
+          max={params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15}
           step={0.01}
           onChange={handleChange('wobbleAmplitude')}
+          constrained={params.supportFreeMode}
         />
       </Section>
 
@@ -215,9 +286,10 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Lip Flare"
           value={params.lipFlare}
           min={0}
-          max={0.25}
+          max={params.supportFreeMode ? constraints.lipFlare.max : 0.25}
           step={0.02}
           onChange={handleChange('lipFlare')}
+          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Lip Height"

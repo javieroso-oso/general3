@@ -397,6 +397,8 @@ export const defaultLampParams: LampParams = {
   noiseScale: 1,
   baseThickness: 0,
   baseType: 'flat',
+  supportFreeMode: false,
+  showOverhangMap: false,
   
   // Shade rim config
   shade: defaultShadeConfig,
