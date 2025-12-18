@@ -1,13 +1,11 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Lightbulb } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints, SocketType } from '@/types/parametric';
-import { socketDimensions } from '@/lib/leg-generator';
+import { ParametricParams, ObjectType, defaultParams, printConstraints } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
@@ -89,9 +87,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
 
   const handleCordHoleToggle = (enabled: boolean) => {
     const newParams = { ...params, cordHoleEnabled: enabled };
-    // Auto-enable socket recess when cord hole is enabled for lamps
+    // Auto-enable centering lip when cord hole is enabled for lamps
     if (enabled && type === 'lamp') {
-      newParams.socketRecessEnabled = true;
+      newParams.centeringLipEnabled = true;
     }
     onParamsChange(newParams);
     if (enabled) {
@@ -103,12 +101,12 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     onParamsChange({ ...params, cordHoleDiameter: value });
   };
 
-  const handleSocketRecessToggle = (enabled: boolean) => {
-    onParamsChange({ ...params, socketRecessEnabled: enabled });
+  const handleCenteringLipToggle = (enabled: boolean) => {
+    onParamsChange({ ...params, centeringLipEnabled: enabled });
   };
 
-  const handleSocketTypeChange = (socketType: SocketType) => {
-    onParamsChange({ ...params, socketType });
+  const handleCenteringLipHeightChange = (value: number) => {
+    onParamsChange({ ...params, centeringLipHeight: value });
   };
 
   return (
@@ -223,42 +221,30 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     onChange={handleCordHoleDiameterChange}
                   />
                   
-                  {/* Socket Recess Controls */}
+                  {/* Centering Lip Controls */}
                   <div className="pt-2 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Lightbulb className={cn("w-4 h-4", params.socketRecessEnabled ? "text-primary" : "text-muted-foreground")} />
-                        <Label htmlFor="socket-recess" className="text-xs">Socket Recess</Label>
+                        <Circle className={cn("w-4 h-4", params.centeringLipEnabled ? "text-primary" : "text-muted-foreground")} />
+                        <Label htmlFor="centering-lip" className="text-xs">Centering Lip</Label>
                       </div>
                       <Switch 
-                        id="socket-recess" 
-                        checked={params.socketRecessEnabled} 
-                        onCheckedChange={handleSocketRecessToggle}
+                        id="centering-lip" 
+                        checked={params.centeringLipEnabled} 
+                        onCheckedChange={handleCenteringLipToggle}
                       />
                     </div>
                     
-                    {params.socketRecessEnabled && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Socket Type</Label>
-                        <Select
-                          value={params.socketType}
-                          onValueChange={(value) => handleSocketTypeChange(value as SocketType)}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(socketDimensions).map(([key, { name }]) => (
-                              <SelectItem key={key} value={key} className="text-xs">
-                                {name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          Recess Ø: {socketDimensions[params.socketType].outerDiameter + 1}mm
-                        </p>
-                      </div>
+                    {params.centeringLipEnabled && (
+                      <ParameterSlider
+                        label="Lip Height"
+                        value={params.centeringLipHeight}
+                        min={2}
+                        max={5}
+                        step={0.5}
+                        unit="mm"
+                        onChange={handleCenteringLipHeightChange}
+                      />
                     )}
                   </div>
                 </>
