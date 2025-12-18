@@ -1,25 +1,16 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Plug } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints, SocketHoleType } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
-
-const socketTypeOptions: { value: SocketHoleType; label: string }[] = [
-  { value: 'E26', label: 'E26 (Standard US)' },
-  { value: 'E27', label: 'E27 (Standard EU)' },
-  { value: 'E12', label: 'E12 (Candelabra)' },
-  { value: 'GU10', label: 'GU10 (Spot)' },
-  { value: 'G9', label: 'G9 (Halogen)' },
-];
 
 interface ParameterControlsProps {
   params: ParametricParams;
@@ -94,15 +85,11 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     onParamsChange({ ...params, legCount: count });
   };
 
-  const handleSocketHoleToggle = (enabled: boolean) => {
-    onParamsChange({ ...params, socketHoleEnabled: enabled });
+  const handleCordHoleToggle = (enabled: boolean) => {
+    onParamsChange({ ...params, cordHoleEnabled: enabled });
     if (enabled) {
-      toast.success('Socket hole enabled');
+      toast.success('Cord hole enabled');
     }
-  };
-
-  const handleSocketTypeChange = (value: string) => {
-    onParamsChange({ ...params, socketHoleType: value as SocketHoleType });
   };
 
   const handleCordHoleDiameterChange = (value: number) => {
@@ -195,48 +182,30 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               onChange={handleChange('legInset')}
             />
             
-            {/* Socket Hole Controls */}
+            {/* Cord Hole Controls */}
             <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Plug className={cn("w-4 h-4", params.socketHoleEnabled ? "text-primary" : "text-muted-foreground")} />
-                  <Label htmlFor="socket-hole" className="text-sm font-medium">Socket Hole</Label>
+                  <Cable className={cn("w-4 h-4", params.cordHoleEnabled ? "text-primary" : "text-muted-foreground")} />
+                  <Label htmlFor="cord-hole" className="text-sm font-medium">Cord Hole</Label>
                 </div>
                 <Switch 
-                  id="socket-hole" 
-                  checked={params.socketHoleEnabled} 
-                  onCheckedChange={handleSocketHoleToggle}
+                  id="cord-hole" 
+                  checked={params.cordHoleEnabled} 
+                  onCheckedChange={handleCordHoleToggle}
                 />
               </div>
               
-              {params.socketHoleEnabled && (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Socket Type</Label>
-                    <Select value={params.socketHoleType} onValueChange={handleSocketTypeChange}>
-                      <SelectTrigger className="w-full bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {socketTypeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <ParameterSlider
-                    label="Cord Hole Ø"
-                    value={params.cordHoleDiameter}
-                    min={4}
-                    max={12}
-                    step={0.5}
-                    unit="mm"
-                    onChange={handleCordHoleDiameterChange}
-                  />
-                </div>
+              {params.cordHoleEnabled && (
+                <ParameterSlider
+                  label="Cord Hole Ø"
+                  value={params.cordHoleDiameter}
+                  min={4}
+                  max={12}
+                  step={0.5}
+                  unit="mm"
+                  onChange={handleCordHoleDiameterChange}
+                />
               )}
             </div>
           </div>

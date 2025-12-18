@@ -263,8 +263,7 @@ export function generateLegsWithBaseMesh(
       plugGap: params.plugGap ?? 0.25,
       lipWidth: params.lipWidth ?? 2,
       wallThickness: params.wallThickness,
-      socketHoleEnabled: params.socketHoleEnabled,
-      socketHoleType: params.socketHoleType,
+      cordHoleEnabled: params.cordHoleEnabled,
       cordHoleDiameter: params.cordHoleDiameter,
     }
   );
