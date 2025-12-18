@@ -254,70 +254,60 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
             {params.standType === 'wall_mount' && (
               <>
                 <ParameterSlider
-                  label="Cut Angle"
-                  value={params.wallMountCutAngle}
-                  min={90}
-                  max={270}
-                  step={10}
-                  unit="°"
-                  onChange={handleChange('wallMountCutAngle')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  180° = half shell, less = narrower sconce, more = wider wrap
-                </p>
-                
-                <ParameterSlider
-                  label="Plate Thickness"
-                  value={params.wallMountPlateThickness}
-                  min={4}
-                  max={15}
+                  label="Cut Offset"
+                  value={params.wallMountCutOffset}
+                  min={-30}
+                  max={30}
                   step={1}
                   unit="mm"
-                  onChange={handleChange('wallMountPlateThickness')}
+                  onChange={handleChange('wallMountCutOffset')}
                 />
+                <p className="text-xs text-muted-foreground">
+                  0 = exact half, negative = less material, positive = more
+                </p>
                 
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Mounting Holes</Label>
-                  <Select 
-                    value={params.wallMountHoleType} 
-                    onValueChange={(v) => onParamsChange({ ...params, wallMountHoleType: v as any })}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="keyhole">Keyhole Slots</SelectItem>
-                      <SelectItem value="screw">Screw Holes</SelectItem>
-                      <SelectItem value="adhesive">Adhesive Pads</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs text-muted-foreground">Mounting Screws</Label>
+                  <div className="flex gap-2">
+                    {([2, 3, 4] as const).map((count) => (
+                      <Button
+                        key={count}
+                        variant={params.wallMountScrewCount === count ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => onParamsChange({ ...params, wallMountScrewCount: count })}
+                      >
+                        {count}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
                 
-                <div className="flex gap-2">
-                  {([2, 3, 4] as const).map((count) => (
-                    <Button
-                      key={count}
-                      variant={params.wallMountHoleCount === count ? 'default' : 'outline'}
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => onParamsChange({ ...params, wallMountHoleCount: count })}
-                    >
-                      {count} Holes
-                    </Button>
-                  ))}
-                </div>
+                <ParameterSlider
+                  label="Screw Hole Ø"
+                  value={params.wallMountScrewDiameter}
+                  min={3}
+                  max={8}
+                  step={0.5}
+                  unit="mm"
+                  onChange={handleChange('wallMountScrewDiameter')}
+                />
                 
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
-                    <Lamp className={cn("w-4 h-4", params.wallMountBulbFixture ? "text-primary" : "text-muted-foreground")} />
-                    <Label htmlFor="bulb-fixture" className="text-xs">Bulb Fixture Ring</Label>
+                    <Cable className={cn("w-4 h-4", params.wallMountCordHoleEnabled ? "text-primary" : "text-muted-foreground")} />
+                    <Label htmlFor="wall-cord-hole" className="text-xs">Cord Exit Hole</Label>
                   </div>
                   <Switch 
-                    id="bulb-fixture" 
-                    checked={params.wallMountBulbFixture} 
-                    onCheckedChange={(v) => onParamsChange({ ...params, wallMountBulbFixture: v })}
+                    id="wall-cord-hole" 
+                    checked={params.wallMountCordHoleEnabled} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, wallMountCordHoleEnabled: v })}
                   />
                 </div>
+                
+                <p className="text-xs text-muted-foreground mt-2">
+                  Mounting holes go directly through the flat back - no separate plate needed
+                </p>
               </>
             )}
             
