@@ -245,28 +245,28 @@ export function generateLegsWithBase(
     const topRadius = legThickness / 2;
     const bottomRadius = topRadius * (1 - legTaper * 0.6);
     
-    // Fillet parameters - creates a smooth blend into the disc
-    const filletRings = 3;
-    const filletHeight = Math.min(legThickness * 0.8, baseThickness * 0.8); // Fillet extends into disc
-    const filletRadiusMultiplier = 1.6; // How much wider the fillet is at disc
+    // Fillet parameters - creates smooth blend BELOW the disc
+    const filletRings = 5; // More rings for smoother curve
+    const filletHeight = legThickness * 0.7; // Height of fillet below disc
+    const filletRadiusMultiplier = 2.0; // Wider at disc for better blend
     
-    // First, add fillet rings (from inside disc to leg top)
+    // Fillet extends DOWNWARD from disc bottom
+    // f=0: at disc bottom (wide), f=filletRings: at fillet end (leg diameter)
     for (let f = 0; f <= filletRings; f++) {
       const t = f / filletRings;
-      // Smooth easing for fillet curve
-      const easeT = 1 - Math.pow(1 - t, 2);
+      // Smoothstep for natural curved fillet
+      const smoothT = t * t * (3 - 2 * t);
       
-      // Fillet starts embedded in disc, ends at leg top
-      const filletY = discBottom + filletHeight * (1 - t);
+      // Fillet extends DOWNWARD from disc bottom
+      const filletY = discBottom - filletHeight * t;
       
-      // Radius interpolates from wide (at disc) to leg radius
-      const filletRadius = topRadius + (topRadius * (filletRadiusMultiplier - 1)) * (1 - easeT);
+      // Radius: wide at disc (t=0), narrows to leg diameter (t=1)
+      const filletRadius = topRadius * filletRadiusMultiplier * (1 - smoothT) + topRadius * smoothT;
       
-      // Position along leg direction (slightly)
-      const offsetAlongLeg = filletHeight * (1 - t) * 0.3;
-      const px = attachX + dirX * offsetAlongLeg;
+      // Position at attachment point (no offset along leg)
+      const px = attachX;
       const py = filletY;
-      const pz = attachZ + dirZ * offsetAlongLeg;
+      const pz = attachZ;
       
       for (let s = 0; s <= segments; s++) {
         const segAngle = (s / segments) * Math.PI * 2;
@@ -277,12 +277,14 @@ export function generateLegsWithBase(
       }
     }
     
-    // Then add main leg segments (starting after fillet)
+    // Main leg starts where fillet ends
+    const legStartY = discBottom - filletHeight;
+    
     for (let h = 0; h <= heightSegments; h++) {
       const t = h / heightSegments;
       
       const px = attachX + (footX - attachX) * t;
-      const py = discBottom + (footY - discBottom) * t;
+      const py = legStartY + (footY - legStartY) * t;
       const pz = attachZ + (footZ - attachZ) * t;
       
       const r = topRadius + (bottomRadius - topRadius) * t;
@@ -341,11 +343,9 @@ export function generateLegsWithBase(
       legIndices.push(lastRingStart + s, footCenterIdx, lastRingStart + s + 1);
     }
     
-    // Top fillet cap - connects first fillet ring to disc bottom
-    // This creates a wider "foot" that blends into the disc
+    // Top cap at disc bottom - flat ring that blends with disc
     const topCenterIdx = legVerts.length / 3;
-    const filletTopY = discBottom + filletHeight;
-    legVerts.push(attachX, filletTopY, attachZ);
+    legVerts.push(attachX, discBottom, attachZ);
     for (let s = 0; s < segments; s++) {
       legIndices.push(s + 1, topCenterIdx, s);
     }
