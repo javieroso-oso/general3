@@ -13,6 +13,16 @@ export interface OrganicParams {
   noiseScale: number;
 }
 
+/**
+ * Socket attachment parameters
+ */
+export interface SocketParams {
+  plugHeight: number;     // mm - height of plug extending into body
+  plugGap: number;        // mm - tolerance gap between plug and body inner wall
+  lipWidth: number;       // mm - width of lip that body rests on
+  wallThickness: number;  // mm - body wall thickness (needed to calculate inner radius)
+}
+
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
   const dot = x * 12.9898 + y * 78.233 + z * 37.719;
@@ -111,6 +121,7 @@ function calculateDeformedRadius(
 /**
  * Generate legs with a base disc - this becomes one printable part
  * The base disc sits at y=0 and legs extend downward from it
+ * Includes inner plug that fits inside body and outer lip for body to rest on
  */
 export function generateLegsWithBase(
   baseRadius: number,      // mm - radius of the base disc
@@ -121,12 +132,13 @@ export function generateLegsWithBase(
   legTaper: number,        // 0-1 - taper factor (1 = full taper to point)
   legInset: number = 0.3,  // 0-1 - how far inward from edge (0 = edge, 1 = center)
   baseThickness: number = 3, // mm - thickness of the base disc
-  organicParams?: OrganicParams // organic deformation parameters
+  organicParams?: OrganicParams, // organic deformation parameters
+  socketParams?: SocketParams    // socket attachment parameters
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  // First, create the base disc with organic deformation
-  const discGeo = createBaseDisc(baseRadius, baseThickness, organicParams);
+  // First, create the base disc with lip and plug
+  const discGeo = createBaseDiscWithSocket(baseRadius, baseThickness, organicParams, socketParams);
   geometries.push(discGeo);
   
   // Then create legs extending from bottom of disc
@@ -242,56 +254,123 @@ export function generateLegsWithBase(
 }
 
 /**
- * Create a solid base disc with organic deformation
+ * Create a base disc with socket attachment system:
+ * - Outer lip: body rests on this (follows organic deformation)
+ * - Inner plug: extends upward into body (follows inner wall radius minus gap)
+ * - Base disc: solid base at bottom
  */
-function createBaseDisc(
+function createBaseDiscWithSocket(
   radius: number, 
   thickness: number,
-  organicParams?: OrganicParams
+  organicParams?: OrganicParams,
+  socketParams?: SocketParams
 ): THREE.BufferGeometry {
   const segments = 64;
   const vertices: number[] = [];
   const indices: number[] = [];
   
-  // Top surface center
-  const topCenterIdx = 0;
-  vertices.push(0, 0, 0);
+  // Socket parameters with defaults
+  const plugHeight = socketParams?.plugHeight ?? 8;
+  const plugGap = socketParams?.plugGap ?? 0.25;
+  const lipWidth = socketParams?.lipWidth ?? 2;
+  const wallThickness = socketParams?.wallThickness ?? 2;
   
-  // Top surface ring with organic deformation
+  // Calculate radii
+  // Inner plug radius = body inner radius - gap = (baseRadius - wallThickness) - plugGap
+  const getPlugRadius = (theta: number) => {
+    const outerR = calculateDeformedRadius(theta, radius, organicParams);
+    return outerR - wallThickness - plugGap;
+  };
+  
+  // Lip outer edge = body outer radius (deformed)
+  const getLipOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
+  
+  // Lip inner edge = body inner radius = body outer - wall thickness
+  const getLipInnerRadius = (theta: number) => {
+    const outerR = calculateDeformedRadius(theta, radius, organicParams);
+    return outerR - wallThickness;
+  };
+  
+  // ===== PLUG (extends upward from lip into body) =====
+  // Plug top center
+  const plugTopCenterIdx = 0;
+  vertices.push(0, plugHeight, 0);
+  
+  // Plug top ring
+  const plugTopRingStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    const r = calculateDeformedRadius(theta, radius, organicParams);
+    const r = getPlugRadius(theta);
+    vertices.push(Math.cos(theta) * r, plugHeight, Math.sin(theta) * r);
+  }
+  
+  // Plug bottom ring (at lip level y=0)
+  const plugBottomRingStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    const r = getPlugRadius(theta);
     vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
   }
   
-  // Bottom surface center
-  const bottomCenterIdx = vertices.length / 3;
-  vertices.push(0, -thickness, 0);
+  // Plug top face (solid cap)
+  for (let i = 0; i < segments; i++) {
+    indices.push(plugTopCenterIdx, plugTopRingStart + i + 1, plugTopRingStart + i);
+  }
   
-  // Bottom surface ring with organic deformation
-  const bottomRingStart = vertices.length / 3;
+  // Plug side wall
+  for (let i = 0; i < segments; i++) {
+    const topA = plugTopRingStart + i;
+    const topB = plugTopRingStart + i + 1;
+    const botA = plugBottomRingStart + i;
+    const botB = plugBottomRingStart + i + 1;
+    indices.push(topA, topB, botA);
+    indices.push(botA, topB, botB);
+  }
+  
+  // ===== LIP (ring at y=0, body rests on this) =====
+  // Lip outer ring (at y=0)
+  const lipOuterRingStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    const r = calculateDeformedRadius(theta, radius, organicParams);
+    const r = getLipOuterRadius(theta);
+    vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+  }
+  
+  // Lip top surface (between plug bottom and lip outer)
+  for (let i = 0; i < segments; i++) {
+    const plugA = plugBottomRingStart + i;
+    const plugB = plugBottomRingStart + i + 1;
+    const lipA = lipOuterRingStart + i;
+    const lipB = lipOuterRingStart + i + 1;
+    // Triangle fan from plug to lip
+    indices.push(plugA, lipA, plugB);
+    indices.push(plugB, lipA, lipB);
+  }
+  
+  // ===== BASE DISC (solid bottom) =====
+  // Base bottom center
+  const baseCenterIdx = vertices.length / 3;
+  vertices.push(0, -thickness, 0);
+  
+  // Base bottom ring
+  const baseBottomRingStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    const r = getLipOuterRadius(theta);
     vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
   }
   
-  // Top face triangles
+  // Base bottom face
   for (let i = 0; i < segments; i++) {
-    indices.push(topCenterIdx, 1 + i + 1, 1 + i);
+    indices.push(baseCenterIdx, baseBottomRingStart + i, baseBottomRingStart + i + 1);
   }
   
-  // Bottom face triangles (reverse winding)
+  // Base side wall (connects lip outer to base bottom)
   for (let i = 0; i < segments; i++) {
-    indices.push(bottomCenterIdx, bottomRingStart + i, bottomRingStart + i + 1);
-  }
-  
-  // Side faces
-  for (let i = 0; i < segments; i++) {
-    const topA = 1 + i;
-    const topB = 1 + i + 1;
-    const botA = bottomRingStart + i;
-    const botB = bottomRingStart + i + 1;
+    const topA = lipOuterRingStart + i;
+    const topB = lipOuterRingStart + i + 1;
+    const botA = baseBottomRingStart + i;
+    const botB = baseBottomRingStart + i + 1;
     indices.push(topA, topB, botA);
     indices.push(botA, topB, botB);
   }

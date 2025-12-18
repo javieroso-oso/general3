@@ -238,6 +238,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           asymmetry,
           organicNoise,
           noiseScale,
+        },
+        {
+          plugHeight: params.plugHeight ?? 8,
+          plugGap: params.plugGap ?? 0.25,
+          lipWidth: params.lipWidth ?? 2,
+          wallThickness: params.wallThickness,
         }
       );
       

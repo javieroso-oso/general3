@@ -401,6 +401,9 @@ export const defaultLampParams: LampParams = {
   noiseScale: 1,
   baseThickness: 0,
   baseType: 'flat',
+  plugHeight: 8,
+  plugGap: 0.25,
+  lipWidth: 2,
   supportFreeMode: false,
   showOverhangMap: false,
   

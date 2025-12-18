@@ -257,6 +257,12 @@ export function generateLegsWithBaseMesh(
       asymmetry: params.asymmetry,
       organicNoise: params.organicNoise,
       noiseScale: params.noiseScale,
+    },
+    {
+      plugHeight: params.plugHeight ?? 8,
+      plugGap: params.plugGap ?? 0.25,
+      lipWidth: params.lipWidth ?? 2,
+      wallThickness: params.wallThickness,
     }
   );
 }

@@ -43,6 +43,11 @@ export interface ParametricParams {
   baseThickness: number;
   baseType: 'flat' | 'rounded' | 'pedestal';
   
+  // Socket attachment system (plug fits inside body)
+  plugHeight: number;       // mm - height of plug extending into body
+  plugGap: number;          // mm - tolerance gap between plug and body inner wall
+  lipWidth: number;         // mm - width of lip that body rests on
+  
   // Support-free printing mode
   supportFreeMode: boolean;
   showOverhangMap: boolean;
@@ -175,6 +180,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 1,
     baseThickness: 2.0,
     baseType: 'flat',
+    plugHeight: 8,
+    plugGap: 0.25,
+    lipWidth: 2,
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -205,6 +213,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 1,
     baseThickness: 2.4,
     baseType: 'flat',
+    plugHeight: 8,
+    plugGap: 0.25,
+    lipWidth: 2,
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -235,6 +246,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 2,
     baseThickness: 3.0,
     baseType: 'pedestal',
+    plugHeight: 8,
+    plugGap: 0.25,
+    lipWidth: 2,
     supportFreeMode: false,
     showOverhangMap: false,
   },
