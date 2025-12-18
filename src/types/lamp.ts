@@ -404,6 +404,9 @@ export const defaultLampParams: LampParams = {
   plugHeight: 8,
   plugGap: 0.25,
   lipWidth: 2,
+  socketHoleEnabled: true,
+  socketHoleType: 'E26',
+  cordHoleDiameter: 8,
   supportFreeMode: false,
   showOverhangMap: false,
   

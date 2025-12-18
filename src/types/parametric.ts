@@ -48,6 +48,11 @@ export interface ParametricParams {
   plugGap: number;          // mm - tolerance gap between plug and body inner wall
   lipWidth: number;         // mm - width of lip that body rests on
   
+  // Socket mounting hole in base
+  socketHoleEnabled: boolean;   // Toggle socket mounting hole
+  socketHoleType: 'E26' | 'E27' | 'E12' | 'GU10' | 'G9';  // Socket type for sizing
+  cordHoleDiameter: number;     // mm - cord exit hole diameter
+  
   // Support-free printing mode
   supportFreeMode: boolean;
   showOverhangMap: boolean;
@@ -183,6 +188,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     plugHeight: 8,
     plugGap: 0.25,
     lipWidth: 2,
+    socketHoleEnabled: false,
+    socketHoleType: 'E26',
+    cordHoleDiameter: 8,
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -216,6 +224,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     plugHeight: 8,
     plugGap: 0.25,
     lipWidth: 2,
+    socketHoleEnabled: true,
+    socketHoleType: 'E26',
+    cordHoleDiameter: 8,
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -249,6 +260,9 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     plugHeight: 8,
     plugGap: 0.25,
     lipWidth: 2,
+    socketHoleEnabled: false,
+    socketHoleType: 'E26',
+    cordHoleDiameter: 8,
     supportFreeMode: false,
     showOverhangMap: false,
   },
