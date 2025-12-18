@@ -1,5 +1,36 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
+// Attachment types for body-to-stand connection
+export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
+
+// Screw specifications for M3 and M4
+export const SCREW_SPECS = {
+  m3: {
+    clearanceHole: 3.4,      // mm - hole diameter in base for screw to pass through
+    nutAcrossFlats: 5.5,     // mm - hex nut size
+    nutThickness: 2.4,       // mm - depth of nut recess
+    headDiameter: 5.5,       // mm - screw head diameter
+    headDepth: 3,            // mm - countersink depth
+  },
+  m4: {
+    clearanceHole: 4.5,
+    nutAcrossFlats: 7,
+    nutThickness: 3.2,
+    headDiameter: 7,
+    headDepth: 4,
+  },
+};
+
+// Bayonet lock specifications
+export const BAYONET_SPECS = {
+  tabWidth: 5,              // mm - width of locking tab
+  tabHeight: 3,             // mm - height of tab protrusion
+  tabDepth: 4,              // mm - depth of tab
+  slotLength: 8,            // mm - L-slot vertical portion
+  slotWidth: 5.5,           // mm - slot width (tab width + clearance)
+  rotationAngle: 30,        // degrees - how far to twist to lock
+};
+
 export interface ParametricParams {
   // Basic dimensions (mm for printing)
   height: number;
@@ -15,6 +46,10 @@ export interface ParametricParams {
   legThickness: number;       // Leg thickness in mm (4-8)
   legTaper: number;           // Taper factor (0-1)
   legInset: number;           // How far inward from edge (0-1)
+  
+  // Body-to-stand attachment
+  attachmentType: AttachmentType;
+  screwCount: 3 | 4;          // Number of screws for screw mount
   
   // Organic deformations
   wobbleFrequency: number;
@@ -169,6 +204,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     legThickness: 5,
     legTaper: 0.5,
     legInset: 0.3,
+    attachmentType: 'integrated',
+    screwCount: 3,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -204,6 +241,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     legThickness: 4,
     legTaper: 0.6,
     legInset: 0.3,
+    attachmentType: 'screw_m3',
+    screwCount: 3,
     wobbleFrequency: 0,
     wobbleAmplitude: 0,
     twistAngle: 0,
@@ -239,6 +278,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     legThickness: 6,
     legTaper: 0.4,
     legInset: 0.3,
+    attachmentType: 'integrated',
+    screwCount: 4,
     wobbleFrequency: 3,
     wobbleAmplitude: 0.08,
     twistAngle: 30,

@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Circle } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Wrench, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints, AttachmentType, SCREW_SPECS, BAYONET_SPECS } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
@@ -114,6 +114,33 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     onParamsChange({ ...params, socketType: value });
   };
 
+  const handleAttachmentTypeChange = (value: AttachmentType) => {
+    onParamsChange({ ...params, attachmentType: value });
+    toast.success(`Attachment: ${getAttachmentLabel(value)}`);
+  };
+
+  const handleScrewCountChange = (count: 3 | 4) => {
+    onParamsChange({ ...params, screwCount: count });
+  };
+
+  const getAttachmentLabel = (type: AttachmentType): string => {
+    switch (type) {
+      case 'integrated': return 'Integrated (one piece)';
+      case 'screw_m3': return 'M3 Screws';
+      case 'screw_m4': return 'M4 Screws';
+      case 'bayonet': return 'Bayonet Lock';
+    }
+  };
+
+  const getAttachmentDescription = (type: AttachmentType): string => {
+    switch (type) {
+      case 'integrated': return 'Body and stand print as one piece. Strongest, no assembly.';
+      case 'screw_m3': return `M3 screws (${SCREW_SPECS.m3.clearanceHole}mm holes). Secure, removable.`;
+      case 'screw_m4': return `M4 screws (${SCREW_SPECS.m4.clearanceHole}mm holes). Heavy-duty.`;
+      case 'bayonet': return 'Twist-lock tabs. Tool-free, quick assembly.';
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -199,6 +226,72 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               step={0.05}
               onChange={handleChange('legInset')}
             />
+            
+            {/* Attachment Type Controls */}
+            <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+              <div className="flex items-center gap-2">
+                <Link className={cn("w-4 h-4", params.attachmentType !== 'integrated' ? "text-primary" : "text-muted-foreground")} />
+                <Label className="text-sm font-medium">Attachment Type</Label>
+              </div>
+              
+              <Select value={params.attachmentType} onValueChange={handleAttachmentTypeChange}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="integrated">Integrated (one piece)</SelectItem>
+                  <SelectItem value="screw_m3">M3 Screw Mount</SelectItem>
+                  <SelectItem value="screw_m4">M4 Screw Mount</SelectItem>
+                  <SelectItem value="bayonet">Bayonet Lock</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <p className="text-xs text-muted-foreground">
+                {getAttachmentDescription(params.attachmentType)}
+              </p>
+              
+              {(params.attachmentType === 'screw_m3' || params.attachmentType === 'screw_m4') && (
+                <div className="flex gap-2">
+                  <Button
+                    variant={params.screwCount === 3 ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleScrewCountChange(3)}
+                  >
+                    3 Screws
+                  </Button>
+                  <Button
+                    variant={params.screwCount === 4 ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleScrewCountChange(4)}
+                  >
+                    4 Screws
+                  </Button>
+                </div>
+              )}
+              
+              {params.attachmentType === 'bayonet' && (
+                <div className="flex gap-2">
+                  <Button
+                    variant={params.screwCount === 3 ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleScrewCountChange(3)}
+                  >
+                    3 Tabs
+                  </Button>
+                  <Button
+                    variant={params.screwCount === 4 ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleScrewCountChange(4)}
+                  >
+                    4 Tabs
+                  </Button>
+                </div>
+              )}
+            </div>
             
             {/* Cord Hole Controls */}
             <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
