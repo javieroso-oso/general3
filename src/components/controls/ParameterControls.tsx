@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
@@ -107,6 +108,10 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
 
   const handleCenteringLipHeightChange = (value: number) => {
     onParamsChange({ ...params, centeringLipHeight: value });
+  };
+
+  const handleSocketTypeChange = (value: 'E26' | 'E12' | 'E14' | 'GU10') => {
+    onParamsChange({ ...params, socketType: value });
   };
 
   return (
@@ -236,15 +241,31 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     </div>
                     
                     {params.centeringLipEnabled && (
-                      <ParameterSlider
-                        label="Lip Height"
-                        value={params.centeringLipHeight}
-                        min={2}
-                        max={5}
-                        step={0.5}
-                        unit="mm"
-                        onChange={handleCenteringLipHeightChange}
-                      />
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Socket Type</Label>
+                          <Select value={params.socketType} onValueChange={handleSocketTypeChange}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="E26">E26 (US Standard)</SelectItem>
+                              <SelectItem value="E12">E12 (Candelabra)</SelectItem>
+                              <SelectItem value="E14">E14 (EU Candelabra)</SelectItem>
+                              <SelectItem value="GU10">GU10 (Spotlight)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <ParameterSlider
+                          label="Lip Height"
+                          value={params.centeringLipHeight}
+                          min={2}
+                          max={5}
+                          step={0.5}
+                          unit="mm"
+                          onChange={handleCenteringLipHeightChange}
+                        />
+                      </div>
                     )}
                   </div>
                 </>

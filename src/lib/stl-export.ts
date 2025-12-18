@@ -259,14 +259,12 @@ export function generateLegsWithBaseMesh(
       noiseScale: params.noiseScale,
     },
     {
-      plugHeight: params.plugHeight ?? 8,
-      plugGap: params.plugGap ?? 0.25,
-      lipWidth: params.lipWidth ?? 2,
       wallThickness: params.wallThickness,
       cordHoleEnabled: params.cordHoleEnabled,
       cordHoleDiameter: params.cordHoleDiameter,
       centeringLipEnabled: params.centeringLipEnabled,
       centeringLipHeight: params.centeringLipHeight,
+      socketType: params.socketType,
     }
   );
 }
