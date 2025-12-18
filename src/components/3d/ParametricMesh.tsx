@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
-import { generateLegs } from '@/lib/leg-generator';
+import { generateLegsWithBase } from '@/lib/leg-generator';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -188,7 +188,20 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
-    // Body has open bottom - base cap is now part of the legs+base component
+    // Add base cap for preview when legs are NOT enabled
+    // When legs are enabled, the base is part of the legs+base component
+    if (!addLegs) {
+      const baseCenterIdx = vertices.length / 3;
+      vertices.push(0, 0, 0); // Center point at base
+      
+      // Connect first ring of vertices to center to create base cap
+      // Winding order reversed (b, a) so face points downward (visible from below)
+      for (let j = 0; j < segments; j++) {
+        const a = j;
+        const b = j + 1;
+        indices.push(baseCenterIdx, b, a);
+      }
+    }
 
     const bodyGeo = new THREE.BufferGeometry();
     bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
@@ -205,17 +218,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Generate legs if enabled
+    // Generate legs with base disc if enabled
     let legGeo: THREE.BufferGeometry | null = null;
     if (addLegs) {
-      const legGeoMM = generateLegs(
+      const legGeoMM = generateLegsWithBase(
         baseRadius,
         legCount,
         legHeight,
         legSpread,
         legThickness,
         legTaper,
-        legInset
+        legInset,
+        params.baseThickness || 3
       );
       
       // Scale leg geometry to scene units
