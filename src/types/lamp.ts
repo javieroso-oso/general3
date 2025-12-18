@@ -427,6 +427,13 @@ export const defaultLampParams: LampParams = {
   socketType: 'E26',
   supportFreeMode: false,
   showOverhangMap: false,
+  wallMountPlateShape: 'rounded_rectangle',
+  wallMountPlateWidth: 80,
+  wallMountPlateHeight: 100,
+  wallMountPlateThickness: 8,
+  wallMountHoleType: 'keyhole',
+  wallMountHoleCount: 2,
+  wallMountBulbFixture: true,
   
   // Shade rim config
   shade: defaultShadeConfig,

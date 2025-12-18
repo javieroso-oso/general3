@@ -1,7 +1,11 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
 // Stand types - different structural support options
-export type StandType = 'tripod' | 'wall_bracket';
+export type StandType = 'tripod' | 'wall_mount';
+
+// Wall mount options
+export type WallMountPlateShape = 'circle' | 'rectangle' | 'rounded_rectangle';
+export type WallMountHoleType = 'keyhole' | 'screw' | 'adhesive';
 
 // Attachment types for body-to-stand connection
 export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
@@ -64,6 +68,16 @@ export interface ParametricParams {
   pendantCanopyHeight: number;   // mm - canopy dome height
   pendantCordLength: number;     // mm - visual cord length in preview
   
+  // Wall mount parameters (sconce style)
+  wallMountPlateShape: WallMountPlateShape;
+  wallMountPlateWidth: number;    // mm - plate width/diameter
+  wallMountPlateHeight: number;   // mm - plate height (for rectangle)
+  wallMountPlateThickness: number; // mm - plate thickness
+  wallMountHoleType: WallMountHoleType;
+  wallMountHoleCount: 2 | 3 | 4;  // number of mounting holes
+  wallMountBulbFixture: boolean;  // add bulb fixture opening
+  
+  // Legacy wall bracket (kept for compatibility)
   wallBracketArmLength: number;  // mm - arm extension from wall
   wallBracketArmAngle: number;   // degrees - arm angle from horizontal
   wallBracketPlateSize: number;  // mm - wall plate dimensions
@@ -267,6 +281,13 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
+    wallMountPlateShape: 'rounded_rectangle',
+    wallMountPlateWidth: 80,
+    wallMountPlateHeight: 100,
+    wallMountPlateThickness: 8,
+    wallMountHoleType: 'keyhole',
+    wallMountHoleCount: 2,
+    wallMountBulbFixture: true,
   },
   lamp: {
     height: 100,
@@ -319,6 +340,13 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
+    wallMountPlateShape: 'rounded_rectangle',
+    wallMountPlateWidth: 80,
+    wallMountPlateHeight: 100,
+    wallMountPlateThickness: 8,
+    wallMountHoleType: 'keyhole',
+    wallMountHoleCount: 2,
+    wallMountBulbFixture: true,
   },
   sculpture: {
     height: 150,
@@ -371,6 +399,13 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
+    wallMountPlateShape: 'rounded_rectangle',
+    wallMountPlateWidth: 100,
+    wallMountPlateHeight: 120,
+    wallMountPlateThickness: 10,
+    wallMountHoleType: 'keyhole',
+    wallMountHoleCount: 2,
+    wallMountBulbFixture: false,
   },
 };
 

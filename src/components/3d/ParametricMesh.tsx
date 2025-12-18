@@ -258,11 +258,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         );
         legGeoMM.scale(SCALE, SCALE, SCALE);
         standGeo = legGeoMM;
-      } else {
-        // Use new stand generators
+      } else if (params.standType === 'wall_mount') {
+        // Wall mount sconce
         const standGeoMM = generateStand({
           standType: params.standType,
           baseRadius: params.baseRadius,
+          wallMountPlateShape: params.wallMountPlateShape,
+          wallMountPlateWidth: params.wallMountPlateWidth,
+          wallMountPlateHeight: params.wallMountPlateHeight,
+          wallMountPlateThickness: params.wallMountPlateThickness,
+          wallMountHoleType: params.wallMountHoleType,
+          wallMountHoleCount: params.wallMountHoleCount,
+          wallMountBulbFixture: params.wallMountBulbFixture,
           wallBracketArmLength: params.wallBracketArmLength,
           wallBracketArmAngle: params.wallBracketArmAngle,
           wallBracketPlateSize: params.wallBracketPlateSize,
@@ -280,6 +287,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         
         if (standGeoMM) {
           standGeoMM.scale(SCALE, SCALE, SCALE);
+          // Rotate for wall mount: plate faces +Z (room), object sits on front
+          standGeoMM.rotateX(Math.PI / 2); // Stand up against wall
           standGeo = standGeoMM;
         }
       }
