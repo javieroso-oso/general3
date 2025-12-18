@@ -81,12 +81,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       organicNoise,
       noiseScale,
       addLegs,
-      legCount,
-      legHeight,
-      legSpread,
-      legThickness,
-      legTaper,
-      legInset,
     } = params;
 
     // Scale to scene units
@@ -97,8 +91,15 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
     const segments = 64;
     const heightSegments = 64;
+    
+    // For wall mount, generate half-shell (0 to 180 degrees)
+    const isWallMount = addLegs && params.standType === 'wall_mount';
+    const angleRange = isWallMount ? Math.PI : Math.PI * 2; // 180° for wall mount, 360° for others
+    const effectiveSegments = isWallMount ? segments / 2 : segments; // Half the segments for half-shell
 
     const outerVerts: number[] = [];
+    // Store radii at each height level for side base generation
+    const radiiAtHeight: number[] = [];
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
@@ -131,11 +132,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
       // Ensure minimum radius
       radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
+      
+      // Store base radius for side base
+      radiiAtHeight.push(radius);
 
       const twistRad = (twistAngle * Math.PI / 180) * t;
 
-      for (let j = 0; j <= segments; j++) {
-        const theta = (j / segments) * Math.PI * 2 + twistRad;
+      // For wall mount, offset angle so flat back is at z=0
+      const angleOffset = isWallMount ? -Math.PI / 2 : 0; // Start at -90° so center faces +Z
+
+      for (let j = 0; j <= effectiveSegments; j++) {
+        const theta = (j / effectiveSegments) * angleRange + twistRad + angleOffset;
         let r = radius;
 
         // Wobble
@@ -179,28 +186,65 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
     // Outer surface indices
     for (let i = 0; i < heightSegments; i++) {
-      for (let j = 0; j < segments; j++) {
-        const a = i * (segments + 1) + j;
+      for (let j = 0; j < effectiveSegments; j++) {
+        const a = i * (effectiveSegments + 1) + j;
         const b = a + 1;
-        const c = a + (segments + 1);
+        const c = a + (effectiveSegments + 1);
         const d = c + 1;
         indices.push(a, c, b);
         indices.push(b, c, d);
       }
     }
 
-    // Add base cap for preview when legs are NOT enabled
-    // When legs are enabled, the base is part of the legs+base component
-    if (!addLegs) {
-      const baseCenterIdx = vertices.length / 3;
-      vertices.push(0, 0, 0); // Center point at base
+    // For wall mount, add flat back face
+    if (isWallMount) {
+      // Collect vertices along the two cut edges (j=0 and j=effectiveSegments)
+      // and create triangles to close the flat back
       
-      // Connect first ring of vertices to center to create base cap
-      // Winding order reversed (b, a) so face points downward (visible from below)
-      for (let j = 0; j < segments; j++) {
-        const a = j;
-        const b = j + 1;
-        indices.push(baseCenterIdx, b, a);
+      // The flat back should be at z=0 (flush to wall)
+      // We create a flat surface connecting all the edge vertices
+      
+      // Left edge (j=0) vertices indices
+      const leftEdge: number[] = [];
+      for (let i = 0; i <= heightSegments; i++) {
+        leftEdge.push(i * (effectiveSegments + 1)); // First vertex in each row
+      }
+      
+      // Right edge (j=effectiveSegments) vertices indices  
+      const rightEdge: number[] = [];
+      for (let i = 0; i <= heightSegments; i++) {
+        rightEdge.push(i * (effectiveSegments + 1) + effectiveSegments); // Last vertex in each row
+      }
+      
+      // Create flat back by connecting left and right edges
+      // Since the flat back is a vertical plane at x=0, we need to add center vertices
+      // Actually, the edges should already be on a plane since they're at theta = -PI/2 and PI/2
+      // So we can triangulate between them directly
+      
+      for (let i = 0; i < heightSegments; i++) {
+        const l0 = leftEdge[i];
+        const l1 = leftEdge[i + 1];
+        const r0 = rightEdge[i];
+        const r1 = rightEdge[i + 1];
+        
+        // Two triangles to form quad (reversed winding for back face)
+        indices.push(l0, r0, l1);
+        indices.push(l1, r0, r1);
+      }
+    }
+
+    // Add base cap for preview when legs are NOT enabled (or not wall mount)
+    if (!addLegs || !isWallMount) {
+      if (!addLegs) {
+        const baseCenterIdx = vertices.length / 3;
+        vertices.push(0, 0, 0); // Center point at base
+        
+        // Connect first ring of vertices to center to create base cap
+        for (let j = 0; j < effectiveSegments; j++) {
+          const a = j;
+          const b = j + 1;
+          indices.push(baseCenterIdx, b, a);
+        }
       }
     }
 
@@ -211,7 +255,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     
     // Generate overhang colors if enabled
     let overhangColorArray: Float32Array | null = null;
-    if (params.showOverhangMap) {
+    if (params.showOverhangMap && !isWallMount) {
       overhangColorArray = getOverhangVertexColors(params, heightSegments, segments);
       bodyGeo.setAttribute('color', new THREE.Float32BufferAttribute(overhangColorArray, 3));
     }
@@ -259,10 +303,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         legGeoMM.scale(SCALE, SCALE, SCALE);
         standGeo = legGeoMM;
       } else if (params.standType === 'wall_mount') {
-        // Wall mount sconce
+        // Wall mount: generate vertical side base plate
         const standGeoMM = generateStand({
           standType: params.standType,
           baseRadius: params.baseRadius,
+          objectHeight: params.height,
           wallMountPlateShape: params.wallMountPlateShape,
           wallMountPlateWidth: params.wallMountPlateWidth,
           wallMountPlateHeight: params.wallMountPlateHeight,
@@ -287,8 +332,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         
         if (standGeoMM) {
           standGeoMM.scale(SCALE, SCALE, SCALE);
-          // Rotate for wall mount: plate faces +Z (room), object sits on front
-          standGeoMM.rotateX(Math.PI / 2); // Stand up against wall
           standGeo = standGeoMM;
         }
       }
