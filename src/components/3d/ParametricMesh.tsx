@@ -184,29 +184,62 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const indices: number[] = [];
 
     if (isWallMount) {
-      // NEW APPROACH: Generate full 360° object, then clip at z = cutOffset
-      // This properly handles all organic deformations and creates a true flat back
+      // Wall mount: clip at z = cutOffset, create flat back wall with actual holes
       
-      // Step 1: Collect the full 360° vertices (already generated in outerVerts)
-      // Step 2: Clip vertices: any vertex with z < cutOffset gets z = cutOffset
-      // Step 3: Build faces, skipping degenerate triangles behind cut plane
-      // Step 4: Triangulate the back wall from boundary vertices at z = cutOffset
+      // Screw hole positions for triangle exclusion
+      const screwCount = params.wallMountScrewCount || 2;
+      const screwDiameter = (params.wallMountScrewDiameter || 5) * SCALE;
+      const screwRadius = screwDiameter / 2;
+      const marginY = h * 0.15;
       
-      // Clipped vertices array - modify z coordinates at cut plane
+      const screwPositions: { x: number; y: number }[] = [];
+      if (screwCount === 2) {
+        screwPositions.push({ x: 0, y: marginY });
+        screwPositions.push({ x: 0, y: h - marginY });
+      } else if (screwCount === 3) {
+        screwPositions.push({ x: 0, y: h - marginY });
+        const bottomX = bRad * 0.3;
+        screwPositions.push({ x: -bottomX, y: marginY });
+        screwPositions.push({ x: bottomX, y: marginY });
+      } else {
+        const topX = tRad * 0.3;
+        const bottomX = bRad * 0.3;
+        screwPositions.push({ x: -topX, y: h - marginY });
+        screwPositions.push({ x: topX, y: h - marginY });
+        screwPositions.push({ x: -bottomX, y: marginY });
+        screwPositions.push({ x: bottomX, y: marginY });
+      }
+      
+      // Cord hole position
+      const cordHoleEnabled = params.wallMountCordHoleEnabled;
+      const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
+      const cordY = h * 0.5;
+      
+      // Helper to check if a point is inside any hole
+      const isInsideHole = (x: number, y: number): boolean => {
+        // Check screw holes
+        for (const pos of screwPositions) {
+          if (Math.hypot(x - pos.x, y - pos.y) < screwRadius) {
+            return true;
+          }
+        }
+        // Check cord hole
+        if (cordHoleEnabled && Math.hypot(x, y - cordY) < cordRadius) {
+          return true;
+        }
+        return false;
+      };
+      
+      // Clip vertices at cut plane
       const clippedVerts: number[] = [];
-      const vertexAtCut: boolean[] = []; // Track which vertices are on the cut plane
       
       for (let i = 0; i < outerVerts.length; i += 3) {
         const x = outerVerts[i];
         const y = outerVerts[i + 1];
         let z = outerVerts[i + 2];
         
-        // Clip vertices behind the cut plane
         if (z < cutOffset) {
           z = cutOffset;
-          vertexAtCut.push(true);
-        } else {
-          vertexAtCut.push(false);
         }
         
         clippedVerts.push(x, y, z);
@@ -217,7 +250,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         vertices.push(clippedVerts[i]);
       }
       
-      // Build shell surface faces, keeping only those in front of cut plane
+      // Build shell surface faces
       for (let i = 0; i < heightSegments; i++) {
         for (let j = 0; j < segments; j++) {
           const a = i * (segments + 1) + j;
@@ -225,13 +258,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           const c = a + (segments + 1);
           const d = c + 1;
           
-          // Get z values to check if face is visible
           const za = clippedVerts[a * 3 + 2];
           const zb = clippedVerts[b * 3 + 2];
           const zc = clippedVerts[c * 3 + 2];
           const zd = clippedVerts[d * 3 + 2];
           
-          // Only add face if at least one vertex is in front of cut plane
           const aFront = za > cutOffset + 0.0001;
           const bFront = zb > cutOffset + 0.0001;
           const cFront = zc > cutOffset + 0.0001;
@@ -244,8 +275,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // Step 4: Create flat back wall by triangulating boundary vertices at z = cutOffset
-      // Collect all vertices that are on the cut plane, organized by height
+      // Create flat back wall with ACTUAL HOLES by excluding triangles
       const boundaryByHeight: Map<number, { x: number; y: number; idx: number }[]> = new Map();
       
       for (let i = 0; i <= heightSegments; i++) {
@@ -255,7 +285,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           const idx = i * (segments + 1) + j;
           const z = clippedVerts[idx * 3 + 2];
           
-          // Vertex is on cut plane
           if (Math.abs(z - cutOffset) < 0.0001) {
             heightVerts.push({
               x: clippedVerts[idx * 3],
@@ -270,292 +299,180 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // For each height level, create quads connecting boundary vertices
-      // This creates horizontal strips across the back wall
       const heightLevels = Array.from(boundaryByHeight.keys()).sort((a, b) => a - b);
       
+      // Triangulate back wall, excluding triangles that overlap holes
       for (let hi = 0; hi < heightLevels.length - 1; hi++) {
         const currentLevel = boundaryByHeight.get(heightLevels[hi])!;
         const nextLevel = boundaryByHeight.get(heightLevels[hi + 1])!;
         
-        // Sort vertices by x coordinate at each level
         currentLevel.sort((a, b) => a.x - b.x);
         nextLevel.sort((a, b) => a.x - b.x);
         
-        // Find the leftmost and rightmost x at each level
         if (currentLevel.length >= 2 && nextLevel.length >= 2) {
           const currentLeft = currentLevel[0];
           const currentRight = currentLevel[currentLevel.length - 1];
           const nextLeft = nextLevel[0];
           const nextRight = nextLevel[nextLevel.length - 1];
           
-          // Create two triangles for this strip of the back wall
-          // Triangle 1: currentLeft -> nextLeft -> currentRight
-          indices.push(currentLeft.idx, nextLeft.idx, currentRight.idx);
-          // Triangle 2: currentRight -> nextLeft -> nextRight
-          indices.push(currentRight.idx, nextLeft.idx, nextRight.idx);
+          // Calculate triangle centers and check if they're inside any hole
+          const tri1CenterX = (currentLeft.x + nextLeft.x + currentRight.x) / 3;
+          const tri1CenterY = (currentLeft.y + nextLeft.y + currentRight.y) / 3;
+          
+          const tri2CenterX = (currentRight.x + nextLeft.x + nextRight.x) / 3;
+          const tri2CenterY = (currentRight.y + nextLeft.y + nextRight.y) / 3;
+          
+          // Only add triangle if its center is NOT inside a hole
+          if (!isInsideHole(tri1CenterX, tri1CenterY)) {
+            indices.push(currentLeft.idx, nextLeft.idx, currentRight.idx);
+          }
+          if (!isInsideHole(tri2CenterX, tri2CenterY)) {
+            indices.push(currentRight.idx, nextLeft.idx, nextRight.idx);
+          }
         }
       }
       
-      // Add bottom cap for half-shell
-      const bottomCenterIdx = vertices.length / 3;
-      vertices.push(0, 0, cutOffset); // Center at base, on cut plane
+      // NO BOTTOM CAP for wall mount - it should be open at bottom
       
-      // Collect bottom ring vertices that are in front of cut plane
-      for (let j = 0; j < segments; j++) {
-        const aIdx = j;
-        const bIdx = j + 1;
-        const az = clippedVerts[aIdx * 3 + 2];
-        const bz = clippedVerts[bIdx * 3 + 2];
-        
-        // Only add triangle if vertices are in front of cut plane
-        if (az > cutOffset + 0.0001 || bz > cutOffset + 0.0001) {
-          indices.push(bottomCenterIdx, bIdx, aIdx);
-        }
-      }
-      
-      // Add mounting screw holes through the flat back
-      const screwCount = params.wallMountScrewCount || 2;
-      const screwDiameter = (params.wallMountScrewDiameter || 5) * SCALE;
-      const screwRadius = screwDiameter / 2;
-      const holeDepth = wall * 3;
-      const holeSegments = 12;
-      
-      const marginY = h * 0.15;
-      
-      const getMaxX = (yPos: number) => {
-        const t = yPos / h;
-        let radius = bRad + (tRad - bRad) * t;
-        return radius * 0.4; // 40% of radius for safe margin from edges
-      };
-      
-      const screwPositions: { x: number; y: number }[] = [];
-      if (screwCount === 2) {
-        screwPositions.push({ x: 0, y: marginY });
-        screwPositions.push({ x: 0, y: h - marginY });
-      } else if (screwCount === 3) {
-        screwPositions.push({ x: 0, y: h - marginY });
-        const bottomX = getMaxX(marginY);
-        screwPositions.push({ x: -bottomX, y: marginY });
-        screwPositions.push({ x: bottomX, y: marginY });
-      } else {
-        const topX = getMaxX(h - marginY);
-        const bottomX = getMaxX(marginY);
-        screwPositions.push({ x: -topX, y: h - marginY });
-        screwPositions.push({ x: topX, y: h - marginY });
-        screwPositions.push({ x: -bottomX, y: marginY });
-        screwPositions.push({ x: bottomX, y: marginY });
-      }
-      
-      // Generate screw hole cylinders going into -Z from cut plane
-      for (const pos of screwPositions) {
-        const holeStartIdx = vertices.length / 3;
-        
-        // Front ring at z = cutOffset
-        for (let s = 0; s <= holeSegments; s++) {
-          const angle = (s / holeSegments) * Math.PI * 2;
-          vertices.push(
-            pos.x + Math.cos(angle) * screwRadius,
-            pos.y + Math.sin(angle) * screwRadius,
-            cutOffset
-          );
-        }
-        
-        // Back ring at z = cutOffset - holeDepth
-        for (let s = 0; s <= holeSegments; s++) {
-          const angle = (s / holeSegments) * Math.PI * 2;
-          vertices.push(
-            pos.x + Math.cos(angle) * screwRadius,
-            pos.y + Math.sin(angle) * screwRadius,
-            cutOffset - holeDepth
-          );
-        }
-        
-        // Cylinder wall
-        for (let s = 0; s < holeSegments; s++) {
-          const a = holeStartIdx + s;
-          const b = holeStartIdx + s + 1;
-          const c = holeStartIdx + holeSegments + 1 + s;
-          const d = holeStartIdx + holeSegments + 1 + s + 1;
-          indices.push(a, c, b);
-          indices.push(b, c, d);
-        }
-        
-        // Back cap
-        const backCapCenter = vertices.length / 3;
-        vertices.push(pos.x, pos.y, cutOffset - holeDepth);
-        for (let s = 0; s < holeSegments; s++) {
-          const a = holeStartIdx + holeSegments + 1 + s;
-          const b = holeStartIdx + holeSegments + 1 + s + 1;
-          indices.push(backCapCenter, a, b);
-        }
-      }
-      
-      // Add cord hole if enabled
-      if (params.wallMountCordHoleEnabled) {
-        const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
-        const cordY = h * 0.5;
-        const cordHoleStartIdx = vertices.length / 3;
-        
-        for (let s = 0; s <= holeSegments; s++) {
-          const angle = (s / holeSegments) * Math.PI * 2;
-          vertices.push(Math.cos(angle) * cordRadius, cordY + Math.sin(angle) * cordRadius, cutOffset);
-        }
-        for (let s = 0; s <= holeSegments; s++) {
-          const angle = (s / holeSegments) * Math.PI * 2;
-          vertices.push(Math.cos(angle) * cordRadius, cordY + Math.sin(angle) * cordRadius, cutOffset - holeDepth);
-        }
-        for (let s = 0; s < holeSegments; s++) {
-          const a = cordHoleStartIdx + s;
-          const b = cordHoleStartIdx + s + 1;
-          const c = cordHoleStartIdx + holeSegments + 1 + s;
-          const d = cordHoleStartIdx + holeSegments + 1 + s + 1;
-          indices.push(a, c, b);
-          indices.push(b, c, d);
-        }
-        const cordBackCenter = vertices.length / 3;
-        vertices.push(0, cordY, cutOffset - holeDepth);
-        for (let s = 0; s < holeSegments; s++) {
-          const a = cordHoleStartIdx + holeSegments + 1 + s;
-          const b = cordHoleStartIdx + holeSegments + 1 + s + 1;
-          indices.push(cordBackCenter, a, b);
-        }
-      }
-      
-      // SOCKET BRACKET: Connected to shell with vertical struts
-      const socketY = h * 0.7;
-      const socketInnerRadius = 14 * SCALE; // ~28mm for E26/E27
-      const socketOuterRadius = socketInnerRadius + wall * 1.5;
-      const shelfThickness = wall * 2;
-      const strutCount = 3;
-      const strutWidth = wall * 2;
-      const strutDepth = wall * 1.5;
-      
-      // Find shell radius at socket height for strut connection
-      const socketT = socketY / h;
-      let shellRadiusAtSocket = bRad + (tRad - bRad) * socketT;
-      // Apply bulge at this height
-      const bulgeDist = Math.abs(socketT - bulgePosition);
-      shellRadiusAtSocket += Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * bRad;
+      // L-BRACKET for bulb socket: extends from back wall
+      const bracketY = h * 0.65; // Position of bracket
+      const bracketArmLength = bRad * 0.7; // How far it extends from wall
+      const bracketWidth = 30 * SCALE; // ~30mm wide
+      const bracketThickness = wall * 2;
+      const socketRingInner = 13 * SCALE; // Inner radius for E26/E27 socket
+      const socketRingOuter = 16 * SCALE;
+      const socketRingHeight = wall * 1.5;
       
       const bracketStartIdx = vertices.length / 3;
+      
+      // L-bracket: vertical plate against wall + horizontal arm
+      // Vertical plate (against back wall at z = cutOffset)
+      const plateHeight = h * 0.3;
+      const plateBottom = bracketY - plateHeight / 2;
+      const plateTop = bracketY + plateHeight / 2;
+      const halfWidth = bracketWidth / 2;
+      
+      // Vertical plate vertices (4 corners front, 4 corners back)
+      // Front face (at z = cutOffset)
+      vertices.push(-halfWidth, plateBottom, cutOffset); // 0
+      vertices.push(halfWidth, plateBottom, cutOffset);  // 1
+      vertices.push(halfWidth, plateTop, cutOffset);     // 2
+      vertices.push(-halfWidth, plateTop, cutOffset);    // 3
+      // Back face (at z = cutOffset - bracketThickness)
+      vertices.push(-halfWidth, plateBottom, cutOffset - bracketThickness); // 4
+      vertices.push(halfWidth, plateBottom, cutOffset - bracketThickness);  // 5
+      vertices.push(halfWidth, plateTop, cutOffset - bracketThickness);     // 6
+      vertices.push(-halfWidth, plateTop, cutOffset - bracketThickness);    // 7
+      
+      // Horizontal arm vertices (extends from wall toward center)
+      const armZ = cutOffset + bracketArmLength;
+      // Top face of arm
+      vertices.push(-halfWidth, bracketY, cutOffset);     // 8
+      vertices.push(halfWidth, bracketY, cutOffset);      // 9
+      vertices.push(halfWidth, bracketY, armZ);           // 10
+      vertices.push(-halfWidth, bracketY, armZ);          // 11
+      // Bottom face of arm
+      vertices.push(-halfWidth, bracketY - bracketThickness, cutOffset);  // 12
+      vertices.push(halfWidth, bracketY - bracketThickness, cutOffset);   // 13
+      vertices.push(halfWidth, bracketY - bracketThickness, armZ);        // 14
+      vertices.push(-halfWidth, bracketY - bracketThickness, armZ);       // 15
+      
+      // Vertical plate faces
+      // Front
+      indices.push(bracketStartIdx + 0, bracketStartIdx + 1, bracketStartIdx + 2);
+      indices.push(bracketStartIdx + 0, bracketStartIdx + 2, bracketStartIdx + 3);
+      // Back
+      indices.push(bracketStartIdx + 4, bracketStartIdx + 6, bracketStartIdx + 5);
+      indices.push(bracketStartIdx + 4, bracketStartIdx + 7, bracketStartIdx + 6);
+      // Top
+      indices.push(bracketStartIdx + 3, bracketStartIdx + 2, bracketStartIdx + 6);
+      indices.push(bracketStartIdx + 3, bracketStartIdx + 6, bracketStartIdx + 7);
+      // Bottom
+      indices.push(bracketStartIdx + 0, bracketStartIdx + 5, bracketStartIdx + 1);
+      indices.push(bracketStartIdx + 0, bracketStartIdx + 4, bracketStartIdx + 5);
+      // Left
+      indices.push(bracketStartIdx + 0, bracketStartIdx + 3, bracketStartIdx + 7);
+      indices.push(bracketStartIdx + 0, bracketStartIdx + 7, bracketStartIdx + 4);
+      // Right
+      indices.push(bracketStartIdx + 1, bracketStartIdx + 5, bracketStartIdx + 6);
+      indices.push(bracketStartIdx + 1, bracketStartIdx + 6, bracketStartIdx + 2);
+      
+      // Horizontal arm faces
+      // Top
+      indices.push(bracketStartIdx + 8, bracketStartIdx + 9, bracketStartIdx + 10);
+      indices.push(bracketStartIdx + 8, bracketStartIdx + 10, bracketStartIdx + 11);
+      // Bottom
+      indices.push(bracketStartIdx + 12, bracketStartIdx + 14, bracketStartIdx + 13);
+      indices.push(bracketStartIdx + 12, bracketStartIdx + 15, bracketStartIdx + 14);
+      // Front (at z = armZ)
+      indices.push(bracketStartIdx + 11, bracketStartIdx + 10, bracketStartIdx + 14);
+      indices.push(bracketStartIdx + 11, bracketStartIdx + 14, bracketStartIdx + 15);
+      // Left side
+      indices.push(bracketStartIdx + 8, bracketStartIdx + 11, bracketStartIdx + 15);
+      indices.push(bracketStartIdx + 8, bracketStartIdx + 15, bracketStartIdx + 12);
+      // Right side
+      indices.push(bracketStartIdx + 9, bracketStartIdx + 13, bracketStartIdx + 14);
+      indices.push(bracketStartIdx + 9, bracketStartIdx + 14, bracketStartIdx + 10);
+      
+      // Socket ring at end of arm
       const ringSegs = 16;
+      const ringCenterZ = armZ - socketRingOuter;
+      const ringStartIdx = vertices.length / 3;
       
-      // Create horizontal shelf (disc) for socket - only front half (z > cutOffset)
-      // Top surface
+      // Top ring (outer and inner)
       for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI; // 0 to PI (front half)
-        const z = Math.sin(angle) * socketOuterRadius;
-        if (z >= cutOffset) {
-          vertices.push(Math.cos(angle) * socketOuterRadius, socketY, z);
-        } else {
-          vertices.push(Math.cos(angle) * socketOuterRadius, socketY, cutOffset);
-        }
+        const angle = (s / ringSegs) * Math.PI * 2;
+        vertices.push(
+          Math.cos(angle) * socketRingOuter,
+          bracketY,
+          ringCenterZ + Math.sin(angle) * socketRingOuter
+        );
       }
       for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI;
-        const z = Math.sin(angle) * socketInnerRadius;
-        if (z >= cutOffset) {
-          vertices.push(Math.cos(angle) * socketInnerRadius, socketY, z);
-        } else {
-          vertices.push(Math.cos(angle) * socketInnerRadius, socketY, cutOffset);
-        }
+        const angle = (s / ringSegs) * Math.PI * 2;
+        vertices.push(
+          Math.cos(angle) * socketRingInner,
+          bracketY,
+          ringCenterZ + Math.sin(angle) * socketRingInner
+        );
       }
-      
-      // Bottom surface
+      // Bottom ring (outer and inner)
       for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI;
-        const z = Math.sin(angle) * socketOuterRadius;
-        if (z >= cutOffset) {
-          vertices.push(Math.cos(angle) * socketOuterRadius, socketY - shelfThickness, z);
-        } else {
-          vertices.push(Math.cos(angle) * socketOuterRadius, socketY - shelfThickness, cutOffset);
-        }
+        const angle = (s / ringSegs) * Math.PI * 2;
+        vertices.push(
+          Math.cos(angle) * socketRingOuter,
+          bracketY - socketRingHeight,
+          ringCenterZ + Math.sin(angle) * socketRingOuter
+        );
       }
       for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI;
-        const z = Math.sin(angle) * socketInnerRadius;
-        if (z >= cutOffset) {
-          vertices.push(Math.cos(angle) * socketInnerRadius, socketY - shelfThickness, z);
-        } else {
-          vertices.push(Math.cos(angle) * socketInnerRadius, socketY - shelfThickness, cutOffset);
-        }
+        const angle = (s / ringSegs) * Math.PI * 2;
+        vertices.push(
+          Math.cos(angle) * socketRingInner,
+          bracketY - socketRingHeight,
+          ringCenterZ + Math.sin(angle) * socketRingInner
+        );
       }
       
-      const topOuter = bracketStartIdx;
-      const topInner = bracketStartIdx + (ringSegs + 1);
-      const botOuter = bracketStartIdx + (ringSegs + 1) * 2;
-      const botInner = bracketStartIdx + (ringSegs + 1) * 3;
+      const topOuter = ringStartIdx;
+      const topInner = ringStartIdx + (ringSegs + 1);
+      const botOuter = ringStartIdx + (ringSegs + 1) * 2;
+      const botInner = ringStartIdx + (ringSegs + 1) * 3;
       
-      // Shelf faces
+      // Ring faces
       for (let s = 0; s < ringSegs; s++) {
+        // Top surface
         indices.push(topOuter + s, topOuter + s + 1, topInner + s);
         indices.push(topInner + s, topOuter + s + 1, topInner + s + 1);
+        // Bottom surface
         indices.push(botOuter + s, botInner + s, botOuter + s + 1);
         indices.push(botOuter + s + 1, botInner + s, botInner + s + 1);
+        // Outer wall
         indices.push(topOuter + s, botOuter + s, topOuter + s + 1);
         indices.push(topOuter + s + 1, botOuter + s, botOuter + s + 1);
+        // Inner wall
         indices.push(topInner + s, topInner + s + 1, botInner + s);
         indices.push(botInner + s, topInner + s + 1, botInner + s + 1);
-      }
-      
-      // Close shelf edges at z = cutOffset
-      indices.push(topOuter + ringSegs, topInner + ringSegs, botOuter + ringSegs);
-      indices.push(botOuter + ringSegs, topInner + ringSegs, botInner + ringSegs);
-      indices.push(topOuter, botOuter, topInner);
-      indices.push(topInner, botOuter, botInner);
-      
-      // VERTICAL SUPPORT STRUTS connecting shelf to shell wall
-      for (let si = 0; si < strutCount; si++) {
-        const strutAngle = (si / (strutCount - 1)) * Math.PI * 0.6 + Math.PI * 0.2; // Spread across front
-        
-        // Strut goes from shelf outer edge down to bottom of shell
-        const strutX = Math.cos(strutAngle) * socketOuterRadius;
-        const strutZ = Math.max(Math.sin(strutAngle) * socketOuterRadius, cutOffset + 0.001);
-        const strutBottom = 0;
-        const strutTop = socketY - shelfThickness;
-        
-        // Find where this strut meets the shell at the bottom
-        const shellX = Math.cos(strutAngle) * bRad;
-        const shellZ = Math.max(Math.sin(strutAngle) * bRad, cutOffset + 0.001);
-        
-        const strutStartIdx = vertices.length / 3;
-        
-        // Strut vertices (simple rectangular box)
-        const hw = strutWidth / 2;
-        const hd = strutDepth / 2;
-        
-        // Top face (at shelf)
-        vertices.push(strutX - hw, strutTop, strutZ - hd);
-        vertices.push(strutX + hw, strutTop, strutZ - hd);
-        vertices.push(strutX + hw, strutTop, strutZ + hd);
-        vertices.push(strutX - hw, strutTop, strutZ + hd);
-        
-        // Bottom face (at shell)
-        vertices.push(shellX - hw, strutBottom, shellZ - hd);
-        vertices.push(shellX + hw, strutBottom, shellZ - hd);
-        vertices.push(shellX + hw, strutBottom, shellZ + hd);
-        vertices.push(shellX - hw, strutBottom, shellZ + hd);
-        
-        // Strut faces
-        // Top
-        indices.push(strutStartIdx + 0, strutStartIdx + 1, strutStartIdx + 2);
-        indices.push(strutStartIdx + 0, strutStartIdx + 2, strutStartIdx + 3);
-        // Bottom
-        indices.push(strutStartIdx + 4, strutStartIdx + 6, strutStartIdx + 5);
-        indices.push(strutStartIdx + 4, strutStartIdx + 7, strutStartIdx + 6);
-        // Front
-        indices.push(strutStartIdx + 2, strutStartIdx + 1, strutStartIdx + 5);
-        indices.push(strutStartIdx + 2, strutStartIdx + 5, strutStartIdx + 6);
-        // Back
-        indices.push(strutStartIdx + 0, strutStartIdx + 3, strutStartIdx + 7);
-        indices.push(strutStartIdx + 0, strutStartIdx + 7, strutStartIdx + 4);
-        // Left
-        indices.push(strutStartIdx + 0, strutStartIdx + 4, strutStartIdx + 5);
-        indices.push(strutStartIdx + 0, strutStartIdx + 5, strutStartIdx + 1);
-        // Right
-        indices.push(strutStartIdx + 3, strutStartIdx + 2, strutStartIdx + 6);
-        indices.push(strutStartIdx + 3, strutStartIdx + 6, strutStartIdx + 7);
       }
       
     } else {
