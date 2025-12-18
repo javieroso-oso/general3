@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Wrench, Link } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Wrench, Link, Box, Grip, Lamp, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints, AttachmentType, SCREW_SPECS, BAYONET_SPECS } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints, AttachmentType, StandType, SCREW_SPECS, BAYONET_SPECS } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
@@ -123,6 +123,22 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     onParamsChange({ ...params, screwCount: count });
   };
 
+  const handleStandTypeChange = (value: StandType) => {
+    onParamsChange({ ...params, standType: value });
+    toast.success(`Stand: ${getStandLabel(value)}`);
+  };
+
+  const getStandLabel = (type: StandType): string => {
+    switch (type) {
+      case 'tripod': return 'Tripod Legs';
+      case 'pedestal': return 'Solid Pedestal';
+      case 'wireframe': return 'Wireframe Cage';
+      case 'pendant': return 'Pendant Canopy';
+      case 'wall_bracket': return 'Wall Bracket';
+      case 'ring_base': return 'Ring Base';
+    }
+  };
+
   const getAttachmentLabel = (type: AttachmentType): string => {
     switch (type) {
       case 'integrated': return 'Integrated (one piece)';
@@ -164,24 +180,253 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         
         {params.addLegs && (
           <div className="space-y-3 pt-2 border-t border-border/50">
-            <div className="flex gap-2">
-              <Button
-                variant={params.legCount === 3 ? 'default' : 'outline'}
-                size="sm"
-                className="flex-1"
-                onClick={() => handleLegCountChange(3)}
-              >
-                3 Legs
-              </Button>
-              <Button
-                variant={params.legCount === 4 ? 'default' : 'outline'}
-                size="sm"
-                className="flex-1"
-                onClick={() => handleLegCountChange(4)}
-              >
-                4 Legs
-              </Button>
+            {/* Stand Type Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Stand Type</Label>
+              <Select value={params.standType} onValueChange={handleStandTypeChange}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tripod">Tripod Legs</SelectItem>
+                  <SelectItem value="pedestal">Solid Pedestal (WOOJ)</SelectItem>
+                  <SelectItem value="wireframe">Wireframe Cage (Akari)</SelectItem>
+                  <SelectItem value="pendant">Pendant Canopy</SelectItem>
+                  <SelectItem value="wall_bracket">Wall Bracket</SelectItem>
+                  <SelectItem value="ring_base">Ring Base</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            
+            {/* Tripod-specific controls */}
+            {params.standType === 'tripod' && (
+              <>
+                <div className="flex gap-2">
+                  <Button
+                    variant={params.legCount === 3 ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleLegCountChange(3)}
+                  >
+                    3 Legs
+                  </Button>
+                  <Button
+                    variant={params.legCount === 4 ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleLegCountChange(4)}
+                  >
+                    4 Legs
+                  </Button>
+                </div>
+                
+                <ParameterSlider
+                  label="Leg Height"
+                  value={params.legHeight}
+                  min={30}
+                  max={200}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('legHeight')}
+                />
+                <ParameterSlider
+                  label="Leg Spread"
+                  value={params.legSpread}
+                  min={15}
+                  max={45}
+                  step={1}
+                  unit="°"
+                  onChange={handleChange('legSpread')}
+                />
+                <ParameterSlider
+                  label="Leg Thickness"
+                  value={params.legThickness}
+                  min={3}
+                  max={10}
+                  step={0.5}
+                  unit="mm"
+                  onChange={handleChange('legThickness')}
+                />
+                <ParameterSlider
+                  label="Leg Taper"
+                  value={params.legTaper}
+                  min={0}
+                  max={0.8}
+                  step={0.1}
+                  onChange={handleChange('legTaper')}
+                />
+              </>
+            )}
+            
+            {/* Pedestal-specific controls */}
+            {params.standType === 'pedestal' && (
+              <>
+                <ParameterSlider
+                  label="Pedestal Diameter"
+                  value={params.pedestalDiameter}
+                  min={30}
+                  max={120}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('pedestalDiameter')}
+                />
+                <ParameterSlider
+                  label="Height"
+                  value={params.legHeight}
+                  min={20}
+                  max={150}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('legHeight')}
+                />
+                <ParameterSlider
+                  label="Taper"
+                  value={params.pedestalTaper}
+                  min={0}
+                  max={0.6}
+                  step={0.05}
+                  onChange={handleChange('pedestalTaper')}
+                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="pedestal-hollow" className="text-xs">Hollow (for cord)</Label>
+                  <Switch 
+                    id="pedestal-hollow" 
+                    checked={params.pedestalHollow} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, pedestalHollow: v })}
+                  />
+                </div>
+              </>
+            )}
+            
+            {/* Wireframe-specific controls */}
+            {params.standType === 'wireframe' && (
+              <>
+                <ParameterSlider
+                  label="Height"
+                  value={params.legHeight}
+                  min={50}
+                  max={200}
+                  step={10}
+                  unit="mm"
+                  onChange={handleChange('legHeight')}
+                />
+                <ParameterSlider
+                  label="Rib Count"
+                  value={params.wireframeRibCount}
+                  min={4}
+                  max={12}
+                  step={1}
+                  onChange={handleChange('wireframeRibCount')}
+                />
+                <ParameterSlider
+                  label="Ring Count"
+                  value={params.wireframeRingCount}
+                  min={1}
+                  max={5}
+                  step={1}
+                  onChange={handleChange('wireframeRingCount')}
+                />
+                <ParameterSlider
+                  label="Thickness"
+                  value={params.wireframeThickness}
+                  min={2}
+                  max={8}
+                  step={0.5}
+                  unit="mm"
+                  onChange={handleChange('wireframeThickness')}
+                />
+              </>
+            )}
+            
+            {/* Pendant-specific controls */}
+            {params.standType === 'pendant' && (
+              <>
+                <ParameterSlider
+                  label="Canopy Diameter"
+                  value={params.pendantCanopyDiameter}
+                  min={50}
+                  max={150}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('pendantCanopyDiameter')}
+                />
+                <ParameterSlider
+                  label="Canopy Height"
+                  value={params.pendantCanopyHeight}
+                  min={10}
+                  max={50}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('pendantCanopyHeight')}
+                />
+                <ParameterSlider
+                  label="Cord Length"
+                  value={params.pendantCordLength}
+                  min={50}
+                  max={300}
+                  step={10}
+                  unit="mm"
+                  onChange={handleChange('pendantCordLength')}
+                />
+              </>
+            )}
+            
+            {/* Wall bracket-specific controls */}
+            {params.standType === 'wall_bracket' && (
+              <>
+                <ParameterSlider
+                  label="Plate Size"
+                  value={params.wallBracketPlateSize}
+                  min={50}
+                  max={150}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('wallBracketPlateSize')}
+                />
+                <ParameterSlider
+                  label="Arm Length"
+                  value={params.wallBracketArmLength}
+                  min={0}
+                  max={300}
+                  step={10}
+                  unit="mm"
+                  onChange={handleChange('wallBracketArmLength')}
+                />
+                <ParameterSlider
+                  label="Arm Angle"
+                  value={params.wallBracketArmAngle}
+                  min={-30}
+                  max={45}
+                  step={5}
+                  unit="°"
+                  onChange={handleChange('wallBracketArmAngle')}
+                />
+              </>
+            )}
+            
+            {/* Ring base-specific controls */}
+            {params.standType === 'ring_base' && (
+              <>
+                <ParameterSlider
+                  label="Ring Diameter"
+                  value={params.ringBaseDiameter}
+                  min={50}
+                  max={200}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('ringBaseDiameter')}
+                />
+                <ParameterSlider
+                  label="Ring Thickness"
+                  value={params.ringBaseThickness}
+                  min={4}
+                  max={15}
+                  step={1}
+                  unit="mm"
+                  onChange={handleChange('ringBaseThickness')}
+                />
+              </>
+            )
             
             <ParameterSlider
               label="Leg Height"
