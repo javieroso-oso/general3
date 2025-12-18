@@ -265,8 +265,8 @@ export function generateLegsWithBaseMesh(
       wallThickness: params.wallThickness,
       cordHoleEnabled: params.cordHoleEnabled,
       cordHoleDiameter: params.cordHoleDiameter,
-      socketRecessEnabled: params.socketRecessEnabled,
-      socketType: params.socketType,
+      centeringLipEnabled: params.centeringLipEnabled,
+      centeringLipHeight: params.centeringLipHeight,
     }
   );
 }

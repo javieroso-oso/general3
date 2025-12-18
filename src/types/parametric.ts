@@ -1,7 +1,5 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
-export type SocketType = 'E26' | 'E27' | 'E12' | 'E14' | 'GU10' | 'G9';
-
 export interface ParametricParams {
   // Basic dimensions (mm for printing)
   height: number;
@@ -54,9 +52,9 @@ export interface ParametricParams {
   cordHoleEnabled: boolean;     // Toggle cord exit hole
   cordHoleDiameter: number;     // mm - cord exit hole diameter
   
-  // Socket recess (shallow indent for socket to sit in)
-  socketRecessEnabled: boolean;  // Toggle socket recess
-  socketType: SocketType;        // Socket type for recess sizing
+  // Simple centering lip around cord hole (raised ring for socket alignment)
+  centeringLipEnabled: boolean;  // Toggle centering lip
+  centeringLipHeight: number;    // mm - height of centering lip (2-5mm)
   
   // Support-free printing mode
   supportFreeMode: boolean;
@@ -195,8 +193,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipWidth: 2,
     cordHoleEnabled: false,
     cordHoleDiameter: 8,
-    socketRecessEnabled: false,
-    socketType: 'E26',
+    centeringLipEnabled: false,
+    centeringLipHeight: 3,
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -232,8 +230,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipWidth: 2,
     cordHoleEnabled: true,
     cordHoleDiameter: 8,
-    socketRecessEnabled: true,
-    socketType: 'E26',
+    centeringLipEnabled: true,
+    centeringLipHeight: 3,
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -269,8 +267,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipWidth: 2,
     cordHoleEnabled: false,
     cordHoleDiameter: 8,
-    socketRecessEnabled: false,
-    socketType: 'E26',
+    centeringLipEnabled: false,
+    centeringLipHeight: 3,
     supportFreeMode: false,
     showOverhangMap: false,
   },
