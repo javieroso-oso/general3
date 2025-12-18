@@ -21,19 +21,9 @@ export interface SocketParams {
   plugGap: number;        // mm - tolerance gap between plug and body inner wall
   lipWidth: number;       // mm - width of lip that body rests on
   wallThickness: number;  // mm - body wall thickness (needed to calculate inner radius)
-  socketHoleEnabled?: boolean;  // Enable central socket hole
-  socketHoleType?: 'E26' | 'E27' | 'E12' | 'GU10' | 'G9';  // Socket type for sizing
+  cordHoleEnabled?: boolean;    // Enable central cord exit hole
   cordHoleDiameter?: number;    // mm - cord exit hole diameter
 }
-
-// Socket dimensions for hole sizing (mm)
-const socketHoleDimensions: Record<string, { outerDiameter: number; height: number; collarHeight: number; threadDiameter: number }> = {
-  E26: { outerDiameter: 26, height: 47, collarHeight: 10, threadDiameter: 24 },
-  E27: { outerDiameter: 27, height: 47, collarHeight: 10, threadDiameter: 25 },
-  E12: { outerDiameter: 12, height: 30, collarHeight: 6, threadDiameter: 11 },
-  GU10: { outerDiameter: 50, height: 55, collarHeight: 8, threadDiameter: 50 },
-  G9: { outerDiameter: 18, height: 35, collarHeight: 5, threadDiameter: 9 },
-};
 
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
@@ -288,16 +278,9 @@ function createBaseDiscWithSocket(
   const lipWidth = socketParams?.lipWidth ?? 2;
   const wallThickness = socketParams?.wallThickness ?? 2;
   
-  // Socket hole parameters
-  const socketHoleEnabled = socketParams?.socketHoleEnabled ?? false;
-  const socketHoleType = socketParams?.socketHoleType ?? 'E26';
+  // Cord hole parameters (simple exit hole only)
+  const cordHoleEnabled = socketParams?.cordHoleEnabled ?? false;
   const cordHoleDiameter = socketParams?.cordHoleDiameter ?? 8;
-  
-  // Get socket dimensions if enabled
-  const socketDims = socketHoleEnabled ? socketHoleDimensions[socketHoleType] : null;
-  const socketHoleRadius = socketDims ? (socketDims.outerDiameter / 2) + 0.5 : 0; // +0.5mm tolerance
-  const ledgeInnerRadius = socketDims ? (socketDims.threadDiameter / 2) : 0; // Smaller - collar rests on this
-  const ledgeHeight = socketDims ? thickness - (socketDims.height - socketDims.collarHeight) : 0;
   const cordHoleRadius = cordHoleDiameter / 2;
   
   // Calculate radii functions
@@ -308,9 +291,9 @@ function createBaseDiscWithSocket(
   
   const getLipOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
   
-  // ===== PLUG (extends upward from lip into body) =====
-  if (socketHoleEnabled && socketDims) {
-    // Plug is a ring (hollow center for socket hole)
+  // ===== PLUG (extends upward from lip into body) - solid with optional cord hole =====
+  if (cordHoleEnabled) {
+    // Plug with cord hole through center
     // Plug top - outer ring
     const plugTopOuterStart = vertices.length / 3;
     for (let i = 0; i <= segments; i++) {
@@ -319,11 +302,11 @@ function createBaseDiscWithSocket(
       vertices.push(Math.cos(theta) * r, plugHeight, Math.sin(theta) * r);
     }
     
-    // Plug top - inner ring (socket hole edge)
+    // Plug top - inner ring (cord hole edge)
     const plugTopInnerStart = vertices.length / 3;
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * socketHoleRadius, plugHeight, Math.sin(theta) * socketHoleRadius);
+      vertices.push(Math.cos(theta) * cordHoleRadius, plugHeight, Math.sin(theta) * cordHoleRadius);
     }
     
     // Plug top face (ring between outer and inner)
@@ -348,7 +331,7 @@ function createBaseDiscWithSocket(
     const plugBottomInnerStart = vertices.length / 3;
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * socketHoleRadius, 0, Math.sin(theta) * socketHoleRadius);
+      vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
     }
     
     // Plug outer side wall
@@ -361,7 +344,7 @@ function createBaseDiscWithSocket(
       indices.push(botA, topB, botB);
     }
     
-    // Plug inner side wall (socket hole)
+    // Plug inner side wall (cord hole through plug)
     for (let i = 0; i < segments; i++) {
       const topA = plugTopInnerStart + i;
       const topB = plugTopInnerStart + i + 1;
@@ -390,62 +373,7 @@ function createBaseDiscWithSocket(
       indices.push(plugB, lipA, lipB);
     }
     
-    // ===== SOCKET HOLE continues down to support ledge =====
-    // Socket hole wall from plug bottom to ledge
-    const ledgeY = -thickness + ledgeHeight;
-    const socketWallTopStart = plugBottomInnerStart; // reuse
-    
-    const socketWallBottomStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * socketHoleRadius, ledgeY, Math.sin(theta) * socketHoleRadius);
-    }
-    
-    // Socket hole inner wall (from y=0 to ledge)
-    for (let i = 0; i < segments; i++) {
-      const topA = socketWallTopStart + i;
-      const topB = socketWallTopStart + i + 1;
-      const botA = socketWallBottomStart + i;
-      const botB = socketWallBottomStart + i + 1;
-      indices.push(topA, botA, topB);
-      indices.push(topB, botA, botB);
-    }
-    
-    // ===== SUPPORT LEDGE (horizontal ring for socket collar) =====
-    const ledgeInnerRingStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * ledgeInnerRadius, ledgeY, Math.sin(theta) * ledgeInnerRadius);
-    }
-    
-    // Ledge top face (ring between socket hole and ledge inner)
-    for (let i = 0; i < segments; i++) {
-      const outerA = socketWallBottomStart + i;
-      const outerB = socketWallBottomStart + i + 1;
-      const innerA = ledgeInnerRingStart + i;
-      const innerB = ledgeInnerRingStart + i + 1;
-      indices.push(outerA, innerA, outerB);
-      indices.push(outerB, innerA, innerB);
-    }
-    
-    // ===== CORD HOLE (continues from ledge to bottom) =====
-    // Cord hole top ring (at ledge level)
-    const cordHoleTopStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * cordHoleRadius, ledgeY, Math.sin(theta) * cordHoleRadius);
-    }
-    
-    // Wall from ledge inner to cord hole
-    for (let i = 0; i < segments; i++) {
-      const outerA = ledgeInnerRingStart + i;
-      const outerB = ledgeInnerRingStart + i + 1;
-      const innerA = cordHoleTopStart + i;
-      const innerB = cordHoleTopStart + i + 1;
-      indices.push(outerA, innerA, outerB);
-      indices.push(outerB, innerA, innerB);
-    }
-    
+    // ===== CORD HOLE continues through base =====
     // Cord hole bottom ring
     const cordHoleBottomStart = vertices.length / 3;
     for (let i = 0; i <= segments; i++) {
@@ -453,10 +381,10 @@ function createBaseDiscWithSocket(
       vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
     }
     
-    // Cord hole wall
+    // Cord hole wall (from y=0 to base bottom)
     for (let i = 0; i < segments; i++) {
-      const topA = cordHoleTopStart + i;
-      const topB = cordHoleTopStart + i + 1;
+      const topA = plugBottomInnerStart + i;
+      const topB = plugBottomInnerStart + i + 1;
       const botA = cordHoleBottomStart + i;
       const botB = cordHoleBottomStart + i + 1;
       indices.push(topA, botA, topB);
