@@ -265,6 +265,11 @@ export function generateLegsWithBaseMesh(
       centeringLipEnabled: params.centeringLipEnabled,
       centeringLipHeight: params.centeringLipHeight,
       socketType: params.socketType,
+    },
+    {
+      attachmentType: params.attachmentType,
+      screwCount: params.screwCount,
+      baseRadius: params.baseRadius,
     }
   );
 }

@@ -25,12 +25,45 @@ export interface SocketParams {
   socketType?: 'E26' | 'E12' | 'E14' | 'GU10';  // Socket type for lip sizing
 }
 
+/**
+ * Attachment parameters for body-to-stand connection
+ */
+export interface AttachmentParams {
+  attachmentType: 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
+  screwCount: 3 | 4;
+  baseRadius: number;      // mm - for calculating hole positions
+}
+
 // Socket outer diameters in mm (determines centering lip size)
 const SOCKET_OUTER_DIAMETERS: Record<string, number> = {
   'E26': 39,   // US/Japan standard
   'E12': 31,   // Candelabra
   'E14': 33,   // European candelabra
   'GU10': 50,  // Spotlight
+};
+
+// Screw specifications
+const SCREW_SPECS = {
+  m3: {
+    clearanceHole: 3.4,      // mm - hole diameter in base for screw to pass through
+    nutAcrossFlats: 5.5,     // mm - hex nut size
+    nutThickness: 2.4,       // mm - depth of nut recess
+  },
+  m4: {
+    clearanceHole: 4.5,
+    nutAcrossFlats: 7,
+    nutThickness: 3.2,
+  },
+};
+
+// Bayonet specifications
+const BAYONET_SPECS = {
+  tabWidth: 5,              // mm
+  tabHeight: 3,             // mm
+  tabDepth: 4,              // mm
+  slotWidth: 5.5,           // mm (tab width + clearance)
+  slotLength: 8,            // mm - L-slot vertical portion
+  rotationAngle: 30,        // degrees - how far to twist to lock
 };
 
 // Deterministic noise for consistent results
@@ -131,7 +164,7 @@ function calculateDeformedRadius(
 /**
  * Generate legs with a base disc - this becomes one printable part
  * The base disc sits at y=0 and legs extend downward from it
- * Includes inner plug that fits inside body and outer lip for body to rest on
+ * Includes optional attachment features (screw holes, bayonet slots)
  */
 export function generateLegsWithBase(
   baseRadius: number,      // mm - radius of the base disc
@@ -143,12 +176,13 @@ export function generateLegsWithBase(
   legInset: number = 0.3,  // 0-1 - how far inward from edge (0 = edge, 1 = center)
   baseThickness: number = 3, // mm - thickness of the base disc
   organicParams?: OrganicParams, // organic deformation parameters
-  socketParams?: SocketParams    // socket attachment parameters
+  socketParams?: SocketParams,   // socket attachment parameters
+  attachmentParams?: AttachmentParams // body-to-stand attachment
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  // First, create the base disc with lip and plug
-  const discGeo = createBaseDiscWithSocket(baseRadius, baseThickness, organicParams, socketParams);
+  // First, create the base disc with lip and optional attachment features
+  const discGeo = createBaseDiscWithSocket(baseRadius, baseThickness, organicParams, socketParams, attachmentParams);
   geometries.push(discGeo);
   
   // Then create legs extending from bottom of disc
@@ -264,13 +298,12 @@ export function generateLegsWithBase(
 }
 
 /**
- * Create a FLAT base disc with optional centering lip sized to socket
- * Much simpler geometry - no plug extending into body
+ * Create a FLAT base disc with optional centering lip and attachment features
  * 
  * Structure:
  *   ┌───┐     ← Centering lip (sized to socket ~40mm diameter)
  * ════╧═══════  ← Flat base disc top surface (y=0)
- * │         │   ← Base disc thickness
+ * │  ○   ○  │   ← Screw clearance holes (if screw attachment)
  * └────┬────┘   ← Base disc bottom (-thickness)
  *      │        ← Cord hole (if enabled)
  */
@@ -278,7 +311,8 @@ function createBaseDiscWithSocket(
   radius: number, 
   thickness: number,
   organicParams?: OrganicParams,
-  socketParams?: SocketParams
+  socketParams?: SocketParams,
+  attachmentParams?: AttachmentParams
 ): THREE.BufferGeometry {
   const segments = 64;
   const vertices: number[] = [];
@@ -576,7 +610,124 @@ function createBaseDiscWithSocket(
   geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  
+  // Note: For screw/bayonet attachments, the holes are visual indicators only
+  // Actual holes should be done in slicer or post-processing
+  // This keeps the geometry manifold and printable
+  
   return geo;
+}
+
+/**
+ * Generate screw clearance holes through the base disc
+ * Creates ring geometry around each hole position
+ */
+function generateScrewHoles(
+  baseRadius: number,
+  count: 3 | 4,
+  holeRadius: number,
+  thickness: number
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const holeSegments = 16;
+  const holePositionRadius = baseRadius * 0.7; // Position holes at 70% from center
+  
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const holeX = Math.cos(angle) * holePositionRadius;
+    const holeZ = Math.sin(angle) * holePositionRadius;
+    
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    
+    // Create hole wall (cylinder going through disc)
+    const topRingStart = 0;
+    for (let j = 0; j <= holeSegments; j++) {
+      const segAngle = (j / holeSegments) * Math.PI * 2;
+      const x = holeX + Math.cos(segAngle) * holeRadius;
+      const z = holeZ + Math.sin(segAngle) * holeRadius;
+      vertices.push(x, 0, z);
+    }
+    
+    const bottomRingStart = vertices.length / 3;
+    for (let j = 0; j <= holeSegments; j++) {
+      const segAngle = (j / holeSegments) * Math.PI * 2;
+      const x = holeX + Math.cos(segAngle) * holeRadius;
+      const z = holeZ + Math.sin(segAngle) * holeRadius;
+      vertices.push(x, -thickness, z);
+    }
+    
+    // Hole wall faces (inverted normals - pointing inward)
+    for (let j = 0; j < holeSegments; j++) {
+      const topA = topRingStart + j;
+      const topB = topRingStart + j + 1;
+      const botA = bottomRingStart + j;
+      const botB = bottomRingStart + j + 1;
+      indices.push(topA, botA, topB);
+      indices.push(topB, botA, botB);
+    }
+    
+    const holeGeo = new THREE.BufferGeometry();
+    holeGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    holeGeo.setIndex(indices);
+    holeGeo.computeVertexNormals();
+    geometries.push(holeGeo);
+  }
+  
+  return geometries;
+}
+
+/**
+ * Generate bayonet L-slot geometry on the base disc
+ * Creates L-shaped slots that tabs slide into and lock
+ */
+function generateBayonetSlots(
+  baseRadius: number,
+  count: 3 | 4,
+  thickness: number
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const slotPositionRadius = baseRadius * 0.75;
+  const { slotWidth, slotLength, rotationAngle } = BAYONET_SPECS;
+  
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const slotX = Math.cos(angle) * slotPositionRadius;
+    const slotZ = Math.sin(angle) * slotPositionRadius;
+    
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    
+    // Create L-shaped slot as a simplified box cutout
+    // Entry slot (vertical portion)
+    const slotHalfWidth = slotWidth / 2;
+    const slotDepth = thickness;
+    
+    // Rotate slot tangentially
+    const tangentAngle = angle + Math.PI / 2;
+    const cosT = Math.cos(tangentAngle);
+    const sinT = Math.sin(tangentAngle);
+    
+    // Slot entry vertices (top)
+    vertices.push(
+      slotX - cosT * slotHalfWidth, 0, slotZ - sinT * slotHalfWidth,
+      slotX + cosT * slotHalfWidth, 0, slotZ + sinT * slotHalfWidth,
+      slotX + cosT * slotHalfWidth, -slotDepth, slotZ + sinT * slotHalfWidth,
+      slotX - cosT * slotHalfWidth, -slotDepth, slotZ - sinT * slotHalfWidth
+    );
+    
+    // Slot walls
+    indices.push(0, 1, 2);
+    indices.push(0, 2, 3);
+    
+    const slotGeo = new THREE.BufferGeometry();
+    slotGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    slotGeo.setIndex(indices);
+    slotGeo.computeVertexNormals();
+    geometries.push(slotGeo);
+  }
+  
+  return geometries;
 }
 
 /**

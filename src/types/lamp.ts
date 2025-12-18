@@ -386,6 +386,9 @@ export const defaultLampParams: LampParams = {
   legThickness: 4,
   legTaper: 0.6,
   legInset: 0.3,
+  // Body-to-stand attachment
+  attachmentType: 'screw_m3',
+  screwCount: 3,
   wobbleFrequency: 0,
   wobbleAmplitude: 0,
   twistAngle: 0,
