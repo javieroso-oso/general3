@@ -427,11 +427,10 @@ export const defaultLampParams: LampParams = {
   socketType: 'E26',
   supportFreeMode: false,
   showOverhangMap: false,
-  wallMountCutAngle: 180,
-  wallMountPlateThickness: 8,
-  wallMountHoleType: 'keyhole',
-  wallMountHoleCount: 2,
-  wallMountBulbFixture: true,
+  wallMountCutOffset: 0,
+  wallMountScrewCount: 2,
+  wallMountScrewDiameter: 5,
+  wallMountCordHoleEnabled: true,
   
   // Shade rim config
   shade: defaultShadeConfig,

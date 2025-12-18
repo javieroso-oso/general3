@@ -3,9 +3,7 @@ export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount';
 
-// Wall mount options
-export type WallMountPlateShape = 'circle' | 'rectangle' | 'rounded_rectangle';
-export type WallMountHoleType = 'keyhole' | 'screw' | 'adhesive';
+// Wall mount options (simplified - no separate plate needed)
 
 // Attachment types for body-to-stand connection
 export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
@@ -68,12 +66,11 @@ export interface ParametricParams {
   pendantCanopyHeight: number;   // mm - canopy dome height
   pendantCordLength: number;     // mm - visual cord length in preview
   
-  // Wall mount parameters (sconce style)
-  wallMountCutAngle: number;        // degrees - how much of the shell to keep (90-270, 180 = half)
-  wallMountPlateThickness: number;  // mm - plate thickness
-  wallMountHoleType: WallMountHoleType;
-  wallMountHoleCount: 2 | 3 | 4;    // number of mounting holes
-  wallMountBulbFixture: boolean;    // add bulb fixture opening
+  // Wall mount parameters (planar cut style - no separate plate)
+  wallMountCutOffset: number;       // mm - distance from center for cut plane (0 = exact half, positive = keep more)
+  wallMountScrewCount: 2 | 3 | 4;   // number of mounting screw holes on flat back
+  wallMountScrewDiameter: number;   // mm - screw hole diameter
+  wallMountCordHoleEnabled: boolean; // add cord exit hole through flat back
   
   // Legacy wall bracket (kept for compatibility)
   wallBracketArmLength: number;  // mm - arm extension from wall
@@ -279,11 +276,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
-    wallMountCutAngle: 180,
-    wallMountPlateThickness: 8,
-    wallMountHoleType: 'keyhole',
-    wallMountHoleCount: 2,
-    wallMountBulbFixture: true,
+    wallMountCutOffset: 0,
+    wallMountScrewCount: 2,
+    wallMountScrewDiameter: 5,
+    wallMountCordHoleEnabled: true,
   },
   lamp: {
     height: 100,
@@ -336,11 +332,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
-    wallMountCutAngle: 180,
-    wallMountPlateThickness: 8,
-    wallMountHoleType: 'keyhole',
-    wallMountHoleCount: 2,
-    wallMountBulbFixture: true,
+    wallMountCutOffset: 0,
+    wallMountScrewCount: 2,
+    wallMountScrewDiameter: 5,
+    wallMountCordHoleEnabled: true,
   },
   sculpture: {
     height: 150,
@@ -393,11 +388,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
-    wallMountCutAngle: 180,
-    wallMountPlateThickness: 10,
-    wallMountHoleType: 'keyhole',
-    wallMountHoleCount: 2,
-    wallMountBulbFixture: false,
+    wallMountCutOffset: 0,
+    wallMountScrewCount: 2,
+    wallMountScrewDiameter: 5,
+    wallMountCordHoleEnabled: false,
   },
 };
 

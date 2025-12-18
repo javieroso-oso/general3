@@ -4,7 +4,6 @@ import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase } from '@/lib/leg-generator';
-import { generateStand } from '@/lib/stand-generators';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -92,18 +91,16 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const segments = 64;
     const heightSegments = 64;
     
-    // For wall mount, generate partial shell based on cut angle
+    // For wall mount, we generate FULL 360° object then slice with a plane
     const isWallMount = addLegs && params.standType === 'wall_mount';
-    const cutAngleDeg = params.wallMountCutAngle || 180;
-    const cutAngleRad = (cutAngleDeg * Math.PI) / 180;
-    const angleRange = isWallMount ? cutAngleRad : Math.PI * 2;
-    const effectiveSegments = isWallMount ? Math.ceil(segments * (cutAngleDeg / 360)) : segments;
+    const cutOffset = (params.wallMountCutOffset || 0) * SCALE; // Convert mm to scene units
 
     const outerVerts: number[] = [];
-    // Store max radius at each height for side base sizing
+    // Store radii at each height for sizing calculations
     const radiiAtHeight: number[] = [];
     let maxRadius = 0;
 
+    // Generate full 360° object regardless of wall mount
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
       const y = t * h;
@@ -142,13 +139,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
       const twistRad = (twistAngle * Math.PI / 180) * t;
 
-      // For wall mount: angle goes from 0 to cutAngle so both edges land at z=0
-      // θ=0 → (r, y, 0) and θ=π → (-r, y, 0) for 180° cut
-      // This ensures the flat back is naturally at z=0 without forcing vertices
-      const angleOffset = isWallMount ? 0 : 0;
-
-      for (let j = 0; j <= effectiveSegments; j++) {
-        const theta = (j / effectiveSegments) * angleRange + twistRad + angleOffset;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2 + twistRad;
         let r = radius;
 
         // Wobble
@@ -180,90 +172,242 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
 
-        let x = Math.cos(theta) * r;
-        let z = Math.sin(theta) * r;
-        
-        // For wall mount: force edge vertices to z=0 to ensure perfectly flat back
-        // regardless of organic deformations
-        if (isWallMount) {
-          const isLeftEdge = j === 0;
-          const isRightEdge = j === effectiveSegments;
-          if (isLeftEdge || isRightEdge) {
-            // Keep x position (the deformed radius at this height)
-            // but force z to 0 for flat back
-            z = 0;
-          }
-        }
+        const x = Math.cos(theta) * r;
+        const z = Math.sin(theta) * r;
         
         outerVerts.push(x, y, z);
       }
     }
 
-    // Build body geometry
-    const vertices: number[] = [...outerVerts];
+    // Build body geometry - for wall mount, we'll clip vertices and create flat back
+    const vertices: number[] = [];
     const indices: number[] = [];
 
-    // Outer surface indices
-    for (let i = 0; i < heightSegments; i++) {
-      for (let j = 0; j < effectiveSegments; j++) {
-        const a = i * (effectiveSegments + 1) + j;
-        const b = a + 1;
-        const c = a + (effectiveSegments + 1);
-        const d = c + 1;
-        indices.push(a, c, b);
-        indices.push(b, c, d);
-      }
-    }
-
-    // For wall mount, add flat back face
     if (isWallMount) {
-      // Collect vertices along the two cut edges (j=0 and j=effectiveSegments)
-      // and create triangles to close the flat back
+      // PLANAR CUT APPROACH: Keep vertices where z > cutOffset, clip others to the plane
+      // This creates a flat back exactly at z = cutOffset
       
-      // The flat back should be at z=0 (flush to wall)
-      // We create a flat surface connecting all the edge vertices
+      // First pass: process all vertices, clipping to the cut plane
+      const clippedVerts: number[] = [];
+      const vertexMask: boolean[] = []; // true = vertex is in front of cut plane
       
-      // Left edge (j=0) vertices indices
-      const leftEdge: number[] = [];
-      for (let i = 0; i <= heightSegments; i++) {
-        leftEdge.push(i * (effectiveSegments + 1)); // First vertex in each row
-      }
-      
-      // Right edge (j=effectiveSegments) vertices indices  
-      const rightEdge: number[] = [];
-      for (let i = 0; i <= heightSegments; i++) {
-        rightEdge.push(i * (effectiveSegments + 1) + effectiveSegments); // Last vertex in each row
-      }
-      
-      // Create flat back by connecting left and right edges
-      // Since the flat back is a vertical plane at x=0, we need to add center vertices
-      // Actually, the edges should already be on a plane since they're at theta = -PI/2 and PI/2
-      // So we can triangulate between them directly
-      
-      for (let i = 0; i < heightSegments; i++) {
-        const l0 = leftEdge[i];
-        const l1 = leftEdge[i + 1];
-        const r0 = rightEdge[i];
-        const r1 = rightEdge[i + 1];
+      for (let i = 0; i < outerVerts.length; i += 3) {
+        const x = outerVerts[i];
+        const y = outerVerts[i + 1];
+        const z = outerVerts[i + 2];
         
-        // Two triangles to form quad (reversed winding for back face)
-        indices.push(l0, r0, l1);
-        indices.push(l1, r0, r1);
+        if (z >= cutOffset) {
+          // Vertex is in front of cut plane - keep it
+          clippedVerts.push(x, y, z);
+          vertexMask.push(true);
+        } else {
+          // Vertex is behind cut plane - project to the plane
+          clippedVerts.push(x, y, cutOffset);
+          vertexMask.push(false);
+        }
+      }
+      
+      // Copy clipped vertices
+      for (let i = 0; i < clippedVerts.length; i++) {
+        vertices.push(clippedVerts[i]);
+      }
+      
+      // Build indices for outer surface (same topology as before)
+      for (let i = 0; i < heightSegments; i++) {
+        for (let j = 0; j < segments; j++) {
+          const a = i * (segments + 1) + j;
+          const b = a + 1;
+          const c = a + (segments + 1);
+          const d = c + 1;
+          
+          // Only create face if at least one vertex is visible (in front of cut plane)
+          const aVisible = vertexMask[a];
+          const bVisible = vertexMask[b];
+          const cVisible = vertexMask[c];
+          const dVisible = vertexMask[d];
+          
+          // Skip faces that are entirely behind the cut plane (all 4 vertices clipped)
+          // But keep faces that have at least some vertices in front
+          if (aVisible || bVisible || cVisible || dVisible) {
+            indices.push(a, c, b);
+            indices.push(b, c, d);
+          }
+        }
+      }
+      
+      // Create flat back face by collecting all vertices on the cut plane
+      // These are vertices where z was clipped to cutOffset
+      // We need to triangulate them to create a solid back
+      
+      // Find all unique (x, y) positions on the cut plane and their indices
+      const backEdgeVerts: { idx: number; x: number; y: number }[] = [];
+      
+      for (let i = 0; i <= heightSegments; i++) {
+        for (let j = 0; j <= segments; j++) {
+          const idx = i * (segments + 1) + j;
+          if (!vertexMask[idx]) {
+            // This vertex is on the cut plane
+            const x = vertices[idx * 3];
+            const y = vertices[idx * 3 + 1];
+            backEdgeVerts.push({ idx, x, y });
+          }
+        }
+      }
+      
+      // Sort by height (y) then by x to help with triangulation
+      backEdgeVerts.sort((a, b) => a.y - b.y || a.x - b.x);
+      
+      // Simple fan triangulation from center for the flat back
+      if (backEdgeVerts.length >= 3) {
+        // Add center point for flat back
+        const centerX = backEdgeVerts.reduce((sum, v) => sum + v.x, 0) / backEdgeVerts.length;
+        const centerY = backEdgeVerts.reduce((sum, v) => sum + v.y, 0) / backEdgeVerts.length;
+        const centerIdx = vertices.length / 3;
+        vertices.push(centerX, centerY, cutOffset);
+        
+        // Sort vertices by angle from center for proper triangulation
+        const sortedByAngle = backEdgeVerts.map(v => ({
+          ...v,
+          angle: Math.atan2(v.y - centerY, v.x - centerX)
+        })).sort((a, b) => a.angle - b.angle);
+        
+        // Create triangles (reversed winding for back face)
+        for (let i = 0; i < sortedByAngle.length; i++) {
+          const curr = sortedByAngle[i];
+          const next = sortedByAngle[(i + 1) % sortedByAngle.length];
+          indices.push(centerIdx, curr.idx, next.idx);
+        }
+      }
+      
+      // Add mounting screw holes directly through the flat back
+      const screwCount = params.wallMountScrewCount || 2;
+      const screwDiameter = (params.wallMountScrewDiameter || 5) * SCALE;
+      const screwRadius = screwDiameter / 2;
+      const holeDepth = 10 * SCALE; // 10mm deep through flat back
+      
+      // Calculate screw positions on the flat back
+      const backHeight = h;
+      const backWidth = maxRadius * 2;
+      const marginY = backHeight * 0.15;
+      const marginX = backWidth * 0.2;
+      
+      const screwPositions: { x: number; y: number }[] = [];
+      if (screwCount === 2) {
+        screwPositions.push({ x: 0, y: marginY });
+        screwPositions.push({ x: 0, y: backHeight - marginY });
+      } else if (screwCount === 3) {
+        screwPositions.push({ x: 0, y: backHeight - marginY });
+        screwPositions.push({ x: -backWidth / 4, y: marginY });
+        screwPositions.push({ x: backWidth / 4, y: marginY });
+      } else {
+        screwPositions.push({ x: -backWidth / 4, y: backHeight - marginY });
+        screwPositions.push({ x: backWidth / 4, y: backHeight - marginY });
+        screwPositions.push({ x: -backWidth / 4, y: marginY });
+        screwPositions.push({ x: backWidth / 4, y: marginY });
+      }
+      
+      // Generate screw hole geometry
+      const holeSegments = 12;
+      for (const pos of screwPositions) {
+        const holeStartIdx = vertices.length / 3;
+        
+        // Front ring (at cut plane)
+        for (let s = 0; s <= holeSegments; s++) {
+          const angle = (s / holeSegments) * Math.PI * 2;
+          vertices.push(
+            pos.x + Math.cos(angle) * screwRadius,
+            pos.y + Math.sin(angle) * screwRadius,
+            cutOffset
+          );
+        }
+        
+        // Back ring (behind cut plane)
+        for (let s = 0; s <= holeSegments; s++) {
+          const angle = (s / holeSegments) * Math.PI * 2;
+          vertices.push(
+            pos.x + Math.cos(angle) * screwRadius,
+            pos.y + Math.sin(angle) * screwRadius,
+            cutOffset - holeDepth
+          );
+        }
+        
+        // Hole wall indices
+        for (let s = 0; s < holeSegments; s++) {
+          const a = holeStartIdx + s;
+          const b = holeStartIdx + s + 1;
+          const c = holeStartIdx + holeSegments + 1 + s;
+          const d = holeStartIdx + holeSegments + 1 + s + 1;
+          indices.push(a, c, b);
+          indices.push(b, c, d);
+        }
+      }
+      
+      // Add cord hole if enabled
+      if (params.wallMountCordHoleEnabled) {
+        const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
+        const cordY = backHeight * 0.7; // Near top for pendant-style socket
+        const cordHoleStartIdx = vertices.length / 3;
+        
+        // Front ring
+        for (let s = 0; s <= holeSegments; s++) {
+          const angle = (s / holeSegments) * Math.PI * 2;
+          vertices.push(
+            0 + Math.cos(angle) * cordRadius,
+            cordY + Math.sin(angle) * cordRadius,
+            cutOffset
+          );
+        }
+        
+        // Back ring
+        for (let s = 0; s <= holeSegments; s++) {
+          const angle = (s / holeSegments) * Math.PI * 2;
+          vertices.push(
+            0 + Math.cos(angle) * cordRadius,
+            cordY + Math.sin(angle) * cordRadius,
+            cutOffset - holeDepth
+          );
+        }
+        
+        // Hole wall indices
+        for (let s = 0; s < holeSegments; s++) {
+          const a = cordHoleStartIdx + s;
+          const b = cordHoleStartIdx + s + 1;
+          const c = cordHoleStartIdx + holeSegments + 1 + s;
+          const d = cordHoleStartIdx + holeSegments + 1 + s + 1;
+          indices.push(a, c, b);
+          indices.push(b, c, d);
+        }
+      }
+      
+    } else {
+      // Normal full 360° object (no wall mount)
+      for (let i = 0; i < outerVerts.length; i++) {
+        vertices.push(outerVerts[i]);
+      }
+      
+      // Outer surface indices
+      for (let i = 0; i < heightSegments; i++) {
+        for (let j = 0; j < segments; j++) {
+          const a = i * (segments + 1) + j;
+          const b = a + 1;
+          const c = a + (segments + 1);
+          const d = c + 1;
+          indices.push(a, c, b);
+          indices.push(b, c, d);
+        }
       }
     }
 
-    // Add base cap for preview when legs are NOT enabled (or not wall mount)
-    if (!addLegs || !isWallMount) {
-      if (!addLegs) {
-        const baseCenterIdx = vertices.length / 3;
-        vertices.push(0, 0, 0); // Center point at base
-        
-        // Connect first ring of vertices to center to create base cap
-        for (let j = 0; j < effectiveSegments; j++) {
-          const a = j;
-          const b = j + 1;
-          indices.push(baseCenterIdx, b, a);
-        }
+    // Add base cap for preview when legs are NOT enabled
+    if (!addLegs) {
+      const baseCenterIdx = vertices.length / 3;
+      vertices.push(0, 0, 0); // Center point at base
+      
+      // Connect first ring of vertices to center to create base cap
+      for (let j = 0; j < segments; j++) {
+        const a = j;
+        const b = j + 1;
+        indices.push(baseCenterIdx, b, a);
       }
     }
 
@@ -282,66 +426,46 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Generate stand geometry based on standType
+    // Generate stand geometry based on standType (only for tripod now)
     let standGeo: THREE.BufferGeometry | null = null;
-    if (addLegs) {
-      if (params.standType === 'tripod') {
-        // Use existing tripod generator
-        const legGeoMM = generateLegsWithBase(
-          baseRadius,
-          params.legCount,
-          params.legHeight,
-          params.legSpread,
-          params.legThickness,
-          params.legTaper,
-          params.legInset,
-          params.baseThickness || 3,
-          {
-            wobbleFrequency,
-            wobbleAmplitude,
-            rippleCount,
-            rippleDepth,
-            asymmetry,
-            organicNoise,
-            noiseScale,
-          },
-          {
-            wallThickness: params.wallThickness,
-            cordHoleEnabled: params.cordHoleEnabled,
-            cordHoleDiameter: params.cordHoleDiameter,
-            centeringLipEnabled: params.centeringLipEnabled,
-            centeringLipHeight: params.centeringLipHeight,
-            socketType: params.socketType,
-          },
-          {
-            attachmentType: params.attachmentType,
-            screwCount: params.screwCount,
-            baseRadius: params.baseRadius,
-          }
-        );
-        legGeoMM.scale(SCALE, SCALE, SCALE);
-        standGeo = legGeoMM;
-      } else if (params.standType === 'wall_mount') {
-        // Wall mount: generate vertical side base plate (auto-sized from object profile)
-        const standGeoMM = generateStand({
-          standType: params.standType,
-          baseRadius: maxRadius / SCALE, // Convert back to mm, use actual max radius
-          objectHeight: params.height,
-          wallMountCutAngle: params.wallMountCutAngle,
-          wallMountPlateThickness: params.wallMountPlateThickness,
-          wallMountHoleType: params.wallMountHoleType,
-          wallMountHoleCount: params.wallMountHoleCount,
-          wallMountBulbFixture: params.wallMountBulbFixture,
+    if (addLegs && params.standType === 'tripod') {
+      // Use existing tripod generator
+      const legGeoMM = generateLegsWithBase(
+        baseRadius,
+        params.legCount,
+        params.legHeight,
+        params.legSpread,
+        params.legThickness,
+        params.legTaper,
+        params.legInset,
+        params.baseThickness || 3,
+        {
+          wobbleFrequency,
+          wobbleAmplitude,
+          rippleCount,
+          rippleDepth,
+          asymmetry,
+          organicNoise,
+          noiseScale,
+        },
+        {
+          wallThickness: params.wallThickness,
           cordHoleEnabled: params.cordHoleEnabled,
           cordHoleDiameter: params.cordHoleDiameter,
-        });
-        
-        if (standGeoMM) {
-          standGeoMM.scale(SCALE, SCALE, SCALE);
-          standGeo = standGeoMM;
+          centeringLipEnabled: params.centeringLipEnabled,
+          centeringLipHeight: params.centeringLipHeight,
+          socketType: params.socketType,
+        },
+        {
+          attachmentType: params.attachmentType,
+          screwCount: params.screwCount,
+          baseRadius: params.baseRadius,
         }
-      }
+      );
+      legGeoMM.scale(SCALE, SCALE, SCALE);
+      standGeo = legGeoMM;
     }
+    // Wall mount no longer needs separate stand geometry - mounting holes are integrated
 
     return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, legGeometry: standGeo, overhangColors: overhangColorArray };
   }, [params, type]);
