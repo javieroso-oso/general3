@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase } from '@/lib/leg-generator';
+import { generateStand } from '@/lib/stand-generators';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -218,19 +219,69 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Generate legs with base disc if enabled
-    let legGeo: THREE.BufferGeometry | null = null;
+    // Generate stand geometry based on standType
+    let standGeo: THREE.BufferGeometry | null = null;
     if (addLegs) {
-      const legGeoMM = generateLegsWithBase(
-        baseRadius,
-        legCount,
-        legHeight,
-        legSpread,
-        legThickness,
-        legTaper,
-        legInset,
-        params.baseThickness || 3,
-        {
+      if (params.standType === 'tripod') {
+        // Use existing tripod generator
+        const legGeoMM = generateLegsWithBase(
+          baseRadius,
+          params.legCount,
+          params.legHeight,
+          params.legSpread,
+          params.legThickness,
+          params.legTaper,
+          params.legInset,
+          params.baseThickness || 3,
+          {
+            wobbleFrequency,
+            wobbleAmplitude,
+            rippleCount,
+            rippleDepth,
+            asymmetry,
+            organicNoise,
+            noiseScale,
+          },
+          {
+            wallThickness: params.wallThickness,
+            cordHoleEnabled: params.cordHoleEnabled,
+            cordHoleDiameter: params.cordHoleDiameter,
+            centeringLipEnabled: params.centeringLipEnabled,
+            centeringLipHeight: params.centeringLipHeight,
+            socketType: params.socketType,
+          },
+          {
+            attachmentType: params.attachmentType,
+            screwCount: params.screwCount,
+            baseRadius: params.baseRadius,
+          }
+        );
+        legGeoMM.scale(SCALE, SCALE, SCALE);
+        standGeo = legGeoMM;
+      } else {
+        // Use new stand generators
+        const standGeoMM = generateStand({
+          standType: params.standType,
+          baseRadius: params.baseRadius,
+          pedestalDiameter: params.pedestalDiameter,
+          pedestalHeight: params.legHeight,
+          pedestalTaper: params.pedestalTaper,
+          pedestalHollow: params.pedestalHollow,
+          wireframeRibCount: params.wireframeRibCount,
+          wireframeRingCount: params.wireframeRingCount,
+          wireframeThickness: params.wireframeThickness,
+          wireframeHeight: params.legHeight,
+          pendantCanopyDiameter: params.pendantCanopyDiameter,
+          pendantCanopyHeight: params.pendantCanopyHeight,
+          pendantCordLength: params.pendantCordLength,
+          wallBracketArmLength: params.wallBracketArmLength,
+          wallBracketArmAngle: params.wallBracketArmAngle,
+          wallBracketPlateSize: params.wallBracketPlateSize,
+          ringBaseDiameter: params.ringBaseDiameter,
+          ringBaseThickness: params.ringBaseThickness,
+          cordHoleEnabled: params.cordHoleEnabled,
+          cordHoleDiameter: params.cordHoleDiameter,
+        }, {
           wobbleFrequency,
           wobbleAmplitude,
           rippleCount,
@@ -238,28 +289,16 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           asymmetry,
           organicNoise,
           noiseScale,
-        },
-        {
-          wallThickness: params.wallThickness,
-          cordHoleEnabled: params.cordHoleEnabled,
-          cordHoleDiameter: params.cordHoleDiameter,
-          centeringLipEnabled: params.centeringLipEnabled,
-          centeringLipHeight: params.centeringLipHeight,
-          socketType: params.socketType,
-        },
-        {
-          attachmentType: params.attachmentType,
-          screwCount: params.screwCount,
-          baseRadius: params.baseRadius,
+        });
+        
+        if (standGeoMM) {
+          standGeoMM.scale(SCALE, SCALE, SCALE);
+          standGeo = standGeoMM;
         }
-      );
-      
-      // Scale leg geometry to scene units
-      legGeoMM.scale(SCALE, SCALE, SCALE);
-      legGeo = legGeoMM;
+      }
     }
 
-    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, legGeometry: legGeo, overhangColors: overhangColorArray };
+    return { bodyGeometry: bodyGeo, wireframeGeo: wireGeo, legGeometry: standGeo, overhangColors: overhangColorArray };
   }, [params, type]);
 
   useFrame((state) => {

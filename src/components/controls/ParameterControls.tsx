@@ -426,51 +426,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   onChange={handleChange('ringBaseThickness')}
                 />
               </>
-            )
-            
-            <ParameterSlider
-              label="Leg Height"
-              value={params.legHeight}
-              min={30}
-              max={200}
-              step={5}
-              unit="mm"
-              onChange={handleChange('legHeight')}
-            />
-            <ParameterSlider
-              label="Leg Spread"
-              value={params.legSpread}
-              min={15}
-              max={45}
-              step={1}
-              unit="°"
-              onChange={handleChange('legSpread')}
-            />
-            <ParameterSlider
-              label="Leg Thickness"
-              value={params.legThickness}
-              min={3}
-              max={10}
-              step={0.5}
-              unit="mm"
-              onChange={handleChange('legThickness')}
-            />
-            <ParameterSlider
-              label="Leg Taper"
-              value={params.legTaper}
-              min={0}
-              max={0.8}
-              step={0.1}
-              onChange={handleChange('legTaper')}
-            />
-            <ParameterSlider
-              label="Leg Inset"
-              value={params.legInset}
-              min={0}
-              max={0.8}
-              step={0.05}
-              onChange={handleChange('legInset')}
-            />
+            )}
             
             {/* Attachment Type Controls */}
             <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
