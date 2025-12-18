@@ -131,7 +131,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   const getStandLabel = (type: StandType): string => {
     switch (type) {
       case 'tripod': return 'Tripod Legs';
-      case 'wall_bracket': return 'Wall Bracket';
+      case 'wall_mount': return 'Wall Mount';
     }
   };
 
@@ -185,7 +185,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tripod">Tripod Legs</SelectItem>
-                  <SelectItem value="wall_bracket">Wall Bracket</SelectItem>
+                  <SelectItem value="wall_mount">Wall Mount</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -250,36 +250,96 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               </>
             )}
             
-            {/* Wall bracket-specific controls */}
-            {params.standType === 'wall_bracket' && (
+            {/* Wall mount controls */}
+            {params.standType === 'wall_mount' && (
               <>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Plate Shape</Label>
+                  <Select 
+                    value={params.wallMountPlateShape} 
+                    onValueChange={(v) => onParamsChange({ ...params, wallMountPlateShape: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="circle">Circle</SelectItem>
+                      <SelectItem value="rectangle">Rectangle</SelectItem>
+                      <SelectItem value="rounded_rectangle">Rounded Rectangle</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
                 <ParameterSlider
-                  label="Plate Size"
-                  value={params.wallBracketPlateSize}
+                  label="Plate Width"
+                  value={params.wallMountPlateWidth}
                   min={50}
                   max={150}
                   step={5}
                   unit="mm"
-                  onChange={handleChange('wallBracketPlateSize')}
+                  onChange={handleChange('wallMountPlateWidth')}
                 />
                 <ParameterSlider
-                  label="Arm Length"
-                  value={params.wallBracketArmLength}
-                  min={0}
-                  max={300}
-                  step={10}
-                  unit="mm"
-                  onChange={handleChange('wallBracketArmLength')}
-                />
-                <ParameterSlider
-                  label="Arm Angle"
-                  value={params.wallBracketArmAngle}
-                  min={-30}
-                  max={45}
+                  label="Plate Height"
+                  value={params.wallMountPlateHeight}
+                  min={50}
+                  max={200}
                   step={5}
-                  unit="°"
-                  onChange={handleChange('wallBracketArmAngle')}
+                  unit="mm"
+                  onChange={handleChange('wallMountPlateHeight')}
                 />
+                <ParameterSlider
+                  label="Plate Thickness"
+                  value={params.wallMountPlateThickness}
+                  min={4}
+                  max={15}
+                  step={1}
+                  unit="mm"
+                  onChange={handleChange('wallMountPlateThickness')}
+                />
+                
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Mounting Holes</Label>
+                  <Select 
+                    value={params.wallMountHoleType} 
+                    onValueChange={(v) => onParamsChange({ ...params, wallMountHoleType: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="keyhole">Keyhole Slots</SelectItem>
+                      <SelectItem value="screw">Screw Holes</SelectItem>
+                      <SelectItem value="adhesive">Adhesive Pads</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex gap-2">
+                  {([2, 3, 4] as const).map((count) => (
+                    <Button
+                      key={count}
+                      variant={params.wallMountHoleCount === count ? 'default' : 'outline'}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onParamsChange({ ...params, wallMountHoleCount: count })}
+                    >
+                      {count} Holes
+                    </Button>
+                  ))}
+                </div>
+                
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    <Lamp className={cn("w-4 h-4", params.wallMountBulbFixture ? "text-primary" : "text-muted-foreground")} />
+                    <Label htmlFor="bulb-fixture" className="text-xs">Bulb Fixture Ring</Label>
+                  </div>
+                  <Switch 
+                    id="bulb-fixture" 
+                    checked={params.wallMountBulbFixture} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, wallMountBulbFixture: v })}
+                  />
+                </div>
               </>
             )}
             
