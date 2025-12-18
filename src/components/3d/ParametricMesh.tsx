@@ -142,9 +142,10 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
       const twistRad = (twistAngle * Math.PI / 180) * t;
 
-      // For wall mount, offset angle so flat back is at z=0
-      // Centered on +X axis, spreading symmetrically
-      const angleOffset = isWallMount ? -cutAngleRad / 2 : 0;
+      // For wall mount: angle goes from 0 to cutAngle so both edges land at z=0
+      // θ=0 → (r, y, 0) and θ=π → (-r, y, 0) for 180° cut
+      // This ensures the flat back is naturally at z=0 without forcing vertices
+      const angleOffset = isWallMount ? 0 : 0;
 
       for (let j = 0; j <= effectiveSegments; j++) {
         const theta = (j / effectiveSegments) * angleRange + twistRad + angleOffset;
@@ -182,12 +183,15 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         let x = Math.cos(theta) * r;
         let z = Math.sin(theta) * r;
         
-        // For wall mount: force back edge vertices to z=0 for truly flat back
+        // For wall mount: force edge vertices to z=0 to ensure perfectly flat back
+        // regardless of organic deformations
         if (isWallMount) {
           const isLeftEdge = j === 0;
           const isRightEdge = j === effectiveSegments;
           if (isLeftEdge || isRightEdge) {
-            z = 0; // Force z=0 for flat back vertices
+            // Keep x position (the deformed radius at this height)
+            // but force z to 0 for flat back
+            z = 0;
           }
         }
         

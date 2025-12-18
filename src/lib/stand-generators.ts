@@ -635,17 +635,19 @@ export function generateWallMountSideBase(
   const vertices: number[] = [];
   const indices: number[] = [];
   
-  // Auto-size plate: slightly larger than object profile with small padding
-  const padding = 5; // mm padding on each side
+  // Auto-size plate: minimal padding, just enough to hide behind the flat back
+  const padding = 2; // mm - minimal padding
+  // For a half-shell, the back profile width is 2× the max radius (x from -r to +r at z=0)
   const plateWidth = objectMaxRadius * 2 + padding * 2;
-  const plateHeight = objectHeight + padding * 2;
+  // Height matches object with minimal padding
+  const plateHeight = objectHeight + padding;
   const halfW = plateWidth / 2;
-  const cornerRadius = Math.min(plateWidth, plateHeight) * 0.08;
+  const cornerRadius = Math.min(plateWidth, plateHeight) * 0.06; // Smaller corner radius
   
   // Generate rounded rectangle outline for the plate
   const outlineVerts: { x: number; y: number }[] = [];
   const cr = cornerRadius;
-  const cornerSegs = 8;
+  const cornerSegs = 6;
   
   // Plate is positioned with bottom at y=0 (ground level)
   const yOffset = 0;
@@ -737,9 +739,11 @@ export function generateWallMountSideBase(
   const holeGeos = generateMountingHolesVertical(holeType, holeCount, plateWidth, plateHeight, plateThickness);
   geometries.push(...holeGeos);
   
-  // Add bulb fixture opening (facing OUTWARD into the room, +Z direction)
+  // Add bulb fixture opening near the TOP of the sconce (where opening is)
+  // Position at 85% of height, facing OUTWARD into the room
   if (bulbFixture) {
-    const fixtureGeo = generateBulbFixtureVerticalOutward(plateHeight / 2 + yOffset, cordHoleDiameter);
+    const fixtureY = yOffset + plateHeight * 0.85;
+    const fixtureGeo = generateBulbFixtureVerticalOutward(fixtureY, cordHoleDiameter);
     geometries.push(fixtureGeo);
   }
   
@@ -940,113 +944,115 @@ function generateAdhesivePadVertical(centerX: number, centerY: number): THREE.Bu
 
 /**
  * Generate bulb fixture ring facing OUTWARD into the room (+Z direction)
- * Ring lies in XY plane with socket dropping in from the front
+ * Ring is horizontal (XZ plane) with opening facing +Z
+ * Socket drops into the ring from the front (room side)
  */
 function generateBulbFixtureVerticalOutward(centerY: number, cordHoleDiameter: number): THREE.BufferGeometry {
   const vertices: number[] = [];
   const indices: number[] = [];
   const segments = 24;
   
-  // E26 socket specs
-  const ringInnerRadius = 13; // E26 socket thread ~26mm diameter, so 13mm inner radius
-  const ringOuterRadius = ringInnerRadius + 4;
-  const ringHeight = 5; // Ring protrudes 5mm from plate
+  // E26 socket specs - ring for socket to rest in
+  const ringInnerRadius = 14; // E26 socket outer ~27mm, give slight clearance
+  const ringOuterRadius = ringInnerRadius + 5;
+  const ringDepth = 8; // Ring depth (how far it extends from plate into room)
   const cordHoleRadius = cordHoleDiameter / 2;
   
-  // The fixture is centered on the plate (x=0) at the given y position
-  // Ring faces +Z direction (outward into the room)
+  // The fixture protrudes outward from the plate (+Z direction)
+  // Ring is HORIZONTAL (lies in XZ plane) so socket drops in from above/front
+  // Centered at x=0, positioned at centerY height
   
-  // Base ring at plate surface (z = 0)
-  const baseInnerStart = vertices.length / 3;
+  // Back ring (at plate surface z = 0)
+  const backInnerStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     vertices.push(
       Math.cos(angle) * ringInnerRadius,
-      centerY,
+      centerY + Math.sin(angle) * ringInnerRadius,
       0
     );
   }
   
-  const baseOuterStart = vertices.length / 3;
+  const backOuterStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     vertices.push(
       Math.cos(angle) * ringOuterRadius,
-      centerY,
+      centerY + Math.sin(angle) * ringOuterRadius,
       0
     );
   }
   
-  // Top ring (protruding outward at z = ringHeight)
-  const topInnerStart = vertices.length / 3;
+  // Front ring (protruding into room at z = ringDepth)
+  const frontInnerStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     vertices.push(
       Math.cos(angle) * ringInnerRadius,
-      centerY,
-      ringHeight
+      centerY + Math.sin(angle) * ringInnerRadius,
+      ringDepth
     );
   }
   
-  const topOuterStart = vertices.length / 3;
+  const frontOuterStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     vertices.push(
       Math.cos(angle) * ringOuterRadius,
-      centerY,
-      ringHeight
+      centerY + Math.sin(angle) * ringOuterRadius,
+      ringDepth
     );
   }
   
-  // Inner wall (base to top)
+  // Inner wall (back to front) - this is where socket sits
   for (let i = 0; i < segments; i++) {
-    indices.push(baseInnerStart + i, topInnerStart + i, baseInnerStart + i + 1);
-    indices.push(baseInnerStart + i + 1, topInnerStart + i, topInnerStart + i + 1);
+    indices.push(backInnerStart + i, frontInnerStart + i, backInnerStart + i + 1);
+    indices.push(backInnerStart + i + 1, frontInnerStart + i, frontInnerStart + i + 1);
   }
   
-  // Outer wall (base to top)
+  // Outer wall (back to front)
   for (let i = 0; i < segments; i++) {
-    indices.push(baseOuterStart + i, baseOuterStart + i + 1, topOuterStart + i);
-    indices.push(topOuterStart + i, baseOuterStart + i + 1, topOuterStart + i + 1);
+    indices.push(backOuterStart + i, backOuterStart + i + 1, frontOuterStart + i);
+    indices.push(frontOuterStart + i, backOuterStart + i + 1, frontOuterStart + i + 1);
   }
   
-  // Top face (ring between inner and outer at z = ringHeight)
+  // Front face (ring between inner and outer at z = ringDepth)
   for (let i = 0; i < segments; i++) {
-    indices.push(topInnerStart + i, topOuterStart + i, topInnerStart + i + 1);
-    indices.push(topInnerStart + i + 1, topOuterStart + i, topOuterStart + i + 1);
+    indices.push(frontInnerStart + i, frontOuterStart + i, frontInnerStart + i + 1);
+    indices.push(frontInnerStart + i + 1, frontOuterStart + i, frontOuterStart + i + 1);
   }
   
-  // Base face (ring between inner and outer at z = 0)
+  // Back face (ring between inner and outer at z = 0)
   for (let i = 0; i < segments; i++) {
-    indices.push(baseInnerStart + i, baseInnerStart + i + 1, baseOuterStart + i);
-    indices.push(baseOuterStart + i, baseInnerStart + i + 1, baseOuterStart + i + 1);
+    indices.push(backInnerStart + i, backInnerStart + i + 1, backOuterStart + i);
+    indices.push(backOuterStart + i, backInnerStart + i + 1, backOuterStart + i + 1);
   }
   
-  // Cord hole through the plate (smaller hole in center)
-  const cordFrontStart = vertices.length / 3;
-  for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2;
-    vertices.push(
-      Math.cos(angle) * cordHoleRadius,
-      centerY,
-      0.1
-    );
-  }
-  
+  // Cord hole through center (smaller hole for cord to pass through)
   const cordBackStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     vertices.push(
       Math.cos(angle) * cordHoleRadius,
-      centerY,
+      centerY + Math.sin(angle) * cordHoleRadius,
+      0.1
+    );
+  }
+  
+  const cordFrontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(
+      Math.cos(angle) * cordHoleRadius,
+      centerY + Math.sin(angle) * cordHoleRadius,
       -0.1
     );
   }
   
   // Cord hole walls
   for (let i = 0; i < segments; i++) {
-    indices.push(cordFrontStart + i, cordBackStart + i, cordFrontStart + i + 1);
-    indices.push(cordFrontStart + i + 1, cordBackStart + i, cordBackStart + i + 1);
+    indices.push(cordBackStart + i, cordFrontStart + i, cordBackStart + i + 1);
+    indices.push(cordBackStart + i + 1, cordFrontStart + i, cordFrontStart + i + 1);
   }
   
   const geo = new THREE.BufferGeometry();
