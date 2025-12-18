@@ -43,18 +43,14 @@ export interface ParametricParams {
   baseThickness: number;
   baseType: 'flat' | 'rounded' | 'pedestal';
   
-  // Socket attachment system (plug fits inside body)
-  plugHeight: number;       // mm - height of plug extending into body
-  plugGap: number;          // mm - tolerance gap between plug and body inner wall
-  lipWidth: number;         // mm - width of lip that body rests on
-  
   // Cord exit hole in base (for lamp wiring)
   cordHoleEnabled: boolean;     // Toggle cord exit hole
   cordHoleDiameter: number;     // mm - cord exit hole diameter
   
-  // Simple centering lip around cord hole (raised ring for socket alignment)
+  // Centering lip sized to socket (raised ring for socket alignment)
   centeringLipEnabled: boolean;  // Toggle centering lip
   centeringLipHeight: number;    // mm - height of centering lip (2-5mm)
+  socketType: 'E26' | 'E12' | 'E14' | 'GU10';  // Socket type for lip sizing
   
   // Support-free printing mode
   supportFreeMode: boolean;
@@ -188,13 +184,11 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 1,
     baseThickness: 2.0,
     baseType: 'flat',
-    plugHeight: 8,
-    plugGap: 0.25,
-    lipWidth: 2,
     cordHoleEnabled: false,
     cordHoleDiameter: 8,
     centeringLipEnabled: false,
     centeringLipHeight: 3,
+    socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -225,13 +219,11 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 1,
     baseThickness: 2.4,
     baseType: 'flat',
-    plugHeight: 8,
-    plugGap: 0.25,
-    lipWidth: 2,
     cordHoleEnabled: true,
     cordHoleDiameter: 8,
     centeringLipEnabled: true,
     centeringLipHeight: 3,
+    socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
   },
@@ -262,13 +254,11 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     noiseScale: 2,
     baseThickness: 3.0,
     baseType: 'pedestal',
-    plugHeight: 8,
-    plugGap: 0.25,
-    lipWidth: 2,
     cordHoleEnabled: false,
     cordHoleDiameter: 8,
     centeringLipEnabled: false,
     centeringLipHeight: 3,
+    socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
   },
