@@ -94,12 +94,12 @@ const Index = () => {
 
   return (
     <Layout showFooter={false}>
-      <div className="h-[calc(100vh-4rem)] flex flex-col lg:flex-row">
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col lg:flex-row">
         {/* Left Panel - Controls */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="w-full lg:w-[380px] xl:w-[400px] border-r border-border bg-card flex flex-col"
+          className="w-full lg:w-[380px] xl:w-[400px] lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] border-r border-border bg-card flex flex-col"
         >
           {/* Object Type */}
           <div className="p-4 border-b border-border">
@@ -165,7 +165,7 @@ const Index = () => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex-1 p-4 bg-background flex flex-col"
+          className="flex-1 p-4 bg-background flex flex-col min-h-[600px]"
         >
           {/* View mode toggle */}
           <div className="flex items-center justify-between mb-3">
@@ -316,7 +316,7 @@ const Index = () => {
         <motion.aside
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="hidden xl:block w-[300px] border-l border-border bg-card overflow-y-auto p-4"
+          className="hidden xl:block w-[300px] xl:sticky xl:top-16 xl:h-[calc(100vh-4rem)] border-l border-border bg-card overflow-y-auto p-4"
         >
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">
             Print Analysis
