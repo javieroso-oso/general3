@@ -184,112 +184,152 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const indices: number[] = [];
 
     if (isWallMount) {
-      // PLANAR CUT APPROACH: Keep vertices where z > cutOffset, clip others to the plane
-      // This creates a flat back exactly at z = cutOffset
+      // PLANAR CUT APPROACH: Generate half-shell with proper flat back wall
+      // For a half-shell, we generate from theta = -PI/2 to PI/2 (front half)
+      // The flat back is at z = cutOffset
       
-      // First pass: process all vertices, clipping to the cut plane
-      const clippedVerts: number[] = [];
-      const vertexMask: boolean[] = []; // true = vertex is in front of cut plane
+      const halfSegments = Math.floor(segments / 2);
+      const wallMountVerts: number[] = [];
       
-      for (let i = 0; i < outerVerts.length; i += 3) {
-        const x = outerVerts[i];
-        const y = outerVerts[i + 1];
-        const z = outerVerts[i + 2];
-        
-        if (z >= cutOffset) {
-          // Vertex is in front of cut plane - keep it
-          clippedVerts.push(x, y, z);
-          vertexMask.push(true);
-        } else {
-          // Vertex is behind cut plane - project to the plane
-          clippedVerts.push(x, y, cutOffset);
-          vertexMask.push(false);
-        }
-      }
-      
-      // Copy clipped vertices
-      for (let i = 0; i < clippedVerts.length; i++) {
-        vertices.push(clippedVerts[i]);
-      }
-      
-      // Build indices for outer surface (same topology as before)
-      for (let i = 0; i < heightSegments; i++) {
-        for (let j = 0; j < segments; j++) {
-          const a = i * (segments + 1) + j;
-          const b = a + 1;
-          const c = a + (segments + 1);
-          const d = c + 1;
-          
-          // Only create face if at least one vertex is visible (in front of cut plane)
-          const aVisible = vertexMask[a];
-          const bVisible = vertexMask[b];
-          const cVisible = vertexMask[c];
-          const dVisible = vertexMask[d];
-          
-          // Skip faces that are entirely behind the cut plane (all 4 vertices clipped)
-          // But keep faces that have at least some vertices in front
-          if (aVisible || bVisible || cVisible || dVisible) {
-            indices.push(a, c, b);
-            indices.push(b, c, d);
-          }
-        }
-      }
-      
-      // Create flat back face by collecting all vertices on the cut plane
-      // These are vertices where z was clipped to cutOffset
-      // We need to triangulate them to create a solid back
-      
-      // Find all unique (x, y) positions on the cut plane and their indices
-      const backEdgeVerts: { idx: number; x: number; y: number }[] = [];
-      
+      // Generate the front half of the shell (z >= cutOffset)
       for (let i = 0; i <= heightSegments; i++) {
-        for (let j = 0; j <= segments; j++) {
-          const idx = i * (segments + 1) + j;
-          if (!vertexMask[idx]) {
-            // This vertex is on the cut plane
-            const x = vertices[idx * 3];
-            const y = vertices[idx * 3 + 1];
-            backEdgeVerts.push({ idx, x, y });
+        const t = i / heightSegments;
+        const y = t * h;
+        
+        // Get base radius at this height (recalculate with all deformations)
+        let radius: number;
+        if (type === 'lamp') {
+          radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
+        } else if (type === 'sculpture') {
+          const curve = Math.sin(t * Math.PI);
+          radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
+        } else {
+          const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
+          radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
+        }
+        
+        const bulgeDist = Math.abs(t - bulgePosition);
+        radius += Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * bRad;
+        const pinchTop = Math.pow(t, 4) * pinchAmount * 0.3;
+        const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
+        radius *= (1 - pinchTop - pinchBottom);
+        const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
+        radius += lipT * lipT * lipFlare * bRad;
+        radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
+        
+        const twistRad = (twistAngle * Math.PI / 180) * t;
+        
+        // Generate vertices from -PI/2 to PI/2 (front semicircle)
+        // This naturally creates a flat back at z = 0 (or cutOffset)
+        for (let j = 0; j <= halfSegments; j++) {
+          // Map j to theta from -PI/2 to PI/2
+          const theta = -Math.PI / 2 + (j / halfSegments) * Math.PI + twistRad;
+          let r = radius;
+          
+          // Apply deformations
+          if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
+            const maxWobble = Math.min(wobbleAmplitude, 0.15);
+            r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * bRad;
           }
+          if (rippleCount > 0 && rippleDepth > 0) {
+            const maxRipple = Math.min(rippleDepth, 0.1);
+            r += Math.sin(theta * rippleCount) * maxRipple * bRad;
+          }
+          if (asymmetry > 0) {
+            const maxAsym = Math.min(asymmetry, 0.1);
+            r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * bRad;
+          }
+          if (organicNoise > 0) {
+            const maxNoise = Math.min(organicNoise, 0.1);
+            const nx = Math.cos(theta) * r;
+            const nz = Math.sin(theta) * r;
+            r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
+          }
+          r = Math.max(r, wall * 2);
+          
+          let x = Math.cos(theta) * r;
+          let z = Math.sin(theta) * r + cutOffset; // Shift by cutOffset
+          
+          // Clamp z to cutOffset at edges to ensure flat back
+          if (j === 0 || j === halfSegments) {
+            z = cutOffset;
+          }
+          
+          wallMountVerts.push(x, y, z);
         }
       }
       
-      // Sort by height (y) then by x to help with triangulation
-      backEdgeVerts.sort((a, b) => a.y - b.y || a.x - b.x);
+      // Copy to main vertices array
+      for (let i = 0; i < wallMountVerts.length; i++) {
+        vertices.push(wallMountVerts[i]);
+      }
       
-      // Simple fan triangulation from center for the flat back
-      if (backEdgeVerts.length >= 3) {
-        // Add center point for flat back
-        const centerX = backEdgeVerts.reduce((sum, v) => sum + v.x, 0) / backEdgeVerts.length;
-        const centerY = backEdgeVerts.reduce((sum, v) => sum + v.y, 0) / backEdgeVerts.length;
-        const centerIdx = vertices.length / 3;
-        vertices.push(centerX, centerY, cutOffset);
-        
-        // Sort vertices by angle from center for proper triangulation
-        const sortedByAngle = backEdgeVerts.map(v => ({
-          ...v,
-          angle: Math.atan2(v.y - centerY, v.x - centerX)
-        })).sort((a, b) => a.angle - b.angle);
-        
-        // Create triangles (reversed winding for back face)
-        for (let i = 0; i < sortedByAngle.length; i++) {
-          const curr = sortedByAngle[i];
-          const next = sortedByAngle[(i + 1) % sortedByAngle.length];
-          indices.push(centerIdx, curr.idx, next.idx);
+      // Build shell surface indices
+      for (let i = 0; i < heightSegments; i++) {
+        for (let j = 0; j < halfSegments; j++) {
+          const a = i * (halfSegments + 1) + j;
+          const b = a + 1;
+          const c = a + (halfSegments + 1);
+          const d = c + 1;
+          indices.push(a, c, b);
+          indices.push(b, c, d);
         }
       }
       
-      // Add mounting screw holes directly through the flat back
+      // Create flat back wall by connecting left and right edges
+      // Left edge is j=0, right edge is j=halfSegments
+      const leftEdge: number[] = [];
+      const rightEdge: number[] = [];
+      for (let i = 0; i <= heightSegments; i++) {
+        leftEdge.push(i * (halfSegments + 1)); // j=0
+        rightEdge.push(i * (halfSegments + 1) + halfSegments); // j=halfSegments
+      }
+      
+      // Triangulate flat back - connect left and right edges with quads
+      for (let i = 0; i < heightSegments; i++) {
+        const l0 = leftEdge[i];
+        const l1 = leftEdge[i + 1];
+        const r0 = rightEdge[i];
+        const r1 = rightEdge[i + 1];
+        
+        // Create quad (two triangles) - winding for back-facing normal
+        indices.push(l0, l1, r0);
+        indices.push(r0, l1, r1);
+      }
+      
+      // Add bottom cap for the half-shell
+      const bottomCenterIdx = vertices.length / 3;
+      vertices.push(0, 0, cutOffset); // Center at base, on cut plane
+      for (let j = 0; j < halfSegments; j++) {
+        const a = j;
+        const b = j + 1;
+        indices.push(bottomCenterIdx, b, a);
+      }
+      
+      // Add mounting screw holes through the flat back
       const screwCount = params.wallMountScrewCount || 2;
       const screwDiameter = (params.wallMountScrewDiameter || 5) * SCALE;
       const screwRadius = screwDiameter / 2;
-      const holeDepth = 10 * SCALE; // 10mm deep through flat back
+      const holeDepth = 10 * SCALE;
       
-      // Calculate screw positions on the flat back
       const backHeight = h;
-      const backWidth = maxRadius * 2;
       const marginY = backHeight * 0.15;
-      const marginX = backWidth * 0.2;
+      
+      // Get the x-extent of the back at different heights
+      const getBackWidth = (yPos: number) => {
+        const t = yPos / h;
+        let radius: number;
+        if (type === 'lamp') {
+          radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
+        } else if (type === 'sculpture') {
+          const curve = Math.sin(t * Math.PI);
+          radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
+        } else {
+          const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
+          radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
+        }
+        return radius;
+      };
       
       const screwPositions: { x: number; y: number }[] = [];
       if (screwCount === 2) {
@@ -297,16 +337,19 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         screwPositions.push({ x: 0, y: backHeight - marginY });
       } else if (screwCount === 3) {
         screwPositions.push({ x: 0, y: backHeight - marginY });
-        screwPositions.push({ x: -backWidth / 4, y: marginY });
-        screwPositions.push({ x: backWidth / 4, y: marginY });
+        const bottomWidth = getBackWidth(marginY) * 0.5;
+        screwPositions.push({ x: -bottomWidth, y: marginY });
+        screwPositions.push({ x: bottomWidth, y: marginY });
       } else {
-        screwPositions.push({ x: -backWidth / 4, y: backHeight - marginY });
-        screwPositions.push({ x: backWidth / 4, y: backHeight - marginY });
-        screwPositions.push({ x: -backWidth / 4, y: marginY });
-        screwPositions.push({ x: backWidth / 4, y: marginY });
+        const topWidth = getBackWidth(backHeight - marginY) * 0.5;
+        const bottomWidth = getBackWidth(marginY) * 0.5;
+        screwPositions.push({ x: -topWidth, y: backHeight - marginY });
+        screwPositions.push({ x: topWidth, y: backHeight - marginY });
+        screwPositions.push({ x: -bottomWidth, y: marginY });
+        screwPositions.push({ x: bottomWidth, y: marginY });
       }
       
-      // Generate screw hole geometry
+      // Generate screw hole cylinders
       const holeSegments = 12;
       for (const pos of screwPositions) {
         const holeStartIdx = vertices.length / 3;
@@ -317,11 +360,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           vertices.push(
             pos.x + Math.cos(angle) * screwRadius,
             pos.y + Math.sin(angle) * screwRadius,
-            cutOffset
+            cutOffset + 0.001 // Slightly in front
           );
         }
         
-        // Back ring (behind cut plane)
+        // Back ring
         for (let s = 0; s <= holeSegments; s++) {
           const angle = (s / holeSegments) * Math.PI * 2;
           vertices.push(
@@ -331,7 +374,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           );
         }
         
-        // Hole wall indices
+        // Hole wall
         for (let s = 0; s < holeSegments; s++) {
           const a = holeStartIdx + s;
           const b = holeStartIdx + s + 1;
@@ -345,30 +388,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       // Add cord hole if enabled
       if (params.wallMountCordHoleEnabled) {
         const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
-        const cordY = backHeight * 0.7; // Near top for pendant-style socket
+        const cordY = backHeight * 0.7;
         const cordHoleStartIdx = vertices.length / 3;
         
-        // Front ring
         for (let s = 0; s <= holeSegments; s++) {
           const angle = (s / holeSegments) * Math.PI * 2;
-          vertices.push(
-            0 + Math.cos(angle) * cordRadius,
-            cordY + Math.sin(angle) * cordRadius,
-            cutOffset
-          );
+          vertices.push(0 + Math.cos(angle) * cordRadius, cordY + Math.sin(angle) * cordRadius, cutOffset + 0.001);
         }
-        
-        // Back ring
         for (let s = 0; s <= holeSegments; s++) {
           const angle = (s / holeSegments) * Math.PI * 2;
-          vertices.push(
-            0 + Math.cos(angle) * cordRadius,
-            cordY + Math.sin(angle) * cordRadius,
-            cutOffset - holeDepth
-          );
+          vertices.push(0 + Math.cos(angle) * cordRadius, cordY + Math.sin(angle) * cordRadius, cutOffset - holeDepth);
         }
-        
-        // Hole wall indices
         for (let s = 0; s < holeSegments; s++) {
           const a = cordHoleStartIdx + s;
           const b = cordHoleStartIdx + s + 1;
@@ -377,6 +407,80 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           indices.push(a, c, b);
           indices.push(b, c, d);
         }
+      }
+      
+      // Add bulb socket support ring inside the shell near the top
+      // This is a horizontal ring that the socket can rest on
+      const socketRingY = h * 0.85; // Near top
+      const socketInnerRadius = 14 * SCALE; // E26 socket ~27mm, clearance
+      const socketOuterRadius = socketInnerRadius + 4 * SCALE;
+      const socketRingThickness = 3 * SCALE;
+      const ringSegments = 16;
+      
+      // Only generate the front half of the ring (matching the shell)
+      const ringStartIdx = vertices.length / 3;
+      
+      // Top inner ring
+      for (let s = 0; s <= ringSegments; s++) {
+        const angle = -Math.PI / 2 + (s / ringSegments) * Math.PI;
+        vertices.push(
+          Math.cos(angle) * socketInnerRadius,
+          socketRingY + socketRingThickness / 2,
+          Math.sin(angle) * socketInnerRadius + cutOffset
+        );
+      }
+      // Top outer ring
+      for (let s = 0; s <= ringSegments; s++) {
+        const angle = -Math.PI / 2 + (s / ringSegments) * Math.PI;
+        vertices.push(
+          Math.cos(angle) * socketOuterRadius,
+          socketRingY + socketRingThickness / 2,
+          Math.sin(angle) * socketOuterRadius + cutOffset
+        );
+      }
+      // Bottom inner ring
+      for (let s = 0; s <= ringSegments; s++) {
+        const angle = -Math.PI / 2 + (s / ringSegments) * Math.PI;
+        vertices.push(
+          Math.cos(angle) * socketInnerRadius,
+          socketRingY - socketRingThickness / 2,
+          Math.sin(angle) * socketInnerRadius + cutOffset
+        );
+      }
+      // Bottom outer ring
+      for (let s = 0; s <= ringSegments; s++) {
+        const angle = -Math.PI / 2 + (s / ringSegments) * Math.PI;
+        vertices.push(
+          Math.cos(angle) * socketOuterRadius,
+          socketRingY - socketRingThickness / 2,
+          Math.sin(angle) * socketOuterRadius + cutOffset
+        );
+      }
+      
+      const topInner = ringStartIdx;
+      const topOuter = ringStartIdx + (ringSegments + 1);
+      const botInner = ringStartIdx + (ringSegments + 1) * 2;
+      const botOuter = ringStartIdx + (ringSegments + 1) * 3;
+      
+      // Top face (inner to outer)
+      for (let s = 0; s < ringSegments; s++) {
+        indices.push(topInner + s, topOuter + s, topInner + s + 1);
+        indices.push(topInner + s + 1, topOuter + s, topOuter + s + 1);
+      }
+      // Bottom face
+      for (let s = 0; s < ringSegments; s++) {
+        indices.push(botInner + s, botInner + s + 1, botOuter + s);
+        indices.push(botOuter + s, botInner + s + 1, botOuter + s + 1);
+      }
+      // Inner wall
+      for (let s = 0; s < ringSegments; s++) {
+        indices.push(topInner + s, topInner + s + 1, botInner + s);
+        indices.push(botInner + s, topInner + s + 1, botInner + s + 1);
+      }
+      // Outer wall
+      for (let s = 0; s < ringSegments; s++) {
+        indices.push(topOuter + s, botOuter + s, topOuter + s + 1);
+        indices.push(topOuter + s + 1, botOuter + s, botOuter + s + 1);
       }
       
     } else {
