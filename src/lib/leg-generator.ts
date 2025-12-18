@@ -216,6 +216,68 @@ export function generateLegsWithBase(
     const legVerts: number[] = [];
     const legIndices: number[] = [];
     
+    // Calculate leg direction for perpendicular calculations
+    const legDirX = footX - attachX;
+    const legDirY = footY - discBottom;
+    const legDirZ = footZ - attachZ;
+    const legLen = Math.sqrt(legDirX * legDirX + legDirY * legDirY + legDirZ * legDirZ);
+    
+    const dirX = legDirX / legLen;
+    const dirY = legDirY / legLen;
+    const dirZ = legDirZ / legLen;
+    
+    // Calculate perpendicular vectors for the leg cylinder
+    let perpX = -dirZ;
+    let perpZ = dirX;
+    const perpLen = Math.sqrt(perpX * perpX + perpZ * perpZ);
+    if (perpLen > 0.001) {
+      perpX /= perpLen;
+      perpZ /= perpLen;
+    } else {
+      perpX = 1;
+      perpZ = 0;
+    }
+    
+    const perp2X = dirY * perpZ;
+    const perp2Y = dirZ * perpX - dirX * perpZ;
+    const perp2Z = -dirY * perpX;
+    
+    const topRadius = legThickness / 2;
+    const bottomRadius = topRadius * (1 - legTaper * 0.6);
+    
+    // Fillet parameters - creates a smooth blend into the disc
+    const filletRings = 3;
+    const filletHeight = Math.min(legThickness * 0.8, baseThickness * 0.8); // Fillet extends into disc
+    const filletRadiusMultiplier = 1.6; // How much wider the fillet is at disc
+    
+    // First, add fillet rings (from inside disc to leg top)
+    for (let f = 0; f <= filletRings; f++) {
+      const t = f / filletRings;
+      // Smooth easing for fillet curve
+      const easeT = 1 - Math.pow(1 - t, 2);
+      
+      // Fillet starts embedded in disc, ends at leg top
+      const filletY = discBottom + filletHeight * (1 - t);
+      
+      // Radius interpolates from wide (at disc) to leg radius
+      const filletRadius = topRadius + (topRadius * (filletRadiusMultiplier - 1)) * (1 - easeT);
+      
+      // Position along leg direction (slightly)
+      const offsetAlongLeg = filletHeight * (1 - t) * 0.3;
+      const px = attachX + dirX * offsetAlongLeg;
+      const py = filletY;
+      const pz = attachZ + dirZ * offsetAlongLeg;
+      
+      for (let s = 0; s <= segments; s++) {
+        const segAngle = (s / segments) * Math.PI * 2;
+        const cx = Math.cos(segAngle) * perpX + Math.sin(segAngle) * perp2X;
+        const cy = Math.sin(segAngle) * perp2Y;
+        const cz = Math.cos(segAngle) * perpZ + Math.sin(segAngle) * perp2Z;
+        legVerts.push(px + cx * filletRadius, py + cy * filletRadius, pz + cz * filletRadius);
+      }
+    }
+    
+    // Then add main leg segments (starting after fillet)
     for (let h = 0; h <= heightSegments; h++) {
       const t = h / heightSegments;
       
@@ -223,48 +285,46 @@ export function generateLegsWithBase(
       const py = discBottom + (footY - discBottom) * t;
       const pz = attachZ + (footZ - attachZ) * t;
       
-      const topRadius = legThickness / 2;
-      const bottomRadius = topRadius * (1 - legTaper * 0.6);
       const r = topRadius + (bottomRadius - topRadius) * t;
       
       for (let s = 0; s <= segments; s++) {
         const segAngle = (s / segments) * Math.PI * 2;
-        
-        const legDirX = footX - attachX;
-        const legDirY = footY - discBottom;
-        const legDirZ = footZ - attachZ;
-        const legLen = Math.sqrt(legDirX * legDirX + legDirY * legDirY + legDirZ * legDirZ);
-        
-        const dirX = legDirX / legLen;
-        const dirY = legDirY / legLen;
-        const dirZ = legDirZ / legLen;
-        
-        let perpX = -dirZ;
-        let perpZ = dirX;
-        const perpLen = Math.sqrt(perpX * perpX + perpZ * perpZ);
-        if (perpLen > 0.001) {
-          perpX /= perpLen;
-          perpZ /= perpLen;
-        } else {
-          perpX = 1;
-          perpZ = 0;
-        }
-        
-        const perp2X = dirY * perpZ;
-        const perp2Y = dirZ * perpX - dirX * perpZ;
-        const perp2Z = -dirY * perpX;
-        
         const cx = Math.cos(segAngle) * perpX + Math.sin(segAngle) * perp2X;
         const cy = Math.sin(segAngle) * perp2Y;
         const cz = Math.cos(segAngle) * perpZ + Math.sin(segAngle) * perp2Z;
-        
         legVerts.push(px + cx * r, py + cy * r, pz + cz * r);
       }
     }
     
+    // Index the fillet rings
+    for (let f = 0; f < filletRings; f++) {
+      for (let s = 0; s < segments; s++) {
+        const a = f * (segments + 1) + s;
+        const b = a + 1;
+        const c = a + (segments + 1);
+        const d = c + 1;
+        legIndices.push(a, c, b);
+        legIndices.push(b, c, d);
+      }
+    }
+    
+    // Connect last fillet ring to first leg ring
+    const filletLastRing = filletRings * (segments + 1);
+    const legFirstRing = (filletRings + 1) * (segments + 1);
+    for (let s = 0; s < segments; s++) {
+      const a = filletLastRing + s;
+      const b = a + 1;
+      const c = legFirstRing + s;
+      const d = c + 1;
+      legIndices.push(a, c, b);
+      legIndices.push(b, c, d);
+    }
+    
+    // Index main leg body
+    const totalFilletVerts = (filletRings + 1) * (segments + 1);
     for (let h = 0; h < heightSegments; h++) {
       for (let s = 0; s < segments; s++) {
-        const a = h * (segments + 1) + s;
+        const a = totalFilletVerts + h * (segments + 1) + s;
         const b = a + 1;
         const c = a + (segments + 1);
         const d = c + 1;
@@ -276,14 +336,16 @@ export function generateLegsWithBase(
     // Foot cap
     const footCenterIdx = legVerts.length / 3;
     legVerts.push(footX, footY, footZ);
-    const lastRingStart = heightSegments * (segments + 1);
+    const lastRingStart = totalFilletVerts + heightSegments * (segments + 1);
     for (let s = 0; s < segments; s++) {
       legIndices.push(lastRingStart + s, footCenterIdx, lastRingStart + s + 1);
     }
     
-    // Top cap (connects to disc)
+    // Top fillet cap - connects first fillet ring to disc bottom
+    // This creates a wider "foot" that blends into the disc
     const topCenterIdx = legVerts.length / 3;
-    legVerts.push(attachX, discBottom, attachZ);
+    const filletTopY = discBottom + filletHeight;
+    legVerts.push(attachX, filletTopY, attachZ);
     for (let s = 0; s < segments; s++) {
       legIndices.push(s + 1, topCenterIdx, s);
     }
