@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
+import { generateLegsWithBase } from '@/lib/leg-generator';
 
 // Scale factor: mm to scene units
 const SCALE = 0.01;
@@ -128,8 +129,8 @@ function getRadiusAtHeight(
   return Math.max(radius, params.wallThickness * 2);
 }
 
-// Generate manifold mesh for STL export
-export function generatePrintableMesh(
+// Generate body mesh (open bottom, no base cap) for STL export
+export function generateBodyMesh(
   params: ParametricParams,
   type: ObjectType
 ): THREE.BufferGeometry {
@@ -137,11 +138,10 @@ export function generatePrintableMesh(
     height,
     wallThickness,
     twistAngle,
-    baseThickness,
   } = params;
 
   const segments = 64;
-  const heightSegments = Math.ceil(height / 2); // ~2mm per layer for smooth mesh
+  const heightSegments = Math.ceil(height / 2);
 
   const vertices: number[] = [];
   const indices: number[] = [];
@@ -179,7 +179,7 @@ export function generatePrintableMesh(
     }
   }
 
-  // Outer wall faces (CCW winding for outward normals)
+  // Outer wall faces
   for (let i = 0; i < heightSegments; i++) {
     for (let j = 0; j < segments; j++) {
       const a = outerStart + i * (segments + 1) + j;
@@ -191,7 +191,7 @@ export function generatePrintableMesh(
     }
   }
 
-  // Inner wall faces (CW winding for inward normals)
+  // Inner wall faces
   for (let i = 0; i < heightSegments; i++) {
     for (let j = 0; j < segments; j++) {
       const a = innerStart + i * (segments + 1) + j;
@@ -203,34 +203,15 @@ export function generatePrintableMesh(
     }
   }
 
-  // Bottom cap (base)
-  const bottomCenter = vertices.length / 3;
-  vertices.push(0, 0, 0);
-  
-  for (let j = 0; j <= segments; j++) {
-    const theta = (j / segments) * Math.PI * 2;
-    const outerR = getRadiusAtHeight(0, params, type, theta);
-    const innerR = Math.max(outerR - wallThickness, wallThickness);
-    
-    // Outer bottom ring
-    vertices.push(Math.cos(theta) * outerR, 0, Math.sin(theta) * outerR);
-    // Inner bottom ring  
-    vertices.push(Math.cos(theta) * innerR, 0, Math.sin(theta) * innerR);
-  }
-
-  // Bottom faces - outer ring to center
-  const bottomOuterStart = bottomCenter + 1;
+  // Bottom rim - connect outer to inner wall at base (no solid cap)
   for (let j = 0; j < segments; j++) {
-    const outer1 = bottomOuterStart + j * 2;
-    const outer2 = bottomOuterStart + (j + 1) * 2;
-    const inner1 = outer1 + 1;
-    const inner2 = outer2 + 1;
+    const outer1 = outerStart + j;
+    const outer2 = outerStart + j + 1;
+    const inner1 = innerStart + j;
+    const inner2 = innerStart + j + 1;
     
-    // Triangle from center to outer edge
-    indices.push(bottomCenter, outer2, outer1);
-    // Quad between outer and inner rings
-    indices.push(outer1, outer2, inner1);
-    indices.push(inner1, outer2, inner2);
+    indices.push(outer1, inner1, outer2);
+    indices.push(outer2, inner1, inner2);
   }
 
   // Top rim - connect outer to inner wall
@@ -255,28 +236,72 @@ export function generatePrintableMesh(
   return geometry;
 }
 
-// Export mesh to STL (always binary for best compatibility)
-export function exportToSTL(
+// Generate legs with base disc mesh for STL export
+export function generateLegsWithBaseMesh(
+  params: ParametricParams
+): THREE.BufferGeometry {
+  return generateLegsWithBase(
+    params.baseRadius,
+    params.legCount,
+    params.legHeight,
+    params.legSpread,
+    params.legThickness,
+    params.legTaper,
+    params.legInset,
+    params.baseThickness || 3
+  );
+}
+
+// Legacy function for backwards compatibility
+export function generatePrintableMesh(
+  params: ParametricParams,
+  type: ObjectType
+): THREE.BufferGeometry {
+  return generateBodyMesh(params, type);
+}
+
+// Export body mesh to STL
+export function exportBodyToSTL(
   params: ParametricParams,
   type: ObjectType
 ): Blob {
-  const geometry = generatePrintableMesh(params, type);
+  const geometry = generateBodyMesh(params, type);
   const mesh = new THREE.Mesh(geometry);
   
   const exporter = new STLExporter();
-  // Parse as string for simplicity (text STL format)
   const result = exporter.parse(mesh);
   
   return new Blob([result], { type: 'application/octet-stream' });
 }
 
-// Download STL file
-export function downloadSTL(
+// Export legs+base mesh to STL
+export function exportLegsWithBaseToSTL(
+  params: ParametricParams
+): Blob {
+  const geometry = generateLegsWithBaseMesh(params);
+  const mesh = new THREE.Mesh(geometry);
+  
+  const exporter = new STLExporter();
+  const result = exporter.parse(mesh);
+  
+  return new Blob([result], { type: 'application/octet-stream' });
+}
+
+// Legacy export function
+export function exportToSTL(
+  params: ParametricParams,
+  type: ObjectType
+): Blob {
+  return exportBodyToSTL(params, type);
+}
+
+// Download body STL
+export function downloadBodySTL(
   params: ParametricParams,
   type: ObjectType,
-  filename: string = 'model.stl'
+  filename: string = 'body.stl'
 ): void {
-  const blob = exportToSTL(params, type);
+  const blob = exportBodyToSTL(params, type);
   const url = URL.createObjectURL(blob);
   
   const link = document.createElement('a');
@@ -287,6 +312,48 @@ export function downloadSTL(
   document.body.removeChild(link);
   
   URL.revokeObjectURL(url);
+}
+
+// Download legs+base STL
+export function downloadLegsWithBaseSTL(
+  params: ParametricParams,
+  filename: string = 'legs_base.stl'
+): void {
+  const blob = exportLegsWithBaseToSTL(params);
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+}
+
+// Download both parts
+export function downloadAllParts(
+  params: ParametricParams,
+  type: ObjectType,
+  baseFilename: string = 'model'
+): void {
+  downloadBodySTL(params, type, `${baseFilename}_body.stl`);
+  
+  if (params.addLegs) {
+    setTimeout(() => {
+      downloadLegsWithBaseSTL(params, `${baseFilename}_legs_base.stl`);
+    }, 100);
+  }
+}
+
+// Legacy download function
+export function downloadSTL(
+  params: ParametricParams,
+  type: ObjectType,
+  filename: string = 'model.stl'
+): void {
+  downloadBodySTL(params, type, filename);
 }
 
 // Generate G-code toolpath data

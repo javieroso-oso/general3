@@ -188,16 +188,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
-    // Add base cap (solid bottom disc)
-    const baseCenterIdx = vertices.length / 3;
-    vertices.push(0, 0, 0); // Center point at base
-    
-    // Connect first ring of vertices to center to create base cap
-    for (let j = 0; j < segments; j++) {
-      const a = j;
-      const b = j + 1;
-      indices.push(baseCenterIdx, a, b); // Winding order for bottom face
-    }
+    // Body has open bottom - base cap is now part of the legs+base component
 
     const bodyGeo = new THREE.BufferGeometry();
     bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
