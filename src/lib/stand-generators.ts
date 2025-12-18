@@ -7,6 +7,7 @@ import { OrganicParams, SocketParams, AttachmentParams } from './leg-generator';
 export interface StandParams {
   standType: 'tripod' | 'wall_mount';
   baseRadius: number;          // mm - shade base radius for sizing
+  objectHeight?: number;       // mm - object height for wall mount sizing
   
   // Wall mount (sconce style)
   wallMountPlateShape: 'circle' | 'rectangle' | 'rounded_rectangle';
@@ -620,104 +621,87 @@ export function generateRingBase(
 }
 
 /**
- * Generate a wall mount plate (sconce style)
- * Flat plate with keyhole/screw holes and optional bulb fixture opening
+ * Generate a wall mount side base plate
+ * This is a vertical plate that sits at the flat back of a half-shell object
+ * The plate is oriented vertically (XY plane) and positioned at z=0
  */
-export function generateWallMount(
-  plateShape: 'circle' | 'rectangle' | 'rounded_rectangle',
-  plateWidth: number,
-  plateHeight: number,
+export function generateWallMountSideBase(
+  objectWidth: number,   // Width of the half-shell (2 * max radius)
+  objectHeight: number,  // Height of the object
   plateThickness: number,
   holeType: 'keyhole' | 'screw' | 'adhesive',
   holeCount: 2 | 3 | 4,
   bulbFixture: boolean,
-  objectRadius: number,
   cordHoleDiameter: number = 8
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   const vertices: number[] = [];
   const indices: number[] = [];
   
-  const segments = 48;
+  const segments = 32;
+  
+  // Plate dimensions - slightly larger than object profile for a border effect
+  const plateWidth = objectWidth + 10; // Add 5mm border on each side
+  const plateHeight = objectHeight + 10;
   const halfW = plateWidth / 2;
   const halfH = plateHeight / 2;
-  const cornerRadius = Math.min(plateWidth, plateHeight) * 0.15;
+  const cornerRadius = Math.min(plateWidth, plateHeight) * 0.08;
   
-  // Generate plate outline vertices based on shape
+  // Generate rounded rectangle outline for the plate
   const outlineVerts: { x: number; y: number }[] = [];
+  const cr = cornerRadius;
+  const cornerSegs = 8;
   
-  if (plateShape === 'circle') {
-    const radius = Math.min(halfW, halfH);
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      outlineVerts.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
-    }
-  } else if (plateShape === 'rectangle') {
-    // Simple rectangle
-    outlineVerts.push({ x: -halfW, y: -halfH });
-    outlineVerts.push({ x: halfW, y: -halfH });
-    outlineVerts.push({ x: halfW, y: halfH });
-    outlineVerts.push({ x: -halfW, y: halfH });
-  } else {
-    // Rounded rectangle
-    const cr = cornerRadius;
-    const cornerSegs = 8;
-    
-    // Bottom-left corner
-    for (let i = 0; i <= cornerSegs; i++) {
-      const angle = Math.PI + (i / cornerSegs) * (Math.PI / 2);
-      outlineVerts.push({ x: -halfW + cr + Math.cos(angle) * cr, y: -halfH + cr + Math.sin(angle) * cr });
-    }
-    // Bottom-right corner
-    for (let i = 0; i <= cornerSegs; i++) {
-      const angle = -Math.PI / 2 + (i / cornerSegs) * (Math.PI / 2);
-      outlineVerts.push({ x: halfW - cr + Math.cos(angle) * cr, y: -halfH + cr + Math.sin(angle) * cr });
-    }
-    // Top-right corner
-    for (let i = 0; i <= cornerSegs; i++) {
-      const angle = 0 + (i / cornerSegs) * (Math.PI / 2);
-      outlineVerts.push({ x: halfW - cr + Math.cos(angle) * cr, y: halfH - cr + Math.sin(angle) * cr });
-    }
-    // Top-left corner
-    for (let i = 0; i <= cornerSegs; i++) {
-      const angle = Math.PI / 2 + (i / cornerSegs) * (Math.PI / 2);
-      outlineVerts.push({ x: -halfW + cr + Math.cos(angle) * cr, y: halfH - cr + Math.sin(angle) * cr });
-    }
+  // Bottom-left corner
+  for (let i = 0; i <= cornerSegs; i++) {
+    const angle = Math.PI + (i / cornerSegs) * (Math.PI / 2);
+    outlineVerts.push({ x: -halfW + cr + Math.cos(angle) * cr, y: -5 + cr + Math.sin(angle) * cr });
+  }
+  // Bottom-right corner
+  for (let i = 0; i <= cornerSegs; i++) {
+    const angle = -Math.PI / 2 + (i / cornerSegs) * (Math.PI / 2);
+    outlineVerts.push({ x: halfW - cr + Math.cos(angle) * cr, y: -5 + cr + Math.sin(angle) * cr });
+  }
+  // Top-right corner
+  for (let i = 0; i <= cornerSegs; i++) {
+    const angle = 0 + (i / cornerSegs) * (Math.PI / 2);
+    outlineVerts.push({ x: halfW - cr + Math.cos(angle) * cr, y: plateHeight - 5 - cr + Math.sin(angle) * cr });
+  }
+  // Top-left corner
+  for (let i = 0; i <= cornerSegs; i++) {
+    const angle = Math.PI / 2 + (i / cornerSegs) * (Math.PI / 2);
+    outlineVerts.push({ x: -halfW + cr + Math.cos(angle) * cr, y: plateHeight - 5 - cr + Math.sin(angle) * cr });
   }
   
-  // Front face (z = plateThickness, facing room)
+  // Front face (z = 0, where object attaches)
   const frontStart = vertices.length / 3;
-  for (const v of outlineVerts) {
-    vertices.push(v.x, v.y, plateThickness);
-  }
-  // Center of front face
-  const frontCenterIdx = vertices.length / 3;
-  vertices.push(0, 0, plateThickness);
-  
-  // Front face triangles (fan from center)
-  for (let i = 0; i < outlineVerts.length - 1; i++) {
-    indices.push(frontCenterIdx, frontStart + i, frontStart + i + 1);
-  }
-  if (plateShape !== 'rectangle') {
-    indices.push(frontCenterIdx, frontStart + outlineVerts.length - 1, frontStart);
-  }
-  
-  // Back face (z = 0, against wall)
-  const backStart = vertices.length / 3;
   for (const v of outlineVerts) {
     vertices.push(v.x, v.y, 0);
   }
+  // Center of front face at mid-height
+  const frontCenterIdx = vertices.length / 3;
+  vertices.push(0, objectHeight / 2, 0);
+  
+  // Front face triangles (fan from center)
+  for (let i = 0; i < outlineVerts.length - 1; i++) {
+    indices.push(frontCenterIdx, frontStart + i + 1, frontStart + i);
+  }
+  indices.push(frontCenterIdx, frontStart, frontStart + outlineVerts.length - 1);
+  
+  // Back face (z = -plateThickness, against wall)
+  const backStart = vertices.length / 3;
+  for (const v of outlineVerts) {
+    vertices.push(v.x, v.y, -plateThickness);
+  }
   // Center of back face
   const backCenterIdx = vertices.length / 3;
-  vertices.push(0, 0, 0);
+  vertices.push(0, objectHeight / 2, -plateThickness);
   
   // Back face triangles (reversed winding)
   for (let i = 0; i < outlineVerts.length - 1; i++) {
-    indices.push(backCenterIdx, backStart + i + 1, backStart + i);
+    indices.push(backCenterIdx, backStart + i, backStart + i + 1);
   }
-  if (plateShape !== 'rectangle') {
-    indices.push(backCenterIdx, backStart, backStart + outlineVerts.length - 1);
-  }
+  indices.push(backCenterIdx, backStart + outlineVerts.length - 1, backStart);
   
   // Side walls (connect front to back)
   for (let i = 0; i < outlineVerts.length - 1; i++) {
@@ -725,18 +709,13 @@ export function generateWallMount(
     const b = frontStart + i + 1;
     const c = backStart + i;
     const d = backStart + i + 1;
-    indices.push(a, b, c);
-    indices.push(b, d, c);
+    indices.push(a, c, b);
+    indices.push(b, c, d);
   }
-  // Close the loop for non-rectangle shapes
-  if (plateShape !== 'rectangle') {
-    const a = frontStart + outlineVerts.length - 1;
-    const b = frontStart;
-    const c = backStart + outlineVerts.length - 1;
-    const d = backStart;
-    indices.push(a, b, c);
-    indices.push(b, d, c);
-  }
+  // Close the loop
+  const lastIdx = outlineVerts.length - 1;
+  indices.push(frontStart + lastIdx, backStart + lastIdx, frontStart);
+  indices.push(frontStart, backStart + lastIdx, backStart);
   
   const plateGeo = new THREE.BufferGeometry();
   plateGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
@@ -744,17 +723,281 @@ export function generateWallMount(
   plateGeo.computeVertexNormals();
   geometries.push(plateGeo);
   
-  // Add mounting holes
-  const holeGeos = generateMountingHoles(holeType, holeCount, plateWidth, plateHeight, plateThickness);
+  // Add mounting holes (on the back of the plate)
+  const holeGeos = generateMountingHolesVertical(holeType, holeCount, plateWidth, objectHeight, plateThickness);
   geometries.push(...holeGeos);
   
-  // Add bulb fixture opening (raised ring for socket alignment)
+  // Add bulb fixture opening (centered on the plate front)
   if (bulbFixture) {
-    const fixtureGeo = generateBulbFixture(objectRadius, plateThickness, cordHoleDiameter);
+    const fixtureGeo = generateBulbFixtureVertical(objectWidth / 3, objectHeight / 2, cordHoleDiameter);
     geometries.push(fixtureGeo);
   }
   
   return mergeGeometries(geometries);
+}
+
+/**
+ * Generate mounting holes for vertical wall mount plate
+ */
+function generateMountingHolesVertical(
+  holeType: 'keyhole' | 'screw' | 'adhesive',
+  holeCount: 2 | 3 | 4,
+  plateWidth: number,
+  objectHeight: number,
+  plateThickness: number
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // Calculate hole positions (on vertical plate in XY plane)
+  const positions: { x: number; y: number }[] = [];
+  const marginX = plateWidth * 0.2;
+  const marginY = objectHeight * 0.15;
+  
+  if (holeCount === 2) {
+    // Two holes: top and bottom center
+    positions.push({ x: 0, y: objectHeight - marginY });
+    positions.push({ x: 0, y: marginY });
+  } else if (holeCount === 3) {
+    // Three holes: triangle pattern
+    positions.push({ x: 0, y: objectHeight - marginY });
+    positions.push({ x: -plateWidth / 2 + marginX, y: marginY });
+    positions.push({ x: plateWidth / 2 - marginX, y: marginY });
+  } else {
+    // Four holes: corners
+    positions.push({ x: -plateWidth / 2 + marginX, y: objectHeight - marginY });
+    positions.push({ x: plateWidth / 2 - marginX, y: objectHeight - marginY });
+    positions.push({ x: -plateWidth / 2 + marginX, y: marginY });
+    positions.push({ x: plateWidth / 2 - marginX, y: marginY });
+  }
+  
+  for (const pos of positions) {
+    if (holeType === 'keyhole') {
+      geometries.push(generateKeyholeSlotVertical(pos.x, pos.y, plateThickness));
+    } else if (holeType === 'screw') {
+      geometries.push(generateScrewHoleVertical(pos.x, pos.y, plateThickness));
+    } else {
+      geometries.push(generateAdhesivePadVertical(pos.x, pos.y));
+    }
+  }
+  
+  return geometries;
+}
+
+/**
+ * Generate a keyhole slot for vertical plate
+ */
+function generateKeyholeSlotVertical(centerX: number, centerY: number, plateThickness: number): THREE.BufferGeometry {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  const segments = 16;
+  
+  const headRadius = 5; // mm
+  const shaftRadius = 2.5; // mm
+  const slotLength = 8; // mm
+  
+  // Front circle (large hole for screw head)
+  const frontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(
+      centerX + Math.cos(angle) * headRadius,
+      centerY + slotLength / 2 + Math.sin(angle) * headRadius,
+      0.1
+    );
+  }
+  
+  // Back circle
+  const backStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(
+      centerX + Math.cos(angle) * headRadius,
+      centerY + slotLength / 2 + Math.sin(angle) * headRadius,
+      -plateThickness - 0.1
+    );
+  }
+  
+  // Connect front and back
+  for (let i = 0; i < segments; i++) {
+    indices.push(frontStart + i, backStart + i, frontStart + i + 1);
+    indices.push(frontStart + i + 1, backStart + i, backStart + i + 1);
+  }
+  
+  // Slot (narrow part)
+  const slotFrontStart = vertices.length / 3;
+  // Left side
+  vertices.push(centerX - shaftRadius, centerY + slotLength / 2, 0.1);
+  vertices.push(centerX - shaftRadius, centerY - slotLength / 2, 0.1);
+  // Right side
+  vertices.push(centerX + shaftRadius, centerY + slotLength / 2, 0.1);
+  vertices.push(centerX + shaftRadius, centerY - slotLength / 2, 0.1);
+  
+  const slotBackStart = vertices.length / 3;
+  vertices.push(centerX - shaftRadius, centerY + slotLength / 2, -plateThickness - 0.1);
+  vertices.push(centerX - shaftRadius, centerY - slotLength / 2, -plateThickness - 0.1);
+  vertices.push(centerX + shaftRadius, centerY + slotLength / 2, -plateThickness - 0.1);
+  vertices.push(centerX + shaftRadius, centerY - slotLength / 2, -plateThickness - 0.1);
+  
+  // Left wall of slot
+  indices.push(slotFrontStart, slotBackStart, slotFrontStart + 1);
+  indices.push(slotFrontStart + 1, slotBackStart, slotBackStart + 1);
+  // Right wall of slot
+  indices.push(slotFrontStart + 2, slotFrontStart + 3, slotBackStart + 2);
+  indices.push(slotBackStart + 2, slotFrontStart + 3, slotBackStart + 3);
+  
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Generate a screw hole for vertical plate
+ */
+function generateScrewHoleVertical(centerX: number, centerY: number, plateThickness: number): THREE.BufferGeometry {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  const segments = 16;
+  const holeRadius = 3;
+  
+  const frontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(centerX + Math.cos(angle) * holeRadius, centerY + Math.sin(angle) * holeRadius, 0.1);
+  }
+  
+  const backStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(centerX + Math.cos(angle) * holeRadius, centerY + Math.sin(angle) * holeRadius, -plateThickness - 0.1);
+  }
+  
+  for (let i = 0; i < segments; i++) {
+    indices.push(frontStart + i, backStart + i, frontStart + i + 1);
+    indices.push(frontStart + i + 1, backStart + i, backStart + i + 1);
+  }
+  
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Generate an adhesive pad marker for vertical plate
+ */
+function generateAdhesivePadVertical(centerX: number, centerY: number): THREE.BufferGeometry {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  const segments = 16;
+  const padRadius = 12;
+  const padDepth = 0.5;
+  
+  // Shallow circular depression
+  const frontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(centerX + Math.cos(angle) * padRadius, centerY + Math.sin(angle) * padRadius, 0);
+  }
+  
+  const recessStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(centerX + Math.cos(angle) * padRadius, centerY + Math.sin(angle) * padRadius, -padDepth);
+  }
+  
+  // Side walls
+  for (let i = 0; i < segments; i++) {
+    indices.push(frontStart + i, recessStart + i, frontStart + i + 1);
+    indices.push(frontStart + i + 1, recessStart + i, recessStart + i + 1);
+  }
+  
+  // Recessed center
+  const centerIdx = vertices.length / 3;
+  vertices.push(centerX, centerY, -padDepth);
+  for (let i = 0; i < segments; i++) {
+    indices.push(centerIdx, recessStart + i + 1, recessStart + i);
+  }
+  
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Generate bulb fixture opening for vertical plate
+ */
+function generateBulbFixtureVertical(fixtureRadius: number, centerY: number, cordHoleDiameter: number): THREE.BufferGeometry {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  const segments = 24;
+  
+  // Raised ring on front of plate for bulb socket centering
+  const ringInnerRadius = 12; // E26 socket ~26mm, so 12-13mm inner
+  const ringOuterRadius = ringInnerRadius + 3;
+  const ringHeight = 4;
+  
+  // Front inner ring
+  const innerFrontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(angle) * ringInnerRadius, centerY + Math.sin(angle) * ringInnerRadius, 0);
+  }
+  
+  // Front outer ring
+  const outerFrontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(angle) * ringOuterRadius, centerY + Math.sin(angle) * ringOuterRadius, 0);
+  }
+  
+  // Raised inner ring
+  const innerRaisedStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(angle) * ringInnerRadius, centerY + Math.sin(angle) * ringInnerRadius, ringHeight);
+  }
+  
+  // Raised outer ring
+  const outerRaisedStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(angle) * ringOuterRadius, centerY + Math.sin(angle) * ringOuterRadius, ringHeight);
+  }
+  
+  // Connect inner front to raised
+  for (let i = 0; i < segments; i++) {
+    indices.push(innerFrontStart + i, innerFrontStart + i + 1, innerRaisedStart + i);
+    indices.push(innerRaisedStart + i, innerFrontStart + i + 1, innerRaisedStart + i + 1);
+  }
+  
+  // Connect outer front to raised
+  for (let i = 0; i < segments; i++) {
+    indices.push(outerFrontStart + i, outerRaisedStart + i, outerFrontStart + i + 1);
+    indices.push(outerFrontStart + i + 1, outerRaisedStart + i, outerRaisedStart + i + 1);
+  }
+  
+  // Top surface (ring between inner and outer raised)
+  for (let i = 0; i < segments; i++) {
+    indices.push(innerRaisedStart + i, innerRaisedStart + i + 1, outerRaisedStart + i);
+    indices.push(outerRaisedStart + i, innerRaisedStart + i + 1, outerRaisedStart + i + 1);
+  }
+  
+  // Bottom connection (ring between inner and outer front)
+  for (let i = 0; i < segments; i++) {
+    indices.push(innerFrontStart + i, outerFrontStart + i, innerFrontStart + i + 1);
+    indices.push(innerFrontStart + i + 1, outerFrontStart + i, outerFrontStart + i + 1);
+  }
+  
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /**
@@ -1083,15 +1326,17 @@ function generateBulbFixture(objectRadius: number, plateThickness: number, cordH
 export function generateStand(params: StandParams, organicParams?: OrganicParams): THREE.BufferGeometry | null {
   switch (params.standType) {
     case 'wall_mount':
-      return generateWallMount(
-        params.wallMountPlateShape,
-        params.wallMountPlateWidth,
-        params.wallMountPlateHeight,
+      // Calculate object width from baseRadius (diameter = 2 * radius)
+      const objectWidth = params.baseRadius * 2;
+      const objectHeight = params.objectHeight || 150; // Default height if not provided
+      
+      return generateWallMountSideBase(
+        objectWidth,
+        objectHeight,
         params.wallMountPlateThickness,
         params.wallMountHoleType,
         params.wallMountHoleCount,
         params.wallMountBulbFixture,
-        params.baseRadius,
         params.cordHoleDiameter || 8
       );
       
