@@ -5,34 +5,13 @@ import { OrganicParams, SocketParams, AttachmentParams } from './leg-generator';
  * Stand-specific parameters
  */
 export interface StandParams {
-  standType: 'tripod' | 'pedestal' | 'wireframe' | 'pendant' | 'wall_bracket' | 'ring_base';
+  standType: 'tripod' | 'wall_bracket';
   baseRadius: number;          // mm - shade base radius for sizing
-  
-  // Pedestal
-  pedestalDiameter: number;    // mm
-  pedestalHeight: number;      // mm
-  pedestalTaper: number;       // 0-1
-  pedestalHollow: boolean;
-  
-  // Wireframe
-  wireframeRibCount: number;
-  wireframeRingCount: number;
-  wireframeThickness: number;  // mm
-  wireframeHeight: number;     // mm
-  
-  // Pendant
-  pendantCanopyDiameter: number;
-  pendantCanopyHeight: number;
-  pendantCordLength: number;
   
   // Wall bracket
   wallBracketArmLength: number;
   wallBracketArmAngle: number;
   wallBracketPlateSize: number;
-  
-  // Ring base
-  ringBaseDiameter: number;
-  ringBaseThickness: number;
   
   // Socket/cord options
   cordHoleEnabled?: boolean;
@@ -636,45 +615,12 @@ export function generateRingBase(
  */
 export function generateStand(params: StandParams, organicParams?: OrganicParams): THREE.BufferGeometry | null {
   switch (params.standType) {
-    case 'pedestal':
-      return generatePedestal(
-        params.pedestalDiameter,
-        params.pedestalHeight,
-        params.pedestalTaper,
-        params.pedestalHollow,
-        params.cordHoleDiameter || 8,
-        organicParams
-      );
-      
-    case 'wireframe':
-      return generateWireframeCage(
-        params.baseRadius * 1.2, // Slightly larger than shade
-        params.wireframeHeight,
-        params.wireframeRibCount,
-        params.wireframeRingCount,
-        params.wireframeThickness
-      );
-      
-    case 'pendant':
-      return generatePendantCanopy(
-        params.pendantCanopyDiameter,
-        params.pendantCanopyHeight,
-        params.cordHoleDiameter || 8
-      );
-      
     case 'wall_bracket':
       return generateWallBracket(
         params.wallBracketPlateSize,
         params.wallBracketArmLength,
         params.wallBracketArmAngle,
         params.baseRadius,
-        params.cordHoleDiameter || 8
-      );
-      
-    case 'ring_base':
-      return generateRingBase(
-        params.ringBaseDiameter,
-        params.ringBaseThickness,
         params.cordHoleDiameter || 8
       );
       

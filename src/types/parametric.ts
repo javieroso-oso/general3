@@ -1,7 +1,7 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
 // Stand types - different structural support options
-export type StandType = 'tripod' | 'pedestal' | 'wireframe' | 'pendant' | 'wall_bracket' | 'ring_base';
+export type StandType = 'tripod' | 'wall_bracket';
 
 // Attachment types for body-to-stand connection
 export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
@@ -326,7 +326,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     topRadius: 25,
     wallThickness: 3.0,
     addLegs: false,
-    standType: 'pedestal',
+    standType: 'tripod',
     legCount: 4,
     legHeight: 60,
     legSpread: 20,
