@@ -34,12 +34,13 @@ export interface AttachmentParams {
   baseRadius: number;      // mm - for calculating hole positions
 }
 
-// Socket outer diameters in mm (determines centering lip size)
-const SOCKET_OUTER_DIAMETERS: Record<string, number> = {
-  'E26': 39,   // US/Japan standard
-  'E12': 31,   // Candelabra
-  'E14': 33,   // European candelabra
-  'GU10': 50,  // Spotlight
+// Socket THREAD diameters in mm (the E-number IS the thread diameter!)
+// These determine centering lip size - the lip should fit snugly around the threaded portion
+const SOCKET_THREAD_DIAMETERS: Record<string, number> = {
+  'E26': 26,   // US/Japan standard - 26mm thread diameter
+  'E12': 12,   // Candelabra - 12mm thread diameter
+  'E14': 14,   // European candelabra - 14mm thread diameter
+  'GU10': 35,  // GU10 is different - uses pin base ~35mm body
 };
 
 // Screw specifications
@@ -327,10 +328,11 @@ function createBaseDiscWithSocket(
   const centeringLipEnabled = socketParams?.centeringLipEnabled ?? false;
   const centeringLipHeight = socketParams?.centeringLipHeight ?? 3;
   const socketType = socketParams?.socketType ?? 'E26';
-  const socketOuterDiameter = SOCKET_OUTER_DIAMETERS[socketType] ?? 39;
+  const socketThreadDiameter = SOCKET_THREAD_DIAMETERS[socketType] ?? 26;
   
-  // Lip dimensions: inner = socket outer diameter / 2 + 0.5mm clearance
-  const lipInnerRadius = socketOuterDiameter / 2 + 0.5;
+  // Lip dimensions: inner = socket thread diameter / 2 + 0.5mm clearance for snug fit
+  // E26: inner = 13.5mm, outer = 15.5mm → total lip diameter ~31mm (was 44mm before fix)
+  const lipInnerRadius = socketThreadDiameter / 2 + 0.5;
   const lipOuterRadius = lipInnerRadius + 2; // 2mm wall thickness
   
   // Outer radius with organic deformation
