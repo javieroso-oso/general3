@@ -94,12 +94,12 @@ const Index = () => {
 
   return (
     <Layout showFooter={false}>
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-row">
         {/* Left Panel - Controls */}
         <motion.aside
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="w-full lg:w-[380px] xl:w-[400px] lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] border-r border-border bg-card flex flex-col"
+          className="w-full lg:w-[380px] xl:w-[400px] border-r border-border bg-card"
         >
           {/* Object Type */}
           <div className="p-4 border-b border-border">
@@ -107,7 +107,7 @@ const Index = () => {
           </div>
 
           {/* Tabbed Controls */}
-          <Tabs defaultValue="design" className="flex-1 flex flex-col">
+          <Tabs defaultValue="design" className="flex flex-col">
             <TabsList className="mx-4 mt-4 grid grid-cols-4">
               <TabsTrigger value="design" className="text-xs gap-1">
                 <Layers className="w-3 h-3" />
@@ -126,7 +126,7 @@ const Index = () => {
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="p-4">
               <TabsContent value="design" className="mt-0 space-y-4">
                 <ParameterControls
                   params={params}
@@ -165,150 +165,153 @@ const Index = () => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex-1 p-4 bg-background flex flex-col min-h-[600px]"
+          className="flex-1 p-4 bg-background"
         >
-          {/* View mode toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === 'model' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('model')}
-                className="gap-2"
-              >
-                <Eye className="w-4 h-4" />
-                Model
-              </Button>
-              <Button
-                variant={viewMode === 'gcode' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('gcode')}
-                className="gap-2"
-              >
-                <FileCode className="w-4 h-4" />
-                G-code Preview
-              </Button>
-            </div>
-            
-            {viewMode === 'model' && (
-              <Button
-                variant={showWireframe ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setShowWireframe(!showWireframe)}
-              >
-                Wireframe
-              </Button>
-            )}
-          </div>
-
-          {/* 3D Viewer */}
-          <div className="flex-1 glass-panel-elevated overflow-hidden relative">
-            <Scene3D 
-              params={params} 
-              type={objectType} 
-              settings={printSettings}
-              showWireframe={showWireframe}
-              viewMode={viewMode}
-              gcodeLayer={gcodeLayer}
-              gcodeShowAll={gcodeShowAll}
-              gcodeAnimate={gcodeAnimate}
-            />
-            
-            {/* Dimensions overlay */}
-            <div className="absolute top-4 left-4 bg-card/90 backdrop-blur rounded-lg px-3 py-2 text-xs font-mono">
-              <div className="text-text-muted">
-                {params.height}mm × Ø{params.baseRadius * 2}mm
-              </div>
-              {params.addLegs && (
-                <div className="text-primary mt-1">
-                  + {params.legHeight}mm legs
-                </div>
-              )}
-              {viewMode === 'gcode' && (
-                <div className="text-primary mt-1">
-                  Layer {gcodeAnimate ? '...' : gcodeLayer + 1} / {totalLayers}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* G-code controls */}
-          {viewMode === 'gcode' && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-3 p-4 bg-card rounded-xl border border-border space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Layer Scrubber</span>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">Show All</span>
-                    <Switch checked={gcodeShowAll} onCheckedChange={setGcodeShowAll} />
-                  </div>
-                  <Button
-                    variant={gcodeAnimate ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGcodeAnimate(!gcodeAnimate)}
-                    className="gap-2"
-                  >
-                    {gcodeAnimate ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    {gcodeAnimate ? 'Pause' : 'Simulate'}
-                  </Button>
-                </div>
+          {/* Sticky container for 3D viewer */}
+          <div className="lg:sticky lg:top-20 space-y-3">
+            {/* View mode toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <Button
+                  variant={viewMode === 'model' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('model')}
+                  className="gap-2"
+                >
+                  <Eye className="w-4 h-4" />
+                  Model
+                </Button>
+                <Button
+                  variant={viewMode === 'gcode' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('gcode')}
+                  className="gap-2"
+                >
+                  <FileCode className="w-4 h-4" />
+                  G-code Preview
+                </Button>
               </div>
               
-              {!gcodeAnimate && (
-                <div className="space-y-2">
-                  <Slider
-                    value={[gcodeLayer]}
-                    min={0}
-                    max={totalLayers - 1}
-                    step={1}
-                    onValueChange={([v]) => setGcodeLayer(v)}
-                  />
-                  <div className="flex justify-between text-xs text-text-muted">
-                    <span>Layer 1 (0mm)</span>
-                    <span>Layer {totalLayers} ({params.height}mm)</span>
+              {viewMode === 'model' && (
+                <Button
+                  variant={showWireframe ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setShowWireframe(!showWireframe)}
+                >
+                  Wireframe
+                </Button>
+              )}
+            </div>
+
+            {/* 3D Viewer */}
+            <div className="h-[500px] glass-panel-elevated overflow-hidden relative">
+              <Scene3D 
+                params={params} 
+                type={objectType} 
+                settings={printSettings}
+                showWireframe={showWireframe}
+                viewMode={viewMode}
+                gcodeLayer={gcodeLayer}
+                gcodeShowAll={gcodeShowAll}
+                gcodeAnimate={gcodeAnimate}
+              />
+              
+              {/* Dimensions overlay */}
+              <div className="absolute top-4 left-4 bg-card/90 backdrop-blur rounded-lg px-3 py-2 text-xs font-mono">
+                <div className="text-text-muted">
+                  {params.height}mm × Ø{params.baseRadius * 2}mm
+                </div>
+                {params.addLegs && (
+                  <div className="text-primary mt-1">
+                    + {params.legHeight}mm legs
+                  </div>
+                )}
+                {viewMode === 'gcode' && (
+                  <div className="text-primary mt-1">
+                    Layer {gcodeAnimate ? '...' : gcodeLayer + 1} / {totalLayers}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* G-code controls */}
+            {viewMode === 'gcode' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-card rounded-xl border border-border space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Layer Scrubber</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted">Show All</span>
+                      <Switch checked={gcodeShowAll} onCheckedChange={setGcodeShowAll} />
+                    </div>
+                    <Button
+                      variant={gcodeAnimate ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setGcodeAnimate(!gcodeAnimate)}
+                      className="gap-2"
+                    >
+                      {gcodeAnimate ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {gcodeAnimate ? 'Pause' : 'Simulate'}
+                    </Button>
                   </div>
                 </div>
-              )}
-            </motion.div>
-          )}
+                
+                {!gcodeAnimate && (
+                  <div className="space-y-2">
+                    <Slider
+                      value={[gcodeLayer]}
+                      min={0}
+                      max={totalLayers - 1}
+                      step={1}
+                      onValueChange={([v]) => setGcodeLayer(v)}
+                    />
+                    <div className="flex justify-between text-xs text-text-muted">
+                      <span>Layer 1 (0mm)</span>
+                      <span>Layer {totalLayers} ({params.height}mm)</span>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
 
-          {/* Export buttons */}
-          <div className="mt-3 flex gap-2 flex-wrap">
-            <Button 
-              onClick={handleExportBody} 
-              disabled={!analysis.isValid}
-              className="flex-1 gap-2"
-              size="lg"
-            >
-              <Download className="w-5 h-5" />
-              Body STL
-            </Button>
-            {params.addLegs && (
+            {/* Export buttons */}
+            <div className="flex gap-2 flex-wrap">
               <Button 
-                onClick={handleExportLegsBase} 
+                onClick={handleExportBody} 
                 disabled={!analysis.isValid}
-                variant="secondary"
                 className="flex-1 gap-2"
                 size="lg"
               >
                 <Download className="w-5 h-5" />
-                Legs + Base
+                Body STL
               </Button>
-            )}
-            <Button 
-              onClick={handleExportGCode} 
-              disabled={!analysis.isValid}
-              variant="outline"
-              className="gap-2"
-              size="lg"
-            >
-              <FileCode className="w-5 h-5" />
-              G-code
-            </Button>
+              {params.addLegs && (
+                <Button 
+                  onClick={handleExportLegsBase} 
+                  disabled={!analysis.isValid}
+                  variant="secondary"
+                  className="flex-1 gap-2"
+                  size="lg"
+                >
+                  <Download className="w-5 h-5" />
+                  Legs + Base
+                </Button>
+              )}
+              <Button 
+                onClick={handleExportGCode} 
+                disabled={!analysis.isValid}
+                variant="outline"
+                className="gap-2"
+                size="lg"
+              >
+                <FileCode className="w-5 h-5" />
+                G-code
+              </Button>
+            </div>
           </div>
         </motion.div>
 
@@ -316,7 +319,7 @@ const Index = () => {
         <motion.aside
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="hidden xl:block w-[300px] xl:sticky xl:top-16 xl:h-[calc(100vh-4rem)] border-l border-border bg-card overflow-y-auto p-4"
+          className="hidden xl:block w-[300px] xl:sticky xl:top-20 xl:self-start border-l border-border bg-card p-4"
         >
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">
             Print Analysis
