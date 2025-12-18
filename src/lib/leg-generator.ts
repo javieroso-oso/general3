@@ -14,6 +14,20 @@ export interface OrganicParams {
 }
 
 /**
+ * Socket type dimensions (outer diameter in mm)
+ */
+export const socketDimensions: Record<string, { outerDiameter: number; name: string }> = {
+  E26: { outerDiameter: 34, name: 'E26 (US Standard)' },
+  E27: { outerDiameter: 35, name: 'E27 (EU Standard)' },
+  E12: { outerDiameter: 18, name: 'E12 (Candelabra)' },
+  E14: { outerDiameter: 20, name: 'E14 (Small Screw)' },
+  GU10: { outerDiameter: 50, name: 'GU10 (Spotlight)' },
+  G9: { outerDiameter: 25, name: 'G9 (Halogen)' },
+};
+
+export type SocketType = keyof typeof socketDimensions;
+
+/**
  * Socket attachment parameters
  */
 export interface SocketParams {
@@ -23,6 +37,8 @@ export interface SocketParams {
   wallThickness: number;  // mm - body wall thickness (needed to calculate inner radius)
   cordHoleEnabled?: boolean;    // Enable central cord exit hole
   cordHoleDiameter?: number;    // mm - cord exit hole diameter
+  socketRecessEnabled?: boolean; // Enable socket recess on plug top
+  socketType?: SocketType;       // Socket type for recess sizing
 }
 
 // Deterministic noise for consistent results
@@ -283,6 +299,13 @@ function createBaseDiscWithSocket(
   const cordHoleDiameter = socketParams?.cordHoleDiameter ?? 8;
   const cordHoleRadius = cordHoleDiameter / 2;
   
+  // Socket recess parameters
+  const socketRecessEnabled = socketParams?.socketRecessEnabled ?? false;
+  const socketType = socketParams?.socketType ?? 'E26';
+  const socketDims = socketDimensions[socketType];
+  const recessRadius = (socketDims.outerDiameter / 2) + 0.5; // Add 0.5mm tolerance
+  const recessDepth = 3; // 3mm deep recess
+  
   // Calculate radii functions
   const getPlugRadius = (theta: number) => {
     const outerR = calculateDeformedRadius(theta, radius, organicParams);
@@ -291,135 +314,299 @@ function createBaseDiscWithSocket(
   
   const getLipOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
   
-  // ===== PLUG (extends upward from lip into body) - solid with optional cord hole =====
+  // ===== PLUG (extends upward from lip into body) - with optional cord hole and socket recess =====
   if (cordHoleEnabled) {
-    // Plug with cord hole through center
-    // Plug top - outer ring
-    const plugTopOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getPlugRadius(theta);
-      vertices.push(Math.cos(theta) * r, plugHeight, Math.sin(theta) * r);
-    }
+    // Plug with cord hole through center (and optional socket recess on top)
     
-    // Plug top - inner ring (cord hole edge)
-    const plugTopInnerStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * cordHoleRadius, plugHeight, Math.sin(theta) * cordHoleRadius);
+    if (socketRecessEnabled) {
+      // ==== PLUG TOP WITH SOCKET RECESS ====
+      
+      // Plug top outer ring (at plugHeight)
+      const plugTopOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getPlugRadius(theta);
+        vertices.push(Math.cos(theta) * r, plugHeight, Math.sin(theta) * r);
+      }
+      
+      // Recess edge ring at plugHeight (outer edge of recess)
+      const recessEdgeTopStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * recessRadius, plugHeight, Math.sin(theta) * recessRadius);
+      }
+      
+      // Plug top face (ring between outer and recess edge)
+      for (let i = 0; i < segments; i++) {
+        const outerA = plugTopOuterStart + i;
+        const outerB = plugTopOuterStart + i + 1;
+        const recessA = recessEdgeTopStart + i;
+        const recessB = recessEdgeTopStart + i + 1;
+        indices.push(outerA, recessA, outerB);
+        indices.push(outerB, recessA, recessB);
+      }
+      
+      // Recess edge ring at bottom of recess (plugHeight - recessDepth)
+      const recessEdgeBottomStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * recessRadius, plugHeight - recessDepth, Math.sin(theta) * recessRadius);
+      }
+      
+      // Recess wall (from top to bottom of recess)
+      for (let i = 0; i < segments; i++) {
+        const topA = recessEdgeTopStart + i;
+        const topB = recessEdgeTopStart + i + 1;
+        const botA = recessEdgeBottomStart + i;
+        const botB = recessEdgeBottomStart + i + 1;
+        // Reversed winding for inner wall
+        indices.push(topA, botA, topB);
+        indices.push(topB, botA, botB);
+      }
+      
+      // Recess floor - cord hole edge at recess bottom
+      const recessFloorInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, plugHeight - recessDepth, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Recess floor face (ring between recess edge and cord hole)
+      for (let i = 0; i < segments; i++) {
+        const outerA = recessEdgeBottomStart + i;
+        const outerB = recessEdgeBottomStart + i + 1;
+        const innerA = recessFloorInnerStart + i;
+        const innerB = recessFloorInnerStart + i + 1;
+        indices.push(outerA, innerA, outerB);
+        indices.push(outerB, innerA, innerB);
+      }
+      
+      // Plug bottom outer ring (at lip level y=0)
+      const plugBottomOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getPlugRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      // Plug bottom inner ring (cord hole at y=0)
+      const plugBottomInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Plug outer side wall (from plug top to plug bottom)
+      for (let i = 0; i < segments; i++) {
+        const topA = plugTopOuterStart + i;
+        const topB = plugTopOuterStart + i + 1;
+        const botA = plugBottomOuterStart + i;
+        const botB = plugBottomOuterStart + i + 1;
+        indices.push(topA, topB, botA);
+        indices.push(botA, topB, botB);
+      }
+      
+      // Cord hole wall through plug (from recess floor to plug bottom)
+      for (let i = 0; i < segments; i++) {
+        const topA = recessFloorInnerStart + i;
+        const topB = recessFloorInnerStart + i + 1;
+        const botA = plugBottomInnerStart + i;
+        const botB = plugBottomInnerStart + i + 1;
+        // Reversed winding for inner wall
+        indices.push(topA, botA, topB);
+        indices.push(topB, botA, botB);
+      }
+      
+      // Continue with LIP and BASE using plugBottomOuterStart and plugBottomInnerStart
+      // ===== LIP (ring at y=0, body rests on this) =====
+      const lipOuterRingStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getLipOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      // Lip top surface (between plug bottom outer and lip outer)
+      for (let i = 0; i < segments; i++) {
+        const plugA = plugBottomOuterStart + i;
+        const plugB = plugBottomOuterStart + i + 1;
+        const lipA = lipOuterRingStart + i;
+        const lipB = lipOuterRingStart + i + 1;
+        indices.push(plugA, lipA, plugB);
+        indices.push(plugB, lipA, lipB);
+      }
+      
+      // ===== CORD HOLE continues through base =====
+      const cordHoleBottomStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Cord hole wall (from y=0 to base bottom)
+      for (let i = 0; i < segments; i++) {
+        const topA = plugBottomInnerStart + i;
+        const topB = plugBottomInnerStart + i + 1;
+        const botA = cordHoleBottomStart + i;
+        const botB = cordHoleBottomStart + i + 1;
+        indices.push(topA, botA, topB);
+        indices.push(topB, botA, botB);
+      }
+      
+      // ===== BASE BOTTOM (ring with cord hole) =====
+      const baseBottomOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getLipOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+      }
+      
+      // Base bottom face (ring between outer and cord hole)
+      for (let i = 0; i < segments; i++) {
+        const outerA = baseBottomOuterStart + i;
+        const outerB = baseBottomOuterStart + i + 1;
+        const innerA = cordHoleBottomStart + i;
+        const innerB = cordHoleBottomStart + i + 1;
+        indices.push(outerA, outerB, innerA);
+        indices.push(innerA, outerB, innerB);
+      }
+      
+      // Base side wall (connects lip outer to base bottom)
+      for (let i = 0; i < segments; i++) {
+        const topA = lipOuterRingStart + i;
+        const topB = lipOuterRingStart + i + 1;
+        const botA = baseBottomOuterStart + i;
+        const botB = baseBottomOuterStart + i + 1;
+        indices.push(topA, topB, botA);
+        indices.push(botA, topB, botB);
+      }
+      
+    } else {
+      // ==== PLUG TOP WITHOUT RECESS (flat top with cord hole) ====
+      
+      // Plug top - outer ring
+      const plugTopOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getPlugRadius(theta);
+        vertices.push(Math.cos(theta) * r, plugHeight, Math.sin(theta) * r);
+      }
+      
+      // Plug top - inner ring (cord hole edge)
+      const plugTopInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, plugHeight, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Plug top face (ring between outer and inner)
+      for (let i = 0; i < segments; i++) {
+        const outerA = plugTopOuterStart + i;
+        const outerB = plugTopOuterStart + i + 1;
+        const innerA = plugTopInnerStart + i;
+        const innerB = plugTopInnerStart + i + 1;
+        indices.push(outerA, innerA, outerB);
+        indices.push(outerB, innerA, innerB);
+      }
+      
+      // Plug bottom outer ring (at lip level y=0)
+      const plugBottomOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getPlugRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      // Plug bottom inner ring
+      const plugBottomInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Plug outer side wall
+      for (let i = 0; i < segments; i++) {
+        const topA = plugTopOuterStart + i;
+        const topB = plugTopOuterStart + i + 1;
+        const botA = plugBottomOuterStart + i;
+        const botB = plugBottomOuterStart + i + 1;
+        indices.push(topA, topB, botA);
+        indices.push(botA, topB, botB);
+      }
+      
+      // Plug inner side wall (cord hole through plug)
+      for (let i = 0; i < segments; i++) {
+        const topA = plugTopInnerStart + i;
+        const topB = plugTopInnerStart + i + 1;
+        const botA = plugBottomInnerStart + i;
+        const botB = plugBottomInnerStart + i + 1;
+        indices.push(topA, botA, topB);
+        indices.push(topB, botA, botB);
+      }
+      
+      // ===== LIP (ring at y=0, body rests on this) =====
+      const lipOuterRingStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getLipOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      // Lip top surface (between plug bottom outer and lip outer)
+      for (let i = 0; i < segments; i++) {
+        const plugA = plugBottomOuterStart + i;
+        const plugB = plugBottomOuterStart + i + 1;
+        const lipA = lipOuterRingStart + i;
+        const lipB = lipOuterRingStart + i + 1;
+        indices.push(plugA, lipA, plugB);
+        indices.push(plugB, lipA, lipB);
+      }
+      
+      // ===== CORD HOLE continues through base =====
+      const cordHoleBottomStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Cord hole wall (from y=0 to base bottom)
+      for (let i = 0; i < segments; i++) {
+        const topA = plugBottomInnerStart + i;
+        const topB = plugBottomInnerStart + i + 1;
+        const botA = cordHoleBottomStart + i;
+        const botB = cordHoleBottomStart + i + 1;
+        indices.push(topA, botA, topB);
+        indices.push(topB, botA, botB);
+      }
+      
+      // ===== BASE BOTTOM (ring with cord hole) =====
+      const baseBottomOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getLipOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+      }
+      
+      // Base bottom face (ring between outer and cord hole)
+      for (let i = 0; i < segments; i++) {
+        const outerA = baseBottomOuterStart + i;
+        const outerB = baseBottomOuterStart + i + 1;
+        const innerA = cordHoleBottomStart + i;
+        const innerB = cordHoleBottomStart + i + 1;
+        indices.push(outerA, outerB, innerA);
+        indices.push(innerA, outerB, innerB);
+      }
+      
+      // Base side wall (connects lip outer to base bottom)
+      for (let i = 0; i < segments; i++) {
+        const topA = lipOuterRingStart + i;
+        const topB = lipOuterRingStart + i + 1;
+        const botA = baseBottomOuterStart + i;
+        const botB = baseBottomOuterStart + i + 1;
+        indices.push(topA, topB, botA);
+        indices.push(botA, topB, botB);
+      }
     }
-    
-    // Plug top face (ring between outer and inner)
-    for (let i = 0; i < segments; i++) {
-      const outerA = plugTopOuterStart + i;
-      const outerB = plugTopOuterStart + i + 1;
-      const innerA = plugTopInnerStart + i;
-      const innerB = plugTopInnerStart + i + 1;
-      indices.push(outerA, innerA, outerB);
-      indices.push(outerB, innerA, innerB);
-    }
-    
-    // Plug bottom outer ring (at lip level y=0)
-    const plugBottomOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getPlugRadius(theta);
-      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-    }
-    
-    // Plug bottom inner ring
-    const plugBottomInnerStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
-    }
-    
-    // Plug outer side wall
-    for (let i = 0; i < segments; i++) {
-      const topA = plugTopOuterStart + i;
-      const topB = plugTopOuterStart + i + 1;
-      const botA = plugBottomOuterStart + i;
-      const botB = plugBottomOuterStart + i + 1;
-      indices.push(topA, topB, botA);
-      indices.push(botA, topB, botB);
-    }
-    
-    // Plug inner side wall (cord hole through plug)
-    for (let i = 0; i < segments; i++) {
-      const topA = plugTopInnerStart + i;
-      const topB = plugTopInnerStart + i + 1;
-      const botA = plugBottomInnerStart + i;
-      const botB = plugBottomInnerStart + i + 1;
-      // Reversed winding for inner wall
-      indices.push(topA, botA, topB);
-      indices.push(topB, botA, botB);
-    }
-    
-    // ===== LIP (ring at y=0, body rests on this) =====
-    const lipOuterRingStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getLipOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-    }
-    
-    // Lip top surface (between plug bottom outer and lip outer)
-    for (let i = 0; i < segments; i++) {
-      const plugA = plugBottomOuterStart + i;
-      const plugB = plugBottomOuterStart + i + 1;
-      const lipA = lipOuterRingStart + i;
-      const lipB = lipOuterRingStart + i + 1;
-      indices.push(plugA, lipA, plugB);
-      indices.push(plugB, lipA, lipB);
-    }
-    
-    // ===== CORD HOLE continues through base =====
-    // Cord hole bottom ring
-    const cordHoleBottomStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
-    }
-    
-    // Cord hole wall (from y=0 to base bottom)
-    for (let i = 0; i < segments; i++) {
-      const topA = plugBottomInnerStart + i;
-      const topB = plugBottomInnerStart + i + 1;
-      const botA = cordHoleBottomStart + i;
-      const botB = cordHoleBottomStart + i + 1;
-      indices.push(topA, botA, topB);
-      indices.push(topB, botA, botB);
-    }
-    
-    // ===== BASE BOTTOM (ring with cord hole) =====
-    const baseBottomOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getLipOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-    }
-    
-    // Base bottom face (ring between outer and cord hole)
-    for (let i = 0; i < segments; i++) {
-      const outerA = baseBottomOuterStart + i;
-      const outerB = baseBottomOuterStart + i + 1;
-      const innerA = cordHoleBottomStart + i;
-      const innerB = cordHoleBottomStart + i + 1;
-      // Reversed winding for bottom face
-      indices.push(outerA, outerB, innerA);
-      indices.push(innerA, outerB, innerB);
-    }
-    
-    // Base side wall (connects lip outer to base bottom)
-    for (let i = 0; i < segments; i++) {
-      const topA = lipOuterRingStart + i;
-      const topB = lipOuterRingStart + i + 1;
-      const botA = baseBottomOuterStart + i;
-      const botB = baseBottomOuterStart + i + 1;
-      indices.push(topA, topB, botA);
-      indices.push(botA, topB, botB);
-    }
-    
   } else {
     // Original solid center logic (no socket hole)
     // Plug top center

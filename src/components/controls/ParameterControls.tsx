@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints, SocketType } from '@/types/parametric';
+import { socketDimensions } from '@/lib/leg-generator';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
@@ -86,7 +88,12 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   };
 
   const handleCordHoleToggle = (enabled: boolean) => {
-    onParamsChange({ ...params, cordHoleEnabled: enabled });
+    const newParams = { ...params, cordHoleEnabled: enabled };
+    // Auto-enable socket recess when cord hole is enabled for lamps
+    if (enabled && type === 'lamp') {
+      newParams.socketRecessEnabled = true;
+    }
+    onParamsChange(newParams);
     if (enabled) {
       toast.success('Cord hole enabled');
     }
@@ -94,6 +101,14 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
 
   const handleCordHoleDiameterChange = (value: number) => {
     onParamsChange({ ...params, cordHoleDiameter: value });
+  };
+
+  const handleSocketRecessToggle = (enabled: boolean) => {
+    onParamsChange({ ...params, socketRecessEnabled: enabled });
+  };
+
+  const handleSocketTypeChange = (socketType: SocketType) => {
+    onParamsChange({ ...params, socketType });
   };
 
   return (
@@ -197,15 +212,56 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               </div>
               
               {params.cordHoleEnabled && (
-                <ParameterSlider
-                  label="Cord Hole Ø"
-                  value={params.cordHoleDiameter}
-                  min={4}
-                  max={12}
-                  step={0.5}
-                  unit="mm"
-                  onChange={handleCordHoleDiameterChange}
-                />
+                <>
+                  <ParameterSlider
+                    label="Cord Hole Ø"
+                    value={params.cordHoleDiameter}
+                    min={4}
+                    max={12}
+                    step={0.5}
+                    unit="mm"
+                    onChange={handleCordHoleDiameterChange}
+                  />
+                  
+                  {/* Socket Recess Controls */}
+                  <div className="pt-2 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className={cn("w-4 h-4", params.socketRecessEnabled ? "text-primary" : "text-muted-foreground")} />
+                        <Label htmlFor="socket-recess" className="text-xs">Socket Recess</Label>
+                      </div>
+                      <Switch 
+                        id="socket-recess" 
+                        checked={params.socketRecessEnabled} 
+                        onCheckedChange={handleSocketRecessToggle}
+                      />
+                    </div>
+                    
+                    {params.socketRecessEnabled && (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Socket Type</Label>
+                        <Select
+                          value={params.socketType}
+                          onValueChange={(value) => handleSocketTypeChange(value as SocketType)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(socketDimensions).map(([key, { name }]) => (
+                              <SelectItem key={key} value={key} className="text-xs">
+                                {name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Recess Ø: {socketDimensions[params.socketType].outerDiameter + 1}mm
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
