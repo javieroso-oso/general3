@@ -1,4 +1,5 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
+export type SocketHoleType = 'E26' | 'E27' | 'E12' | 'GU10' | 'G9';
 
 export interface ParametricParams {
   // Basic dimensions (mm for printing)
@@ -50,7 +51,7 @@ export interface ParametricParams {
   
   // Socket mounting hole in base
   socketHoleEnabled: boolean;   // Toggle socket mounting hole
-  socketHoleType: 'E26' | 'E27' | 'E12' | 'GU10' | 'G9';  // Socket type for sizing
+  socketHoleType: SocketHoleType;  // Socket type for sizing
   cordHoleDiameter: number;     // mm - cord exit hole diameter
   
   // Support-free printing mode
