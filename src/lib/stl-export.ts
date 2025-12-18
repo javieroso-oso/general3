@@ -248,7 +248,16 @@ export function generateLegsWithBaseMesh(
     params.legThickness,
     params.legTaper,
     params.legInset,
-    params.baseThickness || 3
+    params.baseThickness || 3,
+    {
+      wobbleFrequency: params.wobbleFrequency,
+      wobbleAmplitude: params.wobbleAmplitude,
+      rippleCount: params.rippleCount,
+      rippleDepth: params.rippleDepth,
+      asymmetry: params.asymmetry,
+      organicNoise: params.organicNoise,
+      noiseScale: params.noiseScale,
+    }
   );
 }
 
