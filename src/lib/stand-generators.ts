@@ -9,19 +9,12 @@ export interface StandParams {
   baseRadius: number;          // mm - shade base radius for sizing
   objectHeight?: number;       // mm - object height for wall mount sizing
   
-  // Wall mount (sconce style)
-  wallMountPlateShape: 'circle' | 'rectangle' | 'rounded_rectangle';
-  wallMountPlateWidth: number;
-  wallMountPlateHeight: number;
+  // Wall mount (sconce style) - auto-sized from object profile
+  wallMountCutAngle: number;   // degrees - how much shell to keep (90-270)
   wallMountPlateThickness: number;
   wallMountHoleType: 'keyhole' | 'screw' | 'adhesive';
   wallMountHoleCount: 2 | 3 | 4;
   wallMountBulbFixture: boolean;
-  
-  // Legacy wall bracket
-  wallBracketArmLength: number;
-  wallBracketArmAngle: number;
-  wallBracketPlateSize: number;
   
   // Socket/cord options
   cordHoleEnabled?: boolean;
@@ -625,9 +618,13 @@ export function generateRingBase(
  * This is a vertical plate that sits at the flat back of a half-shell object
  * The plate is oriented vertically (XY plane) and positioned at z=0
  */
+/**
+ * Generate a wall mount side base plate for half-shell sconces
+ * Auto-sized from object dimensions
+ */
 export function generateWallMountSideBase(
-  objectWidth: number,   // Width of the half-shell (2 * max radius)
-  objectHeight: number,  // Height of the object
+  objectMaxRadius: number,  // Max radius of the object (for width)
+  objectHeight: number,     // Height of the object
   plateThickness: number,
   holeType: 'keyhole' | 'screw' | 'adhesive',
   holeCount: 2 | 3 | 4,
@@ -638,13 +635,11 @@ export function generateWallMountSideBase(
   const vertices: number[] = [];
   const indices: number[] = [];
   
-  const segments = 32;
-  
-  // Plate dimensions - slightly larger than object profile for a border effect
-  const plateWidth = objectWidth + 10; // Add 5mm border on each side
-  const plateHeight = objectHeight + 10;
+  // Auto-size plate: slightly larger than object profile with small padding
+  const padding = 5; // mm padding on each side
+  const plateWidth = objectMaxRadius * 2 + padding * 2;
+  const plateHeight = objectHeight + padding * 2;
   const halfW = plateWidth / 2;
-  const halfH = plateHeight / 2;
   const cornerRadius = Math.min(plateWidth, plateHeight) * 0.08;
   
   // Generate rounded rectangle outline for the plate
@@ -652,35 +647,50 @@ export function generateWallMountSideBase(
   const cr = cornerRadius;
   const cornerSegs = 8;
   
+  // Plate is positioned with bottom at y=0 (ground level)
+  const yOffset = 0;
+  
   // Bottom-left corner
   for (let i = 0; i <= cornerSegs; i++) {
     const angle = Math.PI + (i / cornerSegs) * (Math.PI / 2);
-    outlineVerts.push({ x: -halfW + cr + Math.cos(angle) * cr, y: -5 + cr + Math.sin(angle) * cr });
+    outlineVerts.push({ 
+      x: -halfW + cr + Math.cos(angle) * cr, 
+      y: yOffset + cr + Math.sin(angle) * cr 
+    });
   }
   // Bottom-right corner
   for (let i = 0; i <= cornerSegs; i++) {
     const angle = -Math.PI / 2 + (i / cornerSegs) * (Math.PI / 2);
-    outlineVerts.push({ x: halfW - cr + Math.cos(angle) * cr, y: -5 + cr + Math.sin(angle) * cr });
+    outlineVerts.push({ 
+      x: halfW - cr + Math.cos(angle) * cr, 
+      y: yOffset + cr + Math.sin(angle) * cr 
+    });
   }
   // Top-right corner
   for (let i = 0; i <= cornerSegs; i++) {
     const angle = 0 + (i / cornerSegs) * (Math.PI / 2);
-    outlineVerts.push({ x: halfW - cr + Math.cos(angle) * cr, y: plateHeight - 5 - cr + Math.sin(angle) * cr });
+    outlineVerts.push({ 
+      x: halfW - cr + Math.cos(angle) * cr, 
+      y: yOffset + plateHeight - cr + Math.sin(angle) * cr 
+    });
   }
   // Top-left corner
   for (let i = 0; i <= cornerSegs; i++) {
     const angle = Math.PI / 2 + (i / cornerSegs) * (Math.PI / 2);
-    outlineVerts.push({ x: -halfW + cr + Math.cos(angle) * cr, y: plateHeight - 5 - cr + Math.sin(angle) * cr });
+    outlineVerts.push({ 
+      x: -halfW + cr + Math.cos(angle) * cr, 
+      y: yOffset + plateHeight - cr + Math.sin(angle) * cr 
+    });
   }
   
-  // Front face (z = 0, where object attaches)
+  // Front face (z = 0, where object attaches - flush with flat back)
   const frontStart = vertices.length / 3;
   for (const v of outlineVerts) {
     vertices.push(v.x, v.y, 0);
   }
-  // Center of front face at mid-height
+  // Center of front face
   const frontCenterIdx = vertices.length / 3;
-  vertices.push(0, objectHeight / 2, 0);
+  vertices.push(0, yOffset + plateHeight / 2, 0);
   
   // Front face triangles (fan from center)
   for (let i = 0; i < outlineVerts.length - 1; i++) {
@@ -695,7 +705,7 @@ export function generateWallMountSideBase(
   }
   // Center of back face
   const backCenterIdx = vertices.length / 3;
-  vertices.push(0, objectHeight / 2, -plateThickness);
+  vertices.push(0, yOffset + plateHeight / 2, -plateThickness);
   
   // Back face triangles (reversed winding)
   for (let i = 0; i < outlineVerts.length - 1; i++) {
@@ -724,12 +734,12 @@ export function generateWallMountSideBase(
   geometries.push(plateGeo);
   
   // Add mounting holes (on the back of the plate)
-  const holeGeos = generateMountingHolesVertical(holeType, holeCount, plateWidth, objectHeight, plateThickness);
+  const holeGeos = generateMountingHolesVertical(holeType, holeCount, plateWidth, plateHeight, plateThickness);
   geometries.push(...holeGeos);
   
-  // Add bulb fixture opening (centered on the plate front)
+  // Add bulb fixture opening (facing OUTWARD into the room, +Z direction)
   if (bulbFixture) {
-    const fixtureGeo = generateBulbFixtureVertical(objectWidth / 3, objectHeight / 2, cordHoleDiameter);
+    const fixtureGeo = generateBulbFixtureVerticalOutward(plateHeight / 2 + yOffset, cordHoleDiameter);
     geometries.push(fixtureGeo);
   }
   
@@ -929,68 +939,114 @@ function generateAdhesivePadVertical(centerX: number, centerY: number): THREE.Bu
 }
 
 /**
- * Generate bulb fixture opening for vertical plate
+ * Generate bulb fixture ring facing OUTWARD into the room (+Z direction)
+ * Ring lies in XY plane with socket dropping in from the front
  */
-function generateBulbFixtureVertical(fixtureRadius: number, centerY: number, cordHoleDiameter: number): THREE.BufferGeometry {
+function generateBulbFixtureVerticalOutward(centerY: number, cordHoleDiameter: number): THREE.BufferGeometry {
   const vertices: number[] = [];
   const indices: number[] = [];
   const segments = 24;
   
-  // Raised ring on front of plate for bulb socket centering
-  const ringInnerRadius = 12; // E26 socket ~26mm, so 12-13mm inner
-  const ringOuterRadius = ringInnerRadius + 3;
-  const ringHeight = 4;
+  // E26 socket specs
+  const ringInnerRadius = 13; // E26 socket thread ~26mm diameter, so 13mm inner radius
+  const ringOuterRadius = ringInnerRadius + 4;
+  const ringHeight = 5; // Ring protrudes 5mm from plate
+  const cordHoleRadius = cordHoleDiameter / 2;
   
-  // Front inner ring
-  const innerFrontStart = vertices.length / 3;
+  // The fixture is centered on the plate (x=0) at the given y position
+  // Ring faces +Z direction (outward into the room)
+  
+  // Base ring at plate surface (z = 0)
+  const baseInnerStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(angle) * ringInnerRadius, centerY + Math.sin(angle) * ringInnerRadius, 0);
+    vertices.push(
+      Math.cos(angle) * ringInnerRadius,
+      centerY,
+      0
+    );
   }
   
-  // Front outer ring
-  const outerFrontStart = vertices.length / 3;
+  const baseOuterStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(angle) * ringOuterRadius, centerY + Math.sin(angle) * ringOuterRadius, 0);
+    vertices.push(
+      Math.cos(angle) * ringOuterRadius,
+      centerY,
+      0
+    );
   }
   
-  // Raised inner ring
-  const innerRaisedStart = vertices.length / 3;
+  // Top ring (protruding outward at z = ringHeight)
+  const topInnerStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(angle) * ringInnerRadius, centerY + Math.sin(angle) * ringInnerRadius, ringHeight);
+    vertices.push(
+      Math.cos(angle) * ringInnerRadius,
+      centerY,
+      ringHeight
+    );
   }
   
-  // Raised outer ring
-  const outerRaisedStart = vertices.length / 3;
+  const topOuterStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(angle) * ringOuterRadius, centerY + Math.sin(angle) * ringOuterRadius, ringHeight);
+    vertices.push(
+      Math.cos(angle) * ringOuterRadius,
+      centerY,
+      ringHeight
+    );
   }
   
-  // Connect inner front to raised
+  // Inner wall (base to top)
   for (let i = 0; i < segments; i++) {
-    indices.push(innerFrontStart + i, innerFrontStart + i + 1, innerRaisedStart + i);
-    indices.push(innerRaisedStart + i, innerFrontStart + i + 1, innerRaisedStart + i + 1);
+    indices.push(baseInnerStart + i, topInnerStart + i, baseInnerStart + i + 1);
+    indices.push(baseInnerStart + i + 1, topInnerStart + i, topInnerStart + i + 1);
   }
   
-  // Connect outer front to raised
+  // Outer wall (base to top)
   for (let i = 0; i < segments; i++) {
-    indices.push(outerFrontStart + i, outerRaisedStart + i, outerFrontStart + i + 1);
-    indices.push(outerFrontStart + i + 1, outerRaisedStart + i, outerRaisedStart + i + 1);
+    indices.push(baseOuterStart + i, baseOuterStart + i + 1, topOuterStart + i);
+    indices.push(topOuterStart + i, baseOuterStart + i + 1, topOuterStart + i + 1);
   }
   
-  // Top surface (ring between inner and outer raised)
+  // Top face (ring between inner and outer at z = ringHeight)
   for (let i = 0; i < segments; i++) {
-    indices.push(innerRaisedStart + i, innerRaisedStart + i + 1, outerRaisedStart + i);
-    indices.push(outerRaisedStart + i, innerRaisedStart + i + 1, outerRaisedStart + i + 1);
+    indices.push(topInnerStart + i, topOuterStart + i, topInnerStart + i + 1);
+    indices.push(topInnerStart + i + 1, topOuterStart + i, topOuterStart + i + 1);
   }
   
-  // Bottom connection (ring between inner and outer front)
+  // Base face (ring between inner and outer at z = 0)
   for (let i = 0; i < segments; i++) {
-    indices.push(innerFrontStart + i, outerFrontStart + i, innerFrontStart + i + 1);
-    indices.push(innerFrontStart + i + 1, outerFrontStart + i, outerFrontStart + i + 1);
+    indices.push(baseInnerStart + i, baseInnerStart + i + 1, baseOuterStart + i);
+    indices.push(baseOuterStart + i, baseInnerStart + i + 1, baseOuterStart + i + 1);
+  }
+  
+  // Cord hole through the plate (smaller hole in center)
+  const cordFrontStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(
+      Math.cos(angle) * cordHoleRadius,
+      centerY,
+      0.1
+    );
+  }
+  
+  const cordBackStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    vertices.push(
+      Math.cos(angle) * cordHoleRadius,
+      centerY,
+      -0.1
+    );
+  }
+  
+  // Cord hole walls
+  for (let i = 0; i < segments; i++) {
+    indices.push(cordFrontStart + i, cordBackStart + i, cordFrontStart + i + 1);
+    indices.push(cordFrontStart + i + 1, cordBackStart + i, cordBackStart + i + 1);
   }
   
   const geo = new THREE.BufferGeometry();
@@ -1323,15 +1379,13 @@ function generateBulbFixture(objectRadius: number, plateThickness: number, cordH
 /**
  * Main dispatcher function - generates the appropriate stand based on type
  */
-export function generateStand(params: StandParams, organicParams?: OrganicParams): THREE.BufferGeometry | null {
+export function generateStand(params: StandParams): THREE.BufferGeometry | null {
   switch (params.standType) {
     case 'wall_mount':
-      // Calculate object width from baseRadius (diameter = 2 * radius)
-      const objectWidth = params.baseRadius * 2;
-      const objectHeight = params.objectHeight || 150; // Default height if not provided
+      const objectHeight = params.objectHeight || 150;
       
       return generateWallMountSideBase(
-        objectWidth,
+        params.baseRadius,   // Max radius of the object
         objectHeight,
         params.wallMountPlateThickness,
         params.wallMountHoleType,

@@ -253,41 +253,19 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
             {/* Wall mount controls */}
             {params.standType === 'wall_mount' && (
               <>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Plate Shape</Label>
-                  <Select 
-                    value={params.wallMountPlateShape} 
-                    onValueChange={(v) => onParamsChange({ ...params, wallMountPlateShape: v as any })}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="circle">Circle</SelectItem>
-                      <SelectItem value="rectangle">Rectangle</SelectItem>
-                      <SelectItem value="rounded_rectangle">Rounded Rectangle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <ParameterSlider
+                  label="Cut Angle"
+                  value={params.wallMountCutAngle}
+                  min={90}
+                  max={270}
+                  step={10}
+                  unit="°"
+                  onChange={handleChange('wallMountCutAngle')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  180° = half shell, less = narrower sconce, more = wider wrap
+                </p>
                 
-                <ParameterSlider
-                  label="Plate Width"
-                  value={params.wallMountPlateWidth}
-                  min={50}
-                  max={150}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('wallMountPlateWidth')}
-                />
-                <ParameterSlider
-                  label="Plate Height"
-                  value={params.wallMountPlateHeight}
-                  min={50}
-                  max={200}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('wallMountPlateHeight')}
-                />
                 <ParameterSlider
                   label="Plate Thickness"
                   value={params.wallMountPlateThickness}
