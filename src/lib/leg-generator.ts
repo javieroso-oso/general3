@@ -245,46 +245,27 @@ export function generateLegsWithBase(
     const topRadius = legThickness / 2;
     const bottomRadius = topRadius * (1 - legTaper * 0.6);
     
-    // Fillet parameters - creates smooth blend BELOW the disc
-    const filletRings = 5; // More rings for smoother curve
-    const filletHeight = legThickness * 0.7; // Height of fillet below disc
-    const filletRadiusMultiplier = 2.0; // Wider at disc for better blend
-    
-    // Fillet extends DOWNWARD from disc bottom
-    // f=0: at disc bottom (wide), f=filletRings: at fillet end (leg diameter)
-    for (let f = 0; f <= filletRings; f++) {
-      const t = f / filletRings;
-      // Smoothstep for natural curved fillet
-      const smoothT = t * t * (3 - 2 * t);
-      
-      // Fillet extends DOWNWARD from disc bottom
-      const filletY = discBottom - filletHeight * t;
-      
-      // Radius: wide at disc (t=0), narrows to leg diameter (t=1)
-      const filletRadius = topRadius * filletRadiusMultiplier * (1 - smoothT) + topRadius * smoothT;
-      
-      // Position at attachment point (no offset along leg)
-      const px = attachX;
-      const py = filletY;
-      const pz = attachZ;
-      
-      for (let s = 0; s <= segments; s++) {
-        const segAngle = (s / segments) * Math.PI * 2;
-        const cx = Math.cos(segAngle) * perpX + Math.sin(segAngle) * perp2X;
-        const cy = Math.sin(segAngle) * perp2Y;
-        const cz = Math.cos(segAngle) * perpZ + Math.sin(segAngle) * perp2Z;
-        legVerts.push(px + cx * filletRadius, py + cy * filletRadius, pz + cz * filletRadius);
-      }
+    // First ring: FLUSH with disc bottom - all vertices at y = discBottom
+    // This creates an angled elliptical opening that sits flat against the base
+    for (let s = 0; s <= segments; s++) {
+      const segAngle = (s / segments) * Math.PI * 2;
+      // Offset in horizontal plane perpendicular to leg direction
+      const cx = Math.cos(segAngle) * perpX + Math.sin(segAngle) * perp2X;
+      const cz = Math.cos(segAngle) * perpZ + Math.sin(segAngle) * perp2Z;
+      // All top vertices at disc bottom (flush with base)
+      legVerts.push(
+        attachX + cx * topRadius,
+        discBottom,
+        attachZ + cz * topRadius
+      );
     }
     
-    // Main leg starts where fillet ends
-    const legStartY = discBottom - filletHeight;
-    
-    for (let h = 0; h <= heightSegments; h++) {
+    // Remaining rings: interpolate from attachment point to foot
+    for (let h = 1; h <= heightSegments; h++) {
       const t = h / heightSegments;
       
       const px = attachX + (footX - attachX) * t;
-      const py = legStartY + (footY - legStartY) * t;
+      const py = discBottom + (footY - discBottom) * t;
       const pz = attachZ + (footZ - attachZ) * t;
       
       const r = topRadius + (bottomRadius - topRadius) * t;
@@ -298,35 +279,10 @@ export function generateLegsWithBase(
       }
     }
     
-    // Index the fillet rings
-    for (let f = 0; f < filletRings; f++) {
-      for (let s = 0; s < segments; s++) {
-        const a = f * (segments + 1) + s;
-        const b = a + 1;
-        const c = a + (segments + 1);
-        const d = c + 1;
-        legIndices.push(a, c, b);
-        legIndices.push(b, c, d);
-      }
-    }
-    
-    // Connect last fillet ring to first leg ring
-    const filletLastRing = filletRings * (segments + 1);
-    const legFirstRing = (filletRings + 1) * (segments + 1);
-    for (let s = 0; s < segments; s++) {
-      const a = filletLastRing + s;
-      const b = a + 1;
-      const c = legFirstRing + s;
-      const d = c + 1;
-      legIndices.push(a, c, b);
-      legIndices.push(b, c, d);
-    }
-    
-    // Index main leg body
-    const totalFilletVerts = (filletRings + 1) * (segments + 1);
+    // Index leg body (all rings including flush top ring)
     for (let h = 0; h < heightSegments; h++) {
       for (let s = 0; s < segments; s++) {
-        const a = totalFilletVerts + h * (segments + 1) + s;
+        const a = h * (segments + 1) + s;
         const b = a + 1;
         const c = a + (segments + 1);
         const d = c + 1;
@@ -338,12 +294,12 @@ export function generateLegsWithBase(
     // Foot cap
     const footCenterIdx = legVerts.length / 3;
     legVerts.push(footX, footY, footZ);
-    const lastRingStart = totalFilletVerts + heightSegments * (segments + 1);
+    const lastRingStart = heightSegments * (segments + 1);
     for (let s = 0; s < segments; s++) {
       legIndices.push(lastRingStart + s, footCenterIdx, lastRingStart + s + 1);
     }
     
-    // Top cap at disc bottom - flat ring that blends with disc
+    // Top cap - flat disc at disc bottom connecting to flush top ring
     const topCenterIdx = legVerts.length / 3;
     legVerts.push(attachX, discBottom, attachZ);
     for (let s = 0; s < segments; s++) {
