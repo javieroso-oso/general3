@@ -227,30 +227,40 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
         // Generate vertices for front half only (theta from 0 to PI)
         for (let j = 0; j <= halfSegments; j++) {
-          // Theta goes from 0 to PI (front half only)
-          const theta = (j / halfSegments) * Math.PI + twistRad;
+          // CRITICAL: Edge vertices must have theta WITHOUT twist to guarantee z=0 for flat back
+          let theta;
+          const isEdge = j === 0 || j === halfSegments;
+          if (j === 0) {
+            theta = 0; // Right edge: sin(0) = 0, guaranteed z=0
+          } else if (j === halfSegments) {
+            theta = Math.PI; // Left edge: sin(π) = 0, guaranteed z=0
+          } else {
+            // Interior vertices get twist applied for organic look
+            theta = (j / halfSegments) * Math.PI + twistRad;
+          }
+          
           let r = radius;
 
-          // Wobble
-          if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
+          // Wobble - skip for edge vertices to maintain flat back
+          if (wobbleFrequency > 0 && wobbleAmplitude > 0 && !isEdge) {
             const maxWobble = Math.min(wobbleAmplitude, 0.15);
             r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * bRad;
           }
 
-          // Ripples
-          if (rippleCount > 0 && rippleDepth > 0) {
+          // Ripples - skip for edge vertices to maintain flat back
+          if (rippleCount > 0 && rippleDepth > 0 && !isEdge) {
             const maxRipple = Math.min(rippleDepth, 0.1);
             r += Math.sin(theta * rippleCount) * maxRipple * bRad;
           }
 
-          // Asymmetry
-          if (asymmetry > 0) {
+          // Asymmetry - skip for edge vertices to maintain flat back
+          if (asymmetry > 0 && !isEdge) {
             const maxAsym = Math.min(asymmetry, 0.1);
             r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * bRad;
           }
 
-          // Organic noise
-          if (organicNoise > 0) {
+          // Organic noise - skip for edge vertices to maintain flat back
+          if (organicNoise > 0 && !isEdge) {
             const maxNoise = Math.min(organicNoise, 0.1);
             const nx = Math.cos(theta) * r;
             const nz = Math.sin(theta) * r;
@@ -261,7 +271,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r = Math.max(r, wall * 2);
 
           const x = Math.cos(theta) * r;
-          const z = Math.sin(theta) * r; // At theta=0 and theta=PI, sin=0, so z=0!
+          // Force z=0 for edge vertices as belt-and-suspenders safety
+          const z = isEdge ? 0 : Math.sin(theta) * r;
           
           wallMountVerts.push(x, y, z);
         }
