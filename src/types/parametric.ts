@@ -1,5 +1,8 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
+// Stand types - different structural support options
+export type StandType = 'tripod' | 'pedestal' | 'wireframe' | 'pendant' | 'wall_bracket' | 'ring_base';
+
 // Attachment types for body-to-stand connection
 export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
 
@@ -40,12 +43,33 @@ export interface ParametricParams {
   
   // Integrated legs (extending from base)
   addLegs: boolean;
+  standType: StandType;       // Type of stand/support structure
   legCount: 3 | 4;
   legHeight: number;          // Stand height in mm
   legSpread: number;          // Angle in degrees (15-45)
   legThickness: number;       // Leg thickness in mm (4-8)
   legTaper: number;           // Taper factor (0-1)
   legInset: number;           // How far inward from edge (0-1)
+  
+  // Stand-specific parameters
+  pedestalDiameter: number;   // mm - pedestal base diameter
+  pedestalTaper: number;      // 0-1 - taper from bottom to top
+  pedestalHollow: boolean;    // Hollow for cord routing
+  
+  wireframeRibCount: number;  // 4-8 ribs for wireframe cage
+  wireframeRingCount: number; // 2-4 horizontal rings
+  wireframeThickness: number; // mm - rib/ring thickness
+  
+  pendantCanopyDiameter: number; // mm - ceiling canopy diameter
+  pendantCanopyHeight: number;   // mm - canopy dome height
+  pendantCordLength: number;     // mm - visual cord length in preview
+  
+  wallBracketArmLength: number;  // mm - arm extension from wall
+  wallBracketArmAngle: number;   // degrees - arm angle from horizontal
+  wallBracketPlateSize: number;  // mm - wall plate dimensions
+  
+  ringBaseDiameter: number;      // mm - ring base diameter
+  ringBaseThickness: number;     // mm - ring tube thickness
   
   // Body-to-stand attachment
   attachmentType: AttachmentType;
@@ -198,12 +222,27 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     topRadius: 35,
     wallThickness: 2.0,
     addLegs: false,
+    standType: 'tripod',
     legCount: 3,
     legHeight: 80,
     legSpread: 25,
     legThickness: 5,
     legTaper: 0.5,
     legInset: 0.3,
+    pedestalDiameter: 60,
+    pedestalTaper: 0.3,
+    pedestalHollow: true,
+    wireframeRibCount: 6,
+    wireframeRingCount: 3,
+    wireframeThickness: 4,
+    pendantCanopyDiameter: 80,
+    pendantCanopyHeight: 20,
+    pendantCordLength: 100,
+    wallBracketArmLength: 150,
+    wallBracketArmAngle: 15,
+    wallBracketPlateSize: 80,
+    ringBaseDiameter: 100,
+    ringBaseThickness: 8,
     attachmentType: 'integrated',
     screwCount: 3,
     wobbleFrequency: 0,
@@ -235,12 +274,27 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     topRadius: 60,
     wallThickness: 1.6,
     addLegs: false,
+    standType: 'tripod',
     legCount: 3,
     legHeight: 100,
     legSpread: 30,
     legThickness: 4,
     legTaper: 0.6,
     legInset: 0.3,
+    pedestalDiameter: 50,
+    pedestalTaper: 0.2,
+    pedestalHollow: true,
+    wireframeRibCount: 6,
+    wireframeRingCount: 3,
+    wireframeThickness: 3,
+    pendantCanopyDiameter: 80,
+    pendantCanopyHeight: 20,
+    pendantCordLength: 100,
+    wallBracketArmLength: 150,
+    wallBracketArmAngle: 15,
+    wallBracketPlateSize: 80,
+    ringBaseDiameter: 80,
+    ringBaseThickness: 6,
     attachmentType: 'screw_m3',
     screwCount: 3,
     wobbleFrequency: 0,
@@ -272,12 +326,27 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     topRadius: 25,
     wallThickness: 3.0,
     addLegs: false,
+    standType: 'pedestal',
     legCount: 4,
     legHeight: 60,
     legSpread: 20,
     legThickness: 6,
     legTaper: 0.4,
     legInset: 0.3,
+    pedestalDiameter: 70,
+    pedestalTaper: 0.15,
+    pedestalHollow: false,
+    wireframeRibCount: 8,
+    wireframeRingCount: 3,
+    wireframeThickness: 5,
+    pendantCanopyDiameter: 100,
+    pendantCanopyHeight: 25,
+    pendantCordLength: 150,
+    wallBracketArmLength: 200,
+    wallBracketArmAngle: 10,
+    wallBracketPlateSize: 100,
+    ringBaseDiameter: 100,
+    ringBaseThickness: 8,
     attachmentType: 'integrated',
     screwCount: 4,
     wobbleFrequency: 3,
