@@ -303,7 +303,6 @@ function createBaseDiscWithSocket(
   const socketRecessEnabled = socketParams?.socketRecessEnabled ?? false;
   const socketType = socketParams?.socketType ?? 'E26';
   const socketDims = socketDimensions[socketType];
-  const recessRadius = (socketDims.outerDiameter / 2) + 0.5; // Add 0.5mm tolerance
   const recessDepth = 3; // 3mm deep recess
   
   // Calculate radii functions
@@ -314,11 +313,19 @@ function createBaseDiscWithSocket(
   
   const getLipOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
   
+  // Get minimum plug radius to ensure recess fits
+  const minPlugRadius = getPlugRadius(0); // Use theta=0 as approximation
+  const idealRecessRadius = (socketDims.outerDiameter / 2) + 0.5; // Add 0.5mm tolerance
+  // Clamp recess radius to fit inside plug with at least 2mm margin
+  const recessRadius = Math.min(idealRecessRadius, minPlugRadius - 2);
+  // Only enable recess if it can reasonably fit (recess larger than cord hole)
+  const canFitRecess = socketRecessEnabled && recessRadius > cordHoleRadius + 2;
+  
   // ===== PLUG (extends upward from lip into body) - with optional cord hole and socket recess =====
   if (cordHoleEnabled) {
     // Plug with cord hole through center (and optional socket recess on top)
     
-    if (socketRecessEnabled) {
+    if (canFitRecess) {
       // ==== PLUG TOP WITH SOCKET RECESS ====
       
       // Plug top outer ring (at plugHeight)
