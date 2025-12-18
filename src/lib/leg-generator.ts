@@ -1,6 +1,114 @@
 import * as THREE from 'three';
 
 /**
+ * Organic deformation parameters for base disc
+ */
+export interface OrganicParams {
+  wobbleFrequency: number;
+  wobbleAmplitude: number;
+  rippleCount: number;
+  rippleDepth: number;
+  asymmetry: number;
+  organicNoise: number;
+  noiseScale: number;
+}
+
+// Deterministic noise for consistent results
+const seededRandom = (x: number, y: number, z: number) => {
+  const dot = x * 12.9898 + y * 78.233 + z * 37.719;
+  return (Math.sin(dot) * 43758.5453) % 1;
+};
+
+const noise3D = (x: number, y: number, z: number, scale: number) => {
+  const sx = x * scale;
+  const sy = y * scale;
+  const sz = z * scale;
+  
+  const ix = Math.floor(sx);
+  const iy = Math.floor(sy);
+  const iz = Math.floor(sz);
+  
+  const fx = sx - ix;
+  const fy = sy - iy;
+  const fz = sz - iz;
+  
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const uz = fz * fz * (3 - 2 * fz);
+  
+  const n000 = seededRandom(ix, iy, iz);
+  const n100 = seededRandom(ix + 1, iy, iz);
+  const n010 = seededRandom(ix, iy + 1, iz);
+  const n110 = seededRandom(ix + 1, iy + 1, iz);
+  const n001 = seededRandom(ix, iy, iz + 1);
+  const n101 = seededRandom(ix + 1, iy, iz + 1);
+  const n011 = seededRandom(ix, iy + 1, iz + 1);
+  const n111 = seededRandom(ix + 1, iy + 1, iz + 1);
+  
+  const nx00 = n000 * (1 - ux) + n100 * ux;
+  const nx10 = n010 * (1 - ux) + n110 * ux;
+  const nx01 = n001 * (1 - ux) + n101 * ux;
+  const nx11 = n011 * (1 - ux) + n111 * ux;
+  
+  const nxy0 = nx00 * (1 - uy) + nx10 * uy;
+  const nxy1 = nx01 * (1 - uy) + nx11 * uy;
+  
+  return (nxy0 * (1 - uz) + nxy1 * uz) * 2 - 1;
+};
+
+/**
+ * Calculate deformed radius at a given angle (for base disc at t=0)
+ */
+function calculateDeformedRadius(
+  theta: number,
+  baseRadius: number,
+  organicParams?: OrganicParams
+): number {
+  if (!organicParams) return baseRadius;
+  
+  const {
+    wobbleFrequency,
+    wobbleAmplitude,
+    rippleCount,
+    rippleDepth,
+    asymmetry,
+    organicNoise,
+    noiseScale,
+  } = organicParams;
+  
+  let r = baseRadius;
+  const t = 0; // Base is at t=0
+  
+  // Wobble (at t=0, simplified)
+  if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
+    const maxWobble = Math.min(wobbleAmplitude, 0.15);
+    r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * baseRadius;
+  }
+  
+  // Ripples
+  if (rippleCount > 0 && rippleDepth > 0) {
+    const maxRipple = Math.min(rippleDepth, 0.1);
+    r += Math.sin(theta * rippleCount) * maxRipple * baseRadius;
+  }
+  
+  // Asymmetry
+  if (asymmetry > 0) {
+    const maxAsym = Math.min(asymmetry, 0.1);
+    r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * baseRadius;
+  }
+  
+  // Organic noise
+  if (organicNoise > 0) {
+    const maxNoise = Math.min(organicNoise, 0.1);
+    const nx = Math.cos(theta) * r;
+    const nz = Math.sin(theta) * r;
+    r += noise3D(nx * 0.1, 0, nz * 0.1, noiseScale) * maxNoise * baseRadius;
+  }
+  
+  return Math.max(r, baseRadius * 0.5); // Ensure minimum radius
+}
+
+/**
  * Generate legs with a base disc - this becomes one printable part
  * The base disc sits at y=0 and legs extend downward from it
  */
@@ -12,12 +120,13 @@ export function generateLegsWithBase(
   legThickness: number,    // mm - leg diameter
   legTaper: number,        // 0-1 - taper factor (1 = full taper to point)
   legInset: number = 0.3,  // 0-1 - how far inward from edge (0 = edge, 1 = center)
-  baseThickness: number = 3 // mm - thickness of the base disc
+  baseThickness: number = 3, // mm - thickness of the base disc
+  organicParams?: OrganicParams // organic deformation parameters
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
-  // First, create the base disc
-  const discGeo = createBaseDisc(baseRadius, baseThickness);
+  // First, create the base disc with organic deformation
+  const discGeo = createBaseDisc(baseRadius, baseThickness, organicParams);
   geometries.push(discGeo);
   
   // Then create legs extending from bottom of disc
@@ -25,11 +134,14 @@ export function generateLegsWithBase(
   const segments = 8;
   const heightSegments = 12;
   
-  const attachRadius = baseRadius * (1 - legInset * 0.7);
   const discBottom = -baseThickness; // Legs attach to bottom of disc
   
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
+    
+    // Calculate attach radius using organic deformation
+    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const attachRadius = deformedRadius * (1 - legInset * 0.7);
     
     const attachX = Math.cos(angle) * attachRadius;
     const attachZ = Math.sin(angle) * attachRadius;
@@ -130,9 +242,13 @@ export function generateLegsWithBase(
 }
 
 /**
- * Create a solid base disc
+ * Create a solid base disc with organic deformation
  */
-function createBaseDisc(radius: number, thickness: number): THREE.BufferGeometry {
+function createBaseDisc(
+  radius: number, 
+  thickness: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry {
   const segments = 64;
   const vertices: number[] = [];
   const indices: number[] = [];
@@ -141,21 +257,23 @@ function createBaseDisc(radius: number, thickness: number): THREE.BufferGeometry
   const topCenterIdx = 0;
   vertices.push(0, 0, 0);
   
-  // Top surface ring
+  // Top surface ring with organic deformation
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(theta) * radius, 0, Math.sin(theta) * radius);
+    const r = calculateDeformedRadius(theta, radius, organicParams);
+    vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
   }
   
   // Bottom surface center
   const bottomCenterIdx = vertices.length / 3;
   vertices.push(0, -thickness, 0);
   
-  // Bottom surface ring
+  // Bottom surface ring with organic deformation
   const bottomRingStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(theta) * radius, -thickness, Math.sin(theta) * radius);
+    const r = calculateDeformedRadius(theta, radius, organicParams);
+    vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
   }
   
   // Top face triangles

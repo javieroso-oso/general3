@@ -229,7 +229,16 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         legThickness,
         legTaper,
         legInset,
-        params.baseThickness || 3
+        params.baseThickness || 3,
+        {
+          wobbleFrequency,
+          wobbleAmplitude,
+          rippleCount,
+          rippleDepth,
+          asymmetry,
+          organicNoise,
+          noiseScale,
+        }
       );
       
       // Scale leg geometry to scene units
