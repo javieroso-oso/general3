@@ -406,6 +406,8 @@ export const defaultLampParams: LampParams = {
   lipWidth: 2,
   cordHoleEnabled: true,
   cordHoleDiameter: 8,
+  socketRecessEnabled: true,
+  socketType: 'E26',
   supportFreeMode: false,
   showOverhangMap: false,
   

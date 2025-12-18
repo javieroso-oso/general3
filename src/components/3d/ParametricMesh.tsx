@@ -246,6 +246,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           wallThickness: params.wallThickness,
           cordHoleEnabled: params.cordHoleEnabled,
           cordHoleDiameter: params.cordHoleDiameter,
+          socketRecessEnabled: params.socketRecessEnabled,
+          socketType: params.socketType,
         }
       );
       
