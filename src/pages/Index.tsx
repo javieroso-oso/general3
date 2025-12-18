@@ -16,7 +16,7 @@ import {
   defaultPrintSettings,
   analyzePrint,
 } from '@/types/parametric';
-import { downloadSTL, downloadGCode } from '@/lib/stl-export';
+import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,16 +46,38 @@ const Index = () => {
 
   const totalLayers = Math.ceil(params.height / printSettings.layerHeight);
 
-  const handleExportSTL = useCallback(() => {
+  const handleExportBody = useCallback(() => {
     if (!analysis.isValid) {
       toast.error('Fix print issues before exporting');
       return;
     }
     
-    const filename = `${objectType}_${params.height}mm_${Date.now()}.stl`;
-    downloadSTL(params, objectType, filename);
-    toast.success('STL exported!', {
-      description: filename,
+    const filename = `${objectType}_body_${params.height}mm_${Date.now()}.stl`;
+    downloadBodySTL(params, objectType, filename);
+    toast.success('Body STL exported!', { description: filename });
+  }, [params, objectType, analysis.isValid]);
+
+  const handleExportLegsBase = useCallback(() => {
+    if (!analysis.isValid) {
+      toast.error('Fix print issues before exporting');
+      return;
+    }
+    
+    const filename = `${objectType}_legs_base_${Date.now()}.stl`;
+    downloadLegsWithBaseSTL(params, filename);
+    toast.success('Legs + Base STL exported!', { description: filename });
+  }, [params, analysis.isValid, objectType]);
+
+  const handleExportAll = useCallback(() => {
+    if (!analysis.isValid) {
+      toast.error('Fix print issues before exporting');
+      return;
+    }
+    
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    downloadAllParts(params, objectType, baseName);
+    toast.success('All parts exported!', { 
+      description: params.addLegs ? 'Body + Legs/Base' : 'Body only' 
     });
   }, [params, objectType, analysis.isValid]);
 
@@ -67,9 +89,7 @@ const Index = () => {
     
     const filename = `${objectType}_${params.height}mm_${printSettings.material}.gcode`;
     downloadGCode(params, objectType, printSettings, filename);
-    toast.success('G-code exported!', {
-      description: filename,
-    });
+    toast.success('G-code exported!', { description: filename });
   }, [params, objectType, printSettings, analysis.isValid]);
 
   return (
@@ -257,20 +277,32 @@ const Index = () => {
           )}
 
           {/* Export buttons */}
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex gap-2 flex-wrap">
             <Button 
-              onClick={handleExportSTL} 
+              onClick={handleExportBody} 
               disabled={!analysis.isValid}
               className="flex-1 gap-2"
               size="lg"
             >
               <Download className="w-5 h-5" />
-              Export STL
+              Body STL
             </Button>
+            {params.addLegs && (
+              <Button 
+                onClick={handleExportLegsBase} 
+                disabled={!analysis.isValid}
+                variant="secondary"
+                className="flex-1 gap-2"
+                size="lg"
+              >
+                <Download className="w-5 h-5" />
+                Legs + Base
+              </Button>
+            )}
             <Button 
               onClick={handleExportGCode} 
               disabled={!analysis.isValid}
-              variant="secondary"
+              variant="outline"
               className="gap-2"
               size="lg"
             >
