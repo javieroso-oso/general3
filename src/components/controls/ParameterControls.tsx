@@ -131,11 +131,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   const getStandLabel = (type: StandType): string => {
     switch (type) {
       case 'tripod': return 'Tripod Legs';
-      case 'pedestal': return 'Solid Pedestal';
-      case 'wireframe': return 'Wireframe Cage';
-      case 'pendant': return 'Pendant Canopy';
       case 'wall_bracket': return 'Wall Bracket';
-      case 'ring_base': return 'Ring Base';
     }
   };
 
@@ -189,11 +185,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tripod">Tripod Legs</SelectItem>
-                  <SelectItem value="pedestal">Solid Pedestal (WOOJ)</SelectItem>
-                  <SelectItem value="wireframe">Wireframe Cage (Akari)</SelectItem>
-                  <SelectItem value="pendant">Pendant Canopy</SelectItem>
                   <SelectItem value="wall_bracket">Wall Bracket</SelectItem>
-                  <SelectItem value="ring_base">Ring Base</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -258,119 +250,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               </>
             )}
             
-            {/* Pedestal-specific controls */}
-            {params.standType === 'pedestal' && (
-              <>
-                <ParameterSlider
-                  label="Pedestal Diameter"
-                  value={params.pedestalDiameter}
-                  min={30}
-                  max={120}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('pedestalDiameter')}
-                />
-                <ParameterSlider
-                  label="Height"
-                  value={params.legHeight}
-                  min={20}
-                  max={150}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('legHeight')}
-                />
-                <ParameterSlider
-                  label="Taper"
-                  value={params.pedestalTaper}
-                  min={0}
-                  max={0.6}
-                  step={0.05}
-                  onChange={handleChange('pedestalTaper')}
-                />
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="pedestal-hollow" className="text-xs">Hollow (for cord)</Label>
-                  <Switch 
-                    id="pedestal-hollow" 
-                    checked={params.pedestalHollow} 
-                    onCheckedChange={(v) => onParamsChange({ ...params, pedestalHollow: v })}
-                  />
-                </div>
-              </>
-            )}
-            
-            {/* Wireframe-specific controls */}
-            {params.standType === 'wireframe' && (
-              <>
-                <ParameterSlider
-                  label="Height"
-                  value={params.legHeight}
-                  min={50}
-                  max={200}
-                  step={10}
-                  unit="mm"
-                  onChange={handleChange('legHeight')}
-                />
-                <ParameterSlider
-                  label="Rib Count"
-                  value={params.wireframeRibCount}
-                  min={4}
-                  max={12}
-                  step={1}
-                  onChange={handleChange('wireframeRibCount')}
-                />
-                <ParameterSlider
-                  label="Ring Count"
-                  value={params.wireframeRingCount}
-                  min={1}
-                  max={5}
-                  step={1}
-                  onChange={handleChange('wireframeRingCount')}
-                />
-                <ParameterSlider
-                  label="Thickness"
-                  value={params.wireframeThickness}
-                  min={2}
-                  max={8}
-                  step={0.5}
-                  unit="mm"
-                  onChange={handleChange('wireframeThickness')}
-                />
-              </>
-            )}
-            
-            {/* Pendant-specific controls */}
-            {params.standType === 'pendant' && (
-              <>
-                <ParameterSlider
-                  label="Canopy Diameter"
-                  value={params.pendantCanopyDiameter}
-                  min={50}
-                  max={150}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('pendantCanopyDiameter')}
-                />
-                <ParameterSlider
-                  label="Canopy Height"
-                  value={params.pendantCanopyHeight}
-                  min={10}
-                  max={50}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('pendantCanopyHeight')}
-                />
-                <ParameterSlider
-                  label="Cord Length"
-                  value={params.pendantCordLength}
-                  min={50}
-                  max={300}
-                  step={10}
-                  unit="mm"
-                  onChange={handleChange('pendantCordLength')}
-                />
-              </>
-            )}
-            
             {/* Wall bracket-specific controls */}
             {params.standType === 'wall_bracket' && (
               <>
@@ -400,30 +279,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   step={5}
                   unit="°"
                   onChange={handleChange('wallBracketArmAngle')}
-                />
-              </>
-            )}
-            
-            {/* Ring base-specific controls */}
-            {params.standType === 'ring_base' && (
-              <>
-                <ParameterSlider
-                  label="Ring Diameter"
-                  value={params.ringBaseDiameter}
-                  min={50}
-                  max={200}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('ringBaseDiameter')}
-                />
-                <ParameterSlider
-                  label="Ring Thickness"
-                  value={params.ringBaseThickness}
-                  min={4}
-                  max={15}
-                  step={1}
-                  unit="mm"
-                  onChange={handleChange('ringBaseThickness')}
                 />
               </>
             )}

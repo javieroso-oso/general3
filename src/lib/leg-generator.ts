@@ -196,9 +196,9 @@ export function generateLegsWithBase(
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
     
-    // Calculate attach radius using organic deformation
+    // Calculate attach radius - legs attach at disc edge
     const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
-    const attachRadius = deformedRadius * (1 - legInset * 0.7);
+    const attachRadius = deformedRadius; // Legs attach at disc edge, not inset
     
     const attachX = Math.cos(angle) * attachRadius;
     const attachZ = Math.sin(angle) * attachRadius;
