@@ -69,13 +69,11 @@ export interface ParametricParams {
   pendantCordLength: number;     // mm - visual cord length in preview
   
   // Wall mount parameters (sconce style)
-  wallMountPlateShape: WallMountPlateShape;
-  wallMountPlateWidth: number;    // mm - plate width/diameter
-  wallMountPlateHeight: number;   // mm - plate height (for rectangle)
-  wallMountPlateThickness: number; // mm - plate thickness
+  wallMountCutAngle: number;        // degrees - how much of the shell to keep (90-270, 180 = half)
+  wallMountPlateThickness: number;  // mm - plate thickness
   wallMountHoleType: WallMountHoleType;
-  wallMountHoleCount: 2 | 3 | 4;  // number of mounting holes
-  wallMountBulbFixture: boolean;  // add bulb fixture opening
+  wallMountHoleCount: 2 | 3 | 4;    // number of mounting holes
+  wallMountBulbFixture: boolean;    // add bulb fixture opening
   
   // Legacy wall bracket (kept for compatibility)
   wallBracketArmLength: number;  // mm - arm extension from wall
@@ -281,9 +279,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
-    wallMountPlateShape: 'rounded_rectangle',
-    wallMountPlateWidth: 80,
-    wallMountPlateHeight: 100,
+    wallMountCutAngle: 180,
     wallMountPlateThickness: 8,
     wallMountHoleType: 'keyhole',
     wallMountHoleCount: 2,
@@ -340,9 +336,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
-    wallMountPlateShape: 'rounded_rectangle',
-    wallMountPlateWidth: 80,
-    wallMountPlateHeight: 100,
+    wallMountCutAngle: 180,
     wallMountPlateThickness: 8,
     wallMountHoleType: 'keyhole',
     wallMountHoleCount: 2,
@@ -399,9 +393,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
-    wallMountPlateShape: 'rounded_rectangle',
-    wallMountPlateWidth: 100,
-    wallMountPlateHeight: 120,
+    wallMountCutAngle: 180,
     wallMountPlateThickness: 10,
     wallMountHoleType: 'keyhole',
     wallMountHoleCount: 2,

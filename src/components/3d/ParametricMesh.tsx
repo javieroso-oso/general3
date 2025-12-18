@@ -92,14 +92,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const segments = 64;
     const heightSegments = 64;
     
-    // For wall mount, generate half-shell (0 to 180 degrees)
+    // For wall mount, generate partial shell based on cut angle
     const isWallMount = addLegs && params.standType === 'wall_mount';
-    const angleRange = isWallMount ? Math.PI : Math.PI * 2; // 180° for wall mount, 360° for others
-    const effectiveSegments = isWallMount ? segments / 2 : segments; // Half the segments for half-shell
+    const cutAngleDeg = params.wallMountCutAngle || 180;
+    const cutAngleRad = (cutAngleDeg * Math.PI) / 180;
+    const angleRange = isWallMount ? cutAngleRad : Math.PI * 2;
+    const effectiveSegments = isWallMount ? Math.ceil(segments * (cutAngleDeg / 360)) : segments;
 
     const outerVerts: number[] = [];
-    // Store radii at each height level for side base generation
+    // Store max radius at each height for side base sizing
     const radiiAtHeight: number[] = [];
+    let maxRadius = 0;
 
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
@@ -133,13 +136,15 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       // Ensure minimum radius
       radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
       
-      // Store base radius for side base
+      // Store radius and track max for plate sizing
       radiiAtHeight.push(radius);
+      if (radius > maxRadius) maxRadius = radius;
 
       const twistRad = (twistAngle * Math.PI / 180) * t;
 
       // For wall mount, offset angle so flat back is at z=0
-      const angleOffset = isWallMount ? -Math.PI / 2 : 0; // Start at -90° so center faces +Z
+      // Centered on +X axis, spreading symmetrically
+      const angleOffset = isWallMount ? -cutAngleRad / 2 : 0;
 
       for (let j = 0; j <= effectiveSegments; j++) {
         const theta = (j / effectiveSegments) * angleRange + twistRad + angleOffset;
@@ -174,8 +179,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         // Ensure minimum radius
         r = Math.max(r, wall * 2);
 
-        const x = Math.cos(theta) * r;
-        const z = Math.sin(theta) * r;
+        let x = Math.cos(theta) * r;
+        let z = Math.sin(theta) * r;
+        
+        // For wall mount: force back edge vertices to z=0 for truly flat back
+        if (isWallMount) {
+          const isLeftEdge = j === 0;
+          const isRightEdge = j === effectiveSegments;
+          if (isLeftEdge || isRightEdge) {
+            z = 0; // Force z=0 for flat back vertices
+          }
+        }
+        
         outerVerts.push(x, y, z);
       }
     }
@@ -303,31 +318,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         legGeoMM.scale(SCALE, SCALE, SCALE);
         standGeo = legGeoMM;
       } else if (params.standType === 'wall_mount') {
-        // Wall mount: generate vertical side base plate
+        // Wall mount: generate vertical side base plate (auto-sized from object profile)
         const standGeoMM = generateStand({
           standType: params.standType,
-          baseRadius: params.baseRadius,
+          baseRadius: maxRadius / SCALE, // Convert back to mm, use actual max radius
           objectHeight: params.height,
-          wallMountPlateShape: params.wallMountPlateShape,
-          wallMountPlateWidth: params.wallMountPlateWidth,
-          wallMountPlateHeight: params.wallMountPlateHeight,
+          wallMountCutAngle: params.wallMountCutAngle,
           wallMountPlateThickness: params.wallMountPlateThickness,
           wallMountHoleType: params.wallMountHoleType,
           wallMountHoleCount: params.wallMountHoleCount,
           wallMountBulbFixture: params.wallMountBulbFixture,
-          wallBracketArmLength: params.wallBracketArmLength,
-          wallBracketArmAngle: params.wallBracketArmAngle,
-          wallBracketPlateSize: params.wallBracketPlateSize,
           cordHoleEnabled: params.cordHoleEnabled,
           cordHoleDiameter: params.cordHoleDiameter,
-        }, {
-          wobbleFrequency,
-          wobbleAmplitude,
-          rippleCount,
-          rippleDepth,
-          asymmetry,
-          organicNoise,
-          noiseScale,
         });
         
         if (standGeoMM) {
