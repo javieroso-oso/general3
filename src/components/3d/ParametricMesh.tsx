@@ -265,187 +265,111 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE BACK WALL WITH PROPER CIRCULAR HOLES ===
-      // We'll create a dense grid on the back wall and properly triangulate around holes
+      // === CREATE BACK WALL USING BOUNDARY VERTICES ===
+      // Collect all vertices that are on the cut plane (the back wall boundary)
+      // Group by height level for proper row-by-row triangulation
       
-      // Find bounds of the back wall
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      const boundaryByHeight: Map<number, { x: number; y: number; idx: number }[]> = new Map();
+      
       for (let i = 0; i <= heightSegments; i++) {
+        const heightVerts: { x: number; y: number; idx: number }[] = [];
+        
         for (let j = 0; j <= segments; j++) {
           const idx = i * (segments + 1) + j;
           const z = clippedVerts[idx * 3 + 2];
+          
+          // Check if this vertex is on the back wall
           if (Math.abs(z - cutOffset) < 0.0001) {
-            const x = clippedVerts[idx * 3];
-            const y = clippedVerts[idx * 3 + 1];
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
+            heightVerts.push({
+              x: clippedVerts[idx * 3],
+              y: clippedVerts[idx * 3 + 1],
+              idx: idx
+            });
           }
+        }
+        
+        if (heightVerts.length > 0) {
+          // Sort by x to get left-to-right order
+          heightVerts.sort((a, b) => a.x - b.x);
+          boundaryByHeight.set(i, heightVerts);
         }
       }
       
-      // Generate a grid of points for the back wall
-      const gridResX = 40;
-      const gridResY = 40;
-      const holeSegs = 24; // Segments for circular holes
+      const heightLevels = Array.from(boundaryByHeight.keys()).sort((a, b) => a - b);
       
-      // Helper: check if point is inside the object boundary at given height
-      const getRadiusAtHeight = (y: number): number => {
-        const t = Math.min(1, Math.max(0, y / h));
-        const heightIdx = Math.round(t * heightSegments);
-        return radiiAtHeight[heightIdx] || bRad;
-      };
-      
-      // Helper: check if point is inside any hole (with proper keyhole/countersink shapes)
-      const isInsideHole = (px: number, py: number): { inside: boolean; holeIdx: number } => {
+      // Helper: check if triangle overlaps any hole
+      const triangleOverlapsHole = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): boolean => {
+        const centerX = (x1 + x2 + x3) / 3;
+        const centerY = (y1 + y2 + y3) / 3;
+        
         // Check mounting holes
-        for (let hi = 0; hi < holePositions.length; hi++) {
-          const pos = holePositions[hi];
-          const dx = px - pos.x;
-          const dy = py - pos.y;
+        for (const pos of holePositions) {
+          const dx = centerX - pos.x;
+          const dy = centerY - pos.y;
           
           if (holeStyle === 'keyhole') {
-            // Keyhole: large circle at bottom + narrow slot extending upward
-            if (Math.hypot(dx, dy) < holeRadius) {
-              return { inside: true, holeIdx: hi };
-            }
-            // Slot extends upward
-            if (dy > 0 && dy < keyholeSlotLength && Math.abs(dx) < keyholeSlotWidth) {
-              return { inside: true, holeIdx: hi };
-            }
+            // Keyhole: circle + slot upward
+            if (Math.hypot(dx, dy) < holeRadius * 1.2) return true;
+            if (dy > -holeRadius * 0.5 && dy < keyholeSlotLength + keyholeSlotWidth && Math.abs(dx) < keyholeSlotWidth * 1.5) return true;
+          } else if (holeStyle === 'countersink') {
+            // Countersink uses larger radius
+            const outerRadius = holeRadius * 1.4;
+            if (Math.hypot(dx, dy) < outerRadius * 1.1) return true;
           } else {
-            // Round or countersink - circular
-            if (Math.hypot(dx, dy) < holeRadius) {
-              return { inside: true, holeIdx: hi };
-            }
+            // Round
+            if (Math.hypot(dx, dy) < holeRadius * 1.2) return true;
           }
         }
+        
         // Check cord hole
-        if (cordHoleEnabled && Math.hypot(px, py - cordY) < cordRadius) {
-          return { inside: true, holeIdx: -1 }; // -1 for cord hole
+        if (cordHoleEnabled) {
+          if (Math.hypot(centerX, centerY - cordY) < cordRadius * 1.2) return true;
         }
-        return { inside: false, holeIdx: -1 };
+        
+        return false;
       };
       
-      // Create vertices for back wall grid (only points inside object and outside holes)
-      const backWallStartIdx = vertices.length / 3;
-      const gridPoints: { x: number; y: number; idx: number; valid: boolean }[][] = [];
-      
-      for (let gy = 0; gy <= gridResY; gy++) {
-        const row: { x: number; y: number; idx: number; valid: boolean }[] = [];
-        const py = minY + (maxY - minY) * (gy / gridResY);
-        const radiusAtY = getRadiusAtHeight(py);
+      // Triangulate row by row between height levels
+      for (let hi = 0; hi < heightLevels.length - 1; hi++) {
+        const currentLevel = boundaryByHeight.get(heightLevels[hi])!;
+        const nextLevel = boundaryByHeight.get(heightLevels[hi + 1])!;
         
-        for (let gx = 0; gx <= gridResX; gx++) {
-          const px = minX + (maxX - minX) * (gx / gridResX);
+        if (currentLevel.length >= 2 && nextLevel.length >= 2) {
+          // Create triangles between the two rows
+          // Use a simple strip approach: match vertices left-to-right
+          const maxVerts = Math.max(currentLevel.length, nextLevel.length);
           
-          // Check if inside object boundary (semi-circle)
-          const insideBoundary = px >= -radiusAtY * 1.1 && px <= radiusAtY * 1.1;
-          const { inside: insideHole } = isInsideHole(px, py);
-          
-          if (insideBoundary && !insideHole) {
-            const idx = vertices.length / 3;
-            vertices.push(px, py, cutOffset);
-            row.push({ x: px, y: py, idx, valid: true });
-          } else {
-            row.push({ x: px, y: py, idx: -1, valid: false });
-          }
-        }
-        gridPoints.push(row);
-      }
-      
-      // Add circular hole edge vertices for smooth holes
-      const holeEdgeStarts: number[] = [];
-      
-      // Mounting holes
-      for (let hi = 0; hi < holePositions.length; hi++) {
-        const pos = holePositions[hi];
-        const startIdx = vertices.length / 3;
-        holeEdgeStarts.push(startIdx);
-        
-        if (holeStyle === 'keyhole') {
-          // Keyhole shape: circle + slot
-          // Bottom circle arc (180 degrees at bottom)
-          for (let s = 0; s <= holeSegs; s++) {
-            const angle = Math.PI + (s / holeSegs) * Math.PI; // Bottom half
-            const x = pos.x + Math.cos(angle) * holeRadius;
-            const y = pos.y + Math.sin(angle) * holeRadius;
-            vertices.push(x, y, cutOffset);
-          }
-          // Slot sides going up
-          const slotTop = pos.y + keyholeSlotLength;
-          vertices.push(pos.x - keyholeSlotWidth, pos.y, cutOffset);
-          vertices.push(pos.x - keyholeSlotWidth, slotTop, cutOffset);
-          // Top arc
-          for (let s = 0; s <= holeSegs / 2; s++) {
-            const angle = Math.PI + (s / (holeSegs / 2)) * Math.PI;
-            const x = pos.x + Math.cos(angle) * keyholeSlotWidth;
-            const y = slotTop + Math.sin(angle) * keyholeSlotWidth;
-            vertices.push(x, y, cutOffset);
-          }
-          vertices.push(pos.x + keyholeSlotWidth, slotTop, cutOffset);
-          vertices.push(pos.x + keyholeSlotWidth, pos.y, cutOffset);
-        } else if (holeStyle === 'countersink') {
-          // Countersink: add outer ring for chamfer visualization
-          // Outer edge (larger circle for countersink effect)
-          const outerRadius = holeRadius * 1.4;
-          for (let s = 0; s <= holeSegs; s++) {
-            const angle = (s / holeSegs) * Math.PI * 2;
-            const x = pos.x + Math.cos(angle) * outerRadius;
-            const y = pos.y + Math.sin(angle) * outerRadius;
-            vertices.push(x, y, cutOffset);
-          }
-          // Inner edge
-          for (let s = 0; s <= holeSegs; s++) {
-            const angle = (s / holeSegs) * Math.PI * 2;
-            const x = pos.x + Math.cos(angle) * holeRadius;
-            const y = pos.y + Math.sin(angle) * holeRadius;
-            vertices.push(x, y, cutOffset);
-          }
-        } else {
-          // Round hole - simple circle
-          for (let s = 0; s <= holeSegs; s++) {
-            const angle = (s / holeSegs) * Math.PI * 2;
-            const x = pos.x + Math.cos(angle) * holeRadius;
-            const y = pos.y + Math.sin(angle) * holeRadius;
-            vertices.push(x, y, cutOffset);
+          for (let vi = 0; vi < maxVerts - 1; vi++) {
+            // Get vertices, clamping to available range
+            const ci = Math.min(vi, currentLevel.length - 1);
+            const ci1 = Math.min(vi + 1, currentLevel.length - 1);
+            const ni = Math.min(vi, nextLevel.length - 1);
+            const ni1 = Math.min(vi + 1, nextLevel.length - 1);
+            
+            const bl = currentLevel[ci];
+            const br = currentLevel[ci1];
+            const tl = nextLevel[ni];
+            const tr = nextLevel[ni1];
+            
+            // Skip degenerate triangles
+            if (bl.idx === br.idx && tl.idx === tr.idx) continue;
+            
+            // Triangle 1: bl -> tl -> br (if not degenerate)
+            if (bl.idx !== br.idx && bl.idx !== tl.idx && br.idx !== tl.idx) {
+              if (!triangleOverlapsHole(bl.x, bl.y, tl.x, tl.y, br.x, br.y)) {
+                indices.push(bl.idx, tl.idx, br.idx);
+              }
+            }
+            
+            // Triangle 2: br -> tl -> tr (if not degenerate)
+            if (br.idx !== tr.idx && br.idx !== tl.idx && tr.idx !== tl.idx) {
+              if (!triangleOverlapsHole(br.x, br.y, tl.x, tl.y, tr.x, tr.y)) {
+                indices.push(br.idx, tl.idx, tr.idx);
+              }
+            }
           }
         }
       }
-      
-      // Cord hole edge
-      if (cordHoleEnabled) {
-        const cordEdgeStart = vertices.length / 3;
-        holeEdgeStarts.push(cordEdgeStart);
-        for (let s = 0; s <= holeSegs; s++) {
-          const angle = (s / holeSegs) * Math.PI * 2;
-          const x = Math.cos(angle) * cordRadius;
-          const y = cordY + Math.sin(angle) * cordRadius;
-          vertices.push(x, y, cutOffset);
-        }
-      }
-      
-      // Triangulate back wall grid
-      for (let gy = 0; gy < gridResY; gy++) {
-        for (let gx = 0; gx < gridResX; gx++) {
-          const bl = gridPoints[gy][gx];
-          const br = gridPoints[gy][gx + 1];
-          const tl = gridPoints[gy + 1][gx];
-          const tr = gridPoints[gy + 1][gx + 1];
-          
-          // Only create triangles where all vertices are valid
-          if (bl.valid && br.valid && tl.valid) {
-            indices.push(bl.idx, tl.idx, br.idx);
-          }
-          if (br.valid && tl.valid && tr.valid) {
-            indices.push(br.idx, tl.idx, tr.idx);
-          }
-        }
-      }
-      
-      // Connect grid to hole edges for smooth transition (simplified - holes will appear as gaps)
-      // The grid already excludes hole interiors, creating clean hole boundaries
       
     } else {
       // Normal full 360° object (no wall mount)
