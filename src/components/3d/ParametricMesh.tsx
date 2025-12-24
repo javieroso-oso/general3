@@ -186,13 +186,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const indices: number[] = [];
 
     if (isWallMount) {
-      // Wall mount: clip at z = cutOffset, create flat back wall with proper circular holes
+      // Wall mount: clip at z = cutOffset, create flat back wall with keyhole mounting holes
       
       const holeCount = params.wallMountHoleCount || 2;
       const holeDiameter = (params.wallMountHoleDiameter || 5) * SCALE;
       const holeRadius = holeDiameter / 2;
       const holeMargin = params.wallMountHoleMargin || 0.15;
-      const holeStyle = params.wallMountHoleStyle || 'round';
       
       // Calculate hole positions based on count
       const marginY = h * holeMargin;
@@ -220,9 +219,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
       const cordY = h * 0.5;
       
-      // Keyhole dimensions
-      const keyholeSlotLength = holeRadius * 2;
-      const keyholeSlotWidth = holeRadius * 0.5;
+      // Keyhole dimensions - large circle at bottom, narrow slot going UP
+      const keyholeSlotLength = holeRadius * 2.5; // Slot extends upward
+      const keyholeSlotWidth = holeRadius * 0.45; // Narrow slot for screw shank
       
       // Clip vertices at cut plane
       const clippedVerts: number[] = [];
@@ -265,10 +264,32 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE BACK WALL USING BOUNDARY VERTICES ===
-      // Collect all vertices that are on the cut plane (the back wall boundary)
-      // Group by height level for proper row-by-row triangulation
+      // === CREATE BACK WALL WITH PROPER KEYHOLE GEOMETRY ===
+      // Helper: check if point is inside a keyhole
+      const isInsideKeyhole = (px: number, py: number): boolean => {
+        for (const pos of holePositions) {
+          const dx = px - pos.x;
+          const dy = py - pos.y;
+          
+          // Large circle at the bottom of keyhole
+          if (Math.hypot(dx, dy) <= holeRadius) return true;
+          
+          // Narrow slot extending upward from circle
+          // Slot starts at y = pos.y and goes up to pos.y + keyholeSlotLength
+          if (dy > 0 && dy <= keyholeSlotLength && Math.abs(dx) <= keyholeSlotWidth) return true;
+          
+          // Small rounded top of slot
+          const slotTopY = pos.y + keyholeSlotLength;
+          if (Math.hypot(dx, py - slotTopY) <= keyholeSlotWidth) return true;
+        }
+        
+        // Check cord hole (simple circle)
+        if (cordHoleEnabled && Math.hypot(px, py - cordY) <= cordRadius) return true;
+        
+        return false;
+      };
       
+      // Collect boundary vertices on the cut plane
       const boundaryByHeight: Map<number, { x: number; y: number; idx: number }[]> = new Map();
       
       for (let i = 0; i <= heightSegments; i++) {
@@ -278,7 +299,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           const idx = i * (segments + 1) + j;
           const z = clippedVerts[idx * 3 + 2];
           
-          // Check if this vertex is on the back wall
           if (Math.abs(z - cutOffset) < 0.0001) {
             heightVerts.push({
               x: clippedVerts[idx * 3],
@@ -289,7 +309,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
         
         if (heightVerts.length > 0) {
-          // Sort by x to get left-to-right order
           heightVerts.sort((a, b) => a.x - b.x);
           boundaryByHeight.set(i, heightVerts);
         }
@@ -297,50 +316,33 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       
       const heightLevels = Array.from(boundaryByHeight.keys()).sort((a, b) => a - b);
       
-      // Helper: check if triangle overlaps any hole
-      const triangleOverlapsHole = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): boolean => {
-        const centerX = (x1 + x2 + x3) / 3;
-        const centerY = (y1 + y2 + y3) / 3;
+      // Check if ANY vertex of a triangle is inside a hole
+      const triangleIntersectsHole = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): boolean => {
+        // Check vertices
+        if (isInsideKeyhole(x1, y1) || isInsideKeyhole(x2, y2) || isInsideKeyhole(x3, y3)) return true;
         
-        // Check mounting holes
-        for (const pos of holePositions) {
-          const dx = centerX - pos.x;
-          const dy = centerY - pos.y;
-          
-          if (holeStyle === 'keyhole') {
-            // Keyhole: circle + slot upward
-            if (Math.hypot(dx, dy) < holeRadius * 1.2) return true;
-            if (dy > -holeRadius * 0.5 && dy < keyholeSlotLength + keyholeSlotWidth && Math.abs(dx) < keyholeSlotWidth * 1.5) return true;
-          } else if (holeStyle === 'countersink') {
-            // Countersink uses larger radius
-            const outerRadius = holeRadius * 1.4;
-            if (Math.hypot(dx, dy) < outerRadius * 1.1) return true;
-          } else {
-            // Round
-            if (Math.hypot(dx, dy) < holeRadius * 1.2) return true;
-          }
-        }
+        // Check center
+        const cx = (x1 + x2 + x3) / 3;
+        const cy = (y1 + y2 + y3) / 3;
+        if (isInsideKeyhole(cx, cy)) return true;
         
-        // Check cord hole
-        if (cordHoleEnabled) {
-          if (Math.hypot(centerX, centerY - cordY) < cordRadius * 1.2) return true;
-        }
+        // Check edge midpoints for better coverage
+        if (isInsideKeyhole((x1+x2)/2, (y1+y2)/2)) return true;
+        if (isInsideKeyhole((x2+x3)/2, (y2+y3)/2)) return true;
+        if (isInsideKeyhole((x3+x1)/2, (y3+y1)/2)) return true;
         
         return false;
       };
       
-      // Triangulate row by row between height levels
+      // Triangulate row by row, excluding triangles that intersect holes
       for (let hi = 0; hi < heightLevels.length - 1; hi++) {
         const currentLevel = boundaryByHeight.get(heightLevels[hi])!;
         const nextLevel = boundaryByHeight.get(heightLevels[hi + 1])!;
         
         if (currentLevel.length >= 2 && nextLevel.length >= 2) {
-          // Create triangles between the two rows
-          // Use a simple strip approach: match vertices left-to-right
           const maxVerts = Math.max(currentLevel.length, nextLevel.length);
           
           for (let vi = 0; vi < maxVerts - 1; vi++) {
-            // Get vertices, clamping to available range
             const ci = Math.min(vi, currentLevel.length - 1);
             const ci1 = Math.min(vi + 1, currentLevel.length - 1);
             const ni = Math.min(vi, nextLevel.length - 1);
@@ -351,19 +353,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
             const tl = nextLevel[ni];
             const tr = nextLevel[ni1];
             
-            // Skip degenerate triangles
             if (bl.idx === br.idx && tl.idx === tr.idx) continue;
             
-            // Triangle 1: bl -> tl -> br (if not degenerate)
+            // Triangle 1: bl -> tl -> br
             if (bl.idx !== br.idx && bl.idx !== tl.idx && br.idx !== tl.idx) {
-              if (!triangleOverlapsHole(bl.x, bl.y, tl.x, tl.y, br.x, br.y)) {
+              if (!triangleIntersectsHole(bl.x, bl.y, tl.x, tl.y, br.x, br.y)) {
                 indices.push(bl.idx, tl.idx, br.idx);
               }
             }
             
-            // Triangle 2: br -> tl -> tr (if not degenerate)
+            // Triangle 2: br -> tl -> tr
             if (br.idx !== tr.idx && br.idx !== tl.idx && tr.idx !== tl.idx) {
-              if (!triangleOverlapsHole(br.x, br.y, tl.x, tl.y, tr.x, tr.y)) {
+              if (!triangleIntersectsHole(br.x, br.y, tl.x, tl.y, tr.x, tr.y)) {
                 indices.push(br.idx, tl.idx, tr.idx);
               }
             }
