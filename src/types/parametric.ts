@@ -68,8 +68,10 @@ export interface ParametricParams {
   
   // Wall mount parameters (planar cut style - no separate plate)
   wallMountCutOffset: number;       // mm - distance from center for cut plane (0 = exact half, positive = keep more)
-  wallMountScrewCount: 2 | 3 | 4;   // number of mounting screw holes on flat back
-  wallMountScrewDiameter: number;   // mm - screw hole diameter
+  wallMountHoleCount: 2 | 3 | 4;    // number of mounting holes on flat back
+  wallMountHoleDiameter: number;    // mm - mounting hole diameter
+  wallMountHoleStyle: 'round' | 'keyhole' | 'countersink'; // hole style
+  wallMountHoleMargin: number;      // 0-1 - distance from edge as percentage of available space
   wallMountCordHoleEnabled: boolean; // add cord exit hole through flat back
   
   // Legacy wall bracket (kept for compatibility)
@@ -277,8 +279,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     supportFreeMode: false,
     showOverhangMap: false,
     wallMountCutOffset: 0,
-    wallMountScrewCount: 2,
-    wallMountScrewDiameter: 5,
+    wallMountHoleCount: 2,
+    wallMountHoleDiameter: 5,
+    wallMountHoleStyle: 'round',
+    wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
   },
   lamp: {
@@ -333,8 +337,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     supportFreeMode: false,
     showOverhangMap: false,
     wallMountCutOffset: 0,
-    wallMountScrewCount: 2,
-    wallMountScrewDiameter: 5,
+    wallMountHoleCount: 2,
+    wallMountHoleDiameter: 5,
+    wallMountHoleStyle: 'round',
+    wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
   },
   sculpture: {
@@ -389,8 +395,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     supportFreeMode: false,
     showOverhangMap: false,
     wallMountCutOffset: 0,
-    wallMountScrewCount: 2,
-    wallMountScrewDiameter: 5,
+    wallMountHoleCount: 2,
+    wallMountHoleDiameter: 5,
+    wallMountHoleStyle: 'round',
+    wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: false,
   },
 };
