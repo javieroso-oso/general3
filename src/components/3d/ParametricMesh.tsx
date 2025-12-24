@@ -126,9 +126,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
       radius *= (1 - pinchTop - pinchBottom);
 
-      // Lip flare
-      const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
-      radius += lipT * lipT * lipFlare * bRad;
+      // Lip flare - guard against division by zero when lipHeight is 0
+      if (lipHeight > 0 && lipFlare !== 0) {
+        const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
+        radius += lipT * lipT * lipFlare * bRad;
+      }
 
       // Ensure minimum radius
       radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
