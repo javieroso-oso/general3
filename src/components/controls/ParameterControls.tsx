@@ -284,33 +284,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </div>
                 
                 <ParameterSlider
-                  label="Hole Ø"
-                  value={params.wallMountHoleDiameter}
-                  min={3}
-                  max={10}
-                  step={0.5}
-                  unit="mm"
-                  onChange={handleChange('wallMountHoleDiameter')}
-                />
-                
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Hole Style</Label>
-                  <Select 
-                    value={params.wallMountHoleStyle} 
-                    onValueChange={(v: 'round' | 'keyhole' | 'countersink') => onParamsChange({ ...params, wallMountHoleStyle: v })}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="round">Round</SelectItem>
-                      <SelectItem value="keyhole">Keyhole</SelectItem>
-                      <SelectItem value="countersink">Countersink</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <ParameterSlider
                   label="Hole Margin"
                   value={params.wallMountHoleMargin}
                   min={0.05}
@@ -319,7 +292,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   onChange={handleChange('wallMountHoleMargin')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Distance from edge (0.05 = near edge, 0.35 = closer to center)
+                  Distance from edge (smaller = closer to edge)
                 </p>
                 
                 <div className="flex items-center justify-between pt-2">
