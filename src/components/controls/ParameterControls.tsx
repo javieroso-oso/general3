@@ -267,15 +267,15 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </p>
                 
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Mounting Screws</Label>
+                  <Label className="text-xs text-muted-foreground">Mounting Holes</Label>
                   <div className="flex gap-2">
                     {([2, 3, 4] as const).map((count) => (
                       <Button
                         key={count}
-                        variant={params.wallMountScrewCount === count ? 'default' : 'outline'}
+                        variant={params.wallMountHoleCount === count ? 'default' : 'outline'}
                         size="sm"
                         className="flex-1"
-                        onClick={() => onParamsChange({ ...params, wallMountScrewCount: count })}
+                        onClick={() => onParamsChange({ ...params, wallMountHoleCount: count })}
                       >
                         {count}
                       </Button>
@@ -284,14 +284,43 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </div>
                 
                 <ParameterSlider
-                  label="Screw Hole Ø"
-                  value={params.wallMountScrewDiameter}
+                  label="Hole Ø"
+                  value={params.wallMountHoleDiameter}
                   min={3}
-                  max={8}
+                  max={10}
                   step={0.5}
                   unit="mm"
-                  onChange={handleChange('wallMountScrewDiameter')}
+                  onChange={handleChange('wallMountHoleDiameter')}
                 />
+                
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Hole Style</Label>
+                  <Select 
+                    value={params.wallMountHoleStyle} 
+                    onValueChange={(v: 'round' | 'keyhole' | 'countersink') => onParamsChange({ ...params, wallMountHoleStyle: v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="round">Round</SelectItem>
+                      <SelectItem value="keyhole">Keyhole</SelectItem>
+                      <SelectItem value="countersink">Countersink</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <ParameterSlider
+                  label="Hole Margin"
+                  value={params.wallMountHoleMargin}
+                  min={0.05}
+                  max={0.35}
+                  step={0.01}
+                  onChange={handleChange('wallMountHoleMargin')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Distance from edge (0.05 = near edge, 0.35 = closer to center)
+                </p>
                 
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
@@ -304,10 +333,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     onCheckedChange={(v) => onParamsChange({ ...params, wallMountCordHoleEnabled: v })}
                   />
                 </div>
-                
-                <p className="text-xs text-muted-foreground mt-2">
-                  Mounting holes go directly through the flat back - no separate plate needed
-                </p>
               </>
             )}
             

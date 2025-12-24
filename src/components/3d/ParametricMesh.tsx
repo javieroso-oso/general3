@@ -188,28 +188,35 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     if (isWallMount) {
       // Wall mount: clip at z = cutOffset, create flat back wall with actual holes
       
-      // Screw hole positions for triangle exclusion
-      const screwCount = params.wallMountScrewCount || 2;
-      const screwDiameter = (params.wallMountScrewDiameter || 5) * SCALE;
-      const screwRadius = screwDiameter / 2;
-      const marginY = h * 0.15;
+      // Mounting hole positions - improved geometry with proper circular holes
+      const holeCount = params.wallMountHoleCount || 2;
+      const holeDiameter = (params.wallMountHoleDiameter || 5) * SCALE;
+      const holeRadius = holeDiameter / 2;
+      const holeMargin = params.wallMountHoleMargin || 0.15;
+      const holeStyle = params.wallMountHoleStyle || 'round';
       
-      const screwPositions: { x: number; y: number }[] = [];
-      if (screwCount === 2) {
-        screwPositions.push({ x: 0, y: marginY });
-        screwPositions.push({ x: 0, y: h - marginY });
-      } else if (screwCount === 3) {
-        screwPositions.push({ x: 0, y: h - marginY });
-        const bottomX = bRad * 0.3;
-        screwPositions.push({ x: -bottomX, y: marginY });
-        screwPositions.push({ x: bottomX, y: marginY });
+      // Calculate hole positions based on count
+      const marginY = h * holeMargin;
+      const holePositions: { x: number; y: number }[] = [];
+      
+      if (holeCount === 2) {
+        // Vertical arrangement - top and bottom center
+        holePositions.push({ x: 0, y: marginY });
+        holePositions.push({ x: 0, y: h - marginY });
+      } else if (holeCount === 3) {
+        // Triangle arrangement - 1 top, 2 bottom
+        holePositions.push({ x: 0, y: h - marginY });
+        const bottomSpread = bRad * 0.4;
+        holePositions.push({ x: -bottomSpread, y: marginY });
+        holePositions.push({ x: bottomSpread, y: marginY });
       } else {
-        const topX = tRad * 0.3;
-        const bottomX = bRad * 0.3;
-        screwPositions.push({ x: -topX, y: h - marginY });
-        screwPositions.push({ x: topX, y: h - marginY });
-        screwPositions.push({ x: -bottomX, y: marginY });
-        screwPositions.push({ x: bottomX, y: marginY });
+        // 4 holes - rectangle arrangement
+        const topSpread = tRad * 0.35;
+        const bottomSpread = bRad * 0.35;
+        holePositions.push({ x: -topSpread, y: h - marginY });
+        holePositions.push({ x: topSpread, y: h - marginY });
+        holePositions.push({ x: -bottomSpread, y: marginY });
+        holePositions.push({ x: bottomSpread, y: marginY });
       }
       
       // Cord hole position
@@ -217,12 +224,25 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
       const cordY = h * 0.5;
       
+      // Keyhole extension for keyhole style
+      const keyholeSlotLength = holeRadius * 1.5;
+      const keyholeSlotWidth = holeRadius * 0.6;
+      
       // Helper to check if a point is inside any hole
       const isInsideHole = (x: number, y: number): boolean => {
-        // Check screw holes
-        for (const pos of screwPositions) {
-          if (Math.hypot(x - pos.x, y - pos.y) < screwRadius) {
-            return true;
+        // Check mounting holes
+        for (const pos of holePositions) {
+          const dx = x - pos.x;
+          const dy = y - pos.y;
+          
+          if (holeStyle === 'keyhole') {
+            // Keyhole: circle at bottom + narrow slot extending upward
+            if (Math.hypot(dx, dy) < holeRadius) return true;
+            // Check slot region (extends upward from circle)
+            if (Math.abs(dx) < keyholeSlotWidth && dy > 0 && dy < keyholeSlotLength) return true;
+          } else {
+            // Round or countersink - just circular
+            if (Math.hypot(dx, dy) < holeRadius) return true;
           }
         }
         // Check cord hole
@@ -277,205 +297,77 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // Create flat back wall with ACTUAL HOLES by excluding triangles
-      const boundaryByHeight: Map<number, { x: number; y: number; idx: number }[]> = new Map();
+      // Create flat back wall with proper triangulation and hole exclusion
+      // Collect boundary vertices at the cut plane
+      const backWallVerts: { x: number; y: number; idx: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
-        const heightVerts: { x: number; y: number; idx: number }[] = [];
-        
         for (let j = 0; j <= segments; j++) {
           const idx = i * (segments + 1) + j;
           const z = clippedVerts[idx * 3 + 2];
           
           if (Math.abs(z - cutOffset) < 0.0001) {
-            heightVerts.push({
+            backWallVerts.push({
               x: clippedVerts[idx * 3],
               y: clippedVerts[idx * 3 + 1],
               idx: idx
             });
           }
         }
-        
-        if (heightVerts.length > 0) {
-          boundaryByHeight.set(i, heightVerts);
-        }
       }
       
-      const heightLevels = Array.from(boundaryByHeight.keys()).sort((a, b) => a - b);
+      // Group by height level for proper triangulation
+      const heightLevelMap: Map<number, { x: number; y: number; idx: number }[]> = new Map();
       
-      // Triangulate back wall, excluding triangles that overlap holes
-      for (let hi = 0; hi < heightLevels.length - 1; hi++) {
-        const currentLevel = boundaryByHeight.get(heightLevels[hi])!;
-        const nextLevel = boundaryByHeight.get(heightLevels[hi + 1])!;
+      for (const vert of backWallVerts) {
+        const heightKey = Math.round(vert.y * 10000); // Round to avoid floating point issues
+        if (!heightLevelMap.has(heightKey)) {
+          heightLevelMap.set(heightKey, []);
+        }
+        heightLevelMap.get(heightKey)!.push(vert);
+      }
+      
+      const sortedHeights = Array.from(heightLevelMap.keys()).sort((a, b) => a - b);
+      
+      // Triangulate back wall row by row, skipping triangles in holes
+      for (let hi = 0; hi < sortedHeights.length - 1; hi++) {
+        const currentLevel = heightLevelMap.get(sortedHeights[hi])!;
+        const nextLevel = heightLevelMap.get(sortedHeights[hi + 1])!;
         
+        // Sort by x position
         currentLevel.sort((a, b) => a.x - b.x);
         nextLevel.sort((a, b) => a.x - b.x);
         
         if (currentLevel.length >= 2 && nextLevel.length >= 2) {
-          const currentLeft = currentLevel[0];
-          const currentRight = currentLevel[currentLevel.length - 1];
-          const nextLeft = nextLevel[0];
-          const nextRight = nextLevel[nextLevel.length - 1];
+          // Create strip of triangles between the two levels
+          const minLen = Math.min(currentLevel.length, nextLevel.length);
           
-          // Calculate triangle centers and check if they're inside any hole
-          const tri1CenterX = (currentLeft.x + nextLeft.x + currentRight.x) / 3;
-          const tri1CenterY = (currentLeft.y + nextLeft.y + currentRight.y) / 3;
-          
-          const tri2CenterX = (currentRight.x + nextLeft.x + nextRight.x) / 3;
-          const tri2CenterY = (currentRight.y + nextLeft.y + nextRight.y) / 3;
-          
-          // Only add triangle if its center is NOT inside a hole
-          if (!isInsideHole(tri1CenterX, tri1CenterY)) {
-            indices.push(currentLeft.idx, nextLeft.idx, currentRight.idx);
-          }
-          if (!isInsideHole(tri2CenterX, tri2CenterY)) {
-            indices.push(currentRight.idx, nextLeft.idx, nextRight.idx);
+          for (let vi = 0; vi < minLen - 1; vi++) {
+            const bl = currentLevel[vi];
+            const br = currentLevel[vi + 1];
+            const tl = nextLevel[vi];
+            const tr = nextLevel[vi + 1];
+            
+            // Triangle 1: bl -> tl -> br
+            const tri1CenterX = (bl.x + tl.x + br.x) / 3;
+            const tri1CenterY = (bl.y + tl.y + br.y) / 3;
+            
+            // Triangle 2: br -> tl -> tr  
+            const tri2CenterX = (br.x + tl.x + tr.x) / 3;
+            const tri2CenterY = (br.y + tl.y + tr.y) / 3;
+            
+            // Only add triangles whose centers are NOT inside a hole
+            if (!isInsideHole(tri1CenterX, tri1CenterY)) {
+              indices.push(bl.idx, tl.idx, br.idx);
+            }
+            if (!isInsideHole(tri2CenterX, tri2CenterY)) {
+              indices.push(br.idx, tl.idx, tr.idx);
+            }
           }
         }
       }
       
-      // NO BOTTOM CAP for wall mount - it should be open at bottom
-      
-      // L-BRACKET for bulb socket: extends from back wall
-      const bracketY = h * 0.65; // Position of bracket
-      const bracketArmLength = bRad * 0.7; // How far it extends from wall
-      const bracketWidth = 30 * SCALE; // ~30mm wide
-      const bracketThickness = wall * 2;
-      const socketRingInner = 13 * SCALE; // Inner radius for E26/E27 socket
-      const socketRingOuter = 16 * SCALE;
-      const socketRingHeight = wall * 1.5;
-      
-      const bracketStartIdx = vertices.length / 3;
-      
-      // L-bracket: vertical plate against wall + horizontal arm
-      // Vertical plate (against back wall at z = cutOffset)
-      const plateHeight = h * 0.3;
-      const plateBottom = bracketY - plateHeight / 2;
-      const plateTop = bracketY + plateHeight / 2;
-      const halfWidth = bracketWidth / 2;
-      
-      // Vertical plate vertices (4 corners front, 4 corners back)
-      // Front face (at z = cutOffset)
-      vertices.push(-halfWidth, plateBottom, cutOffset); // 0
-      vertices.push(halfWidth, plateBottom, cutOffset);  // 1
-      vertices.push(halfWidth, plateTop, cutOffset);     // 2
-      vertices.push(-halfWidth, plateTop, cutOffset);    // 3
-      // Back face (at z = cutOffset - bracketThickness)
-      vertices.push(-halfWidth, plateBottom, cutOffset - bracketThickness); // 4
-      vertices.push(halfWidth, plateBottom, cutOffset - bracketThickness);  // 5
-      vertices.push(halfWidth, plateTop, cutOffset - bracketThickness);     // 6
-      vertices.push(-halfWidth, plateTop, cutOffset - bracketThickness);    // 7
-      
-      // Horizontal arm vertices (extends from wall toward center)
-      const armZ = cutOffset + bracketArmLength;
-      // Top face of arm
-      vertices.push(-halfWidth, bracketY, cutOffset);     // 8
-      vertices.push(halfWidth, bracketY, cutOffset);      // 9
-      vertices.push(halfWidth, bracketY, armZ);           // 10
-      vertices.push(-halfWidth, bracketY, armZ);          // 11
-      // Bottom face of arm
-      vertices.push(-halfWidth, bracketY - bracketThickness, cutOffset);  // 12
-      vertices.push(halfWidth, bracketY - bracketThickness, cutOffset);   // 13
-      vertices.push(halfWidth, bracketY - bracketThickness, armZ);        // 14
-      vertices.push(-halfWidth, bracketY - bracketThickness, armZ);       // 15
-      
-      // Vertical plate faces
-      // Front
-      indices.push(bracketStartIdx + 0, bracketStartIdx + 1, bracketStartIdx + 2);
-      indices.push(bracketStartIdx + 0, bracketStartIdx + 2, bracketStartIdx + 3);
-      // Back
-      indices.push(bracketStartIdx + 4, bracketStartIdx + 6, bracketStartIdx + 5);
-      indices.push(bracketStartIdx + 4, bracketStartIdx + 7, bracketStartIdx + 6);
-      // Top
-      indices.push(bracketStartIdx + 3, bracketStartIdx + 2, bracketStartIdx + 6);
-      indices.push(bracketStartIdx + 3, bracketStartIdx + 6, bracketStartIdx + 7);
-      // Bottom
-      indices.push(bracketStartIdx + 0, bracketStartIdx + 5, bracketStartIdx + 1);
-      indices.push(bracketStartIdx + 0, bracketStartIdx + 4, bracketStartIdx + 5);
-      // Left
-      indices.push(bracketStartIdx + 0, bracketStartIdx + 3, bracketStartIdx + 7);
-      indices.push(bracketStartIdx + 0, bracketStartIdx + 7, bracketStartIdx + 4);
-      // Right
-      indices.push(bracketStartIdx + 1, bracketStartIdx + 5, bracketStartIdx + 6);
-      indices.push(bracketStartIdx + 1, bracketStartIdx + 6, bracketStartIdx + 2);
-      
-      // Horizontal arm faces
-      // Top
-      indices.push(bracketStartIdx + 8, bracketStartIdx + 9, bracketStartIdx + 10);
-      indices.push(bracketStartIdx + 8, bracketStartIdx + 10, bracketStartIdx + 11);
-      // Bottom
-      indices.push(bracketStartIdx + 12, bracketStartIdx + 14, bracketStartIdx + 13);
-      indices.push(bracketStartIdx + 12, bracketStartIdx + 15, bracketStartIdx + 14);
-      // Front (at z = armZ)
-      indices.push(bracketStartIdx + 11, bracketStartIdx + 10, bracketStartIdx + 14);
-      indices.push(bracketStartIdx + 11, bracketStartIdx + 14, bracketStartIdx + 15);
-      // Left side
-      indices.push(bracketStartIdx + 8, bracketStartIdx + 11, bracketStartIdx + 15);
-      indices.push(bracketStartIdx + 8, bracketStartIdx + 15, bracketStartIdx + 12);
-      // Right side
-      indices.push(bracketStartIdx + 9, bracketStartIdx + 13, bracketStartIdx + 14);
-      indices.push(bracketStartIdx + 9, bracketStartIdx + 14, bracketStartIdx + 10);
-      
-      // Socket ring at end of arm
-      const ringSegs = 16;
-      const ringCenterZ = armZ - socketRingOuter;
-      const ringStartIdx = vertices.length / 3;
-      
-      // Top ring (outer and inner)
-      for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI * 2;
-        vertices.push(
-          Math.cos(angle) * socketRingOuter,
-          bracketY,
-          ringCenterZ + Math.sin(angle) * socketRingOuter
-        );
-      }
-      for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI * 2;
-        vertices.push(
-          Math.cos(angle) * socketRingInner,
-          bracketY,
-          ringCenterZ + Math.sin(angle) * socketRingInner
-        );
-      }
-      // Bottom ring (outer and inner)
-      for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI * 2;
-        vertices.push(
-          Math.cos(angle) * socketRingOuter,
-          bracketY - socketRingHeight,
-          ringCenterZ + Math.sin(angle) * socketRingOuter
-        );
-      }
-      for (let s = 0; s <= ringSegs; s++) {
-        const angle = (s / ringSegs) * Math.PI * 2;
-        vertices.push(
-          Math.cos(angle) * socketRingInner,
-          bracketY - socketRingHeight,
-          ringCenterZ + Math.sin(angle) * socketRingInner
-        );
-      }
-      
-      const topOuter = ringStartIdx;
-      const topInner = ringStartIdx + (ringSegs + 1);
-      const botOuter = ringStartIdx + (ringSegs + 1) * 2;
-      const botInner = ringStartIdx + (ringSegs + 1) * 3;
-      
-      // Ring faces
-      for (let s = 0; s < ringSegs; s++) {
-        // Top surface
-        indices.push(topOuter + s, topOuter + s + 1, topInner + s);
-        indices.push(topInner + s, topOuter + s + 1, topInner + s + 1);
-        // Bottom surface
-        indices.push(botOuter + s, botInner + s, botOuter + s + 1);
-        indices.push(botOuter + s + 1, botInner + s, botInner + s + 1);
-        // Outer wall
-        indices.push(topOuter + s, botOuter + s, topOuter + s + 1);
-        indices.push(topOuter + s + 1, botOuter + s, botOuter + s + 1);
-        // Inner wall
-        indices.push(topInner + s, topInner + s + 1, botInner + s);
-        indices.push(botInner + s, topInner + s + 1, botInner + s + 1);
-      }
+      // NO L-BRACKET - just the body with mounting holes
       
     } else {
       // Normal full 360° object (no wall mount)

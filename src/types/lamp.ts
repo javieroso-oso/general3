@@ -428,8 +428,10 @@ export const defaultLampParams: LampParams = {
   supportFreeMode: false,
   showOverhangMap: false,
   wallMountCutOffset: 0,
-  wallMountScrewCount: 2,
-  wallMountScrewDiameter: 5,
+  wallMountHoleCount: 2,
+  wallMountHoleDiameter: 5,
+  wallMountHoleStyle: 'round',
+  wallMountHoleMargin: 0.15,
   wallMountCordHoleEnabled: true,
   
   // Shade rim config
