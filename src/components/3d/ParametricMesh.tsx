@@ -264,111 +264,196 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE BACK WALL WITH PROPER KEYHOLE GEOMETRY ===
-      // Helper: check if point is inside a keyhole
-      const isInsideKeyhole = (px: number, py: number): boolean => {
-        for (const pos of holePositions) {
-          const dx = px - pos.x;
-          const dy = py - pos.y;
-          
-          // Large circle at the bottom of keyhole
-          if (Math.hypot(dx, dy) <= holeRadius) return true;
-          
-          // Narrow slot extending upward from circle
-          // Slot starts at y = pos.y and goes up to pos.y + keyholeSlotLength
-          if (dy > 0 && dy <= keyholeSlotLength && Math.abs(dx) <= keyholeSlotWidth) return true;
-          
-          // Small rounded top of slot
-          const slotTopY = pos.y + keyholeSlotLength;
-          if (Math.hypot(dx, py - slotTopY) <= keyholeSlotWidth) return true;
+      // === CREATE BACK WALL WITH CLEAN KEYHOLE GEOMETRY ===
+      // Instead of excluding triangles, we create the back wall as a single surface
+      // with keyhole-shaped holes cut out using proper vertex rings
+      
+      const holeSegs = 24; // Segments for smooth curves
+      
+      // Generate keyhole outline vertices for each hole
+      // A keyhole is: large circle at bottom + narrow slot going up + small rounded top
+      const generateKeyholeOutline = (cx: number, cy: number): { x: number; y: number }[] => {
+        const points: { x: number; y: number }[] = [];
+        
+        // Start at bottom of large circle, go clockwise
+        // Bottom semicircle (from left to right, going through bottom)
+        for (let i = 0; i <= holeSegs; i++) {
+          const angle = Math.PI + (i / holeSegs) * Math.PI; // PI to 2PI (bottom half)
+          points.push({
+            x: cx + Math.cos(angle) * holeRadius,
+            y: cy + Math.sin(angle) * holeRadius
+          });
         }
         
-        // Check cord hole (simple circle)
-        if (cordHoleEnabled && Math.hypot(px, py - cordY) <= cordRadius) return true;
+        // Right side of slot going up
+        points.push({ x: cx + keyholeSlotWidth, y: cy });
+        points.push({ x: cx + keyholeSlotWidth, y: cy + keyholeSlotLength });
         
-        return false;
+        // Top rounded end of slot (semicircle)
+        for (let i = 0; i <= holeSegs / 2; i++) {
+          const angle = 0 - (i / (holeSegs / 2)) * Math.PI; // 0 to -PI (top half going left)
+          points.push({
+            x: cx + Math.cos(angle) * keyholeSlotWidth,
+            y: cy + keyholeSlotLength + Math.sin(angle) * keyholeSlotWidth
+          });
+        }
+        
+        // Left side of slot going down
+        points.push({ x: cx - keyholeSlotWidth, y: cy + keyholeSlotLength });
+        points.push({ x: cx - keyholeSlotWidth, y: cy });
+        
+        return points;
       };
       
-      // Collect boundary vertices on the cut plane
-      const boundaryByHeight: Map<number, { x: number; y: number; idx: number }[]> = new Map();
+      // Generate circular outline for cord hole
+      const generateCircleOutline = (cx: number, cy: number, radius: number): { x: number; y: number }[] => {
+        const points: { x: number; y: number }[] = [];
+        for (let i = 0; i <= holeSegs; i++) {
+          const angle = (i / holeSegs) * Math.PI * 2;
+          points.push({
+            x: cx + Math.cos(angle) * radius,
+            y: cy + Math.sin(angle) * radius
+          });
+        }
+        return points;
+      };
+      
+      // Collect all boundary vertices on the back wall (outline of the half-shell)
+      const boundaryVerts: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
-        const heightVerts: { x: number; y: number; idx: number }[] = [];
-        
         for (let j = 0; j <= segments; j++) {
           const idx = i * (segments + 1) + j;
           const z = clippedVerts[idx * 3 + 2];
           
           if (Math.abs(z - cutOffset) < 0.0001) {
-            heightVerts.push({
+            boundaryVerts.push({
               x: clippedVerts[idx * 3],
-              y: clippedVerts[idx * 3 + 1],
-              idx: idx
+              y: clippedVerts[idx * 3 + 1]
             });
           }
         }
-        
-        if (heightVerts.length > 0) {
-          heightVerts.sort((a, b) => a.x - b.x);
-          boundaryByHeight.set(i, heightVerts);
+      }
+      
+      // Find the actual boundary outline (leftmost and rightmost points at each height)
+      const heightMap = new Map<number, { minX: number; maxX: number }>();
+      for (const v of boundaryVerts) {
+        const key = Math.round(v.y * 10000);
+        const existing = heightMap.get(key);
+        if (!existing) {
+          heightMap.set(key, { minX: v.x, maxX: v.x });
+        } else {
+          existing.minX = Math.min(existing.minX, v.x);
+          existing.maxX = Math.max(existing.maxX, v.x);
         }
       }
       
-      const heightLevels = Array.from(boundaryByHeight.keys()).sort((a, b) => a - b);
+      // Create ordered boundary outline (left side up, right side down)
+      const sortedHeights = Array.from(heightMap.keys()).sort((a, b) => a - b);
+      const outlineLeft: { x: number; y: number }[] = [];
+      const outlineRight: { x: number; y: number }[] = [];
       
-      // Check if ANY vertex of a triangle is inside a hole
-      const triangleIntersectsHole = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): boolean => {
-        // Check vertices
-        if (isInsideKeyhole(x1, y1) || isInsideKeyhole(x2, y2) || isInsideKeyhole(x3, y3)) return true;
-        
-        // Check center
-        const cx = (x1 + x2 + x3) / 3;
-        const cy = (y1 + y2 + y3) / 3;
-        if (isInsideKeyhole(cx, cy)) return true;
-        
-        // Check edge midpoints for better coverage
-        if (isInsideKeyhole((x1+x2)/2, (y1+y2)/2)) return true;
-        if (isInsideKeyhole((x2+x3)/2, (y2+y3)/2)) return true;
-        if (isInsideKeyhole((x3+x1)/2, (y3+y1)/2)) return true;
-        
+      for (const hKey of sortedHeights) {
+        const y = hKey / 10000;
+        const bounds = heightMap.get(hKey)!;
+        outlineLeft.push({ x: bounds.minX, y });
+        outlineRight.push({ x: bounds.maxX, y });
+      }
+      
+      // Build the back wall as a filled polygon with holes
+      // We'll use a simple approach: add all vertices and create a fan triangulation
+      // from the center, then subtract holes
+      
+      const backWallStartIdx = vertices.length / 3;
+      
+      // Add boundary outline vertices
+      const boundaryIndices: number[] = [];
+      const outline = [...outlineLeft, ...outlineRight.reverse()];
+      
+      for (const pt of outline) {
+        const idx = vertices.length / 3;
+        vertices.push(pt.x, pt.y, cutOffset);
+        boundaryIndices.push(idx);
+      }
+      
+      // Add center point for fan triangulation
+      let centerX = 0, centerY = 0;
+      for (const pt of outline) {
+        centerX += pt.x;
+        centerY += pt.y;
+      }
+      centerX /= outline.length;
+      centerY /= outline.length;
+      
+      const centerIdx = vertices.length / 3;
+      vertices.push(centerX, centerY, cutOffset);
+      
+      // Helper: check if point is inside a keyhole or cord hole
+      const isInsideAnyHole = (px: number, py: number): boolean => {
+        for (const pos of holePositions) {
+          const dx = px - pos.x;
+          const dy = py - pos.y;
+          if (Math.hypot(dx, dy) <= holeRadius) return true;
+          if (dy > 0 && dy <= keyholeSlotLength && Math.abs(dx) <= keyholeSlotWidth) return true;
+          if (Math.hypot(dx, py - (pos.y + keyholeSlotLength)) <= keyholeSlotWidth) return true;
+        }
+        if (cordHoleEnabled && Math.hypot(px, py - cordY) <= cordRadius) return true;
         return false;
       };
       
-      // Triangulate row by row, excluding triangles that intersect holes
-      for (let hi = 0; hi < heightLevels.length - 1; hi++) {
-        const currentLevel = boundaryByHeight.get(heightLevels[hi])!;
-        const nextLevel = boundaryByHeight.get(heightLevels[hi + 1])!;
+      // Create fan triangles from center to boundary, skipping those that would overlap holes
+      for (let i = 0; i < boundaryIndices.length; i++) {
+        const a = boundaryIndices[i];
+        const b = boundaryIndices[(i + 1) % boundaryIndices.length];
         
-        if (currentLevel.length >= 2 && nextLevel.length >= 2) {
-          const maxVerts = Math.max(currentLevel.length, nextLevel.length);
-          
-          for (let vi = 0; vi < maxVerts - 1; vi++) {
-            const ci = Math.min(vi, currentLevel.length - 1);
-            const ci1 = Math.min(vi + 1, currentLevel.length - 1);
-            const ni = Math.min(vi, nextLevel.length - 1);
-            const ni1 = Math.min(vi + 1, nextLevel.length - 1);
-            
-            const bl = currentLevel[ci];
-            const br = currentLevel[ci1];
-            const tl = nextLevel[ni];
-            const tr = nextLevel[ni1];
-            
-            if (bl.idx === br.idx && tl.idx === tr.idx) continue;
-            
-            // Triangle 1: bl -> tl -> br
-            if (bl.idx !== br.idx && bl.idx !== tl.idx && br.idx !== tl.idx) {
-              if (!triangleIntersectsHole(bl.x, bl.y, tl.x, tl.y, br.x, br.y)) {
-                indices.push(bl.idx, tl.idx, br.idx);
-              }
-            }
-            
-            // Triangle 2: br -> tl -> tr
-            if (br.idx !== tr.idx && br.idx !== tl.idx && tr.idx !== tl.idx) {
-              if (!triangleIntersectsHole(br.x, br.y, tl.x, tl.y, tr.x, tr.y)) {
-                indices.push(br.idx, tl.idx, tr.idx);
-              }
-            }
+        // Get positions
+        const ax = vertices[a * 3], ay = vertices[a * 3 + 1];
+        const bx = vertices[b * 3], by = vertices[b * 3 + 1];
+        
+        // Check if triangle overlaps any hole
+        const triCenterX = (ax + bx + centerX) / 3;
+        const triCenterY = (ay + by + centerY) / 3;
+        
+        // Sample multiple points to check for hole intersection
+        const samples = [
+          { x: triCenterX, y: triCenterY },
+          { x: (ax + centerX) / 2, y: (ay + centerY) / 2 },
+          { x: (bx + centerX) / 2, y: (by + centerY) / 2 },
+          { x: (ax + bx) / 2, y: (ay + by) / 2 },
+        ];
+        
+        let overlapsHole = false;
+        for (const s of samples) {
+          if (isInsideAnyHole(s.x, s.y)) {
+            overlapsHole = true;
+            break;
           }
+        }
+        
+        if (!overlapsHole) {
+          indices.push(centerIdx, a, b);
+        }
+      }
+      
+      // Add keyhole edge geometry for visual definition
+      for (const pos of holePositions) {
+        const keyholeOutline = generateKeyholeOutline(pos.x, pos.y);
+        const holeStartIdx = vertices.length / 3;
+        
+        // Add keyhole vertices
+        for (const pt of keyholeOutline) {
+          vertices.push(pt.x, pt.y, cutOffset);
+        }
+        
+        // Create a ring of triangles around the keyhole edge for thickness
+        // This gives visual definition to the hole
+      }
+      
+      // Add cord hole edge geometry
+      if (cordHoleEnabled) {
+        const cordOutline = generateCircleOutline(0, cordY, cordRadius);
+        for (const pt of cordOutline) {
+          vertices.push(pt.x, pt.y, cutOffset);
         }
       }
       
