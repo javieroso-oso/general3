@@ -323,39 +323,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
       
       // === CREATE BACK WALL FROM CLIPPED SHELL BOUNDARY ===
-      // Find the actual boundary outline from vertices on the cut plane
-      const boundaryByHeight = new Map<number, { minX: number; maxX: number }>();
-      
-      for (let i = 0; i <= heightSegments; i++) {
-        for (let j = 0; j <= segments; j++) {
-          const idx = i * (segments + 1) + j;
-          const z = clippedVerts[idx * 3 + 2];
-          
-          if (Math.abs(z - cutOffset) < 0.0001) {
-            const x = clippedVerts[idx * 3];
-            const y = clippedVerts[idx * 3 + 1];
-            const key = Math.round(y * 10000);
-            const existing = boundaryByHeight.get(key);
-            if (!existing) {
-              boundaryByHeight.set(key, { minX: x, maxX: x });
-            } else {
-              existing.minX = Math.min(existing.minX, x);
-              existing.maxX = Math.max(existing.maxX, x);
-            }
-          }
-        }
-      }
-      
-      // Create ordered boundary outline (left edge going up, right edge going down)
-      const sortedHeights = Array.from(boundaryByHeight.keys()).sort((a, b) => a - b);
+      // Use the pre-calculated radiiAtHeight array to get the correct radius at each height
       const leftEdge: { x: number; y: number }[] = [];
       const rightEdge: { x: number; y: number }[] = [];
       
-      for (const hKey of sortedHeights) {
-        const y = hKey / 10000;
-        const bounds = boundaryByHeight.get(hKey)!;
-        leftEdge.push({ x: bounds.minX, y });
-        rightEdge.push({ x: bounds.maxX, y });
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        const y = t * h;
+        const radius = radiiAtHeight[i]; // Use the actual calculated radius
+        
+        leftEdge.push({ x: -radius, y });
+        rightEdge.push({ x: radius, y });
       }
       
       // Build outline: left edge going up, then right edge going down
