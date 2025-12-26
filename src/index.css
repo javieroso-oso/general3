@@ -2,76 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Glass Morphism - Frosted Glass Design System */
+/* Monochrome Pro - Clean B&W with Single Accent */
 
 @layer base {
   :root {
-    /* Deep gradient background */
-    --background: 230 25% 8%;
-    --foreground: 220 20% 95%;
+    /* Pure dark background */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 96%;
 
-    /* Frosted glass cards */
-    --card: 230 25% 12%;
-    --card-foreground: 220 20% 95%;
+    /* Subtle gray cards */
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 230 25% 10%;
-    --popover-foreground: 220 20% 95%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 96%;
 
-    /* Soft violet-blue primary */
-    --primary: 250 80% 65%;
-    --primary-foreground: 0 0% 100%;
+    /* Electric cyan accent */
+    --primary: 180 100% 50%;
+    --primary-foreground: 0 0% 4%;
 
-    /* Teal secondary */
-    --secondary: 180 60% 50%;
-    --secondary-foreground: 0 0% 100%;
+    /* Neutral secondary */
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 96%;
 
-    /* Frosted muted surfaces */
-    --muted: 230 20% 18%;
-    --muted-foreground: 220 15% 65%;
+    /* Muted grays */
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
 
-    /* Soft pink accent */
-    --accent: 320 70% 65%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent matches primary */
+    --accent: 180 100% 50%;
+    --accent-foreground: 0 0% 4%;
 
-    --destructive: 0 70% 55%;
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Subtle glass borders */
-    --border: 230 20% 25%;
-    --input: 230 20% 20%;
-    --ring: 250 80% 65%;
+    /* Sharp borders */
+    --border: 0 0% 18%;
+    --input: 0 0% 12%;
+    --ring: 180 100% 50%;
 
-    --radius: 1rem;
+    --radius: 0.5rem;
 
-    /* Glass effect colors */
-    --glass-bg: 230 25% 15%;
-    --glass-border: 230 20% 35%;
-    --glass-highlight: 0 0% 100%;
+    /* Minimal shadows */
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
+    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.5);
+    --shadow-lg: 0 8px 24px hsl(0 0% 0% / 0.6);
     
-    /* Gradient palette */
-    --gradient-start: 250 80% 65%;
-    --gradient-mid: 280 70% 60%;
-    --gradient-end: 320 70% 65%;
-    
-    /* Glow effects */
-    --glow-primary: 0 0 40px hsl(250 80% 65% / 0.4);
-    --glow-accent: 0 0 40px hsl(320 70% 65% / 0.3);
-    --glow-teal: 0 0 40px hsl(180 60% 50% / 0.3);
-
-    /* Soft shadows */
-    --shadow-glass: 0 8px 32px hsl(230 50% 5% / 0.4);
-    --shadow-elevated: 0 20px 50px hsl(230 50% 5% / 0.5);
-    --shadow-soft: 0 4px 20px hsl(230 50% 5% / 0.3);
+    /* Accent glow */
+    --glow-accent: 0 0 20px hsl(180 100% 50% / 0.3);
     
     /* Sidebar */
-    --sidebar-background: 230 25% 10%;
-    --sidebar-foreground: 220 20% 95%;
-    --sidebar-primary: 250 80% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 230 20% 18%;
-    --sidebar-accent-foreground: 220 20% 95%;
-    --sidebar-border: 230 20% 25%;
-    --sidebar-ring: 250 80% 65%;
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 180 100% 50%;
+    --sidebar-primary-foreground: 0 0% 4%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 180 100% 50%;
   }
 }
 
@@ -82,11 +70,6 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background: linear-gradient(135deg, 
-      hsl(230 25% 8%) 0%, 
-      hsl(250 30% 12%) 50%, 
-      hsl(280 25% 10%) 100%);
-    min-height: 100vh;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -95,98 +78,64 @@
 }
 
 @layer components {
-  /* Frosted glass panel */
+  /* Clean panel */
   .workshop-panel {
-    @apply rounded-2xl border;
-    background: hsl(var(--glass-bg) / 0.6);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-color: hsl(var(--glass-border) / 0.5);
-    box-shadow: var(--shadow-glass),
-                inset 0 1px 0 hsl(var(--glass-highlight) / 0.05);
+    @apply bg-card rounded-lg border border-border;
+    box-shadow: var(--shadow-sm);
   }
   
   .workshop-panel:hover {
-    border-color: hsl(var(--glass-border) / 0.7);
-    box-shadow: var(--shadow-elevated),
-                inset 0 1px 0 hsl(var(--glass-highlight) / 0.08);
+    @apply border-muted-foreground/30;
   }
   
-  /* Glass control card */
+  /* Minimal control card */
   .control-card {
-    @apply text-card-foreground rounded-xl p-4 transition-all duration-300;
-    background: hsl(var(--glass-bg) / 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--glass-border) / 0.3);
-    box-shadow: var(--shadow-soft),
-                inset 0 1px 0 hsl(var(--glass-highlight) / 0.03);
+    @apply bg-card text-card-foreground rounded-lg border border-border p-4 transition-all duration-150;
   }
   
   .control-card:hover {
-    background: hsl(var(--glass-bg) / 0.5);
-    border-color: hsl(var(--primary) / 0.4);
-    box-shadow: var(--glow-primary),
-                var(--shadow-glass),
-                inset 0 1px 0 hsl(var(--glass-highlight) / 0.06);
-    transform: translateY(-2px);
+    @apply border-primary/50;
   }
   
-  /* Preset card with glass effect */
+  /* Clean preset card */
   .preset-card {
-    @apply rounded-xl p-3 cursor-pointer transition-all duration-300;
-    background: hsl(var(--muted) / 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid transparent;
+    @apply bg-muted rounded-md p-3 cursor-pointer transition-all duration-150 border border-transparent;
   }
   
   .preset-card:hover {
-    background: hsl(var(--glass-bg) / 0.6);
-    border-color: hsl(var(--primary) / 0.5);
-    box-shadow: var(--glow-primary);
-    transform: translateY(-2px);
+    @apply border-muted-foreground/30 bg-secondary;
   }
   
   .preset-card.active {
-    background: hsl(var(--primary) / 0.15);
-    border-color: hsl(var(--primary) / 0.6);
-    box-shadow: var(--glow-primary);
+    @apply border-primary bg-primary/10;
   }
   
-  /* Elegant label */
+  /* Sharp label */
   .label-text {
-    @apply text-xs font-medium text-muted-foreground uppercase tracking-widest;
+    @apply text-xs font-medium text-muted-foreground uppercase tracking-wider;
   }
   
   .value-display {
-    @apply font-mono text-sm font-semibold tabular-nums;
-    background: linear-gradient(135deg, hsl(var(--foreground)), hsl(var(--muted-foreground)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    @apply font-mono text-sm font-medium tabular-nums text-foreground;
   }
   
-  /* Modern slider */
+  /* Minimal slider */
   .slider-track {
-    @apply h-1.5 rounded-full;
-    background: hsl(var(--muted) / 0.6);
+    @apply bg-muted h-1 rounded-full;
   }
   
   .slider-thumb {
-    @apply w-4 h-4 rounded-full cursor-grab active:cursor-grabbing transition-all duration-200;
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-    box-shadow: var(--glow-primary);
+    @apply w-3 h-3 bg-primary rounded-full cursor-grab active:cursor-grabbing transition-transform duration-100;
   }
   
   .slider-thumb:hover {
     @apply scale-125;
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+    box-shadow: var(--glow-accent);
   }
   
-  /* Floating navigation */
+  /* Clean navigation */
   .nav-link {
-    @apply relative px-4 py-2 text-muted-foreground font-medium text-sm transition-all duration-300;
+    @apply relative px-3 py-2 text-muted-foreground font-medium text-sm transition-colors duration-150;
   }
   
   .nav-link:hover {
@@ -194,116 +143,66 @@
   }
   
   .nav-link.active {
-    @apply text-foreground;
+    @apply text-primary;
   }
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-2 right-2 h-0.5 rounded-full;
-    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
+    @apply absolute bottom-0 left-0 right-0 h-px bg-primary;
   }
   
-  /* Glass tab buttons */
+  /* Sharp tab buttons */
   .tab-button {
-    @apply px-5 py-2.5 font-medium text-muted-foreground transition-all duration-300 rounded-xl text-sm;
+    @apply px-4 py-2 font-medium text-muted-foreground transition-all duration-150 rounded-md text-sm;
   }
   
   .tab-button:hover {
-    @apply text-foreground;
-    background: hsl(var(--muted) / 0.5);
+    @apply text-foreground bg-muted;
   }
   
   .tab-button.active {
-    @apply text-primary-foreground;
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-    box-shadow: var(--glow-primary);
+    @apply bg-primary text-primary-foreground;
   }
   
-  /* Glowing icon button */
+  /* Minimal icon button */
   .icon-button {
-    @apply p-2.5 rounded-xl transition-all duration-300;
-    background: hsl(var(--muted) / 0.4);
-    backdrop-filter: blur(8px);
+    @apply p-2 bg-muted text-muted-foreground rounded-md transition-colors duration-150;
   }
   
   .icon-button:hover {
-    background: hsl(var(--primary) / 0.2);
-    color: hsl(var(--primary));
-    box-shadow: var(--glow-primary);
+    @apply bg-primary/20 text-primary;
   }
   
-  /* Gradient text */
+  /* Accent text */
   .gradient-text {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, 
-      hsl(var(--gradient-start)), 
-      hsl(var(--gradient-mid)), 
-      hsl(var(--gradient-end)));
+    @apply text-primary;
   }
   
-  /* Gradient border with glow */
+  /* Accent border */
   .gradient-border {
-    @apply relative rounded-2xl;
-    background: linear-gradient(135deg, 
-      hsl(var(--gradient-start)), 
-      hsl(var(--gradient-mid)), 
-      hsl(var(--gradient-end)));
-    padding: 1px;
+    @apply relative rounded-lg border border-primary;
   }
   
-  .gradient-border > * {
-    @apply rounded-[15px];
-    background: hsl(var(--card));
+  /* Clean badges */
+  .badge-primary {
+    @apply bg-primary/15 text-primary px-2 py-0.5 rounded text-xs font-medium;
   }
   
-  /* Glass badge variants */
-  .badge-blue {
-    @apply px-3 py-1 rounded-full text-xs font-semibold;
-    background: hsl(var(--primary) / 0.15);
-    color: hsl(var(--primary));
-    border: 1px solid hsl(var(--primary) / 0.3);
+  .badge-muted {
+    @apply bg-muted text-muted-foreground px-2 py-0.5 rounded text-xs font-medium;
   }
   
-  .badge-green {
-    @apply px-3 py-1 rounded-full text-xs font-semibold;
-    background: hsl(var(--secondary) / 0.15);
-    color: hsl(var(--secondary));
-    border: 1px solid hsl(var(--secondary) / 0.3);
+  /* Subtle button hover */
+  .button-lift {
+    @apply transition-all duration-150;
   }
   
-  .badge-pink {
-    @apply px-3 py-1 rounded-full text-xs font-semibold;
-    background: hsl(var(--accent) / 0.15);
-    color: hsl(var(--accent));
-    border: 1px solid hsl(var(--accent) / 0.3);
+  .button-lift:hover {
+    @apply opacity-90;
   }
   
-  /* Floating button with glow */
-  .button-glow {
-    @apply transition-all duration-300;
-  }
-  
-  .button-glow:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--glow-primary);
-  }
-  
-  .button-glow:active {
-    transform: translateY(0);
-  }
-  
-  /* Glass input */
-  .glass-input {
-    @apply rounded-xl px-4 py-2 transition-all duration-300;
-    background: hsl(var(--muted) / 0.4);
-    backdrop-filter: blur(8px);
-    border: 1px solid hsl(var(--border) / 0.5);
-  }
-  
-  .glass-input:focus {
-    border-color: hsl(var(--primary) / 0.6);
-    box-shadow: var(--glow-primary);
-    outline: none;
+  .button-lift:active {
+    @apply opacity-100;
   }
 }
 
@@ -312,32 +211,12 @@
     text-wrap: balance;
   }
   
-  /* Floating animation */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
   
   .animate-pulse-slow {
     animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  /* Subtle glow pulse */
-  .animate-glow {
-    animation: glow 3s ease-in-out infinite;
-  }
-  
-  /* Gradient mesh background */
-  .bg-gradient-mesh {
-    background: 
-      radial-gradient(at 20% 20%, hsl(var(--gradient-start) / 0.15) 0%, transparent 50%),
-      radial-gradient(at 80% 20%, hsl(var(--gradient-end) / 0.12) 0%, transparent 50%),
-      radial-gradient(at 50% 80%, hsl(var(--secondary) / 0.1) 0%, transparent 50%);
-  }
-  
-  /* Glass blur utility */
-  .glass-blur {
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
   }
 }
 
@@ -346,15 +225,6 @@
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes glow {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
+    transform: translateY(-6px);
   }
 }
