@@ -186,56 +186,57 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const indices: number[] = [];
 
     // Helper function to create keyhole geometry for visual rendering
+    // Keyhole shape: large circle at TOP (screw head entry), narrow slot going DOWN (to lock onto shaft)
     const createKeyholeVisual = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
       const segs = 32;
-      const headRadius = 5 * SCALE;    // 5mm head
-      const shaftWidth = 2.5 * SCALE;  // 2.5mm slot width
-      const slotLength = 10 * SCALE;   // 10mm slot length
-      const depth = 0.5 * SCALE;       // 0.5mm visual depth
+      const headRadius = 4 * SCALE;    // 8mm diameter head hole
+      const slotWidth = 2 * SCALE;     // 4mm wide slot for shaft
+      const slotLength = 8 * SCALE;    // 8mm slot length going down
+      const depth = 2 * SCALE;         // 2mm depth (goes through back wall)
       
-      // Create 2D keyhole shape
+      // Create 2D keyhole shape: circle at top, slot going down
       const shape = new THREE.Shape();
       
-      // Start at bottom of head circle
-      for (let i = 0; i <= segs / 2; i++) {
-        const angle = Math.PI + (i / (segs / 2)) * Math.PI;
-        const x = Math.cos(angle) * headRadius;
-        const y = Math.sin(angle) * headRadius;
-        if (i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
+      // Start at right side of circle, draw full circle clockwise
+      shape.moveTo(headRadius, 0);
+      for (let i = 1; i <= segs; i++) {
+        const angle = -(i / segs) * Math.PI * 2;
+        shape.lineTo(Math.cos(angle) * headRadius, Math.sin(angle) * headRadius);
       }
       
-      // Right side of slot
-      shape.lineTo(shaftWidth, 0);
-      shape.lineTo(shaftWidth, slotLength - shaftWidth);
+      // Now add the slot going DOWN from the circle
+      // Move to right edge at bottom of circle
+      shape.moveTo(slotWidth, -headRadius * 0.3);
+      shape.lineTo(slotWidth, -slotLength);
       
-      // Top of slot
-      for (let i = 0; i <= segs / 4; i++) {
-        const angle = 0 - (i / (segs / 4)) * Math.PI;
+      // Rounded bottom of slot
+      for (let i = 0; i <= segs / 2; i++) {
+        const angle = 0 - (i / (segs / 2)) * Math.PI;
         shape.lineTo(
-          Math.cos(angle) * shaftWidth,
-          slotLength - shaftWidth + Math.sin(angle) * shaftWidth + shaftWidth
+          Math.cos(angle) * slotWidth,
+          -slotLength + Math.sin(angle) * slotWidth
         );
       }
       
-      // Left side
-      shape.lineTo(-shaftWidth, slotLength - shaftWidth);
-      shape.lineTo(-shaftWidth, 0);
+      shape.lineTo(-slotWidth, -headRadius * 0.3);
       shape.closePath();
       
+      // Extrude to create 3D shape
       const geo = new THREE.ExtrudeGeometry(shape, {
         depth: depth,
         bevelEnabled: false,
       });
-      geo.translate(cx, cy, zPos);
+      
+      // Position: slightly in front of back wall so it's visible as a dark hole
+      geo.translate(cx, cy, zPos - depth);
       return geo;
     };
     
     // Helper to create circular hole visual
     const createCircleVisual = (cx: number, cy: number, radius: number, zPos: number): THREE.BufferGeometry => {
-      const geo = new THREE.CylinderGeometry(radius, radius, 0.5 * SCALE, 32);
+      const geo = new THREE.CylinderGeometry(radius, radius, 2 * SCALE, 32);
       geo.rotateX(Math.PI / 2);
-      geo.translate(cx, cy, zPos + 0.25 * SCALE);
+      geo.translate(cx, cy, zPos - 1 * SCALE);
       return geo;
     };
 
