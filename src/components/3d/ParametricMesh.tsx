@@ -7,8 +7,10 @@ import { generateLegsWithBase, generateBaseMountPlate, AttachmentParams } from '
 import { 
   validateBaseConfig, 
   getMinimumBodyRadius,
-  ValidationResult 
-} from '@/lib/base/validation';
+  ValidationResult,
+  composeBase,
+  BaseAssembly,
+} from '@/lib/base';
 import {
   SocketMountConfig,
   StandConfig,
@@ -648,6 +650,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     
     // Validate base configuration (log warnings to console for now)
     let validation: ValidationResult | null = null;
+    let baseAssembly: BaseAssembly | null = null;
+    
     if (addLegs) {
       validation = validateBaseConfig(
         effectiveBaseRadius,
@@ -666,50 +670,72 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     }
     
     let standGeo: THREE.BufferGeometry | null = null;
-    if (addLegs && params.standType === 'tripod') {
-      // Use existing tripod generator with effective base radius
-      const attachmentParamsForLegGen: AttachmentParams = {
-        attachmentType: params.attachmentType as AttachmentParams['attachmentType'],
-        screwCount: params.screwCount,
-        baseRadius: params.baseRadius,
-      };
-      
-      const legGeoMM = generateLegsWithBase(
+    
+    // Use new clean base system for tripod and weighted disc
+    if (addLegs && (params.standType === 'tripod' || params.standType === 'weighted_disc')) {
+      // Attempt to use new composer first
+      baseAssembly = composeBase(
         effectiveBaseRadius,
-        params.legCount,
-        params.legHeight,
-        params.legSpread,
-        params.legThickness,
-        params.legTaper,
-        params.legInset,
-        params.standBaseThickness || 3,
-        {
-          wobbleFrequency,
-          wobbleAmplitude,
-          rippleCount,
-          rippleDepth,
-          asymmetry,
-          organicNoise,
-          noiseScale,
-        },
-        {
-          wallThickness: params.wallThickness,
-          cordHoleEnabled: params.cordHoleEnabled,
-          cordHoleDiameter: params.cordHoleDiameter,
-          centeringLipEnabled: params.centeringLipEnabled,
-          centeringLipHeight: params.centeringLipHeight,
-          socketType: params.socketType,
-        },
-        attachmentParamsForLegGen,
-        {
-          thickness: params.standBaseThickness,
-          taper: params.standBaseTaper,
-          edgeStyle: params.standBaseEdgeStyle,
-          lip: params.standBaseLip,
-        }
+        params.height,
+        socketConfig,
+        standConfig,
+        connectorConfig
       );
-      legGeoMM.scale(SCALE, SCALE, SCALE);
-      standGeo = legGeoMM;
+      
+      if (baseAssembly.success && baseAssembly.geometry) {
+        // Scale from mm to scene units
+        baseAssembly.geometry.scale(SCALE, SCALE, SCALE);
+        standGeo = baseAssembly.geometry;
+        console.log('[Base Composer] Successfully generated base with new system');
+      } else {
+        // Fallback to legacy generator if new system fails
+        console.warn('[Base Composer] Falling back to legacy generator:', baseAssembly?.error);
+        
+        if (params.standType === 'tripod') {
+          const attachmentParamsForLegGen: AttachmentParams = {
+            attachmentType: params.attachmentType as AttachmentParams['attachmentType'],
+            screwCount: params.screwCount,
+            baseRadius: params.baseRadius,
+          };
+          
+          const legGeoMM = generateLegsWithBase(
+            effectiveBaseRadius,
+            params.legCount,
+            params.legHeight,
+            params.legSpread,
+            params.legThickness,
+            params.legTaper,
+            params.legInset,
+            params.standBaseThickness || 3,
+            {
+              wobbleFrequency,
+              wobbleAmplitude,
+              rippleCount,
+              rippleDepth,
+              asymmetry,
+              organicNoise,
+              noiseScale,
+            },
+            {
+              wallThickness: params.wallThickness,
+              cordHoleEnabled: params.cordHoleEnabled,
+              cordHoleDiameter: params.cordHoleDiameter,
+              centeringLipEnabled: params.centeringLipEnabled,
+              centeringLipHeight: params.centeringLipHeight,
+              socketType: params.socketType,
+            },
+            attachmentParamsForLegGen,
+            {
+              thickness: params.standBaseThickness,
+              taper: params.standBaseTaper,
+              edgeStyle: params.standBaseEdgeStyle,
+              lip: params.standBaseLip,
+            }
+          );
+          legGeoMM.scale(SCALE, SCALE, SCALE);
+          standGeo = legGeoMM;
+        }
+      }
     } else if (addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'base') {
       // Base mount with keyholes - a flat plate with mounting holes facing down
       const baseMountGeoMM = generateBaseMountPlate(
