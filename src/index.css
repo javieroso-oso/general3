@@ -2,64 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Monochrome Pro - Clean B&W with Single Accent */
+/* Nordic Minimal - Soft Neutrals, Warm Light Theme */
 
 @layer base {
   :root {
-    /* Pure dark background */
-    --background: 0 0% 4%;
-    --foreground: 0 0% 96%;
+    /* Warm off-white background */
+    --background: 40 30% 97%;
+    --foreground: 30 10% 15%;
 
-    /* Subtle gray cards */
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 96%;
+    /* Soft warm cards */
+    --card: 40 25% 99%;
+    --card-foreground: 30 10% 15%;
 
-    --popover: 0 0% 6%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 40 25% 99%;
+    --popover-foreground: 30 10% 15%;
 
-    /* Electric cyan accent */
-    --primary: 180 100% 50%;
-    --primary-foreground: 0 0% 4%;
+    /* Warm terracotta primary */
+    --primary: 18 70% 55%;
+    --primary-foreground: 40 30% 98%;
 
-    /* Neutral secondary */
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 96%;
+    /* Sage green secondary */
+    --secondary: 150 20% 88%;
+    --secondary-foreground: 150 25% 25%;
 
-    /* Muted grays */
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 55%;
+    /* Warm muted tones */
+    --muted: 35 20% 93%;
+    --muted-foreground: 30 10% 45%;
 
-    /* Accent matches primary */
-    --accent: 180 100% 50%;
-    --accent-foreground: 0 0% 4%;
+    /* Dusty rose accent */
+    --accent: 350 35% 75%;
+    --accent-foreground: 350 40% 25%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 55% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Sharp borders */
-    --border: 0 0% 18%;
-    --input: 0 0% 12%;
-    --ring: 180 100% 50%;
+    /* Soft warm borders */
+    --border: 35 15% 88%;
+    --input: 35 15% 90%;
+    --ring: 18 70% 55%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* Minimal shadows */
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
-    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.5);
-    --shadow-lg: 0 8px 24px hsl(0 0% 0% / 0.6);
-    
-    /* Accent glow */
-    --glow-accent: 0 0 20px hsl(180 100% 50% / 0.3);
+    /* Diffused shadows */
+    --shadow-soft: 0 2px 8px hsl(30 20% 20% / 0.04);
+    --shadow-md: 0 4px 16px hsl(30 20% 20% / 0.06);
+    --shadow-lg: 0 8px 32px hsl(30 20% 20% / 0.08);
     
     /* Sidebar */
-    --sidebar-background: 0 0% 6%;
-    --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 180 100% 50%;
-    --sidebar-primary-foreground: 0 0% 4%;
-    --sidebar-accent: 0 0% 12%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 18%;
-    --sidebar-ring: 180 100% 50%;
+    --sidebar-background: 40 25% 98%;
+    --sidebar-foreground: 30 10% 15%;
+    --sidebar-primary: 18 70% 55%;
+    --sidebar-primary-foreground: 40 30% 98%;
+    --sidebar-accent: 35 20% 94%;
+    --sidebar-accent-foreground: 30 10% 15%;
+    --sidebar-border: 35 15% 88%;
+    --sidebar-ring: 18 70% 55%;
   }
 }
 
@@ -78,64 +75,66 @@
 }
 
 @layer components {
-  /* Clean panel */
+  /* Airy panel */
   .workshop-panel {
-    @apply bg-card rounded-lg border border-border;
-    box-shadow: var(--shadow-sm);
+    @apply bg-card rounded-xl border border-border;
+    box-shadow: var(--shadow-soft);
   }
   
   .workshop-panel:hover {
-    @apply border-muted-foreground/30;
+    box-shadow: var(--shadow-md);
   }
   
-  /* Minimal control card */
+  /* Soft control card */
   .control-card {
-    @apply bg-card text-card-foreground rounded-lg border border-border p-4 transition-all duration-150;
+    @apply bg-card text-card-foreground rounded-xl border border-border p-5 transition-all duration-200;
+    box-shadow: var(--shadow-soft);
   }
   
   .control-card:hover {
-    @apply border-primary/50;
+    @apply border-primary/30;
+    box-shadow: var(--shadow-md);
   }
   
-  /* Clean preset card */
+  /* Warm preset card */
   .preset-card {
-    @apply bg-muted rounded-md p-3 cursor-pointer transition-all duration-150 border border-transparent;
+    @apply bg-muted rounded-lg p-3 cursor-pointer transition-all duration-200 border-2 border-transparent;
   }
   
   .preset-card:hover {
-    @apply border-muted-foreground/30 bg-secondary;
+    @apply bg-secondary border-secondary;
   }
   
   .preset-card.active {
-    @apply border-primary bg-primary/10;
+    @apply bg-primary/10 border-primary;
   }
   
-  /* Sharp label */
+  /* Gentle label */
   .label-text {
-    @apply text-xs font-medium text-muted-foreground uppercase tracking-wider;
+    @apply text-xs font-medium text-muted-foreground uppercase tracking-wide;
   }
   
   .value-display {
-    @apply font-mono text-sm font-medium tabular-nums text-foreground;
+    @apply font-mono text-sm font-semibold tabular-nums text-foreground;
   }
   
-  /* Minimal slider */
+  /* Soft slider */
   .slider-track {
-    @apply bg-muted h-1 rounded-full;
+    @apply bg-muted h-2 rounded-full;
   }
   
   .slider-thumb {
-    @apply w-3 h-3 bg-primary rounded-full cursor-grab active:cursor-grabbing transition-transform duration-100;
+    @apply w-5 h-5 bg-primary rounded-full cursor-grab active:cursor-grabbing transition-transform duration-150;
+    box-shadow: var(--shadow-md);
   }
   
   .slider-thumb:hover {
-    @apply scale-125;
-    box-shadow: var(--glow-accent);
+    @apply scale-110;
   }
   
-  /* Clean navigation */
+  /* Warm navigation */
   .nav-link {
-    @apply relative px-3 py-2 text-muted-foreground font-medium text-sm transition-colors duration-150;
+    @apply relative px-4 py-2 text-muted-foreground font-medium text-sm transition-colors duration-200;
   }
   
   .nav-link:hover {
@@ -143,17 +142,17 @@
   }
   
   .nav-link.active {
-    @apply text-primary;
+    @apply text-primary font-semibold;
   }
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-0 right-0 h-px bg-primary;
+    @apply absolute bottom-0 left-3 right-3 h-0.5 bg-primary rounded-full;
   }
   
-  /* Sharp tab buttons */
+  /* Rounded tab buttons */
   .tab-button {
-    @apply px-4 py-2 font-medium text-muted-foreground transition-all duration-150 rounded-md text-sm;
+    @apply px-5 py-2.5 font-medium text-muted-foreground transition-all duration-200 rounded-full text-sm;
   }
   
   .tab-button:hover {
@@ -162,47 +161,53 @@
   
   .tab-button.active {
     @apply bg-primary text-primary-foreground;
+    box-shadow: var(--shadow-md);
   }
   
-  /* Minimal icon button */
+  /* Soft icon button */
   .icon-button {
-    @apply p-2 bg-muted text-muted-foreground rounded-md transition-colors duration-150;
+    @apply p-2.5 bg-muted text-muted-foreground rounded-lg transition-all duration-200;
   }
   
   .icon-button:hover {
-    @apply bg-primary/20 text-primary;
+    @apply bg-primary text-primary-foreground;
   }
   
-  /* Accent text */
+  /* Warm gradient text */
   .gradient-text {
     @apply text-primary;
   }
   
-  /* Accent border */
+  /* Warm accent border */
   .gradient-border {
-    @apply relative rounded-lg border border-primary;
+    @apply relative rounded-xl border-2 border-primary/30;
   }
   
-  /* Clean badges */
+  /* Soft badges */
   .badge-primary {
-    @apply bg-primary/15 text-primary px-2 py-0.5 rounded text-xs font-medium;
+    @apply bg-primary/15 text-primary px-3 py-1 rounded-full text-xs font-medium;
   }
   
-  .badge-muted {
-    @apply bg-muted text-muted-foreground px-2 py-0.5 rounded text-xs font-medium;
+  .badge-secondary {
+    @apply bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-xs font-medium;
   }
   
-  /* Subtle button hover */
+  .badge-accent {
+    @apply bg-accent/30 text-accent-foreground px-3 py-1 rounded-full text-xs font-medium;
+  }
+  
+  /* Gentle button hover */
   .button-lift {
-    @apply transition-all duration-150;
+    @apply transition-all duration-200;
   }
   
   .button-lift:hover {
-    @apply opacity-90;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
   }
   
   .button-lift:active {
-    @apply opacity-100;
+    transform: translateY(0);
   }
 }
 
@@ -212,11 +217,11 @@
   }
   
   .animate-float {
-    animation: float 6s ease-in-out infinite;
+    animation: float 8s ease-in-out infinite;
   }
   
   .animate-pulse-slow {
-    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulse 5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
 
@@ -225,6 +230,6 @@
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-6px);
+    transform: translateY(-4px);
   }
 }
