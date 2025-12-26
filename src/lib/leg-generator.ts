@@ -30,7 +30,7 @@ export interface SocketParams {
  * Attachment parameters for body-to-stand connection
  */
 export interface AttachmentParams {
-  attachmentType: 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
+  attachmentType: 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet' | 'press_fit';
   screwCount: 3 | 4;
   baseRadius: number;      // mm - for calculating hole positions
 }

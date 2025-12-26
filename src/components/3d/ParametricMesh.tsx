@@ -1,9 +1,20 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints, AttachmentType } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
-import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
+import { generateLegsWithBase, generateBaseMountPlate, AttachmentParams } from '@/lib/leg-generator';
+import { 
+  validateBaseConfig, 
+  getMinimumBodyRadius,
+  ValidationResult 
+} from '@/lib/base/validation';
+import {
+  SocketMountConfig,
+  StandConfig,
+  ConnectorConfig,
+  SOCKET_THREAD_DIAMETERS,
+} from '@/lib/base/types';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -586,9 +597,83 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         break;
     }
     
+    // Build validation configs from params
+    // Note: We always use press-fit-ring for validation even if centering lip disabled
+    // This ensures socket dimensions are checked for compatibility
+    const socketConfig: SocketMountConfig = {
+      type: 'press-fit-ring',
+      socketType: params.socketType,
+      clearance: 0.5,
+      lipHeight: params.centeringLipEnabled ? (params.centeringLipHeight || 3) : 0,
+      cordHoleEnabled: params.cordHoleEnabled,
+      cordHoleDiameter: params.cordHoleDiameter,
+    };
+    
+    const standConfig: StandConfig = {
+      type: params.standType === 'tripod' ? 'tripod' : 
+            params.standType === 'weighted_disc' ? 'weighted-disc' : 'wall-mount',
+      tripod: params.standType === 'tripod' ? {
+        legCount: params.legCount,
+        legHeight: params.legHeight,
+        legSpread: params.legSpread,
+        legThickness: params.legThickness,
+        legTaper: params.legTaper,
+        legInset: params.legInset,
+      } : undefined,
+      weightedDisc: params.standType === 'weighted_disc' ? {
+        discDiameter: (params.standBaseRadius || effectiveBaseRadius) * 2,
+        discThickness: params.standBaseThickness || 8,
+        weightCavityEnabled: true,
+        weightCavityDiameter: ((params.standBaseRadius || effectiveBaseRadius) * 2) * 0.6,
+        weightCavityDepth: (params.standBaseThickness || 8) - 2,
+        rubberFeetEnabled: true,
+        rubberFeetCount: 3,
+        rubberFeetDiameter: 10,
+      } : undefined,
+      baseThickness: params.standBaseThickness || 3,
+      baseTaper: params.standBaseTaper || 0,
+      baseEdgeStyle: params.standBaseEdgeStyle || 'flat',
+      baseLip: params.standBaseLip || 0,
+    };
+    
+    const connectorConfig: ConnectorConfig = {
+      type: params.attachmentType === 'integrated' ? 'integrated' :
+            params.attachmentType === 'press_fit' ? 'press-fit' :
+            params.attachmentType === 'bayonet' ? 'bayonet' :
+            params.attachmentType === 'screw_m3' ? 'screw-m3' : 'screw-m4',
+      tolerance: 0.3,
+      insertDepth: 5,
+      screwCount: params.screwCount,
+    };
+    
+    // Validate base configuration (log warnings to console for now)
+    let validation: ValidationResult | null = null;
+    if (addLegs) {
+      validation = validateBaseConfig(
+        effectiveBaseRadius,
+        params.height,
+        socketConfig,
+        standConfig,
+        connectorConfig
+      );
+      
+      if (validation.warnings.length > 0) {
+        console.log('[Base Validation] Warnings:', validation.warnings);
+      }
+      if (!validation.isValid) {
+        console.warn('[Base Validation] Errors:', validation.errors);
+      }
+    }
+    
     let standGeo: THREE.BufferGeometry | null = null;
     if (addLegs && params.standType === 'tripod') {
       // Use existing tripod generator with effective base radius
+      const attachmentParamsForLegGen: AttachmentParams = {
+        attachmentType: params.attachmentType as AttachmentParams['attachmentType'],
+        screwCount: params.screwCount,
+        baseRadius: params.baseRadius,
+      };
+      
       const legGeoMM = generateLegsWithBase(
         effectiveBaseRadius,
         params.legCount,
@@ -615,11 +700,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           centeringLipHeight: params.centeringLipHeight,
           socketType: params.socketType,
         },
-        {
-          attachmentType: params.attachmentType,
-          screwCount: params.screwCount,
-          baseRadius: params.baseRadius,
-        },
+        attachmentParamsForLegGen,
         {
           thickness: params.standBaseThickness,
           taper: params.standBaseTaper,
