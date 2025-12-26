@@ -322,103 +322,105 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE BACK WALL FROM CLIPPED SHELL BOUNDARY ===
-      // Find actual edge vertices where body meets cut plane
-      const filletRadius = params.wallMountFilletRadius || 0;
-      const filletSegments = filletRadius > 0 ? 4 : 0; // Number of fillet curve segments
+      // === CREATE BACK WALL FROM ACTUAL BODY INTERSECTION ===
+      // The problem: when we clip vertices with z < cutOffset to z = cutOffset,
+      // they keep their original X positions which are TOO WIDE.
+      // Solution: Calculate where the actual body surface intersects the cut plane.
       
-      // For each height, find the leftmost and rightmost vertices AT the cut plane
-      const edgeByHeight = new Map<number, { leftX: number; rightX: number; leftIdx: number; rightIdx: number }>();
+      const filletRadius = (params.wallMountFilletRadius || 0) * SCALE;
+      const filletSegments = filletRadius > 0 ? 6 : 0;
       
-      for (let i = 0; i <= heightSegments; i++) {
-        let leftX = Infinity, rightX = -Infinity;
-        let leftIdx = -1, rightIdx = -1;
-        
-        for (let j = 0; j <= segments; j++) {
-          const idx = i * (segments + 1) + j;
-          const x = clippedVerts[idx * 3];
-          const z = clippedVerts[idx * 3 + 2];
-          
-          // Only consider vertices that are exactly at the cut plane (the edge)
-          if (Math.abs(z - cutOffset) < 0.01) {
-            if (x < leftX) { leftX = x; leftIdx = idx; }
-            if (x > rightX) { rightX = x; rightIdx = idx; }
-          }
-        }
-        
-        if (leftIdx !== -1 && rightIdx !== -1) {
-          edgeByHeight.set(i, { leftX, rightX, leftIdx, rightIdx });
-        }
-      }
-      
-      // Build left and right edge points from actual edge vertices
+      // For each height level, find the actual intersection of the body with the cut plane
       const leftEdge: { x: number; y: number }[] = [];
       const rightEdge: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         const y = t * h;
-        const edge = edgeByHeight.get(i);
         
-        if (edge) {
-          leftEdge.push({ x: edge.leftX, y });
-          rightEdge.push({ x: edge.rightX, y });
+        // Find where the body actually intersects z = cutOffset at this height
+        // We need to find the angle where r * cos(theta) = cutOffset
+        // Then x = r * sin(theta)
+        
+        let leftX = 0, rightX = 0;
+        let foundIntersection = false;
+        
+        // Scan through angles to find the intersection points
+        for (let j = 0; j < segments; j++) {
+          const idx1 = i * (segments + 1) + j;
+          const idx2 = i * (segments + 1) + j + 1;
+          
+          const x1 = outerVerts[idx1 * 3];
+          const z1 = outerVerts[idx1 * 3 + 2];
+          const x2 = outerVerts[idx2 * 3];
+          const z2 = outerVerts[idx2 * 3 + 2];
+          
+          // Check if the cut plane crosses between these two vertices
+          if ((z1 >= cutOffset && z2 < cutOffset) || (z1 < cutOffset && z2 >= cutOffset)) {
+            // Interpolate to find exact intersection point
+            const tInterp = (cutOffset - z1) / (z2 - z1);
+            const xIntersect = x1 + tInterp * (x2 - x1);
+            
+            if (xIntersect < 0) {
+              leftX = xIntersect;
+            } else {
+              rightX = xIntersect;
+            }
+            foundIntersection = true;
+          }
         }
-      }
-      
-      if (leftEdge.length === 0 || rightEdge.length === 0) {
-        // Fallback: use radius calculation if no edge vertices found
-        for (let i = 0; i <= heightSegments; i++) {
-          const t = i / heightSegments;
-          const y = t * h;
+        
+        // If no intersection found (body doesn't reach cut plane), use radius calculation
+        if (!foundIntersection) {
           const radius = radiiAtHeight[i] || bRad;
           const rSquared = radius * radius;
           const zSquared = cutOffset * cutOffset;
           
           if (rSquared > zSquared) {
             const xBoundary = Math.sqrt(rSquared - zSquared);
-            leftEdge.push({ x: -xBoundary, y });
-            rightEdge.push({ x: xBoundary, y });
+            leftX = -xBoundary;
+            rightX = xBoundary;
+            foundIntersection = true;
           }
+        }
+        
+        if (foundIntersection && Math.abs(rightX - leftX) > 0.001) {
+          leftEdge.push({ x: leftX, y });
+          rightEdge.push({ x: rightX, y });
         }
       }
       
       // === CREATE FILLET GEOMETRY (if enabled) ===
-      if (filletRadius > 0 && leftEdge.length > 0) {
-        // Create fillet strip vertices between edge and back wall
-        const filletVerts: number[] = [];
-        const filletIndices: number[] = [];
+      if (filletRadius > 0 && leftEdge.length > 1) {
         const filletStartIdx = vertices.length / 3;
         
-        // For each height level, create fillet curve points
+        // For each height level, create fillet curve from edge toward back wall
         for (let i = 0; i < leftEdge.length; i++) {
           const leftPt = leftEdge[i];
           const rightPt = rightEdge[i];
           
-          // Left side fillet (curve from edge toward center)
+          // Left side fillet: curves from (leftX, cutOffset) inward to (leftX + filletR, cutOffset - filletR)
+          // Actually curves from body edge to back wall
           for (let f = 0; f <= filletSegments; f++) {
             const angle = (f / filletSegments) * (Math.PI / 2);
-            const dx = filletRadius * (1 - Math.cos(angle));
-            const dz = filletRadius * Math.sin(angle);
-            filletVerts.push(leftPt.x + dx, leftPt.y, cutOffset + dz);
+            // Start at the body edge (x = leftX, z = cutOffset + some offset for curve start)
+            // End at back wall (x = leftX + filletRadius, z = cutOffset)
+            const dx = filletRadius * Math.sin(angle);
+            const dz = filletRadius * (1 - Math.cos(angle));
+            vertices.push(leftPt.x + dx, leftPt.y, cutOffset + dz);
           }
           
-          // Right side fillet (curve from edge toward center)
+          // Right side fillet
           for (let f = 0; f <= filletSegments; f++) {
             const angle = (f / filletSegments) * (Math.PI / 2);
-            const dx = filletRadius * (1 - Math.cos(angle));
-            const dz = filletRadius * Math.sin(angle);
-            filletVerts.push(rightPt.x - dx, rightPt.y, cutOffset + dz);
+            const dx = filletRadius * Math.sin(angle);
+            const dz = filletRadius * (1 - Math.cos(angle));
+            vertices.push(rightPt.x - dx, rightPt.y, cutOffset + dz);
           }
-        }
-        
-        // Add fillet vertices
-        for (let v = 0; v < filletVerts.length; v += 3) {
-          vertices.push(filletVerts[v], filletVerts[v + 1], filletVerts[v + 2]);
         }
         
         // Create fillet strip faces
-        const pointsPerRow = (filletSegments + 1) * 2; // left + right fillet points
+        const pointsPerRow = (filletSegments + 1) * 2;
         for (let i = 0; i < leftEdge.length - 1; i++) {
           // Left fillet strip
           for (let f = 0; f < filletSegments; f++) {
@@ -441,37 +443,42 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
             indices.push(b, d, c);
           }
         }
+        
+        // Adjust edge points for back wall (inset by fillet radius)
+        for (let i = 0; i < leftEdge.length; i++) {
+          leftEdge[i].x += filletRadius;
+          rightEdge[i].x -= filletRadius;
+        }
       }
       
-      // Build outline for back wall: left edge going up, then right edge going down
-      // Offset the back wall inward by fillet radius
-      const backWallLeft = leftEdge.map(pt => ({ x: pt.x + filletRadius, y: pt.y }));
-      const backWallRight = rightEdge.map(pt => ({ x: pt.x - filletRadius, y: pt.y }));
-      const outline = [...backWallLeft, ...backWallRight.reverse()];
+      // Build outline for back wall
+      const outline = [...leftEdge, ...rightEdge.reverse()];
       
-      // Add back wall vertices
-      const backWallStartIdx = vertices.length / 3;
-      for (const pt of outline) {
-        vertices.push(pt.x, pt.y, cutOffset);
-      }
-      
-      // Add center point for fan triangulation
-      let centerX = 0, centerY = 0;
-      for (const pt of outline) {
-        centerX += pt.x;
-        centerY += pt.y;
-      }
-      centerX /= outline.length;
-      centerY /= outline.length;
-      
-      const centerIdx = vertices.length / 3;
-      vertices.push(centerX, centerY, cutOffset);
-      
-      // Create fan triangles from center to boundary
-      for (let i = 0; i < outline.length; i++) {
-        const a = backWallStartIdx + i;
-        const b = backWallStartIdx + ((i + 1) % outline.length);
-        indices.push(centerIdx, a, b);
+      if (outline.length >= 3) {
+        // Add back wall vertices
+        const backWallStartIdx = vertices.length / 3;
+        for (const pt of outline) {
+          vertices.push(pt.x, pt.y, cutOffset);
+        }
+        
+        // Add center point for fan triangulation
+        let centerX = 0, centerY = 0;
+        for (const pt of outline) {
+          centerX += pt.x;
+          centerY += pt.y;
+        }
+        centerX /= outline.length;
+        centerY /= outline.length;
+        
+        const centerIdx = vertices.length / 3;
+        vertices.push(centerX, centerY, cutOffset);
+        
+        // Create fan triangles from center to boundary
+        for (let i = 0; i < outline.length; i++) {
+          const a = backWallStartIdx + i;
+          const b = backWallStartIdx + ((i + 1) % outline.length);
+          indices.push(centerIdx, a, b);
+        }
       }
       
     } else {
