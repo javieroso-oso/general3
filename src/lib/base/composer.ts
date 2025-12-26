@@ -102,7 +102,8 @@ export function composeBase(
     }
 
     // 2b: Generate stand (tripod legs, weighted disc, etc.)
-    const standGeometry = generateStand(standConfig, bodyBottomRadius);
+    // Pass bodyBottomRadius as both the base radius and body bottom for transition geometry
+    const standGeometry = generateStand(standConfig, bodyBottomRadius, bodyBottomRadius);
     if (standGeometry && standGeometry.attributes.position?.count > 0) {
       geometries.push(standGeometry);
     }
