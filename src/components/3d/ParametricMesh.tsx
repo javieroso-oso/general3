@@ -323,48 +323,31 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
       
       // === CREATE BACK WALL FROM CLIPPED SHELL BOUNDARY ===
-      // Scan actual clipped vertices at the cut plane to get the real boundary
-      // (includes all deformations: wobble, ripple, asymmetry, organic noise)
-      const boundaryByHeight = new Map<number, { minX: number; maxX: number }>();
-      
-      for (let i = 0; i <= heightSegments; i++) {
-        for (let j = 0; j <= segments; j++) {
-          const idx = i * (segments + 1) + j;
-          const x = clippedVerts[idx * 3];
-          const y = clippedVerts[idx * 3 + 1];
-          const z = clippedVerts[idx * 3 + 2];
-          
-          // Only consider vertices that are AT the cut plane (z = cutOffset)
-          if (Math.abs(z - cutOffset) < 0.001) {
-            // Use height segment index as key for reliable ordering
-            const existing = boundaryByHeight.get(i);
-            if (!existing) {
-              boundaryByHeight.set(i, { minX: x, maxX: x });
-            } else {
-              existing.minX = Math.min(existing.minX, x);
-              existing.maxX = Math.max(existing.maxX, x);
-            }
-          }
-        }
-      }
-      
-      // Build left and right edges from actual clipped boundary
+      // Calculate the correct X boundary at the cut plane using geometry:
+      // For a circular cross-section with radius r, the intersection with plane z = cutOffset
+      // gives x = ±sqrt(r² - cutOffset²)
       const leftEdge: { x: number; y: number }[] = [];
       const rightEdge: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         const y = t * h;
-        const bounds = boundaryByHeight.get(i);
+        const radius = radiiAtHeight[i];
         
-        if (bounds) {
-          leftEdge.push({ x: bounds.minX, y });
-          rightEdge.push({ x: bounds.maxX, y });
+        // Calculate the correct X at the intersection with z = cutOffset
+        // x² + z² = r² => x = sqrt(r² - z²)
+        const rSquared = radius * radius;
+        const zSquared = cutOffset * cutOffset;
+        
+        if (rSquared > zSquared) {
+          // Body extends past the cut plane - calculate intersection
+          const xBoundary = Math.sqrt(rSquared - zSquared);
+          leftEdge.push({ x: -xBoundary, y });
+          rightEdge.push({ x: xBoundary, y });
         } else {
-          // Fallback to radiiAtHeight if no clipped vertices found at this height
-          const radius = radiiAtHeight[i];
-          leftEdge.push({ x: -radius, y });
-          rightEdge.push({ x: radius, y });
+          // Body doesn't reach the cut plane at this height - use small value
+          leftEdge.push({ x: -0.001, y });
+          rightEdge.push({ x: 0.001, y });
         }
       }
       
