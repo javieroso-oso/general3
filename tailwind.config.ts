@@ -14,9 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
-        display: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Inter", "system-ui", "sans-serif"],
+        mono: ["SF Mono", "JetBrains Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -90,12 +90,10 @@ export default {
         none: "0",
       },
       boxShadow: {
-        glass: "var(--shadow-glass)",
-        elevated: "var(--shadow-elevated)",
-        soft: "var(--shadow-soft)",
-        glow: "var(--glow-primary)",
-        "glow-accent": "var(--glow-accent)",
-        "glow-teal": "var(--glow-teal)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        glow: "var(--glow-accent)",
       },
       keyframes: {
         "accordion-down": {
