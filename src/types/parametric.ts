@@ -1,12 +1,18 @@
 export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 
 // Stand types - different structural support options
-export type StandType = 'tripod' | 'wall_mount';
+export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
 // Wall mount options (simplified - no separate plate needed)
 
 // Attachment types for body-to-stand connection
-export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet';
+export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet' | 'press_fit';
+
+// Socket mount types for light source
+export type SocketMountType = 'press-fit-ring' | 'led-puck' | 'led-strip' | 'none';
+
+// Bulb socket types
+export type BulbSocketType = 'E26' | 'E12' | 'E14' | 'GU10';
 
 // Screw specifications for M3 and M4
 export const SCREW_SPECS = {
@@ -34,6 +40,14 @@ export const BAYONET_SPECS = {
   slotLength: 8,            // mm - L-slot vertical portion
   slotWidth: 5.5,           // mm - slot width (tab width + clearance)
   rotationAngle: 30,        // degrees - how far to twist to lock
+};
+
+// Socket thread diameters in mm
+export const SOCKET_THREAD_DIAMETERS: Record<BulbSocketType, number> = {
+  E26: 26,
+  E12: 12,
+  E14: 14,
+  GU10: 35,
 };
 
 export interface ParametricParams {
