@@ -1127,42 +1127,202 @@ export function generateLegs(
 }
 
 /**
- * Generate a base plate with keyholes for wall mounting from base
- * This is like the tripod base but without legs and with keyholes on the bottom
+ * Generate a simple flat base plate with keyhole slots for wall mounting
+ * This is a SIMPLE flat plate - no socket, no centering lip, just flat with keyholes
  */
 export function generateBaseMountPlate(
   baseRadius: number,      // mm - radius of the base disc
-  baseThickness: number = 3, // mm - thickness of the base disc
+  baseThickness: number = 5, // mm - thickness of the base disc
   holeCount: 2 | 3 | 4 = 2,  // number of keyholes
   organicParams?: OrganicParams,
-  socketParams?: SocketParams,
-  attachmentParams?: AttachmentParams,
+  _socketParams?: SocketParams,    // Ignored - base mount doesn't use socket features
+  _attachmentParams?: AttachmentParams,  // Ignored
   pedestalParams?: PedestalParams
 ): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
+  const segments = 64;
+  const vertices: number[] = [];
+  const indices: number[] = [];
   
-  // Use pedestal thickness if provided
-  const effectiveThickness = pedestalParams?.thickness ?? baseThickness;
+  // Use pedestal thickness if provided, minimum 5mm for structural integrity
+  const thickness = Math.max(pedestalParams?.thickness ?? baseThickness, 5);
+  const taper = pedestalParams?.taper ?? 0;
+  const edgeStyle = pedestalParams?.edgeStyle ?? 'flat';
+  const edgeLip = pedestalParams?.lip ?? 0;
   
-  // Create the base disc (same as tripod but no legs)
-  const discGeo = createBaseDiscWithSocket(baseRadius, effectiveThickness, organicParams, socketParams, attachmentParams, pedestalParams);
-  geometries.push(discGeo);
+  // Calculate tapered radius at bottom
+  const bottomRadius = baseRadius * (1 - taper);
   
-  // Add keyholes to the bottom of the base plate (facing -Y direction)
-  // These are visual representations - they face downward for mounting to ceiling/wall from below
-  const keyholeGeo = createBaseMountKeyholes(baseRadius, baseThickness, holeCount);
-  if (keyholeGeo) {
-    geometries.push(keyholeGeo);
+  // Organic deformation functions
+  const getOuterRadius = (theta: number) => calculateDeformedRadius(theta, baseRadius, organicParams);
+  const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
+  
+  // Edge styling
+  const chamferSize = edgeStyle === 'chamfer' ? Math.min(thickness * 0.3, 3) : 0;
+  const roundedRadius = edgeStyle === 'rounded' ? Math.min(thickness * 0.4, 4) : 0;
+  const roundedSegments = 6;
+  
+  // === TOP SURFACE ===
+  const topY = edgeLip > 0 ? edgeLip : 0;
+  
+  // Top center
+  const topCenterIdx = vertices.length / 3;
+  vertices.push(0, topY, 0);
+  
+  if (edgeLip > 0) {
+    const lipWall = 2;
+    
+    // Lip outer ring
+    const lipOuterStart = vertices.length / 3;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const r = getOuterRadius(theta);
+      vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+    }
+    
+    // Lip inner ring at top
+    const lipInnerTopStart = vertices.length / 3;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const r = getOuterRadius(theta) - lipWall;
+      vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+    }
+    
+    // Lip top face
+    for (let i = 0; i < segments; i++) {
+      indices.push(lipOuterStart + i, lipInnerTopStart + i, lipOuterStart + i + 1);
+      indices.push(lipOuterStart + i + 1, lipInnerTopStart + i, lipInnerTopStart + i + 1);
+    }
+    
+    // Lip inner wall
+    const lipInnerBottomStart = vertices.length / 3;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const r = getOuterRadius(theta) - lipWall;
+      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+    }
+    
+    for (let i = 0; i < segments; i++) {
+      indices.push(lipInnerTopStart + i, lipInnerBottomStart + i, lipInnerTopStart + i + 1);
+      indices.push(lipInnerTopStart + i + 1, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
+    }
+    
+    // Top face (from center to lip inner)
+    vertices[topCenterIdx * 3 + 1] = 0; // Adjust center to y=0
+    for (let i = 0; i < segments; i++) {
+      indices.push(topCenterIdx, lipInnerBottomStart + i + 1, lipInnerBottomStart + i);
+    }
+    
+    // Outer wall top reference
+    var wallTopStart = lipOuterStart;
+  } else {
+    // No lip - simple top surface
+    const topOuterStart = vertices.length / 3;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const r = getOuterRadius(theta);
+      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+    }
+    
+    // Top face
+    for (let i = 0; i < segments; i++) {
+      indices.push(topCenterIdx, topOuterStart + i + 1, topOuterStart + i);
+    }
+    
+    var wallTopStart = topOuterStart;
   }
   
-  return mergeGeometries(geometries);
+  // === BOTTOM SURFACE ===
+  const bottomCenterIdx = vertices.length / 3;
+  vertices.push(0, -thickness, 0);
+  
+  const bottomOuterStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    const r = getBottomRadius(theta);
+    vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+  }
+  
+  // Bottom face
+  for (let i = 0; i < segments; i++) {
+    indices.push(bottomCenterIdx, bottomOuterStart + i, bottomOuterStart + i + 1);
+  }
+  
+  // === SIDE WALL WITH EDGE PROFILE ===
+  if (edgeStyle === 'chamfer' && chamferSize > 0) {
+    const chamferStart = vertices.length / 3;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const topR = getOuterRadius(theta);
+      vertices.push(Math.cos(theta) * (topR - chamferSize * 0.5), -chamferSize, Math.sin(theta) * (topR - chamferSize * 0.5));
+    }
+    
+    for (let i = 0; i < segments; i++) {
+      indices.push(wallTopStart + i, wallTopStart + i + 1, chamferStart + i);
+      indices.push(chamferStart + i, wallTopStart + i + 1, chamferStart + i + 1);
+    }
+    
+    for (let i = 0; i < segments; i++) {
+      indices.push(chamferStart + i, chamferStart + i + 1, bottomOuterStart + i);
+      indices.push(bottomOuterStart + i, chamferStart + i + 1, bottomOuterStart + i + 1);
+    }
+  } else if (edgeStyle === 'rounded' && roundedRadius > 0) {
+    let prevRingStart = wallTopStart;
+    
+    for (let r = 1; r <= roundedSegments; r++) {
+      const t = r / roundedSegments;
+      const angle = t * Math.PI / 2;
+      const yOffset = -roundedRadius * (1 - Math.cos(angle));
+      const rOffset = roundedRadius * (1 - Math.sin(angle));
+      
+      const ringStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const topR = getOuterRadius(theta);
+        const botR = getBottomRadius(theta);
+        const blendT = Math.min(1, (-yOffset) / thickness);
+        const baseR = topR + (botR - topR) * blendT;
+        vertices.push(Math.cos(theta) * (baseR - rOffset), yOffset, Math.sin(theta) * (baseR - rOffset));
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(prevRingStart + i, prevRingStart + i + 1, ringStart + i);
+        indices.push(ringStart + i, prevRingStart + i + 1, ringStart + i + 1);
+      }
+      prevRingStart = ringStart;
+    }
+    
+    for (let i = 0; i < segments; i++) {
+      indices.push(prevRingStart + i, prevRingStart + i + 1, bottomOuterStart + i);
+      indices.push(bottomOuterStart + i, prevRingStart + i + 1, bottomOuterStart + i + 1);
+    }
+  } else {
+    // Flat edge with taper
+    for (let i = 0; i < segments; i++) {
+      indices.push(wallTopStart + i, wallTopStart + i + 1, bottomOuterStart + i);
+      indices.push(bottomOuterStart + i, wallTopStart + i + 1, bottomOuterStart + i + 1);
+    }
+  }
+  
+  const baseGeo = new THREE.BufferGeometry();
+  baseGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  baseGeo.setIndex(indices);
+  baseGeo.computeVertexNormals();
+  
+  // Create keyhole slot geometries
+  const keyholeGeo = createSimpleKeyholes(baseRadius, thickness, holeCount);
+  
+  if (keyholeGeo) {
+    return mergeGeometries([baseGeo, keyholeGeo]);
+  }
+  
+  return baseGeo;
 }
 
 /**
- * Create keyhole geometries on the bottom of a base plate
- * Keyholes face downward (-Y) for mounting to surfaces from below
+ * Create simple keyhole slot geometries on the bottom of base plate
+ * These are dark visual indicators showing where to drill/route keyholes
  */
-function createBaseMountKeyholes(
+function createSimpleKeyholes(
   baseRadius: number,
   baseThickness: number,
   holeCount: 2 | 3 | 4
@@ -1171,7 +1331,6 @@ function createBaseMountKeyholes(
   const keyholeRadius = 4;     // 8mm diameter head hole
   const slotWidth = 2;         // 4mm wide slot
   const slotLength = 8;        // 8mm slot length
-  const depth = baseThickness; // Goes through the base
   
   const geometries: THREE.BufferGeometry[] = [];
   
@@ -1204,28 +1363,7 @@ function createBaseMountKeyholes(
   
   // Create each keyhole as a dark visual indicator on the bottom
   for (const pos of holePositions) {
-    // Create keyhole shape: circle + slot
-    const shape = new THREE.Shape();
-    
-    // Circle
-    shape.moveTo(keyholeRadius, 0);
-    for (let i = 1; i <= segments; i++) {
-      const a = (i / segments) * Math.PI * 2;
-      shape.lineTo(Math.cos(a) * keyholeRadius, Math.sin(a) * keyholeRadius);
-    }
-    
-    // Slot going outward (away from center)
-    const slotShape = new THREE.Shape();
-    slotShape.moveTo(slotWidth, keyholeRadius * 0.3);
-    slotShape.lineTo(slotWidth, slotLength);
-    for (let i = 0; i <= segments / 4; i++) {
-      const a = (i / (segments / 4)) * Math.PI;
-      slotShape.lineTo(Math.cos(a) * slotWidth, slotLength + Math.sin(a) * slotWidth);
-    }
-    slotShape.lineTo(-slotWidth, keyholeRadius * 0.3);
-    slotShape.closePath();
-    
-    // Combine into one shape
+    // Combine circle + slot into one shape
     const combinedShape = new THREE.Shape();
     combinedShape.moveTo(slotWidth, keyholeRadius * 0.3);
     combinedShape.lineTo(slotWidth, slotLength);
@@ -1242,13 +1380,13 @@ function createBaseMountKeyholes(
     combinedShape.closePath();
     
     const geo = new THREE.ExtrudeGeometry(combinedShape, {
-      depth: depth * 0.8,
+      depth: 2, // Just 2mm deep visual indicator
       bevelEnabled: false,
     });
     
     // Rotate to face downward (-Y) and position
-    geo.rotateX(Math.PI / 2); // Now facing down
-    geo.rotateY(pos.angle);   // Orient toward center
+    geo.rotateX(Math.PI / 2);
+    geo.rotateY(pos.angle);
     geo.translate(pos.x, -baseThickness, pos.z);
     
     geometries.push(geo);

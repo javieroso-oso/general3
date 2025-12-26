@@ -285,28 +285,71 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     if (isWallMount) {
       // Wall mount: clip at z = cutOffset, create proper back wall
       
-      // Calculate keyhole positions
+      // === SMART KEYHOLE POSITIONING ===
+      // Minimum dimensions for keyholes
+      const KEYHOLE_HEIGHT = 12 * SCALE;     // 12mm keyhole visual height
+      const KEYHOLE_MIN_MARGIN = 10 * SCALE; // 10mm minimum from edge
+      const KEYHOLE_MIN_SPACING = 25 * SCALE; // 25mm minimum between holes
+      
       const holeCount = params.wallMountHoleCount || 2;
       const holeMargin = params.wallMountHoleMargin || 0.15;
-      const marginY = h * holeMargin;
       const holePositions: { x: number; y: number }[] = [];
       
-      if (holeCount === 2) {
-        holePositions.push({ x: 0, y: marginY });
-        holePositions.push({ x: 0, y: h - marginY });
-      } else if (holeCount === 3) {
-        holePositions.push({ x: 0, y: h - marginY });
-        const bottomSpread = bRad * 0.4;
-        holePositions.push({ x: -bottomSpread, y: marginY });
-        holePositions.push({ x: bottomSpread, y: marginY });
-      } else {
-        const topSpread = tRad * 0.35;
-        const bottomSpread = bRad * 0.35;
-        holePositions.push({ x: -topSpread, y: h - marginY });
-        holePositions.push({ x: topSpread, y: h - marginY });
-        holePositions.push({ x: -bottomSpread, y: marginY });
-        holePositions.push({ x: bottomSpread, y: marginY });
+      // Calculate available height for keyholes
+      const availableHeight = h - 2 * KEYHOLE_MIN_MARGIN;
+      
+      if (availableHeight >= KEYHOLE_HEIGHT) {
+        // We have room for at least one keyhole
+        const marginY = Math.max(h * holeMargin, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
+        const topMarginY = Math.max(h * holeMargin, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
+        
+        if (holeCount === 2 && availableHeight >= KEYHOLE_MIN_SPACING + KEYHOLE_HEIGHT) {
+          // Two vertical holes only if there's enough spacing
+          const bottomY = Math.max(marginY, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
+          const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
+          
+          if (topY - bottomY >= KEYHOLE_MIN_SPACING) {
+            holePositions.push({ x: 0, y: bottomY });
+            holePositions.push({ x: 0, y: topY });
+          } else {
+            // Not enough vertical space, use single centered hole
+            holePositions.push({ x: 0, y: h / 2 });
+          }
+        } else if (holeCount === 3 && availableHeight >= KEYHOLE_MIN_SPACING) {
+          const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
+          holePositions.push({ x: 0, y: topY });
+          
+          // Bottom two holes spread horizontally
+          const bottomSpread = Math.min(bRad * 0.4, bRad - 5 * SCALE);
+          const bottomY = Math.max(marginY, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
+          if (bottomSpread > 5 * SCALE) {
+            holePositions.push({ x: -bottomSpread, y: bottomY });
+            holePositions.push({ x: bottomSpread, y: bottomY });
+          } else {
+            holePositions.push({ x: 0, y: bottomY });
+          }
+        } else if (holeCount >= 4 && availableHeight >= KEYHOLE_MIN_SPACING) {
+          const topSpread = Math.min(tRad * 0.35, tRad - 5 * SCALE);
+          const bottomSpread = Math.min(bRad * 0.35, bRad - 5 * SCALE);
+          const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
+          const bottomY = Math.max(marginY, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
+          
+          if (topSpread > 5 * SCALE && bottomSpread > 5 * SCALE && topY - bottomY >= KEYHOLE_MIN_SPACING) {
+            holePositions.push({ x: -topSpread, y: topY });
+            holePositions.push({ x: topSpread, y: topY });
+            holePositions.push({ x: -bottomSpread, y: bottomY });
+            holePositions.push({ x: bottomSpread, y: bottomY });
+          } else {
+            // Fallback to 2 holes
+            holePositions.push({ x: 0, y: bottomY });
+            holePositions.push({ x: 0, y: topY });
+          }
+        } else {
+          // Single centered hole for short pieces
+          holePositions.push({ x: 0, y: h / 2 });
+        }
       }
+      // If availableHeight < KEYHOLE_HEIGHT, no holes are added (piece too short)
       
       // Create visual keyhole geometries
       for (const pos of holePositions) {
@@ -362,28 +405,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
       
       // === CREATE BACK WALL FROM ACTUAL BODY INTERSECTION ===
-      // The problem: when we clip vertices with z < cutOffset to z = cutOffset,
-      // they keep their original X positions which are TOO WIDE.
-      // Solution: Calculate where the actual body surface intersects the cut plane.
+      // Scan ALL intersections and use leftmost/rightmost for asymmetric shapes
       
-      // Removed fillet - was broken and not useful
-      
-      // For each height level, find the actual intersection of the body with the cut plane
-      const leftEdge: { x: number; y: number }[] = [];
-      const rightEdge: { x: number; y: number }[] = [];
+      const edgePoints: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         const y = t * h;
         
-        // Find where the body actually intersects z = cutOffset at this height
-        // We need to find the angle where r * cos(theta) = cutOffset
-        // Then x = r * sin(theta)
+        // Collect ALL intersection points at this height level
+        const intersections: number[] = [];
         
-        let leftX = 0, rightX = 0;
-        let foundIntersection = false;
-        
-        // Scan through angles to find the intersection points
+        // Scan through all angles to find all intersections with cut plane
         for (let j = 0; j < segments; j++) {
           const idx1 = i * (segments + 1) + j;
           const idx2 = i * (segments + 1) + j + 1;
@@ -398,33 +431,63 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
             // Interpolate to find exact intersection point
             const tInterp = (cutOffset - z1) / (z2 - z1);
             const xIntersect = x1 + tInterp * (x2 - x1);
-            
-            if (xIntersect < 0) {
-              leftX = xIntersect;
-            } else {
-              rightX = xIntersect;
-            }
-            foundIntersection = true;
+            intersections.push(xIntersect);
           }
         }
         
-        // If no intersection found (body doesn't reach cut plane), use radius calculation
-        if (!foundIntersection) {
+        // If we found intersections, use leftmost and rightmost
+        if (intersections.length >= 2) {
+          intersections.sort((a, b) => a - b);
+          const leftX = intersections[0];
+          const rightX = intersections[intersections.length - 1];
+          
+          if (Math.abs(rightX - leftX) > 0.001) {
+            edgePoints.push({ x: leftX, y });
+            edgePoints.push({ x: rightX, y });
+          }
+        } else if (intersections.length === 1) {
+          // Single intersection - use center point on other side
+          edgePoints.push({ x: intersections[0], y });
+          edgePoints.push({ x: 0, y }); // Center fallback
+        } else {
+          // No intersection found - fallback to radius calculation
           const radius = radiiAtHeight[i] || bRad;
           const rSquared = radius * radius;
           const zSquared = cutOffset * cutOffset;
           
           if (rSquared > zSquared) {
             const xBoundary = Math.sqrt(rSquared - zSquared);
-            leftX = -xBoundary;
-            rightX = xBoundary;
-            foundIntersection = true;
+            edgePoints.push({ x: -xBoundary, y });
+            edgePoints.push({ x: xBoundary, y });
           }
         }
+      }
+      
+      // Sort all edge points and create left/right edges
+      const leftEdge: { x: number; y: number }[] = [];
+      const rightEdge: { x: number; y: number }[] = [];
+      
+      // Group by Y and take min/max X for each height
+      const pointsByY = new Map<number, number[]>();
+      for (const pt of edgePoints) {
+        const yKey = Math.round(pt.y * 1000); // Round to avoid floating point issues
+        if (!pointsByY.has(yKey)) {
+          pointsByY.set(yKey, []);
+        }
+        pointsByY.get(yKey)!.push(pt.x);
+      }
+      
+      // Convert to sorted arrays
+      const sortedYKeys = Array.from(pointsByY.keys()).sort((a, b) => a - b);
+      for (const yKey of sortedYKeys) {
+        const xValues = pointsByY.get(yKey)!;
+        const y = yKey / 1000;
+        const minX = Math.min(...xValues);
+        const maxX = Math.max(...xValues);
         
-        if (foundIntersection && Math.abs(rightX - leftX) > 0.001) {
-          leftEdge.push({ x: leftX, y });
-          rightEdge.push({ x: rightX, y });
+        if (Math.abs(maxX - minX) > 0.001) {
+          leftEdge.push({ x: minX, y });
+          rightEdge.push({ x: maxX, y });
         }
       }
       
