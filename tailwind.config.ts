@@ -63,14 +63,11 @@ export default {
           muted: "hsl(var(--text-muted))",
         },
         "accent-gold": {
-          DEFAULT: "hsl(var(--accent-gold))",
-          light: "hsl(var(--accent-gold-light))",
-          dark: "hsl(var(--accent-gold-dark))",
+          DEFAULT: "hsl(var(--bauhaus-yellow))",
         },
-        "accent-teal": {
-          DEFAULT: "hsl(var(--accent-teal))",
-          light: "hsl(var(--accent-teal-light))",
-          dark: "hsl(var(--accent-teal-dark))",
+        "bauhaus-yellow": {
+          DEFAULT: "hsl(var(--bauhaus-yellow))",
+          foreground: "hsl(var(--bauhaus-yellow-foreground))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
@@ -92,7 +89,9 @@ export default {
       boxShadow: {
         brutal: "var(--shadow-brutal)",
         "brutal-sm": "var(--shadow-brutal-sm)",
-        "brutal-accent": "var(--shadow-brutal-accent)",
+        blue: "var(--shadow-blue)",
+        red: "var(--shadow-red)",
+        yellow: "var(--shadow-yellow)",
         soft: "var(--shadow-soft)",
       },
       keyframes: {

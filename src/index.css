@@ -2,62 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Soft Brutalism - Bold Structure, Refined Execution */
+/* Bauhaus Brutalism - Bold Primary Colors, Geometric Structure */
 
 @layer base {
   :root {
-    /* Warm off-white background */
-    --background: 45 30% 96%;
-    --foreground: 30 5% 12%;
+    /* Clean off-white background */
+    --background: 45 20% 96%;
+    --foreground: 0 0% 8%;
 
-    /* Crisp white cards */
+    /* Pure white cards */
     --card: 0 0% 100%;
-    --card-foreground: 30 5% 12%;
+    --card-foreground: 0 0% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 30 5% 12%;
+    --popover-foreground: 0 0% 8%;
 
-    /* Deep charcoal primary */
-    --primary: 30 5% 12%;
-    --primary-foreground: 45 30% 96%;
+    /* Bauhaus Blue primary */
+    --primary: 220 85% 45%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Warm stone secondary */
-    --secondary: 40 15% 90%;
-    --secondary-foreground: 30 5% 20%;
+    /* Light gray secondary */
+    --secondary: 45 10% 92%;
+    --secondary-foreground: 0 0% 15%;
 
     /* Soft muted */
-    --muted: 40 10% 92%;
-    --muted-foreground: 30 5% 45%;
+    --muted: 45 8% 90%;
+    --muted-foreground: 0 0% 40%;
 
-    /* Brick red accent */
-    --accent: 12 70% 55%;
+    /* Bauhaus Red accent */
+    --accent: 5 85% 50%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 65% 50%;
+    /* Bauhaus Yellow */
+    --bauhaus-yellow: 48 95% 55%;
+    --bauhaus-yellow-foreground: 0 0% 8%;
+
+    --destructive: 5 85% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Strong borders */
-    --border: 30 10% 82%;
-    --input: 40 10% 88%;
-    --ring: 30 5% 12%;
+    /* Strong black borders */
+    --border: 0 0% 75%;
+    --input: 45 8% 88%;
+    --ring: 220 85% 45%;
 
-    --radius: 0.25rem;
+    --radius: 0;
 
-    /* Hard offset shadows */
-    --shadow-brutal: 4px 4px 0 hsl(30 5% 12%);
-    --shadow-brutal-sm: 2px 2px 0 hsl(30 5% 12%);
-    --shadow-brutal-accent: 4px 4px 0 hsl(12 70% 55%);
-    --shadow-soft: 0 2px 8px hsl(30 10% 20% / 0.08);
+    /* Hard offset shadows with color options */
+    --shadow-brutal: 4px 4px 0 hsl(0 0% 8%);
+    --shadow-brutal-sm: 2px 2px 0 hsl(0 0% 8%);
+    --shadow-blue: 4px 4px 0 hsl(220 85% 45%);
+    --shadow-red: 4px 4px 0 hsl(5 85% 50%);
+    --shadow-yellow: 4px 4px 0 hsl(48 95% 55%);
+    --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.06);
     
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 30 5% 12%;
-    --sidebar-primary: 30 5% 12%;
-    --sidebar-primary-foreground: 45 30% 96%;
-    --sidebar-accent: 40 15% 92%;
-    --sidebar-accent-foreground: 30 5% 12%;
-    --sidebar-border: 30 10% 82%;
-    --sidebar-ring: 30 5% 12%;
+    --sidebar-foreground: 0 0% 8%;
+    --sidebar-primary: 220 85% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 45 10% 94%;
+    --sidebar-accent-foreground: 0 0% 8%;
+    --sidebar-border: 0 0% 75%;
+    --sidebar-ring: 220 85% 45%;
   }
 }
 
@@ -76,24 +82,24 @@
 }
 
 @layer components {
-  /* Brutalist panel */
+  /* Bauhaus panel */
   .workshop-panel {
     @apply bg-card rounded-none border-2 border-foreground;
     box-shadow: var(--shadow-brutal);
   }
   
   .workshop-panel:hover {
-    box-shadow: var(--shadow-brutal-accent);
+    box-shadow: var(--shadow-blue);
   }
   
-  /* Strong control card */
+  /* Color-accented control card */
   .control-card {
     @apply bg-card text-card-foreground rounded-none border-2 border-foreground p-4 transition-all duration-150;
     box-shadow: var(--shadow-brutal-sm);
   }
   
   .control-card:hover {
-    box-shadow: var(--shadow-brutal);
+    box-shadow: var(--shadow-blue);
     transform: translate(-2px, -2px);
   }
   
@@ -119,25 +125,27 @@
   }
   
   .value-display {
-    @apply font-mono text-sm font-bold tabular-nums text-foreground;
+    @apply font-mono text-sm font-bold tabular-nums text-primary;
   }
   
-  /* Chunky slider */
+  /* Bauhaus slider */
   .slider-track {
-    @apply bg-secondary h-3 rounded-none border-2 border-foreground;
+    @apply h-3 rounded-none border-2 border-foreground;
+    background: hsl(var(--bauhaus-yellow));
   }
   
   .slider-thumb {
-    @apply w-5 h-5 bg-accent rounded-none border-2 border-foreground cursor-grab active:cursor-grabbing transition-transform duration-100;
+    @apply w-5 h-5 bg-primary rounded-none border-2 border-foreground cursor-grab active:cursor-grabbing transition-transform duration-100;
     box-shadow: var(--shadow-brutal-sm);
   }
   
   .slider-thumb:hover {
+    @apply bg-accent;
     transform: translate(-1px, -1px);
     box-shadow: var(--shadow-brutal);
   }
   
-  /* Bold navigation */
+  /* Bold navigation with color underline */
   .nav-link {
     @apply relative px-4 py-2 text-muted-foreground font-semibold text-sm uppercase tracking-wide transition-colors duration-150;
   }
@@ -152,56 +160,63 @@
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-2 right-2 h-1 bg-accent;
+    @apply absolute bottom-0 left-2 right-2 h-1;
+    background: hsl(var(--bauhaus-yellow));
   }
   
-  /* Blocky tab buttons */
+  /* Bauhaus tab buttons */
   .tab-button {
-    @apply px-5 py-2.5 font-bold text-muted-foreground transition-all duration-150 rounded-none text-sm uppercase tracking-wide;
+    @apply px-5 py-2.5 font-bold text-muted-foreground transition-all duration-150 rounded-none text-sm uppercase tracking-wide border-2 border-transparent;
   }
   
   .tab-button:hover {
-    @apply text-foreground bg-secondary;
+    @apply text-foreground bg-secondary border-foreground;
   }
   
   .tab-button.active {
-    @apply bg-foreground text-background border-2 border-foreground;
+    @apply bg-primary text-primary-foreground border-foreground;
     box-shadow: var(--shadow-brutal-sm);
   }
   
-  /* Strong icon button */
+  /* Colorful icon button */
   .icon-button {
     @apply p-2.5 bg-secondary text-foreground rounded-none border-2 border-foreground transition-all duration-150;
   }
   
   .icon-button:hover {
-    @apply bg-accent text-accent-foreground;
+    background: hsl(var(--bauhaus-yellow));
     box-shadow: var(--shadow-brutal-sm);
     transform: translate(-1px, -1px);
   }
   
-  /* Bold text */
+  /* Bauhaus text */
   .gradient-text {
-    @apply text-accent font-bold;
+    @apply text-primary font-bold;
   }
   
-  /* Strong border */
+  /* Color block border */
   .gradient-border {
     @apply relative rounded-none border-2 border-foreground;
-    box-shadow: var(--shadow-brutal);
+    box-shadow: var(--shadow-blue);
   }
   
-  /* Bold badges */
-  .badge-primary {
-    @apply bg-foreground text-background px-3 py-1 rounded-none text-xs font-bold uppercase;
+  /* Bauhaus badges */
+  .badge-blue {
+    @apply bg-primary text-primary-foreground px-3 py-1 rounded-none text-xs font-bold uppercase;
   }
   
-  .badge-secondary {
-    @apply bg-secondary text-foreground px-3 py-1 rounded-none text-xs font-bold uppercase border border-foreground;
-  }
-  
-  .badge-accent {
+  .badge-red {
     @apply bg-accent text-accent-foreground px-3 py-1 rounded-none text-xs font-bold uppercase;
+  }
+  
+  .badge-yellow {
+    @apply px-3 py-1 rounded-none text-xs font-bold uppercase;
+    background: hsl(var(--bauhaus-yellow));
+    color: hsl(var(--bauhaus-yellow-foreground));
+  }
+  
+  .badge-black {
+    @apply bg-foreground text-background px-3 py-1 rounded-none text-xs font-bold uppercase;
   }
   
   /* Brutal button hover */
@@ -218,6 +233,19 @@
     transform: translate(0, 0);
     box-shadow: none;
   }
+  
+  /* Bauhaus color blocks */
+  .block-blue {
+    @apply bg-primary;
+  }
+  
+  .block-red {
+    @apply bg-accent;
+  }
+  
+  .block-yellow {
+    background: hsl(var(--bauhaus-yellow));
+  }
 }
 
 @layer utilities {
@@ -231,6 +259,19 @@
   
   .animate-pulse-slow {
     animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Bauhaus yellow utilities */
+  .text-bauhaus-yellow {
+    color: hsl(var(--bauhaus-yellow));
+  }
+  
+  .bg-bauhaus-yellow {
+    background: hsl(var(--bauhaus-yellow));
+  }
+  
+  .border-bauhaus-yellow {
+    border-color: hsl(var(--bauhaus-yellow));
   }
 }
 
