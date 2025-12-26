@@ -145,10 +145,11 @@ function calculateDeformedRadius(
     r += Math.sin(theta * rippleCount) * maxRipple * baseRadius;
   }
   
-  // Asymmetry
+  // Asymmetry - now uses full value without cap
   if (asymmetry > 0) {
-    const maxAsym = Math.min(asymmetry, 0.1);
-    r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * baseRadius;
+    const primaryWave = Math.sin(theta) * Math.cos(t * Math.PI) * asymmetry * baseRadius;
+    const secondaryWave = Math.sin(theta * 2 + t * Math.PI * 3) * asymmetry * 0.3 * baseRadius;
+    r += primaryWave + secondaryWave;
   }
   
   // Organic noise
@@ -866,6 +867,134 @@ export function generateLegs(
     geometries.push(legGeo);
   }
   
+  return mergeGeometries(geometries);
+}
+
+/**
+ * Generate a base plate with keyholes for wall mounting from base
+ * This is like the tripod base but without legs and with keyholes on the bottom
+ */
+export function generateBaseMountPlate(
+  baseRadius: number,      // mm - radius of the base disc
+  baseThickness: number = 3, // mm - thickness of the base disc
+  holeCount: 2 | 3 | 4 = 2,  // number of keyholes
+  organicParams?: OrganicParams,
+  socketParams?: SocketParams,
+  attachmentParams?: AttachmentParams
+): THREE.BufferGeometry {
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // Create the base disc (same as tripod but no legs)
+  const discGeo = createBaseDiscWithSocket(baseRadius, baseThickness, organicParams, socketParams, attachmentParams);
+  geometries.push(discGeo);
+  
+  // Add keyholes to the bottom of the base plate (facing -Y direction)
+  // These are visual representations - they face downward for mounting to ceiling/wall from below
+  const keyholeGeo = createBaseMountKeyholes(baseRadius, baseThickness, holeCount);
+  if (keyholeGeo) {
+    geometries.push(keyholeGeo);
+  }
+  
+  return mergeGeometries(geometries);
+}
+
+/**
+ * Create keyhole geometries on the bottom of a base plate
+ * Keyholes face downward (-Y) for mounting to surfaces from below
+ */
+function createBaseMountKeyholes(
+  baseRadius: number,
+  baseThickness: number,
+  holeCount: 2 | 3 | 4
+): THREE.BufferGeometry | null {
+  const segments = 32;
+  const keyholeRadius = 4;     // 8mm diameter head hole
+  const slotWidth = 2;         // 4mm wide slot
+  const slotLength = 8;        // 8mm slot length
+  const depth = baseThickness; // Goes through the base
+  
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // Position keyholes based on count
+  const holePositions: { x: number; z: number; angle: number }[] = [];
+  const mountRadius = baseRadius * 0.6;
+  
+  if (holeCount === 2) {
+    holePositions.push({ x: -mountRadius, z: 0, angle: Math.PI });
+    holePositions.push({ x: mountRadius, z: 0, angle: 0 });
+  } else if (holeCount === 3) {
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2 - Math.PI / 2;
+      holePositions.push({
+        x: Math.cos(angle) * mountRadius,
+        z: Math.sin(angle) * mountRadius,
+        angle: angle + Math.PI / 2
+      });
+    }
+  } else {
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      holePositions.push({
+        x: Math.cos(angle) * mountRadius,
+        z: Math.sin(angle) * mountRadius,
+        angle: angle + Math.PI / 2
+      });
+    }
+  }
+  
+  // Create each keyhole as a dark visual indicator on the bottom
+  for (const pos of holePositions) {
+    // Create keyhole shape: circle + slot
+    const shape = new THREE.Shape();
+    
+    // Circle
+    shape.moveTo(keyholeRadius, 0);
+    for (let i = 1; i <= segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      shape.lineTo(Math.cos(a) * keyholeRadius, Math.sin(a) * keyholeRadius);
+    }
+    
+    // Slot going outward (away from center)
+    const slotShape = new THREE.Shape();
+    slotShape.moveTo(slotWidth, keyholeRadius * 0.3);
+    slotShape.lineTo(slotWidth, slotLength);
+    for (let i = 0; i <= segments / 4; i++) {
+      const a = (i / (segments / 4)) * Math.PI;
+      slotShape.lineTo(Math.cos(a) * slotWidth, slotLength + Math.sin(a) * slotWidth);
+    }
+    slotShape.lineTo(-slotWidth, keyholeRadius * 0.3);
+    slotShape.closePath();
+    
+    // Combine into one shape
+    const combinedShape = new THREE.Shape();
+    combinedShape.moveTo(slotWidth, keyholeRadius * 0.3);
+    combinedShape.lineTo(slotWidth, slotLength);
+    for (let i = 0; i <= segments / 4; i++) {
+      const a = (i / (segments / 4)) * Math.PI;
+      combinedShape.lineTo(Math.cos(a) * slotWidth, slotLength + Math.sin(a) * slotWidth);
+    }
+    combinedShape.lineTo(-slotWidth, keyholeRadius * 0.3);
+    // Around the circle
+    for (let i = 0; i <= segments * 0.75; i++) {
+      const a = Math.PI / 2 + (i / (segments * 0.75)) * (Math.PI * 1.5);
+      combinedShape.lineTo(Math.cos(a) * keyholeRadius, Math.sin(a) * keyholeRadius);
+    }
+    combinedShape.closePath();
+    
+    const geo = new THREE.ExtrudeGeometry(combinedShape, {
+      depth: depth * 0.8,
+      bevelEnabled: false,
+    });
+    
+    // Rotate to face downward (-Y) and position
+    geo.rotateX(Math.PI / 2); // Now facing down
+    geo.rotateY(pos.angle);   // Orient toward center
+    geo.translate(pos.x, -baseThickness, pos.z);
+    
+    geometries.push(geo);
+  }
+  
+  if (geometries.length === 0) return null;
   return mergeGeometries(geometries);
 }
 

@@ -433,7 +433,7 @@ export const defaultLampParams: LampParams = {
   wallMountHoleStyle: 'round',
   wallMountHoleMargin: 0.15,
   wallMountCordHoleEnabled: true,
-  wallMountFilletRadius: 2,
+  wallMountStyle: 'back',
   
   // Shade rim config
   shade: defaultShadeConfig,

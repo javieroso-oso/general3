@@ -73,7 +73,7 @@ export interface ParametricParams {
   wallMountHoleStyle: 'round' | 'keyhole' | 'countersink'; // hole style
   wallMountHoleMargin: number;      // 0-1 - distance from edge as percentage of available space
   wallMountCordHoleEnabled: boolean; // add cord exit hole through flat back
-  wallMountFilletRadius: number;    // mm - fillet radius for smooth edge transition (0-10)
+  wallMountStyle: 'back' | 'base';  // mounting style: back (flat cut) or base (plate with keyholes)
   
   // Legacy wall bracket (kept for compatibility)
   wallBracketArmLength: number;  // mm - arm extension from wall
@@ -285,7 +285,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleStyle: 'round',
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
-    wallMountFilletRadius: 2,
+    wallMountStyle: 'back',
   },
   lamp: {
     height: 100,
@@ -344,7 +344,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleStyle: 'round',
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
-    wallMountFilletRadius: 2,
+    wallMountStyle: 'back',
   },
   sculpture: {
     height: 150,
@@ -403,7 +403,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleStyle: 'round',
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: false,
-    wallMountFilletRadius: 2,
+    wallMountStyle: 'back',
   },
 };
 
@@ -532,7 +532,7 @@ export function generateBatchVariations(
     varied.twistAngle = clamp(baseParams.twistAngle + (Math.random() - 0.5) * variationStrength * 60, 0, 180);
     varied.wobbleFrequency = Math.round(clamp(baseParams.wobbleFrequency + (Math.random() - 0.5) * 4, 0, 8));
     varied.rippleCount = Math.round(clamp(baseParams.rippleCount + (Math.random() - 0.5) * 6, 0, 16));
-    varied.asymmetry = clamp(baseParams.asymmetry + (Math.random() - 0.5) * variationStrength * 0.1, 0, 0.1);
+    varied.asymmetry = clamp(baseParams.asymmetry + (Math.random() - 0.5) * variationStrength * 0.35, 0, 0.35);
     
     variations.push(varied);
   }
