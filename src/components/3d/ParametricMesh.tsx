@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase } from '@/lib/leg-generator';
@@ -60,7 +61,7 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -185,114 +186,63 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const vertices: number[] = [];
     const indices: number[] = [];
 
-    // Helper function to generate a single keyhole geometry
-    const generateKeyholeGeometry = (cx: number, cy: number, zPos: number, depth: number): THREE.BufferGeometry => {
-      const vertices: number[] = [];
-      const indices: number[] = [];
-      const segs = 24;
+    // Helper function to create a solid keyhole cylinder for CSG subtraction
+    const createKeyholeShape = (cx: number, cy: number, zPos: number, depth: number): THREE.BufferGeometry => {
+      const segs = 32;
+      const headRadius = 5 * SCALE;    // 5mm head
+      const shaftWidth = 2.5 * SCALE;  // 2.5mm slot width
+      const slotLength = 10 * SCALE;   // 10mm slot length
       
-      // Keyhole dimensions in scene units
-      const headRadius = 5 * SCALE;    // Large circle for screw head (5mm)
-      const shaftWidth = 2.5 * SCALE;  // Narrow slot for screw shank (2.5mm)
-      const slotLength = 10 * SCALE;   // Length of slot going up (10mm)
+      // Create 2D keyhole shape
+      const shape = new THREE.Shape();
       
-      // Create keyhole outline points (going clockwise from bottom of head circle)
-      // The keyhole is: large circle at bottom + narrow slot extending UP
-      const outlinePoints: { x: number; y: number }[] = [];
-      
-      // Bottom semicircle of head (from left to right, going through bottom)
-      for (let i = 0; i <= segs; i++) {
-        const angle = Math.PI + (i / segs) * Math.PI; // PI to 2PI
-        outlinePoints.push({
-          x: cx + Math.cos(angle) * headRadius,
-          y: cy + Math.sin(angle) * headRadius
-        });
-      }
-      
-      // Right side of slot going up
-      outlinePoints.push({ x: cx + shaftWidth, y: cy });
-      outlinePoints.push({ x: cx + shaftWidth, y: cy + slotLength - shaftWidth });
-      
-      // Top rounded end of slot
+      // Start at bottom left of head circle, go clockwise
+      // Bottom semicircle of head (large circle)
       for (let i = 0; i <= segs / 2; i++) {
-        const angle = 0 - (i / (segs / 2)) * Math.PI; // 0 to -PI
-        outlinePoints.push({
-          x: cx + Math.cos(angle) * shaftWidth,
-          y: cy + slotLength - shaftWidth + Math.sin(angle) * shaftWidth + shaftWidth
-        });
+        const angle = Math.PI + (i / (segs / 2)) * Math.PI;
+        const x = cx + Math.cos(angle) * headRadius;
+        const y = cy + Math.sin(angle) * headRadius;
+        if (i === 0) shape.moveTo(x, y);
+        else shape.lineTo(x, y);
       }
       
-      // Left side of slot going down
-      outlinePoints.push({ x: cx - shaftWidth, y: cy + slotLength - shaftWidth });
-      outlinePoints.push({ x: cx - shaftWidth, y: cy });
+      // Right side going up into slot
+      shape.lineTo(cx + shaftWidth, cy);
+      shape.lineTo(cx + shaftWidth, cy + slotLength - shaftWidth);
       
-      // Create front ring (at zPos + depth, visible from room side)
-      const frontRingStart = vertices.length / 3;
-      for (const pt of outlinePoints) {
-        vertices.push(pt.x, pt.y, zPos + depth);
+      // Top semicircle of slot
+      for (let i = 0; i <= segs / 4; i++) {
+        const angle = 0 - (i / (segs / 4)) * Math.PI;
+        shape.lineTo(
+          cx + Math.cos(angle) * shaftWidth,
+          cy + slotLength - shaftWidth + Math.sin(angle) * shaftWidth + shaftWidth
+        );
       }
       
-      // Create back ring (at zPos - small offset, into the wall)
-      const backRingStart = vertices.length / 3;
-      for (const pt of outlinePoints) {
-        vertices.push(pt.x, pt.y, zPos - depth * 0.5);
-      }
+      // Left side going down
+      shape.lineTo(cx - shaftWidth, cy + slotLength - shaftWidth);
+      shape.lineTo(cx - shaftWidth, cy);
       
-      // Connect front and back rings to create the hole walls
-      const numPoints = outlinePoints.length;
-      for (let i = 0; i < numPoints - 1; i++) {
-        const f1 = frontRingStart + i;
-        const f2 = frontRingStart + i + 1;
-        const b1 = backRingStart + i;
-        const b2 = backRingStart + i + 1;
-        indices.push(f1, b1, f2);
-        indices.push(f2, b1, b2);
-      }
-      // Close the loop
-      const fLast = frontRingStart + numPoints - 1;
-      const fFirst = frontRingStart;
-      const bLast = backRingStart + numPoints - 1;
-      const bFirst = backRingStart;
-      indices.push(fLast, bLast, fFirst);
-      indices.push(fFirst, bLast, bFirst);
+      // Close back to start
+      shape.closePath();
       
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-      geo.setIndex(indices);
-      geo.computeVertexNormals();
+      // Extrude in Z direction
+      const extrudeSettings = {
+        depth: depth * 2,
+        bevelEnabled: false,
+      };
+      
+      const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      // Position so it's centered on zPos
+      geo.translate(0, 0, zPos - depth);
       return geo;
     };
     
-    // Helper to generate circular hole geometry
-    const generateCircleHoleGeometry = (cx: number, cy: number, radius: number, zPos: number, depth: number): THREE.BufferGeometry => {
-      const vertices: number[] = [];
-      const indices: number[] = [];
-      const segs = 24;
-      
-      // Front ring
-      const frontStart = vertices.length / 3;
-      for (let i = 0; i <= segs; i++) {
-        const angle = (i / segs) * Math.PI * 2;
-        vertices.push(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius, zPos + depth);
-      }
-      
-      // Back ring
-      const backStart = vertices.length / 3;
-      for (let i = 0; i <= segs; i++) {
-        const angle = (i / segs) * Math.PI * 2;
-        vertices.push(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius, zPos - depth * 0.5);
-      }
-      
-      // Connect rings
-      for (let i = 0; i < segs; i++) {
-        indices.push(frontStart + i, backStart + i, frontStart + i + 1);
-        indices.push(frontStart + i + 1, backStart + i, backStart + i + 1);
-      }
-      
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-      geo.setIndex(indices);
-      geo.computeVertexNormals();
+    // Helper to create circular hole for CSG subtraction
+    const createCircleHole = (cx: number, cy: number, radius: number, zPos: number, depth: number): THREE.BufferGeometry => {
+      const geo = new THREE.CylinderGeometry(radius, radius, depth * 2, 32);
+      geo.rotateX(Math.PI / 2); // Orient along Z axis
+      geo.translate(cx, cy, zPos);
       return geo;
     };
 
@@ -301,7 +251,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     let cordHoleGeometry: THREE.BufferGeometry | null = null;
 
     if (isWallMount) {
-      // Wall mount: clip at z = cutOffset, create simple solid back wall
+      // Wall mount: clip at z = cutOffset, create back wall with CSG holes
       
       // Calculate keyhole positions
       const holeCount = params.wallMountHoleCount || 2;
@@ -324,19 +274,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         holePositions.push({ x: topSpread, y: h - marginY });
         holePositions.push({ x: -bottomSpread, y: marginY });
         holePositions.push({ x: bottomSpread, y: marginY });
-      }
-      
-      // Generate keyhole geometry for each position
-      const holeDepth = 3 * SCALE; // 3mm depth
-      for (const pos of holePositions) {
-        keyholeGeometries.push(generateKeyholeGeometry(pos.x, pos.y, cutOffset, holeDepth));
-      }
-      
-      // Generate cord hole if enabled
-      if (params.wallMountCordHoleEnabled) {
-        const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
-        const cordY = h * 0.5;
-        cordHoleGeometry = generateCircleHoleGeometry(0, cordY, cordRadius, cutOffset, holeDepth);
       }
       
       // Clip vertices at cut plane
@@ -380,8 +317,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE SIMPLE SOLID BACK WALL ===
-      const heightMap = new Map<number, { minX: number; maxX: number }>();
+      // === CREATE BACK WALL FROM ACTUAL CLIPPED SHELL BOUNDARY ===
+      // Collect boundary vertices from the clipped shell
+      const boundaryPoints: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         for (let j = 0; j <= segments; j++) {
@@ -391,57 +329,109 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           if (Math.abs(z - cutOffset) < 0.0001) {
             const x = clippedVerts[idx * 3];
             const y = clippedVerts[idx * 3 + 1];
-            const key = Math.round(y * 10000);
-            const existing = heightMap.get(key);
-            if (!existing) {
-              heightMap.set(key, { minX: x, maxX: x });
-            } else {
-              existing.minX = Math.min(existing.minX, x);
-              existing.maxX = Math.max(existing.maxX, x);
-            }
+            boundaryPoints.push({ x, y });
           }
         }
       }
       
-      // Create ordered boundary outline
-      const sortedHeights = Array.from(heightMap.keys()).sort((a, b) => a - b);
-      const outlineLeft: { x: number; y: number }[] = [];
-      const outlineRight: { x: number; y: number }[] = [];
+      // Find convex hull of boundary points for a clean back wall
+      const sortedByAngle = boundaryPoints.slice().sort((a, b) => {
+        const angleA = Math.atan2(a.y - h/2, a.x);
+        const angleB = Math.atan2(b.y - h/2, b.x);
+        return angleA - angleB;
+      });
       
-      for (const hKey of sortedHeights) {
-        const y = hKey / 10000;
-        const bounds = heightMap.get(hKey)!;
-        outlineLeft.push({ x: bounds.minX, y });
-        outlineRight.push({ x: bounds.maxX, y });
+      // Remove duplicate points (keep unique by rounding)
+      const uniquePoints: { x: number; y: number }[] = [];
+      const seen = new Set<string>();
+      for (const pt of sortedByAngle) {
+        const key = `${Math.round(pt.x * 1000)},${Math.round(pt.y * 1000)}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniquePoints.push(pt);
+        }
       }
       
-      // Build the back wall with simple fan triangulation
-      const outline = [...outlineLeft, ...outlineRight.reverse()];
-      const boundaryIndices: number[] = [];
-      
-      for (const pt of outline) {
-        const idx = vertices.length / 3;
-        vertices.push(pt.x, pt.y, cutOffset);
-        boundaryIndices.push(idx);
+      // Create back wall geometry using Shape + ExtrudeGeometry for CSG compatibility
+      const backShape = new THREE.Shape();
+      if (uniquePoints.length > 2) {
+        backShape.moveTo(uniquePoints[0].x, uniquePoints[0].y);
+        for (let i = 1; i < uniquePoints.length; i++) {
+          backShape.lineTo(uniquePoints[i].x, uniquePoints[i].y);
+        }
+        backShape.closePath();
       }
       
-      // Add center point for fan triangulation
-      let centerX = 0, centerY = 0;
-      for (const pt of outline) {
-        centerX += pt.x;
-        centerY += pt.y;
+      const wallThickness = 3 * SCALE; // 3mm thick back wall
+      const backWallGeo = new THREE.ExtrudeGeometry(backShape, {
+        depth: wallThickness,
+        bevelEnabled: false,
+      });
+      backWallGeo.translate(0, 0, cutOffset - wallThickness);
+      
+      // Create CSG evaluator
+      const evaluator = new Evaluator();
+      evaluator.useGroups = false;
+      
+      // Create brush from back wall
+      let backWallBrush = new Brush(backWallGeo);
+      backWallBrush.updateMatrixWorld();
+      
+      // Subtract each keyhole
+      const holeDepth = wallThickness * 2;
+      for (const pos of holePositions) {
+        const keyholeGeo = createKeyholeShape(pos.x, pos.y, cutOffset - wallThickness/2, holeDepth);
+        const keyholeBrush = new Brush(keyholeGeo);
+        keyholeBrush.updateMatrixWorld();
+        
+        try {
+          const result = evaluator.evaluate(backWallBrush, keyholeBrush, SUBTRACTION);
+          backWallBrush = result as Brush;
+          backWallBrush.updateMatrixWorld();
+        } catch (e) {
+          console.warn('CSG subtraction failed for keyhole:', e);
+        }
       }
-      centerX /= outline.length;
-      centerY /= outline.length;
       
-      const centerIdx = vertices.length / 3;
-      vertices.push(centerX, centerY, cutOffset);
+      // Subtract cord hole if enabled
+      if (params.wallMountCordHoleEnabled) {
+        const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
+        const cordY = h * 0.5;
+        const cordGeo = createCircleHole(0, cordY, cordRadius, cutOffset - wallThickness/2, holeDepth);
+        const cordBrush = new Brush(cordGeo);
+        cordBrush.updateMatrixWorld();
+        
+        try {
+          const result = evaluator.evaluate(backWallBrush, cordBrush, SUBTRACTION);
+          backWallBrush = result as Brush;
+        } catch (e) {
+          console.warn('CSG subtraction failed for cord hole:', e);
+        }
+      }
       
-      // Create fan triangles from center to boundary
-      for (let i = 0; i < boundaryIndices.length; i++) {
-        const a = boundaryIndices[i];
-        const b = boundaryIndices[(i + 1) % boundaryIndices.length];
-        indices.push(centerIdx, a, b);
+      // Get the final geometry with holes
+      const finalBackWallGeo = backWallBrush.geometry.clone();
+      
+      // Merge back wall vertices and indices into main geometry
+      const backWallPositions = finalBackWallGeo.getAttribute('position');
+      const backWallIndex = finalBackWallGeo.getIndex();
+      
+      if (backWallPositions && backWallIndex) {
+        const baseVertexIndex = vertices.length / 3;
+        
+        // Add back wall vertices
+        for (let i = 0; i < backWallPositions.count; i++) {
+          vertices.push(
+            backWallPositions.getX(i),
+            backWallPositions.getY(i),
+            backWallPositions.getZ(i)
+          );
+        }
+        
+        // Add back wall indices
+        for (let i = 0; i < backWallIndex.count; i++) {
+          indices.push(backWallIndex.getX(i) + baseVertexIndex);
+        }
       }
       
     } else {
@@ -536,9 +526,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       bodyGeometry: bodyGeo, 
       wireframeGeo: wireGeo, 
       legGeometry: standGeo, 
-      overhangColors: overhangColorArray,
-      keyholeGeometries,
-      cordHoleGeometry
+      overhangColors: overhangColorArray
     };
   }, [params, type]);
 
@@ -571,30 +559,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           side={THREE.DoubleSide}
         />
       </mesh>
-      
-      {/* Keyhole mounting holes for wall mount */}
-      {keyholeGeometries.map((geo, idx) => (
-        <mesh key={`keyhole-${idx}`} geometry={geo} castShadow receiveShadow>
-          <meshStandardMaterial
-            color="#1a1a1a"
-            roughness={0.8}
-            metalness={0}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      ))}
-      
-      {/* Cord hole for wall mount */}
-      {cordHoleGeometry && (
-        <mesh geometry={cordHoleGeometry} castShadow receiveShadow>
-          <meshStandardMaterial
-            color="#1a1a1a"
-            roughness={0.8}
-            metalness={0}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      )}
       
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
