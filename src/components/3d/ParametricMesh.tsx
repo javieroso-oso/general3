@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints, AttachmentType } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate, AttachmentParams } from '@/lib/leg-generator';
+import { generateConnector } from '@/lib/base/connector';
 import { 
   validateBaseConfig, 
   getMinimumBodyRadius,
@@ -674,7 +675,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     
     // Generate connector geometry if not integrated (for visibility between body and base)
     if (addLegs && params.attachmentType !== 'integrated' && params.standType !== 'wall_mount') {
-      const { generateConnector } = require('@/lib/base/connector');
       const connectorResult = generateConnector(connectorConfig, effectiveBaseRadius * 2);
       if (connectorResult.baseInterface) {
         // Scale and position the connector
