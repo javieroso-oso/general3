@@ -420,6 +420,8 @@ export const defaultLampParams: LampParams = {
   noiseScale: 1,
   baseThickness: 0,
   baseType: 'flat',
+  baseSizeMode: 'auto',
+  standBaseRadius: 50,
   cordHoleEnabled: true,
   cordHoleDiameter: 8,
   centeringLipEnabled: true,
