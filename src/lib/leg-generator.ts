@@ -381,10 +381,13 @@ function createBaseDiscWithSocket(
   // Bottom radius with taper applied
   const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
   
-  // ===== SIMPLIFIED FLAT BASE DISC =====
-  // Top surface at y=0, bottom at y=-thickness
-  // Optional centering lip sits on top (y=0 to y=centeringLipHeight)
-  // Optional cord hole goes through center
+  // Edge styling parameters
+  const chamferSize = edgeStyle === 'chamfer' ? Math.min(thickness * 0.3, 3) : 0;
+  const roundedRadius = edgeStyle === 'rounded' ? Math.min(thickness * 0.4, 4) : 0;
+  const roundedSegments = 6;
+  
+  // Helper to create a tapered/styled base disc
+  // This handles the main body of the pedestal with taper and edge profiles
   
   if (cordHoleEnabled) {
     // === BASE WITH CORD HOLE ===
@@ -392,12 +395,45 @@ function createBaseDiscWithSocket(
     if (centeringLipEnabled) {
       // With centering lip: flat base + raised ring for socket
       
-      // 1. Top surface outer ring (y=0)
+      // 1. Top surface outer ring (y=0) - with optional edge lip
+      const topY = edgeLip > 0 ? edgeLip : 0;
       const topOuterStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
         const r = getOuterRadius(theta);
-        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+        vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+      }
+      
+      // If we have an edge lip, add the inner edge of the lip
+      let lipInnerEdgeStart = -1;
+      if (edgeLip > 0) {
+        lipInnerEdgeStart = vertices.length / 3;
+        const lipWallThickness = 2; // mm
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const r = getOuterRadius(theta) - lipWallThickness;
+          vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+        }
+        
+        // Lip top face
+        for (let i = 0; i < segments; i++) {
+          indices.push(topOuterStart + i, lipInnerEdgeStart + i, topOuterStart + i + 1);
+          indices.push(topOuterStart + i + 1, lipInnerEdgeStart + i, lipInnerEdgeStart + i + 1);
+        }
+        
+        // Lip inner wall (drop down to y=0)
+        const lipInnerBottomStart = vertices.length / 3;
+        const lipWall = 2;
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const r = getOuterRadius(theta) - lipWall;
+          vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+        }
+        
+        for (let i = 0; i < segments; i++) {
+          indices.push(lipInnerEdgeStart + i, lipInnerBottomStart + i, lipInnerEdgeStart + i + 1);
+          indices.push(lipInnerEdgeStart + i + 1, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
+        }
       }
       
       // 2. Centering lip outer ring at base (y=0)
@@ -407,14 +443,15 @@ function createBaseDiscWithSocket(
         vertices.push(Math.cos(theta) * lipOuterRadius, 0, Math.sin(theta) * lipOuterRadius);
       }
       
-      // Top surface (ring between disc outer and lip outer)
+      // Top surface (ring between disc outer/lip-inner and centering lip outer)
+      const surfaceOuterStart = edgeLip > 0 ? (lipInnerEdgeStart !== -1 ? vertices.length / 3 - (segments + 1) * 2 : topOuterStart) : topOuterStart;
+      const actualSurfaceStart = edgeLip > 0 && lipInnerEdgeStart !== -1 ? lipInnerEdgeStart + segments + 1 : topOuterStart;
+      
       for (let i = 0; i < segments; i++) {
-        const outerA = topOuterStart + i;
-        const outerB = topOuterStart + i + 1;
-        const lipA = lipOuterBottomStart + i;
-        const lipB = lipOuterBottomStart + i + 1;
-        indices.push(outerA, lipA, outerB);
-        indices.push(outerB, lipA, lipB);
+        const outerIdx = edgeLip > 0 ? actualSurfaceStart + i : topOuterStart + i;
+        const outerIdxNext = edgeLip > 0 ? actualSurfaceStart + i + 1 : topOuterStart + i + 1;
+        indices.push(outerIdx, lipOuterBottomStart + i, outerIdxNext);
+        indices.push(outerIdxNext, lipOuterBottomStart + i, lipOuterBottomStart + i + 1);
       }
       
       // 3. Centering lip outer ring at top
@@ -426,16 +463,12 @@ function createBaseDiscWithSocket(
       
       // Lip outer wall
       for (let i = 0; i < segments; i++) {
-        const botA = lipOuterBottomStart + i;
-        const botB = lipOuterBottomStart + i + 1;
-        const topA = lipOuterTopStart + i;
-        const topB = lipOuterTopStart + i + 1;
-        indices.push(botA, botB, topA);
-        indices.push(topA, botB, topB);
+        indices.push(lipOuterBottomStart + i, lipOuterBottomStart + i + 1, lipOuterTopStart + i);
+        indices.push(lipOuterTopStart + i, lipOuterBottomStart + i + 1, lipOuterTopStart + i + 1);
       }
       
       // 4. Centering lip inner ring at top
-      const lipInnerTopStart = vertices.length / 3;
+      const socketLipInnerTopStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
         vertices.push(Math.cos(theta) * lipInnerRadius, centeringLipHeight, Math.sin(theta) * lipInnerRadius);
@@ -443,16 +476,12 @@ function createBaseDiscWithSocket(
       
       // Lip top face
       for (let i = 0; i < segments; i++) {
-        const outerA = lipOuterTopStart + i;
-        const outerB = lipOuterTopStart + i + 1;
-        const innerA = lipInnerTopStart + i;
-        const innerB = lipInnerTopStart + i + 1;
-        indices.push(outerA, innerA, outerB);
-        indices.push(outerB, innerA, innerB);
+        indices.push(lipOuterTopStart + i, socketLipInnerTopStart + i, lipOuterTopStart + i + 1);
+        indices.push(lipOuterTopStart + i + 1, socketLipInnerTopStart + i, socketLipInnerTopStart + i + 1);
       }
       
       // 5. Centering lip inner ring at bottom (y=0)
-      const lipInnerBottomStart = vertices.length / 3;
+      const socketLipInnerBottomStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
         vertices.push(Math.cos(theta) * lipInnerRadius, 0, Math.sin(theta) * lipInnerRadius);
@@ -460,12 +489,8 @@ function createBaseDiscWithSocket(
       
       // Lip inner wall
       for (let i = 0; i < segments; i++) {
-        const topA = lipInnerTopStart + i;
-        const topB = lipInnerTopStart + i + 1;
-        const botA = lipInnerBottomStart + i;
-        const botB = lipInnerBottomStart + i + 1;
-        indices.push(topA, botA, topB);
-        indices.push(topB, botA, botB);
+        indices.push(socketLipInnerTopStart + i, socketLipInnerBottomStart + i, socketLipInnerTopStart + i + 1);
+        indices.push(socketLipInnerTopStart + i + 1, socketLipInnerBottomStart + i, socketLipInnerBottomStart + i + 1);
       }
       
       // 6. Cord hole ring at top (y=0)
@@ -475,14 +500,10 @@ function createBaseDiscWithSocket(
         vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
       }
       
-      // Floor between lip inner and cord hole
+      // Floor between socket lip inner and cord hole
       for (let i = 0; i < segments; i++) {
-        const lipA = lipInnerBottomStart + i;
-        const lipB = lipInnerBottomStart + i + 1;
-        const cordA = cordTopStart + i;
-        const cordB = cordTopStart + i + 1;
-        indices.push(lipA, cordA, lipB);
-        indices.push(lipB, cordA, cordB);
+        indices.push(socketLipInnerBottomStart + i, cordTopStart + i, socketLipInnerBottomStart + i + 1);
+        indices.push(socketLipInnerBottomStart + i + 1, cordTopStart + i, cordTopStart + i + 1);
       }
       
       // 7. Cord hole ring at bottom
@@ -494,51 +515,128 @@ function createBaseDiscWithSocket(
       
       // Cord hole wall
       for (let i = 0; i < segments; i++) {
-        const topA = cordTopStart + i;
-        const topB = cordTopStart + i + 1;
-        const botA = cordBottomStart + i;
-        const botB = cordBottomStart + i + 1;
-        indices.push(topA, botA, topB);
-        indices.push(topB, botA, botB);
+        indices.push(cordTopStart + i, cordBottomStart + i, cordTopStart + i + 1);
+        indices.push(cordTopStart + i + 1, cordBottomStart + i, cordBottomStart + i + 1);
       }
       
-      // 8. Base bottom outer ring
+      // 8. Base bottom outer ring (with taper!)
       const bottomOuterStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
-        const r = getOuterRadius(theta);
+        const r = getBottomRadius(theta); // Use tapered radius!
         vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
       }
       
       // Base bottom (ring)
       for (let i = 0; i < segments; i++) {
-        const outerA = bottomOuterStart + i;
-        const outerB = bottomOuterStart + i + 1;
-        const cordA = cordBottomStart + i;
-        const cordB = cordBottomStart + i + 1;
-        indices.push(outerA, outerB, cordA);
-        indices.push(cordA, outerB, cordB);
+        indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, cordBottomStart + i);
+        indices.push(cordBottomStart + i, bottomOuterStart + i + 1, cordBottomStart + i + 1);
       }
       
-      // Base side wall
-      for (let i = 0; i < segments; i++) {
-        const topA = topOuterStart + i;
-        const topB = topOuterStart + i + 1;
-        const botA = bottomOuterStart + i;
-        const botB = bottomOuterStart + i + 1;
-        indices.push(topA, topB, botA);
-        indices.push(botA, topB, botB);
+      // Base side wall with edge profile
+      if (edgeStyle === 'chamfer' && chamferSize > 0) {
+        // Add chamfer ring at top outer edge
+        const chamferStart = vertices.length / 3;
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const topR = getOuterRadius(theta);
+          const chamferR = topR - chamferSize * 0.5;
+          vertices.push(Math.cos(theta) * chamferR, -chamferSize, Math.sin(theta) * chamferR);
+        }
+        
+        // Top to chamfer
+        for (let i = 0; i < segments; i++) {
+          indices.push(topOuterStart + i, topOuterStart + i + 1, chamferStart + i);
+          indices.push(chamferStart + i, topOuterStart + i + 1, chamferStart + i + 1);
+        }
+        
+        // Chamfer to bottom
+        for (let i = 0; i < segments; i++) {
+          indices.push(chamferStart + i, chamferStart + i + 1, bottomOuterStart + i);
+          indices.push(bottomOuterStart + i, chamferStart + i + 1, bottomOuterStart + i + 1);
+        }
+      } else if (edgeStyle === 'rounded' && roundedRadius > 0) {
+        // Add rounded edge with multiple rings
+        let prevRingStart = topOuterStart;
+        for (let r = 1; r <= roundedSegments; r++) {
+          const t = r / roundedSegments;
+          const angle = t * Math.PI / 2;
+          const yOffset = -roundedRadius * (1 - Math.cos(angle));
+          const rOffset = roundedRadius * (1 - Math.sin(angle));
+          
+          const ringStart = vertices.length / 3;
+          for (let i = 0; i <= segments; i++) {
+            const theta = (i / segments) * Math.PI * 2;
+            const topR = getOuterRadius(theta);
+            const botR = getBottomRadius(theta);
+            const blendT = Math.min(1, (-yOffset) / thickness);
+            const baseR = topR + (botR - topR) * blendT;
+            vertices.push(Math.cos(theta) * (baseR - rOffset), yOffset, Math.sin(theta) * (baseR - rOffset));
+          }
+          
+          for (let i = 0; i < segments; i++) {
+            indices.push(prevRingStart + i, prevRingStart + i + 1, ringStart + i);
+            indices.push(ringStart + i, prevRingStart + i + 1, ringStart + i + 1);
+          }
+          prevRingStart = ringStart;
+        }
+        
+        // Connect last rounded ring to bottom
+        for (let i = 0; i < segments; i++) {
+          indices.push(prevRingStart + i, prevRingStart + i + 1, bottomOuterStart + i);
+          indices.push(bottomOuterStart + i, prevRingStart + i + 1, bottomOuterStart + i + 1);
+        }
+      } else {
+        // Flat edge - straight wall with taper
+        for (let i = 0; i < segments; i++) {
+          indices.push(topOuterStart + i, topOuterStart + i + 1, bottomOuterStart + i);
+          indices.push(bottomOuterStart + i, topOuterStart + i + 1, bottomOuterStart + i + 1);
+        }
       }
       
     } else {
       // Flat base with cord hole, no centering lip
       
-      // 1. Top surface outer ring (y=0)
+      // 1. Top surface outer ring (y=0) - with optional edge lip
+      const topY = edgeLip > 0 ? edgeLip : 0;
       const topOuterStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
         const r = getOuterRadius(theta);
-        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+        vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+      }
+      
+      // Edge lip inner ring and wall if needed
+      let surfaceRingStart = topOuterStart;
+      if (edgeLip > 0) {
+        const lipWall = 2;
+        const lipInnerStart = vertices.length / 3;
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const r = getOuterRadius(theta) - lipWall;
+          vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+        }
+        
+        // Lip top face
+        for (let i = 0; i < segments; i++) {
+          indices.push(topOuterStart + i, lipInnerStart + i, topOuterStart + i + 1);
+          indices.push(topOuterStart + i + 1, lipInnerStart + i, lipInnerStart + i + 1);
+        }
+        
+        // Lip inner wall down to y=0
+        const lipInnerBottomStart = vertices.length / 3;
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const r = getOuterRadius(theta) - lipWall;
+          vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+        }
+        
+        for (let i = 0; i < segments; i++) {
+          indices.push(lipInnerStart + i, lipInnerBottomStart + i, lipInnerStart + i + 1);
+          indices.push(lipInnerStart + i + 1, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
+        }
+        
+        surfaceRingStart = lipInnerBottomStart;
       }
       
       // 2. Cord hole ring at top (y=0)
@@ -550,12 +648,8 @@ function createBaseDiscWithSocket(
       
       // Top surface (ring between outer and cord hole)
       for (let i = 0; i < segments; i++) {
-        const outerA = topOuterStart + i;
-        const outerB = topOuterStart + i + 1;
-        const cordA = cordTopStart + i;
-        const cordB = cordTopStart + i + 1;
-        indices.push(outerA, cordA, outerB);
-        indices.push(outerB, cordA, cordB);
+        indices.push(surfaceRingStart + i, cordTopStart + i, surfaceRingStart + i + 1);
+        indices.push(surfaceRingStart + i + 1, cordTopStart + i, cordTopStart + i + 1);
       }
       
       // 3. Cord hole ring at bottom
@@ -567,71 +661,155 @@ function createBaseDiscWithSocket(
       
       // Cord hole wall
       for (let i = 0; i < segments; i++) {
-        const topA = cordTopStart + i;
-        const topB = cordTopStart + i + 1;
-        const botA = cordBottomStart + i;
-        const botB = cordBottomStart + i + 1;
-        indices.push(topA, botA, topB);
-        indices.push(topB, botA, botB);
+        indices.push(cordTopStart + i, cordBottomStart + i, cordTopStart + i + 1);
+        indices.push(cordTopStart + i + 1, cordBottomStart + i, cordBottomStart + i + 1);
       }
       
-      // 4. Base bottom outer ring
+      // 4. Base bottom outer ring (with taper!)
       const bottomOuterStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
-        const r = getOuterRadius(theta);
+        const r = getBottomRadius(theta);
         vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
       }
       
       // Base bottom (ring)
       for (let i = 0; i < segments; i++) {
-        const outerA = bottomOuterStart + i;
-        const outerB = bottomOuterStart + i + 1;
-        const cordA = cordBottomStart + i;
-        const cordB = cordBottomStart + i + 1;
-        indices.push(outerA, outerB, cordA);
-        indices.push(cordA, outerB, cordB);
+        indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, cordBottomStart + i);
+        indices.push(cordBottomStart + i, bottomOuterStart + i + 1, cordBottomStart + i + 1);
       }
       
-      // Base side wall
-      for (let i = 0; i < segments; i++) {
-        const topA = topOuterStart + i;
-        const topB = topOuterStart + i + 1;
-        const botA = bottomOuterStart + i;
-        const botB = bottomOuterStart + i + 1;
-        indices.push(topA, topB, botA);
-        indices.push(botA, topB, botB);
+      // Base side wall with edge profile
+      if (edgeStyle === 'chamfer' && chamferSize > 0) {
+        const chamferStart = vertices.length / 3;
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const topR = getOuterRadius(theta);
+          vertices.push(Math.cos(theta) * (topR - chamferSize * 0.5), -chamferSize, Math.sin(theta) * (topR - chamferSize * 0.5));
+        }
+        
+        for (let i = 0; i < segments; i++) {
+          indices.push(topOuterStart + i, topOuterStart + i + 1, chamferStart + i);
+          indices.push(chamferStart + i, topOuterStart + i + 1, chamferStart + i + 1);
+        }
+        
+        for (let i = 0; i < segments; i++) {
+          indices.push(chamferStart + i, chamferStart + i + 1, bottomOuterStart + i);
+          indices.push(bottomOuterStart + i, chamferStart + i + 1, bottomOuterStart + i + 1);
+        }
+      } else if (edgeStyle === 'rounded' && roundedRadius > 0) {
+        let prevRingStart = topOuterStart;
+        for (let r = 1; r <= roundedSegments; r++) {
+          const t = r / roundedSegments;
+          const angle = t * Math.PI / 2;
+          const yOffset = -roundedRadius * (1 - Math.cos(angle));
+          const rOffset = roundedRadius * (1 - Math.sin(angle));
+          
+          const ringStart = vertices.length / 3;
+          for (let i = 0; i <= segments; i++) {
+            const theta = (i / segments) * Math.PI * 2;
+            const topR = getOuterRadius(theta);
+            const botR = getBottomRadius(theta);
+            const blendT = Math.min(1, (-yOffset) / thickness);
+            const baseR = topR + (botR - topR) * blendT;
+            vertices.push(Math.cos(theta) * (baseR - rOffset), yOffset, Math.sin(theta) * (baseR - rOffset));
+          }
+          
+          for (let i = 0; i < segments; i++) {
+            indices.push(prevRingStart + i, prevRingStart + i + 1, ringStart + i);
+            indices.push(ringStart + i, prevRingStart + i + 1, ringStart + i + 1);
+          }
+          prevRingStart = ringStart;
+        }
+        
+        for (let i = 0; i < segments; i++) {
+          indices.push(prevRingStart + i, prevRingStart + i + 1, bottomOuterStart + i);
+          indices.push(bottomOuterStart + i, prevRingStart + i + 1, bottomOuterStart + i + 1);
+        }
+      } else {
+        for (let i = 0; i < segments; i++) {
+          indices.push(topOuterStart + i, topOuterStart + i + 1, bottomOuterStart + i);
+          indices.push(bottomOuterStart + i, topOuterStart + i + 1, bottomOuterStart + i + 1);
+        }
       }
     }
   } else {
     // === SOLID BASE (no cord hole) ===
     
+    // Top surface with optional edge lip
+    const topY = edgeLip > 0 ? edgeLip : 0;
+    
     // 1. Top surface center
     const topCenterIdx = vertices.length / 3;
-    vertices.push(0, 0, 0);
+    vertices.push(0, topY, 0);
     
-    // 2. Top surface outer ring
-    const topOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+    // 2. Top surface outer ring (or lip inner ring if we have lip)
+    let topFaceOuterStart: number;
+    
+    if (edgeLip > 0) {
+      const lipWall = 2;
+      // Lip outer ring
+      const lipOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+      }
+      
+      // Lip inner ring at top
+      const lipInnerTopStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getOuterRadius(theta) - lipWall;
+        vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
+      }
+      
+      // Lip top face
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipOuterStart + i, lipInnerTopStart + i, lipOuterStart + i + 1);
+        indices.push(lipOuterStart + i + 1, lipInnerTopStart + i, lipInnerTopStart + i + 1);
+      }
+      
+      // Lip inner wall
+      const lipInnerBottomStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getOuterRadius(theta) - lipWall;
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipInnerTopStart + i, lipInnerBottomStart + i, lipInnerTopStart + i + 1);
+        indices.push(lipInnerTopStart + i + 1, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
+      }
+      
+      topFaceOuterStart = lipInnerBottomStart;
+      
+      // Adjust top center to y=0 for the main surface
+      vertices[topCenterIdx * 3 + 1] = 0;
+    } else {
+      topFaceOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
     }
     
     // Top face (solid disc)
     for (let i = 0; i < segments; i++) {
-      indices.push(topCenterIdx, topOuterStart + i + 1, topOuterStart + i);
+      indices.push(topCenterIdx, topFaceOuterStart + i + 1, topFaceOuterStart + i);
     }
     
     // 3. Bottom center
     const bottomCenterIdx = vertices.length / 3;
     vertices.push(0, -thickness, 0);
     
-    // 4. Bottom outer ring
+    // 4. Bottom outer ring (with taper!)
     const bottomOuterStart = vertices.length / 3;
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta);
+      const r = getBottomRadius(theta);
       vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
     }
     
@@ -640,14 +818,68 @@ function createBaseDiscWithSocket(
       indices.push(bottomCenterIdx, bottomOuterStart + i, bottomOuterStart + i + 1);
     }
     
-    // Side wall
-    for (let i = 0; i < segments; i++) {
-      const topA = topOuterStart + i;
-      const topB = topOuterStart + i + 1;
-      const botA = bottomOuterStart + i;
-      const botB = bottomOuterStart + i + 1;
-      indices.push(topA, topB, botA);
-      indices.push(botA, topB, botB);
+    // Get the outer ring for side wall
+    const sideWallTopStart = edgeLip > 0 ? topFaceOuterStart - (segments + 1) : topFaceOuterStart;
+    
+    // Side wall with edge profile
+    if (edgeStyle === 'chamfer' && chamferSize > 0) {
+      const chamferStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const topR = getOuterRadius(theta);
+        vertices.push(Math.cos(theta) * (topR - chamferSize * 0.5), -chamferSize, Math.sin(theta) * (topR - chamferSize * 0.5));
+      }
+      
+      // Need to use the lip outer ring for wall connection if we have lip
+      const wallTopStart = edgeLip > 0 ? topFaceOuterStart - (segments + 1) * 2 : topFaceOuterStart;
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(wallTopStart + i, wallTopStart + i + 1, chamferStart + i);
+        indices.push(chamferStart + i, wallTopStart + i + 1, chamferStart + i + 1);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(chamferStart + i, chamferStart + i + 1, bottomOuterStart + i);
+        indices.push(bottomOuterStart + i, chamferStart + i + 1, bottomOuterStart + i + 1);
+      }
+    } else if (edgeStyle === 'rounded' && roundedRadius > 0) {
+      const wallTopStart = edgeLip > 0 ? topFaceOuterStart - (segments + 1) * 2 : topFaceOuterStart;
+      let prevRingStart = wallTopStart;
+      
+      for (let r = 1; r <= roundedSegments; r++) {
+        const t = r / roundedSegments;
+        const angle = t * Math.PI / 2;
+        const yOffset = -roundedRadius * (1 - Math.cos(angle));
+        const rOffset = roundedRadius * (1 - Math.sin(angle));
+        
+        const ringStart = vertices.length / 3;
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const topR = getOuterRadius(theta);
+          const botR = getBottomRadius(theta);
+          const blendT = Math.min(1, (-yOffset) / thickness);
+          const baseR = topR + (botR - topR) * blendT;
+          vertices.push(Math.cos(theta) * (baseR - rOffset), yOffset, Math.sin(theta) * (baseR - rOffset));
+        }
+        
+        for (let i = 0; i < segments; i++) {
+          indices.push(prevRingStart + i, prevRingStart + i + 1, ringStart + i);
+          indices.push(ringStart + i, prevRingStart + i + 1, ringStart + i + 1);
+        }
+        prevRingStart = ringStart;
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(prevRingStart + i, prevRingStart + i + 1, bottomOuterStart + i);
+        indices.push(bottomOuterStart + i, prevRingStart + i + 1, bottomOuterStart + i + 1);
+      }
+    } else {
+      // Flat edge with taper
+      const wallTopStart = edgeLip > 0 ? topFaceOuterStart - (segments + 1) * 2 : topFaceOuterStart;
+      for (let i = 0; i < segments; i++) {
+        indices.push(wallTopStart + i, wallTopStart + i + 1, bottomOuterStart + i);
+        indices.push(bottomOuterStart + i, wallTopStart + i + 1, bottomOuterStart + i + 1);
+      }
     }
   }
   
