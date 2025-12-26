@@ -247,6 +247,48 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   step={0.1}
                   onChange={handleChange('legTaper')}
                 />
+                
+                {/* Base Size Mode Controls */}
+                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Box className={cn("w-4 h-4", params.baseSizeMode !== 'auto' ? "text-primary" : "text-muted-foreground")} />
+                    <Label className="text-sm font-medium">Base Size</Label>
+                  </div>
+                  
+                  <Select 
+                    value={params.baseSizeMode} 
+                    onValueChange={(value: 'auto' | 'tray' | 'custom') => {
+                      onParamsChange({ ...params, baseSizeMode: value });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Fit to Lamp Bottom</SelectItem>
+                      <SelectItem value="tray">Match Widest Point</SelectItem>
+                      <SelectItem value="custom">Custom Size</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    {params.baseSizeMode === 'auto' && 'Base matches the lamp bottom radius'}
+                    {params.baseSizeMode === 'tray' && 'Base matches widest point (tray effect)'}
+                    {params.baseSizeMode === 'custom' && 'Set your own base size'}
+                  </p>
+                  
+                  {params.baseSizeMode === 'custom' && (
+                    <ParameterSlider
+                      label="Base Radius"
+                      value={params.standBaseRadius}
+                      min={20}
+                      max={150}
+                      step={5}
+                      unit="mm"
+                      onChange={handleChange('standBaseRadius')}
+                    />
+                  )}
+                </div>
               </>
             )}
             

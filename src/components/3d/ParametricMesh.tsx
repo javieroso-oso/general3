@@ -505,15 +505,29 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Generate stand geometry based on standType
-    // Use actual maxRadius (in mm) for proper sizing - convert back from scene units
-    const actualMaxRadiusMM = maxRadius / SCALE;
+    // Calculate effective base radius based on baseSizeMode
+    const bottomRadiusMM = radiiAtHeight[0] / SCALE;  // Actual bottom radius of the lamp
+    const maxRadiusMM = maxRadius / SCALE;            // Widest point of the lamp
+    
+    let effectiveBaseRadius: number;
+    switch (params.baseSizeMode) {
+      case 'tray':
+        effectiveBaseRadius = maxRadiusMM;
+        break;
+      case 'custom':
+        effectiveBaseRadius = params.standBaseRadius;
+        break;
+      case 'auto':
+      default:
+        effectiveBaseRadius = bottomRadiusMM;
+        break;
+    }
     
     let standGeo: THREE.BufferGeometry | null = null;
     if (addLegs && params.standType === 'tripod') {
-      // Use existing tripod generator with actual max radius
+      // Use existing tripod generator with effective base radius
       const legGeoMM = generateLegsWithBase(
-        actualMaxRadiusMM,
+        effectiveBaseRadius,
         params.legCount,
         params.legHeight,
         params.legSpread,
@@ -549,7 +563,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     } else if (addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'base') {
       // Base mount with keyholes - a flat plate with mounting holes facing down
       const baseMountGeoMM = generateBaseMountPlate(
-        actualMaxRadiusMM,
+        effectiveBaseRadius,
         params.baseThickness || 3,
         params.wallMountHoleCount,
         {
