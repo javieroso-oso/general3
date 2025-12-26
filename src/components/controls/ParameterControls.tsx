@@ -306,6 +306,19 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     onCheckedChange={(v) => onParamsChange({ ...params, wallMountCordHoleEnabled: v })}
                   />
                 </div>
+                
+                <ParameterSlider
+                  label="Edge Fillet"
+                  value={params.wallMountFilletRadius}
+                  min={0}
+                  max={10}
+                  step={0.5}
+                  unit="mm"
+                  onChange={handleChange('wallMountFilletRadius')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Smooth rounded edge where body meets back wall
+                </p>
               </>
             )}
             
