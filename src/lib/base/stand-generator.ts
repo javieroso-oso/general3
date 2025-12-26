@@ -25,13 +25,14 @@ import {
  */
 export function generateStand(
   config: StandConfig,
-  baseRadius: number
+  baseRadius: number,
+  bodyBottomRadius?: number
 ): THREE.BufferGeometry | null {
   switch (config.type) {
     case 'tripod':
-      return generateTripodStand(config, baseRadius);
+      return generateTripodStand(config, baseRadius, bodyBottomRadius);
     case 'weighted-disc':
-      return generateWeightedDisc(config, baseRadius);
+      return generateWeightedDisc(config, baseRadius, bodyBottomRadius);
     case 'wall-mount':
       return null; // Wall mount modifies body, doesn't add stand
     default:
@@ -40,11 +41,12 @@ export function generateStand(
 }
 
 /**
- * Generate tripod legs with base disc
+ * Generate tripod legs with base disc and flush attachment ring
  */
 function generateTripodStand(
   config: StandConfig,
-  baseRadius: number
+  baseRadius: number,
+  bodyBottomRadius?: number
 ): THREE.BufferGeometry {
   const tripod = config.tripod || DEFAULT_TRIPOD_CONFIG;
   const geometries: THREE.BufferGeometry[] = [];
@@ -59,7 +61,17 @@ function generateTripodStand(
   );
   geometries.push(discGeometry);
   
-  // 2. Create legs
+  // 2. Create flush attachment ring if body radius differs from base radius
+  if (bodyBottomRadius && Math.abs(bodyBottomRadius - baseRadius) > 0.5) {
+    const ringGeometry = createTransitionRing(
+      Math.min(bodyBottomRadius, baseRadius),
+      Math.max(bodyBottomRadius, baseRadius),
+      config.baseThickness
+    );
+    geometries.push(ringGeometry);
+  }
+  
+  // 3. Create legs with flush attachment to disc
   const legGeometries = createTripodLegs(
     baseRadius,
     tripod,
@@ -68,6 +80,77 @@ function generateTripodStand(
   geometries.push(...legGeometries);
   
   return mergeGeometries(geometries);
+}
+
+/**
+ * Create a transition ring to bridge between body bottom and stand top
+ */
+function createTransitionRing(
+  innerRadius: number,
+  outerRadius: number,
+  height: number
+): THREE.BufferGeometry {
+  const segments = 64;
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  
+  // Top inner ring
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * innerRadius, 0, Math.sin(theta) * innerRadius);
+  }
+  
+  // Top outer ring
+  const topOuterStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * outerRadius, 0, Math.sin(theta) * outerRadius);
+  }
+  
+  // Bottom inner ring
+  const botInnerStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * innerRadius, -height, Math.sin(theta) * innerRadius);
+  }
+  
+  // Bottom outer ring
+  const botOuterStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * outerRadius, -height, Math.sin(theta) * outerRadius);
+  }
+  
+  // Top face (ring)
+  for (let i = 0; i < segments; i++) {
+    indices.push(i, topOuterStart + i, i + 1);
+    indices.push(i + 1, topOuterStart + i, topOuterStart + i + 1);
+  }
+  
+  // Bottom face (ring)
+  for (let i = 0; i < segments; i++) {
+    indices.push(botInnerStart + i, botInnerStart + i + 1, botOuterStart + i);
+    indices.push(botOuterStart + i, botInnerStart + i + 1, botOuterStart + i + 1);
+  }
+  
+  // Inner wall
+  for (let i = 0; i < segments; i++) {
+    indices.push(i, i + 1, botInnerStart + i);
+    indices.push(botInnerStart + i, i + 1, botInnerStart + i + 1);
+  }
+  
+  // Outer wall
+  for (let i = 0; i < segments; i++) {
+    indices.push(topOuterStart + i, botOuterStart + i, topOuterStart + i + 1);
+    indices.push(topOuterStart + i + 1, botOuterStart + i, botOuterStart + i + 1);
+  }
+  
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  
+  return geometry;
 }
 
 /**
@@ -324,11 +407,12 @@ function createTripodLegs(
 }
 
 /**
- * Generate weighted disc base
+ * Generate weighted disc base with transition collar
  */
 function generateWeightedDisc(
   config: StandConfig,
-  baseRadius: number
+  baseRadius: number,
+  bodyBottomRadius?: number
 ): THREE.BufferGeometry {
   const weightedDisc = config.weightedDisc;
   if (!weightedDisc) {
@@ -348,10 +432,95 @@ function generateWeightedDisc(
   );
   geometries.push(discGeometry);
   
-  // Weight cavity would be subtracted in CSG (not implemented here)
-  // Rubber feet recesses would also be CSG operations
+  // Create transition collar from body bottom to disc top
+  const effectiveBodyRadius = bodyBottomRadius || baseRadius;
+  if (Math.abs(effectiveBodyRadius - discRadius) > 0.5) {
+    // Create a conical transition from body bottom to disc top
+    const collarHeight = Math.min(10, weightedDisc.discThickness * 0.5);
+    const collarGeometry = createTransitionCollar(
+      effectiveBodyRadius,
+      discRadius,
+      collarHeight
+    );
+    geometries.push(collarGeometry);
+  }
   
   return mergeGeometries(geometries);
+}
+
+/**
+ * Create a conical transition collar between body and stand
+ */
+function createTransitionCollar(
+  topRadius: number,
+  bottomRadius: number,
+  height: number
+): THREE.BufferGeometry {
+  const segments = 64;
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  
+  const wallThickness = 2; // mm
+  const topInner = Math.max(topRadius - wallThickness, topRadius * 0.8);
+  const bottomInner = Math.max(bottomRadius - wallThickness, bottomRadius * 0.8);
+  
+  // Top outer ring
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * topRadius, 0, Math.sin(theta) * topRadius);
+  }
+  
+  // Top inner ring
+  const topInnerStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * topInner, 0, Math.sin(theta) * topInner);
+  }
+  
+  // Bottom outer ring
+  const botOuterStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * bottomRadius, -height, Math.sin(theta) * bottomRadius);
+  }
+  
+  // Bottom inner ring
+  const botInnerStart = vertices.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    vertices.push(Math.cos(theta) * bottomInner, -height, Math.sin(theta) * bottomInner);
+  }
+  
+  // Top face (ring)
+  for (let i = 0; i < segments; i++) {
+    indices.push(i, topInnerStart + i, i + 1);
+    indices.push(i + 1, topInnerStart + i, topInnerStart + i + 1);
+  }
+  
+  // Bottom face (ring)
+  for (let i = 0; i < segments; i++) {
+    indices.push(botOuterStart + i, botOuterStart + i + 1, botInnerStart + i);
+    indices.push(botInnerStart + i, botOuterStart + i + 1, botInnerStart + i + 1);
+  }
+  
+  // Outer wall (conical)
+  for (let i = 0; i < segments; i++) {
+    indices.push(i, botOuterStart + i, i + 1);
+    indices.push(i + 1, botOuterStart + i, botOuterStart + i + 1);
+  }
+  
+  // Inner wall (conical)
+  for (let i = 0; i < segments; i++) {
+    indices.push(topInnerStart + i, topInnerStart + i + 1, botInnerStart + i);
+    indices.push(botInnerStart + i, topInnerStart + i + 1, botInnerStart + i + 1);
+  }
+  
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  
+  return geometry;
 }
 
 /**
