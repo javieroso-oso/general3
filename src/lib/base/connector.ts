@@ -50,7 +50,8 @@ export function generateConnector(
 
 /**
  * Generate press-fit collar
- * Creates a ring that friction-fits into the body bottom
+ * Creates a visible ring that sits between body and base as a connector
+ * The collar extends DOWNWARD from y=0 (body bottom) to connect with the stand
  */
 function generatePressFitConnector(
   config: ConnectorConfig,
@@ -58,58 +59,63 @@ function generatePressFitConnector(
 ): ConnectorGeometry {
   const tolerance = config.tolerance || 0.3;
   const insertDepth = config.insertDepth || 5;
-  const wallThickness = 2; // mm
+  const collarHeight = 8; // mm - visible collar height
+  const wallThickness = 3; // mm
   
-  const outerRadius = outerDiameter / 2 - tolerance;
-  const innerRadius = outerRadius - wallThickness;
+  const outerRadius = outerDiameter / 2 + 2; // Slightly wider than body for visibility
+  const innerRadius = outerDiameter / 2 - wallThickness;
   
   const segments = 64;
   const vertices: number[] = [];
   const indices: number[] = [];
   
-  // Create a ring that goes up into the body
-  // Bottom (at y=0)
+  // Create a collar that sits below y=0 (between body and stand)
+  // Top of collar at y=0, bottom at y=-collarHeight
+  
+  // Top inner ring (at y=0)
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
     vertices.push(Math.cos(theta) * innerRadius, 0, Math.sin(theta) * innerRadius);
   }
   
-  const bottomOuterStart = vertices.length / 3;
+  // Top outer ring
+  const topOuterStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
     vertices.push(Math.cos(theta) * outerRadius, 0, Math.sin(theta) * outerRadius);
   }
   
-  // Top (at y=insertDepth)
-  const topInnerStart = vertices.length / 3;
+  // Bottom inner ring (at y=-collarHeight)
+  const botInnerStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(theta) * innerRadius, insertDepth, Math.sin(theta) * innerRadius);
+    vertices.push(Math.cos(theta) * innerRadius, -collarHeight, Math.sin(theta) * innerRadius);
   }
   
-  const topOuterStart = vertices.length / 3;
+  // Bottom outer ring
+  const botOuterStart = vertices.length / 3;
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    vertices.push(Math.cos(theta) * outerRadius, insertDepth, Math.sin(theta) * outerRadius);
+    vertices.push(Math.cos(theta) * outerRadius, -collarHeight, Math.sin(theta) * outerRadius);
   }
   
   // Build faces
   for (let i = 0; i < segments; i++) {
-    // Bottom face
-    indices.push(i, bottomOuterStart + i + 1, bottomOuterStart + i);
-    indices.push(i, i + 1, bottomOuterStart + i + 1);
+    // Top face (ring)
+    indices.push(i, topOuterStart + i, i + 1);
+    indices.push(i + 1, topOuterStart + i, topOuterStart + i + 1);
+    
+    // Bottom face (ring)
+    indices.push(botInnerStart + i, botInnerStart + i + 1, botOuterStart + i);
+    indices.push(botOuterStart + i, botInnerStart + i + 1, botOuterStart + i + 1);
     
     // Inner wall
-    indices.push(i, topInnerStart + i, i + 1);
-    indices.push(i + 1, topInnerStart + i, topInnerStart + i + 1);
+    indices.push(i, i + 1, botInnerStart + i);
+    indices.push(botInnerStart + i, i + 1, botInnerStart + i + 1);
     
     // Outer wall
-    indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, topOuterStart + i);
-    indices.push(topOuterStart + i, bottomOuterStart + i + 1, topOuterStart + i + 1);
-    
-    // Top face
-    indices.push(topInnerStart + i, topOuterStart + i, topInnerStart + i + 1);
-    indices.push(topInnerStart + i + 1, topOuterStart + i, topOuterStart + i + 1);
+    indices.push(topOuterStart + i, botOuterStart + i, topOuterStart + i + 1);
+    indices.push(topOuterStart + i + 1, botOuterStart + i, botOuterStart + i + 1);
   }
   
   const geometry = new THREE.BufferGeometry();
@@ -118,13 +124,14 @@ function generatePressFitConnector(
   geometry.computeVertexNormals();
   
   return { 
-    bodyInterface: null, // Press-fit collar is part of base
-    baseInterface: geometry 
+    bodyInterface: null,
+    baseInterface: geometry  // This is the visible collar
   };
 }
 
 /**
- * Generate screw mount holes
+ * Generate screw mount connector
+ * Creates a visible flange/collar with screw boss positions
  */
 function generateScrewConnector(
   config: ConnectorConfig,
@@ -133,76 +140,163 @@ function generateScrewConnector(
   const screwType = config.type === 'screw-m3' ? 'm3' : 'm4';
   const specs = SCREW_SPECS[screwType];
   const screwCount = config.screwCount || 3;
+  const collarHeight = 6; // mm
   
-  const holeRadius = outerDiameter / 2 * 0.7; // Holes at 70% of radius
   const geometries: THREE.BufferGeometry[] = [];
+  const innerRadius = outerDiameter / 2 - 3;
+  const outerRadius = outerDiameter / 2 + 4; // Flange extends outward
+  const segments = 64;
   
-  // Create visual indicators for screw holes
-  for (let i = 0; i < screwCount; i++) {
-    const angle = (i / screwCount) * Math.PI * 2;
-    const x = Math.cos(angle) * holeRadius;
-    const z = Math.sin(angle) * holeRadius;
-    
-    // Screw hole cylinder
-    const holeGeo = new THREE.CylinderGeometry(
-      specs.clearanceHole / 2,
-      specs.clearanceHole / 2,
-      10, // Through hole
-      16
-    );
-    holeGeo.translate(x, -5, z);
-    geometries.push(holeGeo);
+  // Create collar/flange
+  const collarVerts: number[] = [];
+  const collarIdx: number[] = [];
+  
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * innerRadius, 0, Math.sin(theta) * innerRadius);
+  }
+  const topOuterStart = collarVerts.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * outerRadius, 0, Math.sin(theta) * outerRadius);
+  }
+  const botInnerStart = collarVerts.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * innerRadius, -collarHeight, Math.sin(theta) * innerRadius);
+  }
+  const botOuterStart = collarVerts.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * outerRadius, -collarHeight, Math.sin(theta) * outerRadius);
   }
   
-  const screwHoles = mergeGeometries(geometries);
+  for (let i = 0; i < segments; i++) {
+    collarIdx.push(i, topOuterStart + i, i + 1);
+    collarIdx.push(i + 1, topOuterStart + i, topOuterStart + i + 1);
+    collarIdx.push(botInnerStart + i, botInnerStart + i + 1, botOuterStart + i);
+    collarIdx.push(botOuterStart + i, botInnerStart + i + 1, botOuterStart + i + 1);
+    collarIdx.push(i, i + 1, botInnerStart + i);
+    collarIdx.push(botInnerStart + i, i + 1, botInnerStart + i + 1);
+    collarIdx.push(topOuterStart + i, botOuterStart + i, topOuterStart + i + 1);
+    collarIdx.push(topOuterStart + i + 1, botOuterStart + i, botOuterStart + i + 1);
+  }
+  
+  const collarGeo = new THREE.BufferGeometry();
+  collarGeo.setAttribute('position', new THREE.Float32BufferAttribute(collarVerts, 3));
+  collarGeo.setIndex(collarIdx);
+  collarGeo.computeVertexNormals();
+  geometries.push(collarGeo);
+  
+  // Add screw boss cylinders at flange edge
+  const bossRadius = specs.headDiameter / 2 + 2;
+  const bossHeight = collarHeight;
+  const bossDistance = (outerRadius + innerRadius) / 2;
+  
+  for (let i = 0; i < screwCount; i++) {
+    const angle = (i / screwCount) * Math.PI * 2;
+    const x = Math.cos(angle) * bossDistance;
+    const z = Math.sin(angle) * bossDistance;
+    
+    // Screw boss (raised cylinder)
+    const bossGeo = new THREE.CylinderGeometry(bossRadius, bossRadius, bossHeight, 16);
+    bossGeo.translate(x, -bossHeight / 2, z);
+    geometries.push(bossGeo);
+  }
   
   return {
     bodyInterface: null,
-    baseInterface: null,
-    screwHoles,
+    baseInterface: mergeGeometries(geometries),
+    screwHoles: undefined,
   };
 }
 
 /**
  * Generate bayonet twist-lock
+ * Creates visible tabs that extend from the collar between body and base
  */
 function generateBayonetConnector(
   config: ConnectorConfig,
   outerDiameter: number
 ): ConnectorGeometry {
-  // Bayonet tabs on body, slots on base
-  const tabRadius = outerDiameter / 2 - 2;
-  const tabCount = 3;
+  const tabRadius = outerDiameter / 2 + 2; // Slightly wider for visibility
+  const tabCount = config.screwCount || 3;
+  const collarHeight = 10; // mm
   
-  const tabGeometries: THREE.BufferGeometry[] = [];
+  const geometries: THREE.BufferGeometry[] = [];
   
+  // First create a base collar (ring)
+  const segments = 64;
+  const collarVerts: number[] = [];
+  const collarIdx: number[] = [];
+  const innerRadius = outerDiameter / 2 - 3;
+  const outerRadius = tabRadius;
+  
+  // Create collar at y=-collarHeight/2 to y=0
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * innerRadius, 0, Math.sin(theta) * innerRadius);
+  }
+  const topOuterStart = collarVerts.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * outerRadius, 0, Math.sin(theta) * outerRadius);
+  }
+  const botInnerStart = collarVerts.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * innerRadius, -collarHeight, Math.sin(theta) * innerRadius);
+  }
+  const botOuterStart = collarVerts.length / 3;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    collarVerts.push(Math.cos(theta) * outerRadius, -collarHeight, Math.sin(theta) * outerRadius);
+  }
+  
+  for (let i = 0; i < segments; i++) {
+    collarIdx.push(i, topOuterStart + i, i + 1);
+    collarIdx.push(i + 1, topOuterStart + i, topOuterStart + i + 1);
+    collarIdx.push(botInnerStart + i, botInnerStart + i + 1, botOuterStart + i);
+    collarIdx.push(botOuterStart + i, botInnerStart + i + 1, botOuterStart + i + 1);
+    collarIdx.push(i, i + 1, botInnerStart + i);
+    collarIdx.push(botInnerStart + i, i + 1, botInnerStart + i + 1);
+    collarIdx.push(topOuterStart + i, botOuterStart + i, topOuterStart + i + 1);
+    collarIdx.push(topOuterStart + i + 1, botOuterStart + i, botOuterStart + i + 1);
+  }
+  
+  const collarGeo = new THREE.BufferGeometry();
+  collarGeo.setAttribute('position', new THREE.Float32BufferAttribute(collarVerts, 3));
+  collarGeo.setIndex(collarIdx);
+  collarGeo.computeVertexNormals();
+  geometries.push(collarGeo);
+  
+  // Add tabs extending outward
   for (let i = 0; i < tabCount; i++) {
     const angle = (i / tabCount) * Math.PI * 2;
     
-    // Create a tab (box)
     const tabGeo = new THREE.BoxGeometry(
       BAYONET_SPECS.tabWidth,
       BAYONET_SPECS.tabHeight,
       BAYONET_SPECS.tabDepth
     );
     
-    // Position at radius
+    // Position tabs at mid-height of collar, extending outward
     tabGeo.translate(
-      Math.cos(angle) * tabRadius,
-      -BAYONET_SPECS.tabHeight / 2,
-      Math.sin(angle) * tabRadius
+      Math.cos(angle) * (tabRadius + BAYONET_SPECS.tabDepth / 2),
+      -collarHeight / 2,
+      Math.sin(angle) * (tabRadius + BAYONET_SPECS.tabDepth / 2)
     );
     
     // Rotate to face outward
     const rotMatrix = new THREE.Matrix4().makeRotationY(-angle);
     tabGeo.applyMatrix4(rotMatrix);
     
-    tabGeometries.push(tabGeo);
+    geometries.push(tabGeo);
   }
   
   return {
-    bodyInterface: mergeGeometries(tabGeometries),
-    baseInterface: null, // Slots would be CSG subtraction
+    bodyInterface: null,
+    baseInterface: mergeGeometries(geometries),
   };
 }
 
