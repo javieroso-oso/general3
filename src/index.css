@@ -2,68 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Bauhaus Brutalism - Bold Primary Colors, Geometric Structure */
+/* Dark Bauhaus - Bold Primary Colors on Deep Black */
 
 @layer base {
   :root {
-    /* Clean off-white background */
-    --background: 45 20% 96%;
-    --foreground: 0 0% 8%;
+    /* Deep charcoal background */
+    --background: 220 15% 8%;
+    --foreground: 45 20% 92%;
 
-    /* Pure white cards */
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    /* Dark elevated cards */
+    --card: 220 12% 12%;
+    --card-foreground: 45 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover: 220 12% 14%;
+    --popover-foreground: 45 20% 92%;
 
-    /* Bauhaus Blue primary */
-    --primary: 220 85% 45%;
+    /* Bauhaus Blue primary - slightly brighter for dark */
+    --primary: 220 90% 55%;
     --primary-foreground: 0 0% 100%;
 
-    /* Light gray secondary */
-    --secondary: 45 10% 92%;
-    --secondary-foreground: 0 0% 15%;
+    /* Dark slate secondary */
+    --secondary: 220 10% 18%;
+    --secondary-foreground: 45 15% 85%;
 
-    /* Soft muted */
-    --muted: 45 8% 90%;
-    --muted-foreground: 0 0% 40%;
+    /* Deep muted */
+    --muted: 220 8% 16%;
+    --muted-foreground: 220 10% 55%;
 
-    /* Bauhaus Red accent */
-    --accent: 5 85% 50%;
+    /* Bauhaus Red accent - vibrant on dark */
+    --accent: 5 90% 55%;
     --accent-foreground: 0 0% 100%;
 
-    /* Bauhaus Yellow */
-    --bauhaus-yellow: 48 95% 55%;
+    /* Bauhaus Yellow - bright and bold */
+    --bauhaus-yellow: 48 100% 50%;
     --bauhaus-yellow-foreground: 0 0% 8%;
 
-    --destructive: 5 85% 50%;
+    --destructive: 5 90% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Strong black borders */
-    --border: 0 0% 75%;
-    --input: 45 8% 88%;
-    --ring: 220 85% 45%;
+    /* Subtle dark borders */
+    --border: 220 10% 25%;
+    --input: 220 10% 20%;
+    --ring: 220 90% 55%;
 
     --radius: 0;
 
-    /* Hard offset shadows with color options */
-    --shadow-brutal: 4px 4px 0 hsl(0 0% 8%);
-    --shadow-brutal-sm: 2px 2px 0 hsl(0 0% 8%);
-    --shadow-blue: 4px 4px 0 hsl(220 85% 45%);
-    --shadow-red: 4px 4px 0 hsl(5 85% 50%);
-    --shadow-yellow: 4px 4px 0 hsl(48 95% 55%);
-    --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.06);
+    /* Hard offset shadows - glow effects for dark */
+    --shadow-brutal: 4px 4px 0 hsl(220 90% 55%);
+    --shadow-brutal-sm: 2px 2px 0 hsl(220 90% 55%);
+    --shadow-blue: 4px 4px 0 hsl(220 90% 55%);
+    --shadow-red: 4px 4px 0 hsl(5 90% 55%);
+    --shadow-yellow: 4px 4px 0 hsl(48 100% 50%);
+    --shadow-soft: 0 2px 12px hsl(220 90% 55% / 0.15);
     
     /* Sidebar */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 8%;
-    --sidebar-primary: 220 85% 45%;
+    --sidebar-background: 220 12% 10%;
+    --sidebar-foreground: 45 20% 92%;
+    --sidebar-primary: 220 90% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 45 10% 94%;
-    --sidebar-accent-foreground: 0 0% 8%;
-    --sidebar-border: 0 0% 75%;
-    --sidebar-ring: 220 85% 45%;
+    --sidebar-accent: 220 10% 16%;
+    --sidebar-accent-foreground: 45 20% 92%;
+    --sidebar-border: 220 10% 25%;
+    --sidebar-ring: 220 90% 55%;
   }
 }
 
