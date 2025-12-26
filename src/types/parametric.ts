@@ -73,6 +73,7 @@ export interface ParametricParams {
   wallMountHoleStyle: 'round' | 'keyhole' | 'countersink'; // hole style
   wallMountHoleMargin: number;      // 0-1 - distance from edge as percentage of available space
   wallMountCordHoleEnabled: boolean; // add cord exit hole through flat back
+  wallMountFilletRadius: number;    // mm - fillet radius for smooth edge transition (0-10)
   
   // Legacy wall bracket (kept for compatibility)
   wallBracketArmLength: number;  // mm - arm extension from wall
@@ -284,6 +285,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleStyle: 'round',
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
+    wallMountFilletRadius: 2,
   },
   lamp: {
     height: 100,
@@ -342,6 +344,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleStyle: 'round',
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
+    wallMountFilletRadius: 2,
   },
   sculpture: {
     height: 150,
@@ -400,6 +403,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleStyle: 'round',
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: false,
+    wallMountFilletRadius: 2,
   },
 };
 

@@ -323,51 +323,131 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
       
       // === CREATE BACK WALL FROM CLIPPED SHELL BOUNDARY ===
-      // Scan actual clipped vertices to find the real boundary at each height level
-      // This captures all deformations: wobble, ripple, asymmetry, organic noise
-      const boundaryByHeight = new Map<number, { minX: number; maxX: number }>();
+      // Find actual edge vertices where body meets cut plane
+      const filletRadius = params.wallMountFilletRadius || 0;
+      const filletSegments = filletRadius > 0 ? 4 : 0; // Number of fillet curve segments
+      
+      // For each height, find the leftmost and rightmost vertices AT the cut plane
+      const edgeByHeight = new Map<number, { leftX: number; rightX: number; leftIdx: number; rightIdx: number }>();
       
       for (let i = 0; i <= heightSegments; i++) {
+        let leftX = Infinity, rightX = -Infinity;
+        let leftIdx = -1, rightIdx = -1;
+        
         for (let j = 0; j <= segments; j++) {
           const idx = i * (segments + 1) + j;
           const x = clippedVerts[idx * 3];
           const z = clippedVerts[idx * 3 + 2];
           
-          // Include vertices that are AT or BEHIND the cut plane
-          // (clipped vertices have z = cutOffset when they were originally behind the plane)
-          if (z <= cutOffset + 0.001) {
-            const existing = boundaryByHeight.get(i);
-            if (!existing) {
-              boundaryByHeight.set(i, { minX: x, maxX: x });
-            } else {
-              existing.minX = Math.min(existing.minX, x);
-              existing.maxX = Math.max(existing.maxX, x);
-            }
+          // Only consider vertices that are exactly at the cut plane (the edge)
+          if (Math.abs(z - cutOffset) < 0.01) {
+            if (x < leftX) { leftX = x; leftIdx = idx; }
+            if (x > rightX) { rightX = x; rightIdx = idx; }
           }
+        }
+        
+        if (leftIdx !== -1 && rightIdx !== -1) {
+          edgeByHeight.set(i, { leftX, rightX, leftIdx, rightIdx });
         }
       }
       
-      // Build left and right edges from actual clipped boundary data
+      // Build left and right edge points from actual edge vertices
       const leftEdge: { x: number; y: number }[] = [];
       const rightEdge: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         const y = t * h;
-        const bounds = boundaryByHeight.get(i);
+        const edge = edgeByHeight.get(i);
         
-        if (bounds && Math.abs(bounds.maxX - bounds.minX) > 0.001) {
-          // Use actual deformed boundary from clipped vertices
-          leftEdge.push({ x: bounds.minX, y });
-          rightEdge.push({ x: bounds.maxX, y });
-        } else {
-          // Fallback: no clipped vertices found, skip this height level
-          // This shouldn't happen if the geometry is correct
+        if (edge) {
+          leftEdge.push({ x: edge.leftX, y });
+          rightEdge.push({ x: edge.rightX, y });
         }
       }
       
-      // Build outline: left edge going up, then right edge going down
-      const outline = [...leftEdge, ...rightEdge.reverse()];
+      if (leftEdge.length === 0 || rightEdge.length === 0) {
+        // Fallback: use radius calculation if no edge vertices found
+        for (let i = 0; i <= heightSegments; i++) {
+          const t = i / heightSegments;
+          const y = t * h;
+          const radius = radiiAtHeight[i] || bRad;
+          const rSquared = radius * radius;
+          const zSquared = cutOffset * cutOffset;
+          
+          if (rSquared > zSquared) {
+            const xBoundary = Math.sqrt(rSquared - zSquared);
+            leftEdge.push({ x: -xBoundary, y });
+            rightEdge.push({ x: xBoundary, y });
+          }
+        }
+      }
+      
+      // === CREATE FILLET GEOMETRY (if enabled) ===
+      if (filletRadius > 0 && leftEdge.length > 0) {
+        // Create fillet strip vertices between edge and back wall
+        const filletVerts: number[] = [];
+        const filletIndices: number[] = [];
+        const filletStartIdx = vertices.length / 3;
+        
+        // For each height level, create fillet curve points
+        for (let i = 0; i < leftEdge.length; i++) {
+          const leftPt = leftEdge[i];
+          const rightPt = rightEdge[i];
+          
+          // Left side fillet (curve from edge toward center)
+          for (let f = 0; f <= filletSegments; f++) {
+            const angle = (f / filletSegments) * (Math.PI / 2);
+            const dx = filletRadius * (1 - Math.cos(angle));
+            const dz = filletRadius * Math.sin(angle);
+            filletVerts.push(leftPt.x + dx, leftPt.y, cutOffset + dz);
+          }
+          
+          // Right side fillet (curve from edge toward center)
+          for (let f = 0; f <= filletSegments; f++) {
+            const angle = (f / filletSegments) * (Math.PI / 2);
+            const dx = filletRadius * (1 - Math.cos(angle));
+            const dz = filletRadius * Math.sin(angle);
+            filletVerts.push(rightPt.x - dx, rightPt.y, cutOffset + dz);
+          }
+        }
+        
+        // Add fillet vertices
+        for (let v = 0; v < filletVerts.length; v += 3) {
+          vertices.push(filletVerts[v], filletVerts[v + 1], filletVerts[v + 2]);
+        }
+        
+        // Create fillet strip faces
+        const pointsPerRow = (filletSegments + 1) * 2; // left + right fillet points
+        for (let i = 0; i < leftEdge.length - 1; i++) {
+          // Left fillet strip
+          for (let f = 0; f < filletSegments; f++) {
+            const a = filletStartIdx + i * pointsPerRow + f;
+            const b = a + 1;
+            const c = filletStartIdx + (i + 1) * pointsPerRow + f;
+            const d = c + 1;
+            indices.push(a, c, b);
+            indices.push(b, c, d);
+          }
+          
+          // Right fillet strip
+          const rightOffset = filletSegments + 1;
+          for (let f = 0; f < filletSegments; f++) {
+            const a = filletStartIdx + i * pointsPerRow + rightOffset + f;
+            const b = a + 1;
+            const c = filletStartIdx + (i + 1) * pointsPerRow + rightOffset + f;
+            const d = c + 1;
+            indices.push(a, b, c);
+            indices.push(b, d, c);
+          }
+        }
+      }
+      
+      // Build outline for back wall: left edge going up, then right edge going down
+      // Offset the back wall inward by fillet radius
+      const backWallLeft = leftEdge.map(pt => ({ x: pt.x + filletRadius, y: pt.y }));
+      const backWallRight = rightEdge.map(pt => ({ x: pt.x - filletRadius, y: pt.y }));
+      const outline = [...backWallLeft, ...backWallRight.reverse()];
       
       // Add back wall vertices
       const backWallStartIdx = vertices.length / 3;
