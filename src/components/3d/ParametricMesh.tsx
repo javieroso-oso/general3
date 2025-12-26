@@ -91,8 +91,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const segments = 64;
     const heightSegments = 64;
     
-    // For wall mount, we generate FULL 360° object then slice with a plane
-    const isWallMount = addLegs && params.standType === 'wall_mount';
+    // For wall mount with BACK style, we generate FULL 360° object then slice with a plane
+    // BASE style wall mount keeps full 360° body and adds a base plate with keyholes
+    const isWallMount = addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'back';
     const cutOffset = (params.wallMountCutOffset || 0) * SCALE; // Convert mm to scene units
 
     const outerVerts: number[] = [];
@@ -504,12 +505,15 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Generate stand geometry based on standType (only for tripod now)
+    // Generate stand geometry based on standType
+    // Use actual maxRadius (in mm) for proper sizing - convert back from scene units
+    const actualMaxRadiusMM = maxRadius / SCALE;
+    
     let standGeo: THREE.BufferGeometry | null = null;
     if (addLegs && params.standType === 'tripod') {
-      // Use existing tripod generator
+      // Use existing tripod generator with actual max radius
       const legGeoMM = generateLegsWithBase(
-        baseRadius,
+        actualMaxRadiusMM,
         params.legCount,
         params.legHeight,
         params.legSpread,
@@ -545,7 +549,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     } else if (addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'base') {
       // Base mount with keyholes - a flat plate with mounting holes facing down
       const baseMountGeoMM = generateBaseMountPlate(
-        baseRadius,
+        actualMaxRadiusMM,
         params.baseThickness || 3,
         params.wallMountHoleCount,
         {
