@@ -118,6 +118,12 @@ export interface ParametricParams {
   baseSizeMode: 'auto' | 'tray' | 'custom';  // auto = fit bottom, tray = max radius, custom = user-defined
   standBaseRadius: number;  // mm - custom base radius when baseSizeMode is 'custom'
   
+  // Pedestal-style base controls
+  standBaseThickness: number;       // mm - height of the base disc (2-30mm)
+  standBaseTaper: number;           // 0-0.5 - taper from bottom to top
+  standBaseEdgeStyle: 'flat' | 'rounded' | 'chamfer';  // edge profile style
+  standBaseLip: number;             // mm - raised lip height around edge (0-10mm)
+  
   // Cord exit hole in base (for lamp wiring)
   cordHoleEnabled: boolean;     // Toggle cord exit hole
   cordHoleDiameter: number;     // mm - cord exit hole diameter
@@ -278,6 +284,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseType: 'flat',
     baseSizeMode: 'auto',
     standBaseRadius: 50,
+    standBaseThickness: 3,
+    standBaseTaper: 0,
+    standBaseEdgeStyle: 'flat',
+    standBaseLip: 0,
     cordHoleEnabled: false,
     cordHoleDiameter: 8,
     centeringLipEnabled: false,
@@ -339,6 +349,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseType: 'flat',
     baseSizeMode: 'auto',
     standBaseRadius: 50,
+    standBaseThickness: 3,
+    standBaseTaper: 0,
+    standBaseEdgeStyle: 'flat',
+    standBaseLip: 0,
     cordHoleEnabled: true,
     cordHoleDiameter: 8,
     centeringLipEnabled: true,
@@ -400,6 +414,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     baseType: 'pedestal',
     baseSizeMode: 'auto',
     standBaseRadius: 50,
+    standBaseThickness: 3,
+    standBaseTaper: 0,
+    standBaseEdgeStyle: 'flat',
+    standBaseLip: 0,
     cordHoleEnabled: false,
     cordHoleDiameter: 8,
     centeringLipEnabled: false,

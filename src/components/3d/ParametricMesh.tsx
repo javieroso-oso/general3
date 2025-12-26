@@ -534,7 +534,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         params.legThickness,
         params.legTaper,
         params.legInset,
-        params.baseThickness || 3,
+        params.standBaseThickness || 3,
         {
           wobbleFrequency,
           wobbleAmplitude,
@@ -556,6 +556,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           attachmentType: params.attachmentType,
           screwCount: params.screwCount,
           baseRadius: params.baseRadius,
+        },
+        {
+          thickness: params.standBaseThickness,
+          taper: params.standBaseTaper,
+          edgeStyle: params.standBaseEdgeStyle,
+          lip: params.standBaseLip,
         }
       );
       legGeoMM.scale(SCALE, SCALE, SCALE);
@@ -564,7 +570,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       // Base mount with keyholes - a flat plate with mounting holes facing down
       const baseMountGeoMM = generateBaseMountPlate(
         effectiveBaseRadius,
-        params.baseThickness || 3,
+        params.standBaseThickness || 3,
         params.wallMountHoleCount,
         {
           wobbleFrequency,
@@ -587,6 +593,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           attachmentType: params.attachmentType,
           screwCount: params.screwCount,
           baseRadius: params.baseRadius,
+        },
+        {
+          thickness: params.standBaseThickness,
+          taper: params.standBaseTaper,
+          edgeStyle: params.standBaseEdgeStyle,
+          lip: params.standBaseLip,
         }
       );
       baseMountGeoMM.scale(SCALE, SCALE, SCALE);
