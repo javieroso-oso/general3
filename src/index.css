@@ -2,61 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Nordic Minimal - Soft Neutrals, Warm Light Theme */
+/* Nordic Minimal - Cool Blue-Gray Palette */
 
 @layer base {
   :root {
-    /* Warm off-white background */
-    --background: 40 30% 97%;
-    --foreground: 30 10% 15%;
+    /* Cool off-white background */
+    --background: 210 25% 97%;
+    --foreground: 215 20% 15%;
 
-    /* Soft warm cards */
-    --card: 40 25% 99%;
-    --card-foreground: 30 10% 15%;
+    /* Cool gray cards */
+    --card: 210 20% 99%;
+    --card-foreground: 215 20% 15%;
 
-    --popover: 40 25% 99%;
-    --popover-foreground: 30 10% 15%;
+    --popover: 210 20% 99%;
+    --popover-foreground: 215 20% 15%;
 
-    /* Warm terracotta primary */
-    --primary: 18 70% 55%;
-    --primary-foreground: 40 30% 98%;
+    /* Steel blue primary */
+    --primary: 210 60% 45%;
+    --primary-foreground: 210 25% 98%;
 
-    /* Sage green secondary */
-    --secondary: 150 20% 88%;
-    --secondary-foreground: 150 25% 25%;
+    /* Soft slate secondary */
+    --secondary: 215 20% 90%;
+    --secondary-foreground: 215 25% 25%;
 
-    /* Warm muted tones */
-    --muted: 35 20% 93%;
-    --muted-foreground: 30 10% 45%;
+    /* Cool muted tones */
+    --muted: 210 15% 93%;
+    --muted-foreground: 215 15% 45%;
 
-    /* Dusty rose accent */
-    --accent: 350 35% 75%;
-    --accent-foreground: 350 40% 25%;
+    /* Soft periwinkle accent */
+    --accent: 230 40% 80%;
+    --accent-foreground: 230 45% 25%;
 
     --destructive: 0 55% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Soft warm borders */
-    --border: 35 15% 88%;
-    --input: 35 15% 90%;
-    --ring: 18 70% 55%;
+    /* Cool gray borders */
+    --border: 210 15% 88%;
+    --input: 210 15% 90%;
+    --ring: 210 60% 45%;
 
     --radius: 0.75rem;
 
     /* Diffused shadows */
-    --shadow-soft: 0 2px 8px hsl(30 20% 20% / 0.04);
-    --shadow-md: 0 4px 16px hsl(30 20% 20% / 0.06);
-    --shadow-lg: 0 8px 32px hsl(30 20% 20% / 0.08);
+    --shadow-soft: 0 2px 8px hsl(215 30% 20% / 0.04);
+    --shadow-md: 0 4px 16px hsl(215 30% 20% / 0.06);
+    --shadow-lg: 0 8px 32px hsl(215 30% 20% / 0.08);
     
     /* Sidebar */
-    --sidebar-background: 40 25% 98%;
-    --sidebar-foreground: 30 10% 15%;
-    --sidebar-primary: 18 70% 55%;
-    --sidebar-primary-foreground: 40 30% 98%;
-    --sidebar-accent: 35 20% 94%;
-    --sidebar-accent-foreground: 30 10% 15%;
-    --sidebar-border: 35 15% 88%;
-    --sidebar-ring: 18 70% 55%;
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 215 20% 15%;
+    --sidebar-primary: 210 60% 45%;
+    --sidebar-primary-foreground: 210 25% 98%;
+    --sidebar-accent: 210 15% 94%;
+    --sidebar-accent-foreground: 215 20% 15%;
+    --sidebar-border: 210 15% 88%;
+    --sidebar-ring: 210 60% 45%;
   }
 }
 
@@ -96,7 +96,7 @@
     box-shadow: var(--shadow-md);
   }
   
-  /* Warm preset card */
+  /* Cool preset card */
   .preset-card {
     @apply bg-muted rounded-lg p-3 cursor-pointer transition-all duration-200 border-2 border-transparent;
   }
@@ -132,7 +132,7 @@
     @apply scale-110;
   }
   
-  /* Warm navigation */
+  /* Cool navigation */
   .nav-link {
     @apply relative px-4 py-2 text-muted-foreground font-medium text-sm transition-colors duration-200;
   }
@@ -173,12 +173,12 @@
     @apply bg-primary text-primary-foreground;
   }
   
-  /* Warm gradient text */
+  /* Cool gradient text */
   .gradient-text {
     @apply text-primary;
   }
   
-  /* Warm accent border */
+  /* Cool accent border */
   .gradient-border {
     @apply relative rounded-xl border-2 border-primary/30;
   }
