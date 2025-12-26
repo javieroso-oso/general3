@@ -289,6 +289,68 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     />
                   )}
                 </div>
+                
+                {/* Base Style Section */}
+                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Grip className={cn("w-4 h-4", params.standBaseThickness > 3 ? "text-primary" : "text-muted-foreground")} />
+                    <Label className="text-sm font-medium">Base Style</Label>
+                  </div>
+                  
+                  <ParameterSlider
+                    label="Thickness"
+                    value={params.standBaseThickness}
+                    min={2}
+                    max={30}
+                    step={1}
+                    unit="mm"
+                    onChange={handleChange('standBaseThickness')}
+                  />
+                  
+                  <ParameterSlider
+                    label="Taper"
+                    value={params.standBaseTaper}
+                    min={0}
+                    max={0.5}
+                    step={0.05}
+                    onChange={handleChange('standBaseTaper')}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    0 = straight sides, 0.5 = 50% narrower at bottom
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Edge Style</Label>
+                    <Select 
+                      value={params.standBaseEdgeStyle} 
+                      onValueChange={(value: 'flat' | 'rounded' | 'chamfer') => {
+                        onParamsChange({ ...params, standBaseEdgeStyle: value });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="flat">Flat</SelectItem>
+                        <SelectItem value="rounded">Rounded</SelectItem>
+                        <SelectItem value="chamfer">Chamfer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <ParameterSlider
+                    label="Lip Height"
+                    value={params.standBaseLip}
+                    min={0}
+                    max={10}
+                    step={0.5}
+                    unit="mm"
+                    onChange={handleChange('standBaseLip')}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Raised edge around base (tray effect)
+                  </p>
+                </div>
               </>
             )}
             

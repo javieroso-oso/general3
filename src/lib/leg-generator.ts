@@ -34,6 +34,16 @@ export interface AttachmentParams {
   baseRadius: number;      // mm - for calculating hole positions
 }
 
+/**
+ * Pedestal-style base parameters
+ */
+export interface PedestalParams {
+  thickness: number;       // mm - height of the base disc (2-30mm)
+  taper: number;           // 0-0.5 - taper from bottom to top
+  edgeStyle: 'flat' | 'rounded' | 'chamfer';  // edge profile style
+  lip: number;             // mm - raised lip height around edge (0-10mm)
+}
+
 // Socket THREAD diameters in mm (the E-number IS the thread diameter!)
 // These determine centering lip size - the lip should fit snugly around the threaded portion
 const SOCKET_THREAD_DIAMETERS: Record<string, number> = {
@@ -179,12 +189,16 @@ export function generateLegsWithBase(
   baseThickness: number = 3, // mm - thickness of the base disc
   organicParams?: OrganicParams, // organic deformation parameters
   socketParams?: SocketParams,   // socket attachment parameters
-  attachmentParams?: AttachmentParams // body-to-stand attachment
+  attachmentParams?: AttachmentParams, // body-to-stand attachment
+  pedestalParams?: PedestalParams // pedestal-style base parameters
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
+  // Use pedestal thickness if provided, otherwise use baseThickness
+  const effectiveThickness = pedestalParams?.thickness ?? baseThickness;
+  
   // First, create the base disc with lip and optional attachment features
-  const discGeo = createBaseDiscWithSocket(baseRadius, baseThickness, organicParams, socketParams, attachmentParams);
+  const discGeo = createBaseDiscWithSocket(baseRadius, effectiveThickness, organicParams, socketParams, attachmentParams, pedestalParams);
   geometries.push(discGeo);
   
   // Then create legs extending from bottom of disc
@@ -332,11 +346,20 @@ function createBaseDiscWithSocket(
   thickness: number,
   organicParams?: OrganicParams,
   socketParams?: SocketParams,
-  attachmentParams?: AttachmentParams
+  attachmentParams?: AttachmentParams,
+  pedestalParams?: PedestalParams
 ): THREE.BufferGeometry {
   const segments = 64;
   const vertices: number[] = [];
   const indices: number[] = [];
+  
+  // Pedestal parameters
+  const taper = pedestalParams?.taper ?? 0;
+  const edgeStyle = pedestalParams?.edgeStyle ?? 'flat';
+  const edgeLip = pedestalParams?.lip ?? 0;
+  
+  // Calculate tapered radius at bottom (shrinks based on taper)
+  const bottomRadius = radius * (1 - taper);
   
   // Cord hole parameters
   const cordHoleEnabled = socketParams?.cordHoleEnabled ?? false;
@@ -350,12 +373,13 @@ function createBaseDiscWithSocket(
   const socketThreadDiameter = SOCKET_THREAD_DIAMETERS[socketType] ?? 26;
   
   // Lip dimensions: inner = socket thread diameter / 2 + 0.5mm clearance for snug fit
-  // E26: inner = 13.5mm, outer = 15.5mm → total lip diameter ~31mm (was 44mm before fix)
   const lipInnerRadius = socketThreadDiameter / 2 + 0.5;
   const lipOuterRadius = lipInnerRadius + 2; // 2mm wall thickness
   
-  // Outer radius with organic deformation
+  // Outer radius with organic deformation (for top surface)
   const getOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
+  // Bottom radius with taper applied
+  const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
   
   // ===== SIMPLIFIED FLAT BASE DISC =====
   // Top surface at y=0, bottom at y=-thickness
@@ -880,12 +904,16 @@ export function generateBaseMountPlate(
   holeCount: 2 | 3 | 4 = 2,  // number of keyholes
   organicParams?: OrganicParams,
   socketParams?: SocketParams,
-  attachmentParams?: AttachmentParams
+  attachmentParams?: AttachmentParams,
+  pedestalParams?: PedestalParams
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
+  // Use pedestal thickness if provided
+  const effectiveThickness = pedestalParams?.thickness ?? baseThickness;
+  
   // Create the base disc (same as tripod but no legs)
-  const discGeo = createBaseDiscWithSocket(baseRadius, baseThickness, organicParams, socketParams, attachmentParams);
+  const discGeo = createBaseDiscWithSocket(baseRadius, effectiveThickness, organicParams, socketParams, attachmentParams, pedestalParams);
   geometries.push(discGeo);
   
   // Add keyholes to the bottom of the base plate (facing -Y direction)
