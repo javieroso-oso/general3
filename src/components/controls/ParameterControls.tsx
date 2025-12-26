@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Wrench, Link, Box, Grip, Lamp, Square } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Wrench, Link, Box, Grip, Lamp, Square, Weight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -9,9 +9,13 @@ import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, AttachmentType, StandType, SCREW_SPECS, BAYONET_SPECS } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
+import { BasePresetSelector } from './BasePresetSelector';
+import { BasePresetKey, getParamsWithPreset } from '@/lib/base/preset-adapter';
+import { validateBaseConfig } from '@/lib/base/validation';
+import { DEFAULT_SOCKET_CONFIG, DEFAULT_STAND_CONFIG, DEFAULT_CONNECTOR_CONFIG } from '@/lib/base/types';
 
 interface ParameterControlsProps {
   params: ParametricParams;
@@ -131,9 +135,71 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   const getStandLabel = (type: StandType): string => {
     switch (type) {
       case 'tripod': return 'Tripod Legs';
+      case 'weighted_disc': return 'Weighted Disc';
       case 'wall_mount': return 'Wall Mount';
+      default: return type;
     }
   };
+  
+  // State for selected preset
+  const [selectedPreset, setSelectedPreset] = useState<BasePresetKey | null>(null);
+  
+  // Calculate validation result when legs are enabled
+  const validation = useMemo(() => {
+    if (!params.addLegs) return null;
+    
+    // Build config objects from params
+    const socketConfig = {
+      ...DEFAULT_SOCKET_CONFIG,
+      socketType: params.socketType,
+      cordHoleEnabled: params.cordHoleEnabled,
+      cordHoleDiameter: params.cordHoleDiameter,
+      lipHeight: params.centeringLipHeight,
+    };
+    
+    const standType = params.standType === 'weighted_disc' ? 'weighted-disc' : 
+                      params.standType === 'wall_mount' ? 'wall-mount' : 'tripod';
+    
+    const standConfig = {
+      ...DEFAULT_STAND_CONFIG,
+      type: standType as 'tripod' | 'weighted-disc' | 'wall-mount',
+      tripod: {
+        legCount: params.legCount,
+        legHeight: params.legHeight,
+        legSpread: params.legSpread,
+        legThickness: params.legThickness,
+        legTaper: params.legTaper,
+        legInset: params.legInset,
+      },
+      baseThickness: params.standBaseThickness,
+      baseTaper: params.standBaseTaper,
+      baseEdgeStyle: params.standBaseEdgeStyle,
+      baseLip: params.standBaseLip,
+    };
+    
+    const connectorConfig = {
+      ...DEFAULT_CONNECTOR_CONFIG,
+      type: params.attachmentType === 'screw_m3' ? 'screw-m3' : 
+            params.attachmentType === 'screw_m4' ? 'screw-m4' : 
+            params.attachmentType === 'bayonet' ? 'bayonet' : 
+            params.attachmentType === 'press_fit' ? 'press-fit' : 'integrated',
+    };
+    
+    return validateBaseConfig(
+      params.baseRadius,
+      params.height,
+      socketConfig as any,
+      standConfig as any,
+      connectorConfig as any
+    );
+  }, [params]);
+  
+  const handlePresetSelect = useCallback((presetKey: BasePresetKey) => {
+    setSelectedPreset(presetKey);
+    const newParams = getParamsWithPreset(params, presetKey);
+    onParamsChange(newParams);
+    toast.success(`Applied ${presetKey.replace(/-/g, ' ')} preset`);
+  }, [params, onParamsChange]);
 
   const getAttachmentLabel = (type: AttachmentType): string => {
     switch (type) {
@@ -176,6 +242,13 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         
         {params.addLegs && (
           <div className="space-y-3 pt-2 border-t border-border/50">
+            {/* Base Preset Selector */}
+            <BasePresetSelector 
+              selectedPreset={selectedPreset}
+              onSelectPreset={handlePresetSelect}
+              validation={validation}
+            />
+            
             {/* Stand Type Selector */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Stand Type</Label>
@@ -185,6 +258,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tripod">Tripod Legs</SelectItem>
+                  <SelectItem value="weighted_disc">Weighted Disc</SelectItem>
                   <SelectItem value="wall_mount">Wall Mount</SelectItem>
                 </SelectContent>
               </Select>
@@ -349,6 +423,108 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   />
                   <p className="text-xs text-muted-foreground">
                     Raised edge around base (tray effect)
+                  </p>
+                </div>
+              </>
+            )}
+            
+            {/* Weighted Disc controls */}
+            {params.standType === 'weighted_disc' && (
+              <>
+                <ParameterSlider
+                  label="Disc Diameter"
+                  value={params.pedestalDiameter}
+                  min={60}
+                  max={200}
+                  step={5}
+                  unit="mm"
+                  onChange={handleChange('pedestalDiameter')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Base diameter for stability
+                </p>
+                
+                <ParameterSlider
+                  label="Disc Thickness"
+                  value={params.standBaseThickness}
+                  min={5}
+                  max={20}
+                  step={1}
+                  unit="mm"
+                  onChange={handleChange('standBaseThickness')}
+                />
+                
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Edge Style</Label>
+                  <Select 
+                    value={params.standBaseEdgeStyle} 
+                    onValueChange={(value: 'flat' | 'rounded' | 'chamfer') => {
+                      onParamsChange({ ...params, standBaseEdgeStyle: value });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="flat">Flat</SelectItem>
+                      <SelectItem value="rounded">Rounded</SelectItem>
+                      <SelectItem value="chamfer">Chamfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Weight className={cn("w-4 h-4", params.pedestalHollow ? "text-primary" : "text-muted-foreground")} />
+                    <Label className="text-sm font-medium">Weight Cavity</Label>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="weight-cavity" className="text-xs">Enable Weight Cavity</Label>
+                    <Switch 
+                      id="weight-cavity" 
+                      checked={params.pedestalHollow} 
+                      onCheckedChange={(v) => onParamsChange({ ...params, pedestalHollow: v })}
+                    />
+                  </div>
+                  
+                  {params.pedestalHollow && (
+                    <>
+                      <ParameterSlider
+                        label="Cavity Diameter"
+                        value={params.ringBaseDiameter}
+                        min={30}
+                        max={150}
+                        step={5}
+                        unit="mm"
+                        onChange={handleChange('ringBaseDiameter')}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Recess for coins/washers to add weight
+                      </p>
+                    </>
+                  )}
+                </div>
+                
+                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="rubber-feet" className="text-xs">Rubber Feet Recesses</Label>
+                    <div className="flex gap-2">
+                      {([3, 4] as const).map((count) => (
+                        <Button
+                          key={count}
+                          variant={params.legCount === count ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-10"
+                          onClick={() => handleLegCountChange(count)}
+                        >
+                          {count}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Number of circular recesses for rubber feet
                   </p>
                 </div>
               </>
