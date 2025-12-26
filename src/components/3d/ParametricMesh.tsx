@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
-import { generateLegsWithBase } from '@/lib/leg-generator';
+import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -157,10 +157,15 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += Math.sin(theta * rippleCount) * maxRipple * bRad;
         }
 
-        // Asymmetry
+        // Asymmetry - now much crazier with multiple patterns
         if (asymmetry > 0) {
-          const maxAsym = Math.min(asymmetry, 0.1);
-          r += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * bRad;
+          // Primary wave - large one-sided bulge
+          const primaryWave = Math.sin(theta) * Math.cos(t * Math.PI) * asymmetry * bRad;
+          // Secondary wave - twisting asymmetry along height
+          const secondaryWave = Math.sin(theta * 2 + t * Math.PI * 3) * asymmetry * 0.5 * bRad;
+          // Directional lean - the whole shape leans
+          const lean = Math.cos(theta) * t * asymmetry * 0.4 * bRad;
+          r += primaryWave + secondaryWave + lean;
         }
 
         // Organic noise
@@ -186,48 +191,80 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const indices: number[] = [];
 
     // Helper function to create keyhole geometry for visual rendering
-    // Keyhole shape: large circle at TOP (screw head entry), narrow slot going DOWN (to lock onto shaft)
+    // CORRECT keyhole: large circle at TOP (where you insert screw head), narrow slot going UP (slide up to lock)
+    // When hung on wall: insert screw head in large hole, slide DOWN so screw shaft goes into narrow slot
     const createKeyholeVisual = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
       const segs = 32;
-      const headRadius = 4 * SCALE;    // 8mm diameter head hole
-      const slotWidth = 2 * SCALE;     // 4mm wide slot for shaft
-      const slotLength = 8 * SCALE;    // 8mm slot length going down
-      const depth = 2 * SCALE;         // 2mm depth (goes through back wall)
+      const headRadius = 4 * SCALE;    // 8mm diameter head hole (large circle)
+      const slotWidth = 2 * SCALE;     // 4mm wide slot for screw shaft
+      const slotLength = 8 * SCALE;    // 8mm slot length going UP from circle
+      const depth = 3 * SCALE;         // 3mm depth (goes through back wall)
       
-      // Create 2D keyhole shape: circle at top, slot going down
+      // Create 2D keyhole shape: large circle at BOTTOM, narrow slot going UP
+      // This is correct because when you hang something:
+      // 1. Put screw in wall
+      // 2. Position large hole over screw head
+      // 3. Slide object DOWN so screw shaft enters narrow slot above
       const shape = new THREE.Shape();
       
-      // Start at right side of circle, draw full circle clockwise
+      // Draw circle (large opening at bottom for screw head entry)
       shape.moveTo(headRadius, 0);
       for (let i = 1; i <= segs; i++) {
-        const angle = -(i / segs) * Math.PI * 2;
+        const angle = (i / segs) * Math.PI * 2;
         shape.lineTo(Math.cos(angle) * headRadius, Math.sin(angle) * headRadius);
       }
       
-      // Now add the slot going DOWN from the circle
-      // Move to right edge at bottom of circle
-      shape.moveTo(slotWidth, -headRadius * 0.3);
-      shape.lineTo(slotWidth, -slotLength);
+      // Add the slot going UP from the circle
+      const slotPath = new THREE.Path();
+      slotPath.moveTo(slotWidth, headRadius * 0.5);
+      slotPath.lineTo(slotWidth, slotLength);
       
-      // Rounded bottom of slot
+      // Rounded top of slot
       for (let i = 0; i <= segs / 2; i++) {
-        const angle = 0 - (i / (segs / 2)) * Math.PI;
-        shape.lineTo(
+        const angle = (i / (segs / 2)) * Math.PI;
+        slotPath.lineTo(
           Math.cos(angle) * slotWidth,
-          -slotLength + Math.sin(angle) * slotWidth
+          slotLength + Math.sin(angle) * slotWidth
         );
       }
       
-      shape.lineTo(-slotWidth, -headRadius * 0.3);
-      shape.closePath();
+      slotPath.lineTo(-slotWidth, headRadius * 0.5);
+      slotPath.closePath();
+      
+      // Add slot as a hole that will merge with circle
+      shape.holes.push(slotPath);
+      
+      // Actually we need to combine them - let's draw as one continuous shape
+      const combinedShape = new THREE.Shape();
+      
+      // Start from right side where slot meets circle
+      combinedShape.moveTo(slotWidth, headRadius * 0.3);
+      // Go up the slot right side
+      combinedShape.lineTo(slotWidth, slotLength);
+      // Round top of slot
+      for (let i = 0; i <= segs / 4; i++) {
+        const angle = (i / (segs / 4)) * Math.PI;
+        combinedShape.lineTo(
+          Math.cos(angle) * slotWidth,
+          slotLength + Math.sin(angle) * slotWidth
+        );
+      }
+      // Down left side of slot
+      combinedShape.lineTo(-slotWidth, headRadius * 0.3);
+      // Around the bottom circle (left side, then bottom, then right side back to start)
+      for (let i = 0; i <= segs * 0.75; i++) {
+        const angle = Math.PI / 2 + (i / (segs * 0.75)) * (Math.PI * 1.5);
+        combinedShape.lineTo(Math.cos(angle) * headRadius, Math.sin(angle) * headRadius);
+      }
+      combinedShape.closePath();
       
       // Extrude to create 3D shape
-      const geo = new THREE.ExtrudeGeometry(shape, {
+      const geo = new THREE.ExtrudeGeometry(combinedShape, {
         depth: depth,
         bevelEnabled: false,
       });
       
-      // Position: slightly in front of back wall so it's visible as a dark hole
+      // Position: push into the back wall
       geo.translate(cx, cy, zPos - depth);
       return geo;
     };
@@ -328,8 +365,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       // they keep their original X positions which are TOO WIDE.
       // Solution: Calculate where the actual body surface intersects the cut plane.
       
-      const filletRadius = (params.wallMountFilletRadius || 0) * SCALE;
-      const filletSegments = filletRadius > 0 ? 6 : 0;
+      // Removed fillet - was broken and not useful
       
       // For each height level, find the actual intersection of the body with the cut plane
       const leftEdge: { x: number; y: number }[] = [];
@@ -391,68 +427,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE FILLET GEOMETRY (if enabled) ===
-      if (filletRadius > 0 && leftEdge.length > 1) {
-        const filletStartIdx = vertices.length / 3;
-        
-        // For each height level, create fillet curve from edge toward back wall
-        for (let i = 0; i < leftEdge.length; i++) {
-          const leftPt = leftEdge[i];
-          const rightPt = rightEdge[i];
-          
-          // Left side fillet: curves from (leftX, cutOffset) inward to (leftX + filletR, cutOffset - filletR)
-          // Actually curves from body edge to back wall
-          for (let f = 0; f <= filletSegments; f++) {
-            const angle = (f / filletSegments) * (Math.PI / 2);
-            // Start at the body edge (x = leftX, z = cutOffset + some offset for curve start)
-            // End at back wall (x = leftX + filletRadius, z = cutOffset)
-            const dx = filletRadius * Math.sin(angle);
-            const dz = filletRadius * (1 - Math.cos(angle));
-            vertices.push(leftPt.x + dx, leftPt.y, cutOffset + dz);
-          }
-          
-          // Right side fillet
-          for (let f = 0; f <= filletSegments; f++) {
-            const angle = (f / filletSegments) * (Math.PI / 2);
-            const dx = filletRadius * Math.sin(angle);
-            const dz = filletRadius * (1 - Math.cos(angle));
-            vertices.push(rightPt.x - dx, rightPt.y, cutOffset + dz);
-          }
-        }
-        
-        // Create fillet strip faces
-        const pointsPerRow = (filletSegments + 1) * 2;
-        for (let i = 0; i < leftEdge.length - 1; i++) {
-          // Left fillet strip
-          for (let f = 0; f < filletSegments; f++) {
-            const a = filletStartIdx + i * pointsPerRow + f;
-            const b = a + 1;
-            const c = filletStartIdx + (i + 1) * pointsPerRow + f;
-            const d = c + 1;
-            indices.push(a, c, b);
-            indices.push(b, c, d);
-          }
-          
-          // Right fillet strip
-          const rightOffset = filletSegments + 1;
-          for (let f = 0; f < filletSegments; f++) {
-            const a = filletStartIdx + i * pointsPerRow + rightOffset + f;
-            const b = a + 1;
-            const c = filletStartIdx + (i + 1) * pointsPerRow + rightOffset + f;
-            const d = c + 1;
-            indices.push(a, b, c);
-            indices.push(b, d, c);
-          }
-        }
-        
-        // Adjust edge points for back wall (inset by fillet radius)
-        for (let i = 0; i < leftEdge.length; i++) {
-          leftEdge[i].x += filletRadius;
-          rightEdge[i].x -= filletRadius;
-        }
-      }
-      
-      // Build outline for back wall
+      // Build outline for back wall (fillet removed - was broken)
       const outline = [...leftEdge, ...rightEdge.reverse()];
       
       if (outline.length >= 3) {
@@ -567,8 +542,39 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       );
       legGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = legGeoMM;
+    } else if (addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'base') {
+      // Base mount with keyholes - a flat plate with mounting holes facing down
+      const baseMountGeoMM = generateBaseMountPlate(
+        baseRadius,
+        params.baseThickness || 3,
+        params.wallMountHoleCount,
+        {
+          wobbleFrequency,
+          wobbleAmplitude,
+          rippleCount,
+          rippleDepth,
+          asymmetry,
+          organicNoise,
+          noiseScale,
+        },
+        {
+          wallThickness: params.wallThickness,
+          cordHoleEnabled: params.cordHoleEnabled,
+          cordHoleDiameter: params.cordHoleDiameter,
+          centeringLipEnabled: params.centeringLipEnabled,
+          centeringLipHeight: params.centeringLipHeight,
+          socketType: params.socketType,
+        },
+        {
+          attachmentType: params.attachmentType,
+          screwCount: params.screwCount,
+          baseRadius: params.baseRadius,
+        }
+      );
+      baseMountGeoMM.scale(SCALE, SCALE, SCALE);
+      standGeo = baseMountGeoMM;
     }
-    // Wall mount no longer needs separate stand geometry - mounting holes are integrated
+    // Wall mount with 'back' style uses integrated back wall keyholes (no separate stand)
 
     return { 
       bodyGeometry: bodyGeo, 

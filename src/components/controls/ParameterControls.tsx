@@ -307,18 +307,30 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   />
                 </div>
                 
-                <ParameterSlider
-                  label="Edge Fillet"
-                  value={params.wallMountFilletRadius}
-                  min={0}
-                  max={10}
-                  step={0.5}
-                  unit="mm"
-                  onChange={handleChange('wallMountFilletRadius')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Smooth rounded edge where body meets back wall
-                </p>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Mount Style</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={params.wallMountStyle === 'back' ? 'default' : 'outline'}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onParamsChange({ ...params, wallMountStyle: 'back' })}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      variant={params.wallMountStyle === 'base' ? 'default' : 'outline'}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onParamsChange({ ...params, wallMountStyle: 'base' })}
+                    >
+                      Base
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {params.wallMountStyle === 'back' ? 'Flat back with keyholes for wall hanging' : 'Base plate with keyholes - sits on surface or mounts to wall'}
+                  </p>
+                </div>
               </>
             )}
             
@@ -589,7 +601,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Asymmetry"
           value={params.asymmetry}
           min={0}
-          max={params.supportFreeMode ? constraints.asymmetry.max : 0.1}
+          max={params.supportFreeMode ? constraints.asymmetry.max : 0.35}
           step={0.01}
           onChange={handleChange('asymmetry')}
           constrained={params.supportFreeMode}
