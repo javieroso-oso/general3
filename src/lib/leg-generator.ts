@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 
 /**
  * Organic deformation parameters for base disc
@@ -1134,188 +1135,129 @@ export function generateBaseMountPlate(
   baseRadius: number,      // mm - radius of the base disc
   baseThickness: number = 5, // mm - thickness of the base disc
   holeCount: 2 | 3 | 4 = 2,  // number of keyholes
-  organicParams?: OrganicParams,
+  _organicParams?: OrganicParams,
   _socketParams?: SocketParams,    // Ignored - base mount doesn't use socket features
   _attachmentParams?: AttachmentParams,  // Ignored
-  pedestalParams?: PedestalParams
+  _pedestalParams?: PedestalParams
 ): THREE.BufferGeometry {
   const segments = 64;
-  const vertices: number[] = [];
-  const indices: number[] = [];
+  const thickness = Math.max(baseThickness, 3); // minimum 3mm
   
-  // Use pedestal thickness if provided, minimum 5mm for structural integrity
-  const thickness = Math.max(pedestalParams?.thickness ?? baseThickness, 5);
-  const taper = pedestalParams?.taper ?? 0;
-  const edgeStyle = pedestalParams?.edgeStyle ?? 'flat';
-  const edgeLip = pedestalParams?.lip ?? 0;
+  // Simple flat cylinder geometry
+  const cylinderGeo = new THREE.CylinderGeometry(baseRadius, baseRadius, thickness, segments);
+  cylinderGeo.translate(0, -thickness / 2, 0); // Position so top is at y=0
   
-  // Calculate tapered radius at bottom
-  const bottomRadius = baseRadius * (1 - taper);
+  // Create keyhole cutout geometries (through holes)
+  const keyholeGeos = createKeyholeSlots(baseRadius, thickness, holeCount);
   
-  // Organic deformation functions
-  const getOuterRadius = (theta: number) => calculateDeformedRadius(theta, baseRadius, organicParams);
-  const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
-  
-  // Edge styling
-  const chamferSize = edgeStyle === 'chamfer' ? Math.min(thickness * 0.3, 3) : 0;
-  const roundedRadius = edgeStyle === 'rounded' ? Math.min(thickness * 0.4, 4) : 0;
-  const roundedSegments = 6;
-  
-  // === TOP SURFACE ===
-  const topY = edgeLip > 0 ? edgeLip : 0;
-  
-  // Top center
-  const topCenterIdx = vertices.length / 3;
-  vertices.push(0, topY, 0);
-  
-  if (edgeLip > 0) {
-    const lipWall = 2;
-    
-    // Lip outer ring
-    const lipOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
-    }
-    
-    // Lip inner ring at top
-    const lipInnerTopStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta) - lipWall;
-      vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
-    }
-    
-    // Lip top face
-    for (let i = 0; i < segments; i++) {
-      indices.push(lipOuterStart + i, lipInnerTopStart + i, lipOuterStart + i + 1);
-      indices.push(lipOuterStart + i + 1, lipInnerTopStart + i, lipInnerTopStart + i + 1);
-    }
-    
-    // Lip inner wall
-    const lipInnerBottomStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta) - lipWall;
-      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-    }
-    
-    for (let i = 0; i < segments; i++) {
-      indices.push(lipInnerTopStart + i, lipInnerBottomStart + i, lipInnerTopStart + i + 1);
-      indices.push(lipInnerTopStart + i + 1, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
-    }
-    
-    // Top face (from center to lip inner)
-    vertices[topCenterIdx * 3 + 1] = 0; // Adjust center to y=0
-    for (let i = 0; i < segments; i++) {
-      indices.push(topCenterIdx, lipInnerBottomStart + i + 1, lipInnerBottomStart + i);
-    }
-    
-    // Outer wall top reference
-    var wallTopStart = lipOuterStart;
-  } else {
-    // No lip - simple top surface
-    const topOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-    }
-    
-    // Top face
-    for (let i = 0; i < segments; i++) {
-      indices.push(topCenterIdx, topOuterStart + i + 1, topOuterStart + i);
-    }
-    
-    var wallTopStart = topOuterStart;
-  }
-  
-  // === BOTTOM SURFACE ===
-  const bottomCenterIdx = vertices.length / 3;
-  vertices.push(0, -thickness, 0);
-  
-  const bottomOuterStart = vertices.length / 3;
-  for (let i = 0; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2;
-    const r = getBottomRadius(theta);
-    vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-  }
-  
-  // Bottom face
-  for (let i = 0; i < segments; i++) {
-    indices.push(bottomCenterIdx, bottomOuterStart + i, bottomOuterStart + i + 1);
-  }
-  
-  // === SIDE WALL WITH EDGE PROFILE ===
-  if (edgeStyle === 'chamfer' && chamferSize > 0) {
-    const chamferStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const topR = getOuterRadius(theta);
-      vertices.push(Math.cos(theta) * (topR - chamferSize * 0.5), -chamferSize, Math.sin(theta) * (topR - chamferSize * 0.5));
-    }
-    
-    for (let i = 0; i < segments; i++) {
-      indices.push(wallTopStart + i, wallTopStart + i + 1, chamferStart + i);
-      indices.push(chamferStart + i, wallTopStart + i + 1, chamferStart + i + 1);
-    }
-    
-    for (let i = 0; i < segments; i++) {
-      indices.push(chamferStart + i, chamferStart + i + 1, bottomOuterStart + i);
-      indices.push(bottomOuterStart + i, chamferStart + i + 1, bottomOuterStart + i + 1);
-    }
-  } else if (edgeStyle === 'rounded' && roundedRadius > 0) {
-    let prevRingStart = wallTopStart;
-    
-    for (let r = 1; r <= roundedSegments; r++) {
-      const t = r / roundedSegments;
-      const angle = t * Math.PI / 2;
-      const yOffset = -roundedRadius * (1 - Math.cos(angle));
-      const rOffset = roundedRadius * (1 - Math.sin(angle));
-      
-      const ringStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const topR = getOuterRadius(theta);
-        const botR = getBottomRadius(theta);
-        const blendT = Math.min(1, (-yOffset) / thickness);
-        const baseR = topR + (botR - topR) * blendT;
-        vertices.push(Math.cos(theta) * (baseR - rOffset), yOffset, Math.sin(theta) * (baseR - rOffset));
+  if (keyholeGeos.length > 0) {
+    // Use CSG to subtract keyholes from the base
+    try {
+      let result: THREE.BufferGeometry = cylinderGeo;
+      for (const keyholeGeo of keyholeGeos) {
+        const baseBrush = new Brush(result);
+        const keyholeBrush = new Brush(keyholeGeo);
+        const evaluator = new Evaluator();
+        const csgResult = evaluator.evaluate(baseBrush, keyholeBrush, SUBTRACTION);
+        result = csgResult.geometry;
       }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(prevRingStart + i, prevRingStart + i + 1, ringStart + i);
-        indices.push(ringStart + i, prevRingStart + i + 1, ringStart + i + 1);
-      }
-      prevRingStart = ringStart;
+      result.computeVertexNormals();
+      return result;
+    } catch {
+      // Fallback if CSG fails - just return the cylinder
+      return cylinderGeo;
     }
-    
-    for (let i = 0; i < segments; i++) {
-      indices.push(prevRingStart + i, prevRingStart + i + 1, bottomOuterStart + i);
-      indices.push(bottomOuterStart + i, prevRingStart + i + 1, bottomOuterStart + i + 1);
+  }
+  
+  return cylinderGeo;
+}
+
+/**
+ * Create keyhole slot geometries that go through the base plate
+ * Keyholes are on the bottom facing down for wall mounting
+ */
+function createKeyholeSlots(
+  baseRadius: number,
+  baseThickness: number,
+  holeCount: 2 | 3 | 4
+): THREE.BufferGeometry[] {
+  const segments = 32;
+  const keyholeHeadRadius = 5;   // 10mm diameter head hole (for screw head)
+  const slotWidth = 2.5;         // 5mm wide slot (for screw shaft)
+  const slotLength = 10;         // 10mm slot length
+  
+  const geometries: THREE.BufferGeometry[] = [];
+  
+  // Position keyholes based on count
+  const holePositions: { x: number; z: number; angle: number }[] = [];
+  const mountRadius = baseRadius * 0.55; // Position keyholes at 55% of radius
+  
+  if (holeCount === 2) {
+    // Two keyholes on opposite sides
+    holePositions.push({ x: -mountRadius, z: 0, angle: Math.PI });
+    holePositions.push({ x: mountRadius, z: 0, angle: 0 });
+  } else if (holeCount === 3) {
+    // Three keyholes evenly spaced
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2 - Math.PI / 2;
+      holePositions.push({
+        x: Math.cos(angle) * mountRadius,
+        z: Math.sin(angle) * mountRadius,
+        angle: angle + Math.PI / 2
+      });
     }
   } else {
-    // Flat edge with taper
-    for (let i = 0; i < segments; i++) {
-      indices.push(wallTopStart + i, wallTopStart + i + 1, bottomOuterStart + i);
-      indices.push(bottomOuterStart + i, wallTopStart + i + 1, bottomOuterStart + i + 1);
+    // Four keyholes in corners
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      holePositions.push({
+        x: Math.cos(angle) * mountRadius,
+        z: Math.sin(angle) * mountRadius,
+        angle: angle + Math.PI / 2
+      });
     }
   }
   
-  const baseGeo = new THREE.BufferGeometry();
-  baseGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  baseGeo.setIndex(indices);
-  baseGeo.computeVertexNormals();
-  
-  // Create keyhole slot geometries
-  const keyholeGeo = createSimpleKeyholes(baseRadius, thickness, holeCount);
-  
-  if (keyholeGeo) {
-    return mergeGeometries([baseGeo, keyholeGeo]);
+  // Create each keyhole as a through-hole
+  for (const pos of holePositions) {
+    // Create keyhole shape: large circle + narrow slot
+    const keyholeShape = new THREE.Shape();
+    
+    // Start at the right side of the slot
+    keyholeShape.moveTo(slotWidth, keyholeHeadRadius);
+    keyholeShape.lineTo(slotWidth, slotLength);
+    
+    // Round cap at end of slot
+    keyholeShape.absarc(0, slotLength, slotWidth, 0, Math.PI, false);
+    
+    keyholeShape.lineTo(-slotWidth, keyholeHeadRadius);
+    
+    // Large circle for screw head (going clockwise from left side)
+    for (let i = 0; i <= segments; i++) {
+      const a = Math.PI / 2 + (i / segments) * (Math.PI * 1.5);
+      keyholeShape.lineTo(
+        Math.cos(a) * keyholeHeadRadius,
+        Math.sin(a) * keyholeHeadRadius
+      );
+    }
+    
+    keyholeShape.closePath();
+    
+    // Extrude through the entire thickness
+    const extrudeGeo = new THREE.ExtrudeGeometry(keyholeShape, {
+      depth: baseThickness + 2, // +2 to ensure clean boolean
+      bevelEnabled: false,
+    });
+    
+    // Rotate to face downward and position
+    extrudeGeo.rotateX(Math.PI / 2);
+    extrudeGeo.rotateY(pos.angle);
+    extrudeGeo.translate(pos.x, -baseThickness - 1, pos.z);
+    
+    geometries.push(extrudeGeo);
   }
   
-  return baseGeo;
+  return geometries;
 }
 
 /**
