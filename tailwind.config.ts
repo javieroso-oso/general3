@@ -14,9 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Space Grotesk", "system-ui", "sans-serif"],
-        display: ["Space Grotesk", "system-ui", "sans-serif"],
-        mono: ["Space Mono", "monospace"],
+        sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+        display: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -90,10 +90,12 @@ export default {
         none: "0",
       },
       boxShadow: {
-        hard: "var(--shadow-hard)",
-        "hard-sm": "var(--shadow-hard-sm)",
-        "hard-gold": "var(--shadow-hard-gold)",
-        inset: "var(--shadow-inset)",
+        glass: "var(--shadow-glass)",
+        elevated: "var(--shadow-elevated)",
+        soft: "var(--shadow-soft)",
+        glow: "var(--glow-primary)",
+        "glow-accent": "var(--glow-accent)",
+        "glow-teal": "var(--glow-teal)",
       },
       keyframes: {
         "accordion-down": {
