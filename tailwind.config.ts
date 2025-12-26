@@ -14,9 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["DM Sans", "system-ui", "sans-serif"],
-        display: ["DM Sans", "system-ui", "sans-serif"],
-        mono: ["IBM Plex Mono", "monospace"],
+        sans: ["Satoshi", "system-ui", "sans-serif"],
+        display: ["Satoshi", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -90,9 +90,10 @@ export default {
         none: "0",
       },
       boxShadow: {
+        brutal: "var(--shadow-brutal)",
+        "brutal-sm": "var(--shadow-brutal-sm)",
+        "brutal-accent": "var(--shadow-brutal-accent)",
         soft: "var(--shadow-soft)",
-        md: "var(--shadow-md)",
-        lg: "var(--shadow-lg)",
       },
       keyframes: {
         "accordion-down": {

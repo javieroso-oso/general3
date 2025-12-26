@@ -2,61 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Nordic Minimal - Cool Blue-Gray Palette */
+/* Soft Brutalism - Bold Structure, Refined Execution */
 
 @layer base {
   :root {
-    /* Cool off-white background */
-    --background: 210 25% 97%;
-    --foreground: 215 20% 15%;
+    /* Warm off-white background */
+    --background: 45 30% 96%;
+    --foreground: 30 5% 12%;
 
-    /* Cool gray cards */
-    --card: 210 20% 99%;
-    --card-foreground: 215 20% 15%;
+    /* Crisp white cards */
+    --card: 0 0% 100%;
+    --card-foreground: 30 5% 12%;
 
-    --popover: 210 20% 99%;
-    --popover-foreground: 215 20% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 5% 12%;
 
-    /* Steel blue primary */
-    --primary: 210 60% 45%;
-    --primary-foreground: 210 25% 98%;
+    /* Deep charcoal primary */
+    --primary: 30 5% 12%;
+    --primary-foreground: 45 30% 96%;
 
-    /* Soft slate secondary */
-    --secondary: 215 20% 90%;
-    --secondary-foreground: 215 25% 25%;
+    /* Warm stone secondary */
+    --secondary: 40 15% 90%;
+    --secondary-foreground: 30 5% 20%;
 
-    /* Cool muted tones */
-    --muted: 210 15% 93%;
-    --muted-foreground: 215 15% 45%;
+    /* Soft muted */
+    --muted: 40 10% 92%;
+    --muted-foreground: 30 5% 45%;
 
-    /* Soft periwinkle accent */
-    --accent: 230 40% 80%;
-    --accent-foreground: 230 45% 25%;
+    /* Brick red accent */
+    --accent: 12 70% 55%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 55% 55%;
+    --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Cool gray borders */
-    --border: 210 15% 88%;
-    --input: 210 15% 90%;
-    --ring: 210 60% 45%;
+    /* Strong borders */
+    --border: 30 10% 82%;
+    --input: 40 10% 88%;
+    --ring: 30 5% 12%;
 
-    --radius: 0.75rem;
+    --radius: 0.25rem;
 
-    /* Diffused shadows */
-    --shadow-soft: 0 2px 8px hsl(215 30% 20% / 0.04);
-    --shadow-md: 0 4px 16px hsl(215 30% 20% / 0.06);
-    --shadow-lg: 0 8px 32px hsl(215 30% 20% / 0.08);
+    /* Hard offset shadows */
+    --shadow-brutal: 4px 4px 0 hsl(30 5% 12%);
+    --shadow-brutal-sm: 2px 2px 0 hsl(30 5% 12%);
+    --shadow-brutal-accent: 4px 4px 0 hsl(12 70% 55%);
+    --shadow-soft: 0 2px 8px hsl(30 10% 20% / 0.08);
     
     /* Sidebar */
-    --sidebar-background: 210 20% 98%;
-    --sidebar-foreground: 215 20% 15%;
-    --sidebar-primary: 210 60% 45%;
-    --sidebar-primary-foreground: 210 25% 98%;
-    --sidebar-accent: 210 15% 94%;
-    --sidebar-accent-foreground: 215 20% 15%;
-    --sidebar-border: 210 15% 88%;
-    --sidebar-ring: 210 60% 45%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 30 5% 12%;
+    --sidebar-primary: 30 5% 12%;
+    --sidebar-primary-foreground: 45 30% 96%;
+    --sidebar-accent: 40 15% 92%;
+    --sidebar-accent-foreground: 30 5% 12%;
+    --sidebar-border: 30 10% 82%;
+    --sidebar-ring: 30 5% 12%;
   }
 }
 
@@ -70,71 +71,75 @@
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-semibold tracking-tight text-foreground;
+    @apply font-display font-bold tracking-tight text-foreground;
   }
 }
 
 @layer components {
-  /* Airy panel */
+  /* Brutalist panel */
   .workshop-panel {
-    @apply bg-card rounded-xl border border-border;
-    box-shadow: var(--shadow-soft);
+    @apply bg-card rounded-none border-2 border-foreground;
+    box-shadow: var(--shadow-brutal);
   }
   
   .workshop-panel:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-brutal-accent);
   }
   
-  /* Soft control card */
+  /* Strong control card */
   .control-card {
-    @apply bg-card text-card-foreground rounded-xl border border-border p-5 transition-all duration-200;
-    box-shadow: var(--shadow-soft);
+    @apply bg-card text-card-foreground rounded-none border-2 border-foreground p-4 transition-all duration-150;
+    box-shadow: var(--shadow-brutal-sm);
   }
   
   .control-card:hover {
-    @apply border-primary/30;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-brutal);
+    transform: translate(-2px, -2px);
   }
   
-  /* Cool preset card */
+  /* Bold preset card */
   .preset-card {
-    @apply bg-muted rounded-lg p-3 cursor-pointer transition-all duration-200 border-2 border-transparent;
+    @apply bg-secondary rounded-none p-3 cursor-pointer transition-all duration-150 border-2 border-transparent;
   }
   
   .preset-card:hover {
-    @apply bg-secondary border-secondary;
+    @apply border-foreground;
+    box-shadow: var(--shadow-brutal-sm);
+    transform: translate(-1px, -1px);
   }
   
   .preset-card.active {
-    @apply bg-primary/10 border-primary;
+    @apply bg-primary text-primary-foreground border-foreground;
+    box-shadow: var(--shadow-brutal-sm);
   }
   
-  /* Gentle label */
+  /* Strong label */
   .label-text {
-    @apply text-xs font-medium text-muted-foreground uppercase tracking-wide;
+    @apply text-xs font-bold text-foreground uppercase tracking-widest;
   }
   
   .value-display {
-    @apply font-mono text-sm font-semibold tabular-nums text-foreground;
+    @apply font-mono text-sm font-bold tabular-nums text-foreground;
   }
   
-  /* Soft slider */
+  /* Chunky slider */
   .slider-track {
-    @apply bg-muted h-2 rounded-full;
+    @apply bg-secondary h-3 rounded-none border-2 border-foreground;
   }
   
   .slider-thumb {
-    @apply w-5 h-5 bg-primary rounded-full cursor-grab active:cursor-grabbing transition-transform duration-150;
-    box-shadow: var(--shadow-md);
+    @apply w-5 h-5 bg-accent rounded-none border-2 border-foreground cursor-grab active:cursor-grabbing transition-transform duration-100;
+    box-shadow: var(--shadow-brutal-sm);
   }
   
   .slider-thumb:hover {
-    @apply scale-110;
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-brutal);
   }
   
-  /* Cool navigation */
+  /* Bold navigation */
   .nav-link {
-    @apply relative px-4 py-2 text-muted-foreground font-medium text-sm transition-colors duration-200;
+    @apply relative px-4 py-2 text-muted-foreground font-semibold text-sm uppercase tracking-wide transition-colors duration-150;
   }
   
   .nav-link:hover {
@@ -142,72 +147,76 @@
   }
   
   .nav-link.active {
-    @apply text-primary font-semibold;
+    @apply text-foreground;
   }
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-3 right-3 h-0.5 bg-primary rounded-full;
+    @apply absolute bottom-0 left-2 right-2 h-1 bg-accent;
   }
   
-  /* Rounded tab buttons */
+  /* Blocky tab buttons */
   .tab-button {
-    @apply px-5 py-2.5 font-medium text-muted-foreground transition-all duration-200 rounded-full text-sm;
+    @apply px-5 py-2.5 font-bold text-muted-foreground transition-all duration-150 rounded-none text-sm uppercase tracking-wide;
   }
   
   .tab-button:hover {
-    @apply text-foreground bg-muted;
+    @apply text-foreground bg-secondary;
   }
   
   .tab-button.active {
-    @apply bg-primary text-primary-foreground;
-    box-shadow: var(--shadow-md);
+    @apply bg-foreground text-background border-2 border-foreground;
+    box-shadow: var(--shadow-brutal-sm);
   }
   
-  /* Soft icon button */
+  /* Strong icon button */
   .icon-button {
-    @apply p-2.5 bg-muted text-muted-foreground rounded-lg transition-all duration-200;
+    @apply p-2.5 bg-secondary text-foreground rounded-none border-2 border-foreground transition-all duration-150;
   }
   
   .icon-button:hover {
-    @apply bg-primary text-primary-foreground;
+    @apply bg-accent text-accent-foreground;
+    box-shadow: var(--shadow-brutal-sm);
+    transform: translate(-1px, -1px);
   }
   
-  /* Cool gradient text */
+  /* Bold text */
   .gradient-text {
-    @apply text-primary;
+    @apply text-accent font-bold;
   }
   
-  /* Cool accent border */
+  /* Strong border */
   .gradient-border {
-    @apply relative rounded-xl border-2 border-primary/30;
+    @apply relative rounded-none border-2 border-foreground;
+    box-shadow: var(--shadow-brutal);
   }
   
-  /* Soft badges */
+  /* Bold badges */
   .badge-primary {
-    @apply bg-primary/15 text-primary px-3 py-1 rounded-full text-xs font-medium;
+    @apply bg-foreground text-background px-3 py-1 rounded-none text-xs font-bold uppercase;
   }
   
   .badge-secondary {
-    @apply bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-xs font-medium;
+    @apply bg-secondary text-foreground px-3 py-1 rounded-none text-xs font-bold uppercase border border-foreground;
   }
   
   .badge-accent {
-    @apply bg-accent/30 text-accent-foreground px-3 py-1 rounded-full text-xs font-medium;
+    @apply bg-accent text-accent-foreground px-3 py-1 rounded-none text-xs font-bold uppercase;
   }
   
-  /* Gentle button hover */
+  /* Brutal button hover */
   .button-lift {
-    @apply transition-all duration-200;
+    @apply transition-all duration-150;
   }
   
   .button-lift:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-brutal);
   }
   
   .button-lift:active {
-    transform: translateY(0);
+    transform: translate(0, 0);
+    box-shadow: none;
   }
 }
 
@@ -217,11 +226,11 @@
   }
   
   .animate-float {
-    animation: float 8s ease-in-out infinite;
+    animation: float 6s ease-in-out infinite;
   }
   
   .animate-pulse-slow {
-    animation: pulse 5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
 
