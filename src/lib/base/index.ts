@@ -9,6 +9,7 @@
  * - socket-mount.ts: Light source mounting
  * - stand-generator.ts: Structural support (tripod, disc, wall)
  * - connector.ts: Body-to-base connection
+ * - composer.ts: Orchestration layer
  */
 
 // Types
@@ -26,3 +27,11 @@ export {
 export { generateSocketMount, getSocketMountRadius } from './socket-mount';
 export { generateStand, getStandFootprint } from './stand-generator';
 export { generateConnector, type ConnectorGeometry } from './connector';
+
+// Composer (main entry point)
+export { 
+  composeBase, 
+  composeTripodBase,
+  composeWeightedDiscBase,
+  type BaseAssembly 
+} from './composer';
