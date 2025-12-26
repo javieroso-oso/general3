@@ -323,17 +323,49 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
       
       // === CREATE BACK WALL FROM CLIPPED SHELL BOUNDARY ===
-      // Use the pre-calculated radiiAtHeight array to get the correct radius at each height
+      // Scan actual clipped vertices at the cut plane to get the real boundary
+      // (includes all deformations: wobble, ripple, asymmetry, organic noise)
+      const boundaryByHeight = new Map<number, { minX: number; maxX: number }>();
+      
+      for (let i = 0; i <= heightSegments; i++) {
+        for (let j = 0; j <= segments; j++) {
+          const idx = i * (segments + 1) + j;
+          const x = clippedVerts[idx * 3];
+          const y = clippedVerts[idx * 3 + 1];
+          const z = clippedVerts[idx * 3 + 2];
+          
+          // Only consider vertices that are AT the cut plane (z = cutOffset)
+          if (Math.abs(z - cutOffset) < 0.001) {
+            // Use height segment index as key for reliable ordering
+            const existing = boundaryByHeight.get(i);
+            if (!existing) {
+              boundaryByHeight.set(i, { minX: x, maxX: x });
+            } else {
+              existing.minX = Math.min(existing.minX, x);
+              existing.maxX = Math.max(existing.maxX, x);
+            }
+          }
+        }
+      }
+      
+      // Build left and right edges from actual clipped boundary
       const leftEdge: { x: number; y: number }[] = [];
       const rightEdge: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         const y = t * h;
-        const radius = radiiAtHeight[i]; // Use the actual calculated radius
+        const bounds = boundaryByHeight.get(i);
         
-        leftEdge.push({ x: -radius, y });
-        rightEdge.push({ x: radius, y });
+        if (bounds) {
+          leftEdge.push({ x: bounds.minX, y });
+          rightEdge.push({ x: bounds.maxX, y });
+        } else {
+          // Fallback to radiiAtHeight if no clipped vertices found at this height
+          const radius = radiiAtHeight[i];
+          leftEdge.push({ x: -radius, y });
+          rightEdge.push({ x: radius, y });
+        }
       }
       
       // Build outline: left edge going up, then right edge going down
