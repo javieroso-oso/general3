@@ -73,7 +73,7 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry, connectorGeometry } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -623,13 +623,13 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         legInset: params.legInset,
       } : undefined,
       weightedDisc: params.standType === 'weighted_disc' ? {
-        discDiameter: (params.standBaseRadius || effectiveBaseRadius) * 2,
+        discDiameter: params.pedestalDiameter || 100, // Use UI control directly
         discThickness: params.standBaseThickness || 8,
-        weightCavityEnabled: true,
-        weightCavityDiameter: ((params.standBaseRadius || effectiveBaseRadius) * 2) * 0.6,
-        weightCavityDepth: (params.standBaseThickness || 8) - 2,
+        weightCavityEnabled: params.pedestalHollow || false,
+        weightCavityDiameter: params.pedestalHollow ? (params.ringBaseDiameter || (params.pedestalDiameter * 0.6)) : 0,
+        weightCavityDepth: params.pedestalHollow ? Math.max((params.standBaseThickness || 8) - 2, 2) : 0,
         rubberFeetEnabled: true,
-        rubberFeetCount: 3,
+        rubberFeetCount: params.legCount || 3,
         rubberFeetDiameter: 10,
       } : undefined,
       baseThickness: params.standBaseThickness || 3,
@@ -670,6 +670,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     }
     
     let standGeo: THREE.BufferGeometry | null = null;
+    let connectorGeo: THREE.BufferGeometry | null = null;
+    
+    // Generate connector geometry if not integrated (for visibility between body and base)
+    if (addLegs && params.attachmentType !== 'integrated' && params.standType !== 'wall_mount') {
+      const { generateConnector } = require('@/lib/base/connector');
+      const connectorResult = generateConnector(connectorConfig, effectiveBaseRadius * 2);
+      if (connectorResult.baseInterface) {
+        // Scale and position the connector
+        connectorResult.baseInterface.scale(SCALE, SCALE, SCALE);
+        connectorGeo = connectorResult.baseInterface;
+      }
+    }
     
     // For tripod, use the legacy generator which correctly handles organic deformations
     // The new base system generates simple circular bases - we'll migrate this later
@@ -776,7 +788,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       legGeometry: standGeo, 
       overhangColors: overhangColorArray,
       keyholeGeometries,
-      cordHoleGeometry
+      cordHoleGeometry,
+      connectorGeometry: connectorGeo
     };
   }, [params, type]);
 
@@ -794,6 +807,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
             color="#d4d4d4"
             roughness={0.4}
             metalness={0.1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      
+      {/* Connector collar between body and base (visible when not integrated) */}
+      {connectorGeometry && (
+        <mesh geometry={connectorGeometry} castShadow receiveShadow>
+          <meshStandardMaterial
+            color="#b8b8b8"
+            roughness={0.3}
+            metalness={0.2}
             side={THREE.DoubleSide}
           />
         </mesh>

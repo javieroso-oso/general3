@@ -135,8 +135,8 @@ export function applyBasePreset(
     centeringLipHeight: lipHeight ?? 3,
     socketType: socketType ?? 'E26',
     
-    // Wall mount specific
-    wallMountStyle: standType === 'wall_mount' ? 'base' : currentParams.wallMountStyle,
+    // Wall mount specific - default to 'back' style for back-cut sconce
+    wallMountStyle: standType === 'wall_mount' ? 'back' : currentParams.wallMountStyle,
     wallMountHoleCount: wallMountConfig.holeCount,
     wallMountHoleMargin: wallMountConfig.holeMargin,
     wallMountCordHoleEnabled: wallMountConfig.cordHoleEnabled,
