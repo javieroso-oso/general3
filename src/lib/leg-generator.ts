@@ -368,7 +368,9 @@ function createBaseDiscWithSocket(
   const cordHoleRadius = cordHoleDiameter / 2;
   
   // Centering lip parameters (sized to socket, not cord hole)
-  const centeringLipEnabled = socketParams?.centeringLipEnabled ?? false;
+  // IMPORTANT: Skip centering lip when attachment is integrated (body and base are one piece)
+  const isIntegrated = attachmentParams?.attachmentType === 'integrated';
+  const centeringLipEnabled = !isIntegrated && (socketParams?.centeringLipEnabled ?? false);
   const centeringLipHeight = socketParams?.centeringLipHeight ?? 3;
   const socketType = socketParams?.socketType ?? 'E26';
   const socketThreadDiameter = SOCKET_THREAD_DIAMETERS[socketType] ?? 26;
