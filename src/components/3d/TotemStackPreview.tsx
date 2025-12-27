@@ -97,11 +97,9 @@ interface SpindleMeshProps {
 }
 
 const SpindleMesh = ({ spindleSize, length }: SpindleMeshProps) => {
-  const spindleSpec = SPINDLE_SPECS[spindleSize];
-  
   const geometry = useMemo(() => {
-    return createSpindlePreviewGeometry(spindleSpec.diameter, length);
-  }, [spindleSpec.diameter, length]);
+    return createSpindlePreviewGeometry(spindleSize, length);
+  }, [spindleSize, length]);
 
   return (
     <mesh geometry={geometry} position={[0, (length / 2) * SCALE, 0]}>
