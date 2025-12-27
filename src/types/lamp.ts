@@ -381,6 +381,7 @@ export const defaultLampParams: LampParams = {
   // Integrated legs
   addLegs: false,
   standType: 'tripod',
+  legStyle: 'tripod',
   legCount: 3,
   legHeight: 100,
   legSpread: 30,

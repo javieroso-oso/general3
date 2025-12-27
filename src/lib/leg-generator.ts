@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 
 /**
+ * Leg style types
+ */
+export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball';
+
+/**
  * Organic deformation parameters for base disc
  */
 export interface OrganicParams {
@@ -125,7 +130,7 @@ function calculateDeformedRadius(
 }
 
 /**
- * Generate simple tripod legs with a base disc.
+ * Generate legs with a base disc.
  * Base disc top is at y=0, legs extend downward.
  */
 export function generateLegsWithBase(
@@ -139,8 +144,9 @@ export function generateLegsWithBase(
   baseThickness: number = 3,
   organicParams?: OrganicParams,
   socketParams?: SocketParams,
-  _attachmentParams?: unknown, // Kept for compatibility, ignored
-  pedestalParams?: PedestalParams
+  _attachmentParams?: unknown,
+  pedestalParams?: PedestalParams,
+  legStyle: LegStyle = 'tripod'
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
@@ -150,11 +156,46 @@ export function generateLegsWithBase(
   const discGeo = createBaseDisc(baseRadius, effectiveThickness, organicParams, socketParams, pedestalParams);
   geometries.push(discGeo);
   
-  // Create legs
+  const discBottom = -effectiveThickness;
+  
+  // Generate legs based on style
+  switch (legStyle) {
+    case 'riser':
+      geometries.push(...createRiserLegs(baseRadius, legCount, legHeight, legSpread, legThickness, legInset, discBottom, organicParams));
+      break;
+    case 'column':
+      geometries.push(...createColumnLegs(baseRadius, legCount, legHeight, legThickness, legInset, discBottom, organicParams));
+      break;
+    case 'ball':
+      geometries.push(...createBallFeet(baseRadius, legCount, legThickness, legInset, discBottom, organicParams));
+      break;
+    case 'tripod':
+    default:
+      geometries.push(...createTripodLegs(baseRadius, legCount, legHeight, legSpread, legThickness, legTaper, legInset, discBottom, organicParams));
+      break;
+  }
+  
+  return mergeGeometries(geometries);
+}
+
+/**
+ * Create classic tripod legs - angled outward
+ */
+function createTripodLegs(
+  baseRadius: number,
+  legCount: 3 | 4,
+  legHeight: number,
+  legSpread: number,
+  legThickness: number,
+  legTaper: number,
+  legInset: number,
+  discBottom: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
   const spreadRad = (legSpread * Math.PI) / 180;
   const segments = 8;
   const heightSegments = 12;
-  const discBottom = -effectiveThickness;
   
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
@@ -270,7 +311,222 @@ export function generateLegsWithBase(
     geometries.push(legGeo);
   }
   
-  return mergeGeometries(geometries);
+  return geometries;
+}
+
+/**
+ * Create riser legs - small stubby feet for table lamps
+ */
+function createRiserLegs(
+  baseRadius: number,
+  legCount: 3 | 4,
+  legHeight: number,
+  legSpread: number,
+  legThickness: number,
+  legInset: number,
+  discBottom: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const segments = 12;
+  
+  // Risers are short and stubby with slight outward spread
+  const effectiveHeight = Math.min(legHeight, 20); // Cap at 20mm for risers
+  const spreadRad = (Math.min(legSpread, 10) * Math.PI) / 180; // Max 10° spread
+  const riserRadius = legThickness * 0.8; // Wider than tall
+  
+  for (let leg = 0; leg < legCount; leg++) {
+    const angle = (leg / legCount) * Math.PI * 2;
+    
+    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const attachRadius = deformedRadius * (1 - legInset * 0.5);
+    
+    const attachX = Math.cos(angle) * attachRadius;
+    const attachZ = Math.sin(angle) * attachRadius;
+    
+    // Slight outward spread
+    const outwardX = Math.cos(angle) * Math.sin(spreadRad) * effectiveHeight;
+    const outwardZ = Math.sin(angle) * Math.sin(spreadRad) * effectiveHeight;
+    
+    const footX = attachX + outwardX;
+    const footZ = attachZ + outwardZ;
+    const footY = discBottom - effectiveHeight * Math.cos(spreadRad);
+    
+    // Create a tapered cylinder (wider at bottom)
+    const verts: number[] = [];
+    const indices: number[] = [];
+    const heightSegs = 4;
+    
+    for (let h = 0; h <= heightSegs; h++) {
+      const t = h / heightSegs;
+      const y = discBottom - t * (discBottom - footY);
+      const cx = attachX + t * (footX - attachX);
+      const cz = attachZ + t * (footZ - attachZ);
+      // Wider at bottom (inverse taper)
+      const r = riserRadius * (1 + t * 0.3);
+      
+      for (let s = 0; s <= segments; s++) {
+        const segAngle = (s / segments) * Math.PI * 2;
+        verts.push(
+          cx + Math.cos(segAngle) * r,
+          y,
+          cz + Math.sin(segAngle) * r
+        );
+      }
+    }
+    
+    // Side faces
+    for (let h = 0; h < heightSegs; h++) {
+      for (let s = 0; s < segments; s++) {
+        const a = h * (segments + 1) + s;
+        const b = a + 1;
+        const c = a + (segments + 1);
+        const d = c + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+    
+    // Top cap
+    const topCenterIdx = verts.length / 3;
+    verts.push(attachX, discBottom, attachZ);
+    for (let s = 0; s < segments; s++) {
+      indices.push(s + 1, topCenterIdx, s);
+    }
+    
+    // Bottom cap
+    const bottomCenterIdx = verts.length / 3;
+    verts.push(footX, footY, footZ);
+    const lastRingStart = heightSegs * (segments + 1);
+    for (let s = 0; s < segments; s++) {
+      indices.push(lastRingStart + s, bottomCenterIdx, lastRingStart + s + 1);
+    }
+    
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    geometries.push(geo);
+  }
+  
+  return geometries;
+}
+
+/**
+ * Create column legs - straight vertical legs, no spread
+ */
+function createColumnLegs(
+  baseRadius: number,
+  legCount: 3 | 4,
+  legHeight: number,
+  legThickness: number,
+  legInset: number,
+  discBottom: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const segments = 8;
+  const heightSegments = 8;
+  const radius = legThickness / 2;
+  
+  for (let leg = 0; leg < legCount; leg++) {
+    const angle = (leg / legCount) * Math.PI * 2;
+    
+    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const attachRadius = deformedRadius * (1 - legInset * 0.7);
+    
+    const cx = Math.cos(angle) * attachRadius;
+    const cz = Math.sin(angle) * attachRadius;
+    
+    const verts: number[] = [];
+    const indices: number[] = [];
+    
+    // Straight vertical cylinder
+    for (let h = 0; h <= heightSegments; h++) {
+      const t = h / heightSegments;
+      const y = discBottom - t * legHeight;
+      
+      for (let s = 0; s <= segments; s++) {
+        const segAngle = (s / segments) * Math.PI * 2;
+        verts.push(
+          cx + Math.cos(segAngle) * radius,
+          y,
+          cz + Math.sin(segAngle) * radius
+        );
+      }
+    }
+    
+    // Side faces
+    for (let h = 0; h < heightSegments; h++) {
+      for (let s = 0; s < segments; s++) {
+        const a = h * (segments + 1) + s;
+        const b = a + 1;
+        const c = a + (segments + 1);
+        const d = c + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+    
+    // Top cap
+    const topCenterIdx = verts.length / 3;
+    verts.push(cx, discBottom, cz);
+    for (let s = 0; s < segments; s++) {
+      indices.push(s + 1, topCenterIdx, s);
+    }
+    
+    // Bottom cap
+    const bottomCenterIdx = verts.length / 3;
+    const footY = discBottom - legHeight;
+    verts.push(cx, footY, cz);
+    const lastRingStart = heightSegments * (segments + 1);
+    for (let s = 0; s < segments; s++) {
+      indices.push(lastRingStart + s, bottomCenterIdx, lastRingStart + s + 1);
+    }
+    
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    geometries.push(geo);
+  }
+  
+  return geometries;
+}
+
+/**
+ * Create ball feet - spherical feet at each position
+ */
+function createBallFeet(
+  baseRadius: number,
+  legCount: 3 | 4,
+  legThickness: number,
+  legInset: number,
+  discBottom: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const ballRadius = legThickness / 2;
+  const widthSegs = 16;
+  const heightSegs = 12;
+  
+  for (let leg = 0; leg < legCount; leg++) {
+    const angle = (leg / legCount) * Math.PI * 2;
+    
+    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const attachRadius = deformedRadius * (1 - legInset * 0.5);
+    
+    const cx = Math.cos(angle) * attachRadius;
+    const cz = Math.sin(angle) * attachRadius;
+    const cy = discBottom - ballRadius; // Center of sphere
+    
+    // Create sphere geometry manually for positioning
+    const sphereGeo = new THREE.SphereGeometry(ballRadius, widthSegs, heightSegs);
+    sphereGeo.translate(cx, cy, cz);
+    geometries.push(sphereGeo);
+  }
+  
+  return geometries;
 }
 
 /**

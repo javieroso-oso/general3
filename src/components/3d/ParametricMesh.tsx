@@ -596,7 +596,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           taper: params.standBaseTaper,
           edgeStyle: params.standBaseEdgeStyle,
           lip: params.standBaseLip,
-        }
+        },
+        params.legStyle || 'tripod'
       );
       legGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = legGeoMM;
