@@ -4,7 +4,7 @@ export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
 // Leg styles for tripod/riser stands
-export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball' | 'bun' | 'merged_ball';
+export type LegStyle = 'tripod' | 'riser' | 'column' | 'bun';
 
 // Wall mount options (simplified - no separate plate needed)
 

@@ -112,8 +112,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       case 'column':
         newParams.legSpread = 0; // No spread for columns
         break;
-      case 'ball':
-        // Ball feet use legThickness as diameter
+      case 'bun':
+        // Bun feet use legThickness as diameter
         break;
       case 'tripod':
       default:
@@ -139,9 +139,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       case 'tripod': return 'Tripod';
       case 'riser': return 'Riser';
       case 'column': return 'Column';
-      case 'ball': return 'Ball Feet';
       case 'bun': return 'Bun Feet';
-      case 'merged_ball': return 'Merged Ball';
       default: return style;
     }
   };
@@ -190,7 +188,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Leg Style</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['tripod', 'riser', 'column', 'ball', 'bun', 'merged_ball'] as LegStyle[]).map((style) => (
+                    {(['tripod', 'riser', 'column', 'bun'] as LegStyle[]).map((style) => (
                       <Button
                         key={style}
                         variant={params.legStyle === style ? 'default' : 'outline'}
@@ -206,9 +204,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     {params.legStyle === 'tripod' && 'Classic angled legs that spread outward'}
                     {params.legStyle === 'riser' && 'Small stubby feet for table lamps (3-20mm)'}
                     {params.legStyle === 'column' && 'Straight vertical legs, no spread'}
-                    {params.legStyle === 'ball' && 'Spherical ball feet at each position'}
                     {params.legStyle === 'bun' && 'Dome-shaped feet, flat on bed, print-friendly'}
-                    {params.legStyle === 'merged_ball' && 'Ball feet blended into base, smooth transition'}
                   </p>
                 </div>
 
@@ -232,7 +228,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </div>
                 
                 {/* Conditional controls based on leg style */}
-                {params.legStyle !== 'ball' && (
+                {params.legStyle !== 'bun' && (
                   <ParameterSlider
                     label="Leg Height"
                     value={params.legHeight}
@@ -258,10 +254,10 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 )}
                 
                 <ParameterSlider
-                  label={params.legStyle === 'ball' ? 'Ball Size' : 'Leg Thickness'}
+                  label={params.legStyle === 'bun' ? 'Bun Size' : 'Leg Thickness'}
                   value={params.legThickness}
-                  min={params.legStyle === 'ball' ? 5 : 3}
-                  max={params.legStyle === 'ball' ? 15 : 10}
+                  min={params.legStyle === 'bun' ? 5 : 3}
+                  max={params.legStyle === 'bun' ? 15 : 10}
                   step={0.5}
                   unit="mm"
                   onChange={handleChange('legThickness')}
