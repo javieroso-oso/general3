@@ -3,7 +3,7 @@ import * as THREE from 'three';
 /**
  * Leg style types
  */
-export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball';
+export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball' | 'bun' | 'merged_ball';
 
 /**
  * Organic deformation parameters for base disc
@@ -171,6 +171,12 @@ export function generateLegsWithBase(
       break;
     case 'ball':
       geometries.push(...createBallFeet(baseRadius, legCount, legThickness, legInset, discBottom, organicParams));
+      break;
+    case 'bun':
+      geometries.push(...createBunFeet(baseRadius, legCount, legThickness, legInset, discBottom, organicParams));
+      break;
+    case 'merged_ball':
+      geometries.push(...createMergedBallFeet(baseRadius, legCount, legThickness, legInset, discBottom, organicParams));
       break;
     case 'tripod':
     default:
@@ -527,6 +533,218 @@ function createBallFeet(
     const sphereGeo = new THREE.SphereGeometry(ballRadius, widthSegs, heightSegs);
     sphereGeo.translate(cx, cy, cz);
     geometries.push(sphereGeo);
+  }
+  
+  return geometries;
+}
+
+/**
+ * Create bun feet - dome-shaped feet that are flat on the print bed (print-friendly)
+ * These are squashed ellipsoids with max ~45° overhang for support-free printing
+ */
+function createBunFeet(
+  baseRadius: number,
+  legCount: 3 | 4,
+  legThickness: number,
+  legInset: number,
+  discBottom: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const bunRadius = legThickness / 2;
+  // Squash factor: height is 60% of radius for gentle 45° max overhang
+  const bunHeight = bunRadius * 0.6;
+  const widthSegs = 16;
+  const heightSegs = 8;
+  
+  for (let leg = 0; leg < legCount; leg++) {
+    const angle = (leg / legCount) * Math.PI * 2;
+    
+    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const attachRadius = deformedRadius * (1 - legInset * 0.5);
+    
+    const cx = Math.cos(angle) * attachRadius;
+    const cz = Math.sin(angle) * attachRadius;
+    
+    const verts: number[] = [];
+    const indices: number[] = [];
+    
+    // Create dome (bottom hemisphere of ellipsoid, with flat top at disc bottom)
+    // Start from bottom (flat on print bed) going up to disc
+    for (let h = 0; h <= heightSegs; h++) {
+      // Only create bottom half dome (0 to 90 degrees, not full sphere)
+      const phi = (h / heightSegs) * (Math.PI / 2); // 0 to 90 degrees
+      const y = discBottom - bunHeight * Math.cos(phi); // Bottom of dome at discBottom - bunHeight
+      const ringRadius = bunRadius * Math.sin(phi);
+      
+      for (let w = 0; w <= widthSegs; w++) {
+        const theta = (w / widthSegs) * Math.PI * 2;
+        verts.push(
+          cx + Math.cos(theta) * ringRadius,
+          y,
+          cz + Math.sin(theta) * ringRadius
+        );
+      }
+    }
+    
+    // Side faces
+    for (let h = 0; h < heightSegs; h++) {
+      for (let w = 0; w < widthSegs; w++) {
+        const a = h * (widthSegs + 1) + w;
+        const b = a + 1;
+        const c = a + (widthSegs + 1);
+        const d = c + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+    
+    // Bottom cap (flat for printing)
+    const bottomY = discBottom - bunHeight;
+    const bottomCenterIdx = verts.length / 3;
+    verts.push(cx, bottomY, cz);
+    for (let w = 0; w < widthSegs; w++) {
+      indices.push(w, bottomCenterIdx, w + 1);
+    }
+    
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    geometries.push(geo);
+  }
+  
+  return geometries;
+}
+
+/**
+ * Create merged ball feet - ball feet that blend smoothly into the base disc
+ * Uses a fillet/radius transition for print-friendly geometry (max ~45° overhang)
+ */
+function createMergedBallFeet(
+  baseRadius: number,
+  legCount: 3 | 4,
+  legThickness: number,
+  legInset: number,
+  discBottom: number,
+  organicParams?: OrganicParams
+): THREE.BufferGeometry[] {
+  const geometries: THREE.BufferGeometry[] = [];
+  const ballRadius = legThickness / 2;
+  // Fillet radius for smooth transition (30% of ball radius)
+  const filletRadius = ballRadius * 0.4;
+  const segments = 16;
+  const filletSteps = 6;
+  const ballSteps = 10;
+  
+  for (let leg = 0; leg < legCount; leg++) {
+    const angle = (leg / legCount) * Math.PI * 2;
+    
+    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const attachRadius = deformedRadius * (1 - legInset * 0.5);
+    
+    const cx = Math.cos(angle) * attachRadius;
+    const cz = Math.sin(angle) * attachRadius;
+    
+    const verts: number[] = [];
+    const indices: number[] = [];
+    
+    // The merged ball consists of:
+    // 1. A fillet transition from disc bottom (45° max overhang)
+    // 2. A ball portion that continues smoothly
+    
+    // Fillet starts at disc bottom with wider radius, curves down to ball
+    // Using quarter-circle profile for fillet
+    const filletStartRadius = ballRadius + filletRadius;
+    
+    // Ring 0: At disc bottom, wide radius (start of fillet)
+    for (let s = 0; s <= segments; s++) {
+      const theta = (s / segments) * Math.PI * 2;
+      verts.push(
+        cx + Math.cos(theta) * filletStartRadius,
+        discBottom,
+        cz + Math.sin(theta) * filletStartRadius
+      );
+    }
+    
+    // Fillet rings: curve from wide to ball radius
+    for (let f = 1; f <= filletSteps; f++) {
+      const t = f / filletSteps;
+      // Quarter circle profile for fillet
+      const filletAngle = t * (Math.PI / 2);
+      const yOffset = filletRadius * (1 - Math.cos(filletAngle));
+      const radiusOffset = filletRadius * Math.sin(filletAngle);
+      const ringRadius = filletStartRadius - radiusOffset;
+      const y = discBottom - yOffset;
+      
+      for (let s = 0; s <= segments; s++) {
+        const theta = (s / segments) * Math.PI * 2;
+        verts.push(
+          cx + Math.cos(theta) * ringRadius,
+          y,
+          cz + Math.sin(theta) * ringRadius
+        );
+      }
+    }
+    
+    // Ball portion: continue from fillet end down to ball bottom
+    const ballStartY = discBottom - filletRadius;
+    const ballCenterY = ballStartY; // Ball center at fillet end height
+    
+    for (let b = 1; b <= ballSteps; b++) {
+      const t = b / ballSteps;
+      // Hemisphere from top to bottom
+      const phi = t * Math.PI; // 0 to 180 degrees (full ball below fillet)
+      // But we only want the portion below the fillet junction
+      const ballPhi = t * (Math.PI * 0.6); // About 108 degrees - most of bottom hemisphere
+      const y = ballCenterY - ballRadius * Math.cos(Math.PI / 2 - ballPhi) * 0.8;
+      const ringRadius = ballRadius * Math.sin(Math.PI / 2 - ballPhi + Math.PI / 2) * 0.9;
+      
+      for (let s = 0; s <= segments; s++) {
+        const theta = (s / segments) * Math.PI * 2;
+        verts.push(
+          cx + Math.cos(theta) * Math.max(ringRadius, 0.5),
+          y,
+          cz + Math.sin(theta) * Math.max(ringRadius, 0.5)
+        );
+      }
+    }
+    
+    // Index all rings
+    const totalRings = 1 + filletSteps + ballSteps;
+    for (let r = 0; r < totalRings - 1; r++) {
+      for (let s = 0; s < segments; s++) {
+        const a = r * (segments + 1) + s;
+        const b = a + 1;
+        const c = a + (segments + 1);
+        const d = c + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+    
+    // Bottom cap
+    const lastRingStart = (totalRings - 1) * (segments + 1);
+    const bottomCenterIdx = verts.length / 3;
+    // Get average Y of last ring
+    const lastY = verts[lastRingStart * 3 + 1];
+    verts.push(cx, lastY, cz);
+    for (let s = 0; s < segments; s++) {
+      indices.push(lastRingStart + s, bottomCenterIdx, lastRingStart + s + 1);
+    }
+    
+    // Top cap (at disc bottom - connection to disc)
+    const topCenterIdx = verts.length / 3;
+    verts.push(cx, discBottom, cz);
+    for (let s = 0; s < segments; s++) {
+      indices.push(s + 1, topCenterIdx, s);
+    }
+    
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    geometries.push(geo);
   }
   
   return geometries;

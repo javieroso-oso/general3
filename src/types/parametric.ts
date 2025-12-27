@@ -4,7 +4,7 @@ export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
 // Leg styles for tripod/riser stands
-export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball';
+export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball' | 'bun' | 'merged_ball';
 
 // Wall mount options (simplified - no separate plate needed)
 
@@ -148,7 +148,7 @@ export interface ParametricParams {
   
   // Rim waves
   rimWaveCount: number;         // 0-12: number of waves around the rim
-  rimWaveDepth: number;         // 0-3: how much the rim dips/rises
+  rimWaveDepth: number;         // 0-0.3: how much the rim dips/rises
   
   // Profile curve type
   profileCurve: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave';
