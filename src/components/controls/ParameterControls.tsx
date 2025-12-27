@@ -974,6 +974,110 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           onChange={handleChange('lipHeight')}
         />
       </Section>
+      
+      {/* Stacking Interface */}
+      <Section title="Stacking Interface" defaultOpen={false}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link className={cn("w-4 h-4", params.stackingEnabled ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="stacking-enabled" className="text-sm font-medium">Enable Stacking</Label>
+          </div>
+          <Switch 
+            id="stacking-enabled" 
+            checked={params.stackingEnabled} 
+            onCheckedChange={(enabled) => onParamsChange({ ...params, stackingEnabled: enabled })}
+          />
+        </div>
+        
+        {params.stackingEnabled && (
+          <div className="space-y-3 pt-2 border-t border-border/50">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Top Interface</Label>
+              <Select 
+                value={params.topInterface} 
+                onValueChange={(value: 'none' | 'male' | 'female') => {
+                  onParamsChange({ ...params, topInterface: value });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="male">Male (protrusion)</SelectItem>
+                  <SelectItem value="female">Female (recess)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Bottom Interface</Label>
+              <Select 
+                value={params.bottomInterface} 
+                onValueChange={(value: 'none' | 'male' | 'female') => {
+                  onParamsChange({ ...params, bottomInterface: value });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="male">Male (protrusion)</SelectItem>
+                  <SelectItem value="female">Female (recess)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              To stack bodies: set top as female, bottom of next body as male (or vice versa)
+            </p>
+            
+            <ParameterSlider
+              label="Connector Diameter"
+              value={params.stackingConnectorDiameter}
+              min={15}
+              max={80}
+              step={5}
+              unit="mm"
+              onChange={handleChange('stackingConnectorDiameter')}
+            />
+            
+            <ParameterSlider
+              label="Insert Depth"
+              value={params.stackingConnectorDepth}
+              min={4}
+              max={20}
+              step={1}
+              unit="mm"
+              onChange={handleChange('stackingConnectorDepth')}
+            />
+            
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Connector Type</Label>
+              <Select 
+                value={params.stackingConnectorType} 
+                onValueChange={(value: 'press_fit' | 'bayonet') => {
+                  onParamsChange({ ...params, stackingConnectorType: value });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="press_fit">Press Fit</SelectItem>
+                  <SelectItem value="bayonet">Bayonet Lock</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {params.stackingConnectorType === 'press_fit' 
+                  ? 'Friction fit - snug tolerance for secure hold' 
+                  : 'Quarter-turn lock tabs - tool-free assembly'}
+              </p>
+            </div>
+          </div>
+        )}
+      </Section>
     </motion.div>
   );
 };

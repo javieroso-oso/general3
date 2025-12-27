@@ -150,6 +150,14 @@ export interface ParametricParams {
   // Support-free printing mode
   supportFreeMode: boolean;
   showOverhangMap: boolean;
+  
+  // Stacking interface for body-to-body connections
+  stackingEnabled: boolean;
+  topInterface: 'none' | 'male' | 'female';
+  bottomInterface: 'none' | 'male' | 'female';
+  stackingConnectorType: 'press_fit' | 'bayonet';
+  stackingConnectorDiameter: number;  // mm - interface ring diameter
+  stackingConnectorDepth: number;     // mm - how deep the male part inserts
 }
 
 // Print modes
@@ -316,6 +324,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
     wallMountStyle: 'back',
+    stackingEnabled: false,
+    topInterface: 'none',
+    bottomInterface: 'none',
+    stackingConnectorType: 'press_fit',
+    stackingConnectorDiameter: 30,
+    stackingConnectorDepth: 8,
   },
   lamp: {
     height: 100,
@@ -381,6 +395,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
     wallMountStyle: 'back',
+    stackingEnabled: false,
+    topInterface: 'none',
+    bottomInterface: 'none',
+    stackingConnectorType: 'press_fit',
+    stackingConnectorDiameter: 30,
+    stackingConnectorDepth: 8,
   },
   sculpture: {
     height: 150,
@@ -446,6 +466,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: false,
     wallMountStyle: 'back',
+    stackingEnabled: false,
+    topInterface: 'none',
+    bottomInterface: 'none',
+    stackingConnectorType: 'press_fit',
+    stackingConnectorDiameter: 30,
+    stackingConnectorDepth: 8,
   },
 };
 
