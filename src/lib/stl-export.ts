@@ -738,6 +738,8 @@ export function downloadSTL(
 export interface GCodeLayer {
   z: number;
   paths: Array<{ x: number; y: number; z?: number }[]>;  // z is for non-planar
+  isNonPlanar?: boolean;  // Flag indicating this is a curved layer
+  tiltAngles?: number[];  // Tilt angle at each point (degrees) for visualization
 }
 
 // Generate spiral vase G-code layers (continuous Z movement)
@@ -783,6 +785,157 @@ export function generateSpiralVaseLayers(
   return layers;
 }
 
+// Calculate surface height at (x, y) for non-planar printing
+// Returns the Z height on the top surface at this XY position
+function getSurfaceHeightAt(
+  x: number,
+  y: number,
+  params: ParametricParams,
+  type: ObjectType
+): number {
+  const { height, profileCurve } = params;
+  const distFromCenter = Math.sqrt(x * x + y * y);
+  const theta = Math.atan2(y, x);
+  
+  // Get the radius at the top to determine the object's edge
+  const maxRadius = getRadiusAtHeight(1, params, type, theta);
+  
+  if (distFromCenter >= maxRadius) {
+    return height; // Outside the object
+  }
+  
+  const normalizedDist = distFromCenter / maxRadius;
+  
+  // Calculate dome height based on profile curve
+  // 'convex' and 'wave' profiles suggest curved tops
+  if (profileCurve === 'convex') {
+    // Convex profile - hemisphere-like dome on top
+    const domeHeight = maxRadius * 0.25;
+    const domeZ = Math.sqrt(Math.max(0, 1 - normalizedDist * normalizedDist)) * domeHeight;
+    return height + domeZ;
+  } else if (profileCurve === 'wave') {
+    // Wave profile - gentle undulating top
+    const waveHeight = maxRadius * 0.15;
+    const waveZ = (1 - normalizedDist * normalizedDist) * waveHeight;
+    return height + waveZ;
+  } else if (profileCurve === 'concave') {
+    // Concave - slight inward curve (bowl-like)
+    const curveHeight = maxRadius * 0.1;
+    const curveZ = (1 - normalizedDist * normalizedDist) * curveHeight;
+    return height + curveZ;
+  }
+  
+  // Linear and hourglass - flat top
+  return height;
+}
+
+// Calculate tilt angle at a point on the surface (in degrees)
+function calculateTiltAngle(
+  x: number,
+  y: number,
+  params: ParametricParams,
+  type: ObjectType,
+  delta: number = 0.5
+): number {
+  // Calculate gradient using finite differences
+  const z0 = getSurfaceHeightAt(x, y, params, type);
+  const zDx = getSurfaceHeightAt(x + delta, y, params, type);
+  const zDy = getSurfaceHeightAt(x, y + delta, params, type);
+  
+  const dZdx = (zDx - z0) / delta;
+  const dZdy = (zDy - z0) / delta;
+  
+  // Surface normal components
+  const gradientMag = Math.sqrt(dZdx * dZdx + dZdy * dZdy);
+  
+  // Tilt angle from vertical (0° = flat, 90° = vertical wall)
+  return Math.atan(gradientMag) * 180 / Math.PI;
+}
+
+// Generate curved non-planar layers for the top surface
+function generateCurvedTopLayers(
+  params: ParametricParams,
+  type: ObjectType,
+  settings: PrintSettings,
+  startZ: number // Z height where curved layers begin
+): GCodeLayer[] {
+  const layers: GCodeLayer[] = [];
+  const { height, wallThickness, twistAngle } = params;
+  const { layerHeight, nonPlanar } = settings;
+  const maxTiltAngle = nonPlanar.maxZAngle;
+  
+  const segments = 48;
+  
+  // Generate curved layers from startZ to the top of the dome
+  // Use the surface height function to determine actual Z per point
+  const curvedLayerCount = Math.ceil((height * 0.4) / layerHeight); // Cover top 40%
+  
+  for (let layerIdx = 0; layerIdx < curvedLayerCount; layerIdx++) {
+    const baseZ = startZ + layerIdx * layerHeight;
+    const t = baseZ / height;
+    const twistRad = (twistAngle * Math.PI / 180) * t;
+    
+    const outerPath: { x: number; y: number; z: number }[] = [];
+    const innerPath: { x: number; y: number; z: number }[] = [];
+    const tiltAngles: number[] = [];
+    
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2 + twistRad;
+      const outerR = getRadiusAtHeight(t, params, type, theta);
+      const innerR = Math.max(outerR - wallThickness, wallThickness);
+      
+      // Outer wall point
+      const outerX = Math.cos(theta) * outerR;
+      const outerY = Math.sin(theta) * outerR;
+      const outerSurfaceZ = getSurfaceHeightAt(outerX, outerY, params, type);
+      
+      // Calculate target Z with non-planar adjustment
+      // Blend between flat layer Z and surface-following Z
+      const layerProgress = layerIdx / curvedLayerCount;
+      const blendFactor = Math.pow(layerProgress, 2); // Gradual transition
+      const targetOuterZ = baseZ + (outerSurfaceZ - height) * blendFactor;
+      
+      // Calculate tilt and clamp if needed
+      const tiltAngle = calculateTiltAngle(outerX, outerY, params, type);
+      const clampedTilt = Math.min(tiltAngle, maxTiltAngle);
+      
+      // If tilt would exceed max, reduce the Z offset
+      const tiltFactor = tiltAngle > 0 ? clampedTilt / tiltAngle : 1;
+      const finalOuterZ = baseZ + (targetOuterZ - baseZ) * tiltFactor;
+      
+      tiltAngles.push(tiltAngle);
+      
+      outerPath.push({
+        x: outerX,
+        y: outerY,
+        z: finalOuterZ,
+      });
+      
+      // Inner wall point - follow similar but slightly inside
+      const innerX = Math.cos(theta) * innerR;
+      const innerY = Math.sin(theta) * innerR;
+      const innerSurfaceZ = getSurfaceHeightAt(innerX, innerY, params, type);
+      const targetInnerZ = baseZ + (innerSurfaceZ - height) * blendFactor;
+      const finalInnerZ = baseZ + (targetInnerZ - baseZ) * tiltFactor;
+      
+      innerPath.push({
+        x: innerX,
+        y: innerY,
+        z: finalInnerZ,
+      });
+    }
+    
+    layers.push({
+      z: baseZ,
+      paths: [outerPath, innerPath],
+      isNonPlanar: true,
+      tiltAngles,
+    });
+  }
+  
+  return layers;
+}
+
 export function generateGCodeLayers(
   params: ParametricParams,
   type: ObjectType,
@@ -794,13 +947,21 @@ export function generateGCodeLayers(
   }
   
   const layers: GCodeLayer[] = [];
-  const { height, wallThickness, twistAngle } = params;
-  const { layerHeight, nozzleDiameter } = settings;
+  const { height, wallThickness, twistAngle, profileCurve } = params;
+  const { layerHeight, nozzleDiameter, printMode, nonPlanar } = settings;
   
-  const layerCount = Math.ceil(height / layerHeight);
+  const isNonPlanar = printMode === 'non_planar' && nonPlanar.topSurfaceOptimized;
+  // Curves that benefit from non-planar top finishing
+  const hasCurvedTop = ['convex', 'wave', 'concave'].includes(profileCurve);
+  
+  // Calculate where non-planar zone begins (top 30% for curved surfaces)
+  const nonPlanarStartZ = isNonPlanar && hasCurvedTop ? height * 0.7 : height;
+  const planarLayerCount = Math.ceil(nonPlanarStartZ / layerHeight);
+  
   const segments = 48; // Points per perimeter
   
-  for (let layer = 0; layer < layerCount; layer++) {
+  // Generate planar layers up to the non-planar zone
+  for (let layer = 0; layer < planarLayerCount; layer++) {
     const z = layer * layerHeight;
     const t = z / height;
     const twistRad = (twistAngle * Math.PI / 180) * t;
@@ -827,7 +988,14 @@ export function generateGCodeLayers(
     layers.push({
       z,
       paths: [outerPath, innerPath],
+      isNonPlanar: false,
     });
+  }
+  
+  // Add curved non-planar layers for the top surface
+  if (isNonPlanar && hasCurvedTop) {
+    const curvedLayers = generateCurvedTopLayers(params, type, settings, nonPlanarStartZ);
+    layers.push(...curvedLayers);
   }
   
   return layers;
@@ -912,25 +1080,48 @@ export function generateGCode(
       }
     }
   } else {
-    // Standard layer-by-layer printing
+    // Standard layer-by-layer printing (with non-planar support)
     layers.forEach((layer, layerIndex) => {
-      lines.push(`; Layer ${layerIndex + 1} / ${layers.length}`);
-      lines.push(`G1 Z${layer.z.toFixed(3)} F1000`);
+      const isLayerNonPlanar = layer.isNonPlanar;
+      
+      if (isLayerNonPlanar) {
+        lines.push(`; Layer ${layerIndex + 1} / ${layers.length} [NON-PLANAR]`);
+        lines.push(`; Warning: Z varies along path - requires non-planar capable printer`);
+      } else {
+        lines.push(`; Layer ${layerIndex + 1} / ${layers.length}`);
+        lines.push(`G1 Z${layer.z.toFixed(3)} F1000`);
+      }
       
       layer.paths.forEach((path, pathIndex) => {
         if (path.length < 2) return;
         
-        // Move to start
-        lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F3000`);
+        // Move to start - include Z for non-planar
+        const startZ = path[0].z !== undefined ? path[0].z : layer.z;
+        if (isLayerNonPlanar) {
+          lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} Z${startZ.toFixed(3)} F3000`);
+        } else {
+          lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F3000`);
+        }
         
         // Extrude along path
         for (let i = 1; i < path.length; i++) {
           const dx = path[i].x - path[i - 1].x;
           const dy = path[i].y - path[i - 1].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          // For non-planar, calculate 3D distance including Z delta
+          const z1 = path[i - 1].z !== undefined ? path[i - 1].z : layer.z;
+          const z2 = path[i].z !== undefined ? path[i].z : layer.z;
+          const dz = z2 - z1;
+          
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
           e += dist * extrusionMultiplier;
           
-          lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+          if (isLayerNonPlanar) {
+            // Include Z coordinate for non-planar moves
+            lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+          } else {
+            lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+          }
         }
       });
     });
