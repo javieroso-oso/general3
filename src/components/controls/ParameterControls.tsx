@@ -374,6 +374,18 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       onCheckedChange={(v) => onParamsChange({ ...params, showBaseOnly: v })}
                     />
                   </div>
+                  
+                  {/* Preview Color */}
+                  <div className="flex items-center justify-between pt-2">
+                    <Label htmlFor="preview-color" className="text-xs">Preview Color</Label>
+                    <input 
+                      type="color" 
+                      id="preview-color"
+                      value={params.previewColor || '#e8e8e8'} 
+                      onChange={(e) => onParamsChange({ ...params, previewColor: e.target.value })}
+                      className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent"
+                    />
+                  </div>
                 </div>
               </>
             )}
