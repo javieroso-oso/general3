@@ -182,6 +182,7 @@ export interface ParametricParams {
   
   // Preview mode
   showBaseOnly: boolean;     // Show only base/legs without body for easier editing
+  previewColor: string;      // Hex color for preview rendering
   
   // Stacking interface for body-to-body connections
   stackingEnabled: boolean;
@@ -364,6 +365,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     supportFreeMode: false,
     showOverhangMap: false,
     showBaseOnly: false,
+    previewColor: '#e8e8e8',
     wallMountCutOffset: 0,
     wallMountHoleCount: 2,
     wallMountHoleDiameter: 5,
@@ -450,6 +452,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     supportFreeMode: false,
     showOverhangMap: false,
     showBaseOnly: false,
+    previewColor: '#e8e8e8',
     wallMountCutOffset: 0,
     wallMountHoleCount: 2,
     wallMountHoleDiameter: 5,
@@ -536,6 +539,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     supportFreeMode: false,
     showOverhangMap: false,
     showBaseOnly: false,
+    previewColor: '#e8e8e8',
     wallMountCutOffset: 0,
     wallMountHoleCount: 2,
     wallMountHoleDiameter: 5,

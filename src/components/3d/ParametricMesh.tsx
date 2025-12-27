@@ -689,7 +689,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       {legGeometry && (
         <mesh geometry={legGeometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color="#d4d4d4"
+            color={params.previewColor || "#d4d4d4"}
             roughness={0.4}
             metalness={0.1}
             side={THREE.DoubleSide}
@@ -701,7 +701,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       {!params.showBaseOnly && (
         <mesh geometry={bodyGeometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color={params.showOverhangMap ? "#ffffff" : "#e8e8e8"}
+            color={params.showOverhangMap ? "#ffffff" : (params.previewColor || "#e8e8e8")}
             vertexColors={params.showOverhangMap}
             roughness={0.55}
             metalness={0.05}

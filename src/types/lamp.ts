@@ -448,6 +448,7 @@ export const defaultLampParams: LampParams = {
   supportFreeMode: false,
   showOverhangMap: false,
   showBaseOnly: false,
+  previewColor: '#e8e8e8',
   wallMountCutOffset: 0,
   wallMountHoleCount: 2,
   wallMountHoleDiameter: 5,
