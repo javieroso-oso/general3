@@ -49,7 +49,7 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
   return (nxy0 * (1 - uz) + nxy1 * uz) * 2 - 1;
 };
 
-// Calculate radius at a given height t (0-1)
+// Calculate radius at a given height t (0-1) - includes ALL surface features
 function getRadiusAtHeight(
   t: number,
   params: ParametricParams,
@@ -72,18 +72,66 @@ function getRadiusAtHeight(
     organicNoise,
     noiseScale,
     height,
+    profileCurve,
+    facetCount,
+    facetSharpness,
+    spiralGrooveCount,
+    spiralGrooveDepth,
+    spiralGrooveTwist,
+    horizontalRibCount,
+    horizontalRibDepth,
+    horizontalRibWidth,
+    flutingCount,
+    flutingDepth,
+    twistAngle,
   } = params;
 
-  // Base profile
+  // Apply twist to theta
+  const twistRad = (twistAngle * Math.PI / 180) * t;
+  let effectiveTheta = theta + twistRad;
+  
+  // Apply faceting (snap theta to polygon vertices)
+  if (facetCount > 0 && facetCount >= 3) {
+    const facetAngle = (Math.PI * 2) / facetCount;
+    const facetIndex = Math.floor(effectiveTheta / facetAngle + 0.5);
+    const snappedTheta = facetIndex * facetAngle;
+    effectiveTheta = effectiveTheta + (snappedTheta - effectiveTheta) * facetSharpness;
+  }
+
+  // Base profile based on profileCurve type
   let radius: number;
-  if (type === 'lamp') {
-    radius = baseRadius + (topRadius - baseRadius) * Math.pow(t, 0.6);
-  } else if (type === 'sculpture') {
-    const curve = Math.sin(t * Math.PI);
-    radius = baseRadius * (1 - t * 0.3) + topRadius * t * 0.7 + curve * baseRadius * 0.2;
-  } else {
-    const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
-    radius = baseRadius * (1 - t * 0.4) + topRadius * t * 0.6 + curve * baseRadius * 0.12;
+  const radiusDiff = topRadius - baseRadius;
+  
+  switch (profileCurve) {
+    case 'convex':
+      // Bulges outward in the middle
+      radius = baseRadius + radiusDiff * t + Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
+      break;
+    case 'concave':
+      // Curves inward in the middle
+      radius = baseRadius + radiusDiff * t - Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
+      break;
+    case 'hourglass':
+      // Pinched in the middle
+      radius = baseRadius + radiusDiff * t - Math.sin(t * Math.PI) * (baseRadius + topRadius) * 0.15;
+      break;
+    case 'wave':
+      // Wavy profile with 2 oscillations
+      radius = baseRadius + radiusDiff * t + Math.sin(t * Math.PI * 4) * baseRadius * 0.08;
+      break;
+    case 'linear':
+    default:
+      // Apply object-type specific curves on top of linear base
+      if (type === 'lamp') {
+        radius = baseRadius + (topRadius - baseRadius) * Math.pow(t, 0.6);
+      } else if (type === 'sculpture') {
+        const curve = Math.sin(t * Math.PI);
+        radius = baseRadius * (1 - t * 0.3) + topRadius * t * 0.7 + curve * baseRadius * 0.2;
+      } else {
+        const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
+        radius = baseRadius * (1 - t * 0.4) + topRadius * t * 0.6 + curve * baseRadius * 0.12;
+      }
+      break;
   }
 
   // Organic bulge
@@ -96,8 +144,19 @@ function getRadiusAtHeight(
   radius *= (1 - pinchTop - pinchBottom);
 
   // Lip flare
-  const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
-  radius += lipT * lipT * lipFlare * baseRadius;
+  if (lipHeight > 0 && lipFlare !== 0) {
+    const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
+    radius += lipT * lipT * lipFlare * baseRadius;
+  }
+
+  // Horizontal ribs (sinusoidal modulation based on height)
+  if (horizontalRibCount > 0 && horizontalRibDepth > 0) {
+    const ribPhase = t * horizontalRibCount * Math.PI * 2;
+    const ribWave = Math.sin(ribPhase);
+    const sharpness = 1 / (horizontalRibWidth || 0.5);
+    const ribModifier = Math.pow(Math.abs(ribWave), sharpness) * Math.sign(ribWave);
+    radius += ribModifier * horizontalRibDepth * baseRadius;
+  }
 
   // Min radius
   radius = Math.max(radius, printConstraints.minBaseRadius * 0.5);
@@ -105,28 +164,69 @@ function getRadiusAtHeight(
   // Angular deformations
   if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
     const maxWobble = Math.min(wobbleAmplitude, 0.15);
-    radius += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * baseRadius;
+    radius += Math.sin(t * Math.PI * 2 * wobbleFrequency + effectiveTheta * 2) * maxWobble * baseRadius;
   }
 
   if (rippleCount > 0 && rippleDepth > 0) {
     const maxRipple = Math.min(rippleDepth, 0.1);
-    radius += Math.sin(theta * rippleCount) * maxRipple * baseRadius;
+    radius += Math.sin(effectiveTheta * rippleCount) * maxRipple * baseRadius;
   }
 
+  // Fluting (vertical grooves like classical columns)
+  if (flutingCount > 0 && flutingDepth > 0) {
+    const fluteAngle = effectiveTheta * flutingCount;
+    const fluteWave = Math.cos(fluteAngle);
+    if (fluteWave < 0) {
+      radius += fluteWave * flutingDepth * baseRadius;
+    }
+  }
+
+  // Spiral grooves (combine height and angle)
+  if (spiralGrooveCount > 0 && spiralGrooveDepth > 0) {
+    const spiralAngle = effectiveTheta + t * spiralGrooveTwist * Math.PI * 2;
+    const spiralWave = Math.sin(spiralAngle * spiralGrooveCount);
+    if (spiralWave < 0) {
+      radius += spiralWave * spiralGrooveDepth * baseRadius;
+    }
+  }
+
+  // Asymmetry (enhanced version matching ParametricMesh)
   if (asymmetry > 0) {
-    const maxAsym = Math.min(asymmetry, 0.1);
-    radius += Math.sin(theta) * Math.cos(t * Math.PI * 2) * maxAsym * baseRadius;
+    const primaryWave = Math.sin(effectiveTheta) * Math.cos(t * Math.PI) * asymmetry * baseRadius;
+    const secondaryWave = Math.sin(effectiveTheta * 2 + t * Math.PI * 3) * asymmetry * 0.5 * baseRadius;
+    const lean = Math.cos(effectiveTheta) * t * asymmetry * 0.4 * baseRadius;
+    radius += primaryWave + secondaryWave + lean;
   }
 
   if (organicNoise > 0) {
     const maxNoise = Math.min(organicNoise, 0.1);
     const y = t * height;
-    const nx = Math.cos(theta) * radius;
-    const nz = Math.sin(theta) * radius;
+    const nx = Math.cos(effectiveTheta) * radius;
+    const nz = Math.sin(effectiveTheta) * radius;
     radius += noise3D(nx * 0.1, y * 0.1, nz * 0.1, noiseScale) * maxNoise * baseRadius;
   }
 
   return Math.max(radius, params.wallThickness * 2);
+}
+
+// Calculate rim wave Z offset at a given position
+function getRimWaveOffset(
+  t: number,
+  theta: number,
+  params: ParametricParams
+): number {
+  const { rimWaveCount, rimWaveDepth, height, twistAngle } = params;
+  if (!rimWaveCount || rimWaveCount <= 0 || !rimWaveDepth || rimWaveDepth <= 0) return 0;
+  
+  const rimZone = 0.1; // Top 10% of height (matches ParametricMesh.tsx)
+  const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
+  if (rimT <= 0) return 0;
+  
+  // Apply twist to theta for consistency
+  const twistRad = (twistAngle * Math.PI / 180) * t;
+  const effectiveTheta = theta + twistRad;
+  
+  return Math.sin(effectiveTheta * rimWaveCount) * rimWaveDepth * height * rimT;
 }
 
 // Generate body mesh (open bottom, no base cap) for STL export
@@ -761,18 +861,22 @@ export function generateSpiralVaseLayers(
   
   for (let i = 0; i <= totalPoints; i++) {
     const progress = i / totalPoints;
-    const z = progress * height;
-    const t = z / height;
+    const baseZ = progress * height;
+    const t = baseZ / height;
     const revolutions = i / segments;
     const theta = revolutions * Math.PI * 2;
     const twistRad = (twistAngle * Math.PI / 180) * t;
     
-    const outerR = getRadiusAtHeight(t, params, type, theta + twistRad);
+    const outerR = getRadiusAtHeight(t, params, type, theta);
+    
+    // Apply rim wave offset to Z
+    const rimOffset = getRimWaveOffset(t, theta, params);
+    const finalZ = baseZ + rimOffset;
     
     spiralPath.push({
       x: Math.cos(theta + twistRad) * outerR,
       y: Math.sin(theta + twistRad) * outerR,
-      z: z,
+      z: finalZ,
     });
   }
   
@@ -944,20 +1048,23 @@ function generateCurvedTopLayers(
     const tiltAngles: number[] = [];
     
     for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2 + twistRad;
+      const theta = (j / segments) * Math.PI * 2;
       const outerR = getRadiusAtHeight(t, params, type, theta);
       const innerR = Math.max(outerR - wallThickness, wallThickness);
       
+      // Apply rim wave offset
+      const rimOffset = getRimWaveOffset(t, theta, params);
+      
       // Outer wall point
-      const outerX = Math.cos(theta) * outerR;
-      const outerY = Math.sin(theta) * outerR;
+      const outerX = Math.cos(theta + twistRad) * outerR;
+      const outerY = Math.sin(theta + twistRad) * outerR;
       const outerSurfaceZ = getSurfaceHeightAt(outerX, outerY, params, type);
       
       // Calculate target Z with non-planar adjustment
       // Blend between flat layer Z and surface-following Z
       const layerProgress = layerIdx / curvedLayerCount;
       const blendFactor = Math.pow(layerProgress, 2); // Gradual transition
-      const targetOuterZ = baseZ + (outerSurfaceZ - height) * blendFactor;
+      const targetOuterZ = baseZ + (outerSurfaceZ - height) * blendFactor + rimOffset;
       
       // Calculate tilt and clamp if needed
       const tiltAngle = calculateTiltAngle(outerX, outerY, params, type);
@@ -976,10 +1083,10 @@ function generateCurvedTopLayers(
       });
       
       // Inner wall point - follow similar but slightly inside
-      const innerX = Math.cos(theta) * innerR;
-      const innerY = Math.sin(theta) * innerR;
+      const innerX = Math.cos(theta + twistRad) * innerR;
+      const innerY = Math.sin(theta + twistRad) * innerR;
       const innerSurfaceZ = getSurfaceHeightAt(innerX, innerY, params, type);
-      const targetInnerZ = baseZ + (innerSurfaceZ - height) * blendFactor;
+      const targetInnerZ = baseZ + (innerSurfaceZ - height) * blendFactor + rimOffset;
       const finalInnerZ = baseZ + (targetInnerZ - baseZ) * tiltFactor;
       
       innerPath.push({
@@ -1027,12 +1134,15 @@ function generateFullSurfaceLayers(
     const wallAngle = Math.abs(getWallAngle(t, params, type));
     
     for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2 + twistRad;
+      const theta = (j / segments) * Math.PI * 2;
       const outerR = getRadiusAtHeight(t, params, type, theta);
       const innerR = Math.max(outerR - wallThickness, wallThickness);
       
       // Calculate the surface-following Z offset
       const surfaceZ = getOuterSurfaceZ(t, theta, params, type);
+      
+      // Apply rim wave offset
+      const rimOffset = getRimWaveOffset(t, theta, params);
       
       // Clamp tilt angle to maxZAngle
       const effectiveTilt = Math.min(wallAngle, maxTiltAngle);
@@ -1040,21 +1150,21 @@ function generateFullSurfaceLayers(
       
       // Blend between base Z and surface Z based on allowed tilt
       const zOffset = (surfaceZ - baseZ) * tiltFactor;
-      const finalZ = baseZ + zOffset;
+      const finalZ = baseZ + zOffset + rimOffset;
       
       tiltAngles.push(wallAngle);
       
       // Outer wall point
       outerPath.push({
-        x: Math.cos(theta) * outerR,
-        y: Math.sin(theta) * outerR,
+        x: Math.cos(theta + twistRad) * outerR,
+        y: Math.sin(theta + twistRad) * outerR,
         z: finalZ,
       });
       
       // Inner wall point - follows at inner radius
       innerPath.push({
-        x: Math.cos(theta) * innerR,
-        y: Math.sin(theta) * innerR,
+        x: Math.cos(theta + twistRad) * innerR,
+        y: Math.sin(theta + twistRad) * innerR,
         z: finalZ,
       });
     }
@@ -1112,34 +1222,71 @@ export function generateGCodeLayers(
   
   // Generate planar layers up to the non-planar zone
   for (let layer = 0; layer < planarLayerCount; layer++) {
-    const z = layer * layerHeight;
-    const t = z / height;
+    const baseZ = layer * layerHeight;
+    const t = baseZ / height;
     const twistRad = (twistAngle * Math.PI / 180) * t;
     
-    const outerPath: { x: number; y: number }[] = [];
-    const innerPath: { x: number; y: number }[] = [];
+    // Check if this layer needs rim wave (variable Z)
+    const hasRimWave = params.rimWaveCount > 0 && params.rimWaveDepth > 0 && t > 0.9;
     
-    for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2 + twistRad;
-      const outerR = getRadiusAtHeight(t, params, type, theta);
-      const innerR = Math.max(outerR - wallThickness, wallThickness);
+    if (hasRimWave) {
+      // Near the rim with waves - use variable Z paths
+      const outerPath: { x: number; y: number; z: number }[] = [];
+      const innerPath: { x: number; y: number; z: number }[] = [];
       
-      outerPath.push({
-        x: Math.cos(theta) * outerR,
-        y: Math.sin(theta) * outerR,
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        const outerR = getRadiusAtHeight(t, params, type, theta);
+        const innerR = Math.max(outerR - wallThickness, wallThickness);
+        
+        const rimOffset = getRimWaveOffset(t, theta, params);
+        const pointZ = baseZ + rimOffset;
+        
+        outerPath.push({
+          x: Math.cos(theta + twistRad) * outerR,
+          y: Math.sin(theta + twistRad) * outerR,
+          z: pointZ,
+        });
+        
+        innerPath.push({
+          x: Math.cos(theta + twistRad) * innerR,
+          y: Math.sin(theta + twistRad) * innerR,
+          z: pointZ,
+        });
+      }
+      
+      layers.push({
+        z: baseZ,
+        paths: [outerPath, innerPath],
+        isNonPlanar: true, // Variable Z within layer
       });
+    } else {
+      // Standard planar layer
+      const outerPath: { x: number; y: number }[] = [];
+      const innerPath: { x: number; y: number }[] = [];
       
-      innerPath.push({
-        x: Math.cos(theta) * innerR,
-        y: Math.sin(theta) * innerR,
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        const outerR = getRadiusAtHeight(t, params, type, theta);
+        const innerR = Math.max(outerR - wallThickness, wallThickness);
+        
+        outerPath.push({
+          x: Math.cos(theta + twistRad) * outerR,
+          y: Math.sin(theta + twistRad) * outerR,
+        });
+        
+        innerPath.push({
+          x: Math.cos(theta + twistRad) * innerR,
+          y: Math.sin(theta + twistRad) * innerR,
+        });
+      }
+      
+      layers.push({
+        z: baseZ,
+        paths: [outerPath, innerPath],
+        isNonPlanar: false,
       });
     }
-    
-    layers.push({
-      z,
-      paths: [outerPath, innerPath],
-      isNonPlanar: false,
-    });
   }
   
   // Add curved non-planar layers for the top surface (Stage 1)
