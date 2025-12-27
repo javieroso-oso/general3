@@ -447,6 +447,7 @@ export const defaultLampParams: LampParams = {
   socketType: 'E26',
   supportFreeMode: false,
   showOverhangMap: false,
+  showBaseOnly: false,
   wallMountCutOffset: 0,
   wallMountHoleCount: 2,
   wallMountHoleDiameter: 5,
