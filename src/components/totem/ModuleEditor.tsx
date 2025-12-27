@@ -170,67 +170,69 @@ interface SpacerEditorProps {
   onUpdate: (updates: Partial<SpacerModuleConfig>) => void;
 }
 
-const SpacerEditor = ({ module, onUpdate }: SpacerEditorProps) => (
-  <div className="space-y-3">
-    <h4 className="text-xs font-semibold text-muted-foreground">Spacer Options</h4>
-    
-    <div>
-      <Label className="text-xs">Height: {module.height}mm</Label>
-      <Slider
-        value={[module.height]}
-        onValueChange={([v]) => onUpdate({ height: v })}
-        min={5}
-        max={50}
-        step={5}
-        className="mt-1"
-      />
-    </div>
-
-    <div>
-      <Label className="text-xs">Outer Diameter: {module.outerDiameter}mm</Label>
-      <Slider
-        value={[module.outerDiameter]}
-        onValueChange={([v]) => onUpdate({ outerDiameter: v })}
-        min={25}
-        max={100}
-        step={5}
-        className="mt-1"
-      />
-    </div>
-
-    <div>
-      <Label className="text-xs">Pattern</Label>
-      <Select 
-        value={module.style} 
-        onValueChange={(v) => onUpdate({ style: v as SpacerModuleConfig['style'] })}
-      >
-        <SelectTrigger className="mt-1">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="plain">Plain</SelectItem>
-          <SelectItem value="ribbed">Ribbed</SelectItem>
-          <SelectItem value="fluted">Fluted</SelectItem>
-          <SelectItem value="twisted">Twisted</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
-    {(module.style === 'ribbed' || module.style === 'fluted') && (
+function SpacerEditor({ module, onUpdate }: SpacerEditorProps) {
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold text-muted-foreground">Spacer Options</h4>
+      
       <div>
-        <Label className="text-xs">Rib Count: {module.ribCount ?? 12}</Label>
+        <Label className="text-xs">Height: {module.height}mm</Label>
         <Slider
-          value={[module.ribCount ?? 12]}
-          onValueChange={([v]) => onUpdate({ ribCount: v })}
-          min={6}
-          max={32}
-          step={2}
+          value={[module.height]}
+          onValueChange={([v]) => onUpdate({ height: v })}
+          min={5}
+          max={50}
+          step={5}
           className="mt-1"
         />
       </div>
-    )}
-  </div>
-);
+
+      <div>
+        <Label className="text-xs">Outer Diameter: {module.outerDiameter}mm</Label>
+        <Slider
+          value={[module.outerDiameter]}
+          onValueChange={([v]) => onUpdate({ outerDiameter: v })}
+          min={25}
+          max={100}
+          step={5}
+          className="mt-1"
+        />
+      </div>
+
+      <div>
+        <Label className="text-xs">Pattern</Label>
+        <Select 
+          value={module.style} 
+          onValueChange={(v) => onUpdate({ style: v as SpacerModuleConfig['style'] })}
+        >
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="plain">Plain</SelectItem>
+            <SelectItem value="ribbed">Ribbed</SelectItem>
+            <SelectItem value="fluted">Fluted</SelectItem>
+            <SelectItem value="twisted">Twisted</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {(module.style === 'ribbed' || module.style === 'fluted') && (
+        <div>
+          <Label className="text-xs">Rib Count: {module.ribCount ?? 12}</Label>
+          <Slider
+            value={[module.ribCount ?? 12]}
+            onValueChange={([v]) => onUpdate({ ribCount: v })}
+            min={6}
+            max={32}
+            step={2}
+            className="mt-1"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Base-specific controls
 interface BaseEditorProps {
@@ -238,67 +240,69 @@ interface BaseEditorProps {
   onUpdate: (updates: Partial<BaseModuleConfig>) => void;
 }
 
-const BaseEditor = ({ module, onUpdate }: BaseEditorProps) => (
-  <div className="space-y-3">
-    <h4 className="text-xs font-semibold text-muted-foreground">Base Options</h4>
-    
-    <div>
-      <Label className="text-xs">Diameter: {module.diameter}mm</Label>
-      <Slider
-        value={[module.diameter]}
-        onValueChange={([v]) => onUpdate({ diameter: v })}
-        min={60}
-        max={150}
-        step={5}
-        className="mt-1"
-      />
-    </div>
-
-    <div>
-      <Label className="text-xs">Height: {module.height}mm</Label>
-      <Slider
-        value={[module.height]}
-        onValueChange={([v]) => onUpdate({ height: v })}
-        min={10}
-        max={40}
-        step={2}
-        className="mt-1"
-      />
-    </div>
-
-    <div>
-      <Label className="text-xs">Style</Label>
-      <Select 
-        value={module.style} 
-        onValueChange={(v) => onUpdate({ style: v as BaseModuleConfig['style'] })}
-      >
-        <SelectTrigger className="mt-1">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="disc">Disc</SelectItem>
-          <SelectItem value="tripod">Tripod</SelectItem>
-          <SelectItem value="ring">Ring</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
-    {module.weight.cavityEnabled && (
+function BaseEditor({ module, onUpdate }: BaseEditorProps) {
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold text-muted-foreground">Base Options</h4>
+      
       <div>
-        <Label className="text-xs">Weight Cavity: {module.weight.cavityDiameter}mm</Label>
+        <Label className="text-xs">Diameter: {module.diameter}mm</Label>
         <Slider
-          value={[module.weight.cavityDiameter]}
-          onValueChange={([v]) => onUpdate({ 
-            weight: { ...module.weight, cavityDiameter: v } 
-          })}
-          min={30}
-          max={100}
+          value={[module.diameter]}
+          onValueChange={([v]) => onUpdate({ diameter: v })}
+          min={60}
+          max={150}
           step={5}
           className="mt-1"
         />
       </div>
-    )}
-  </div>
-);
+
+      <div>
+        <Label className="text-xs">Height: {module.height}mm</Label>
+        <Slider
+          value={[module.height]}
+          onValueChange={([v]) => onUpdate({ height: v })}
+          min={10}
+          max={40}
+          step={2}
+          className="mt-1"
+        />
+      </div>
+
+      <div>
+        <Label className="text-xs">Style</Label>
+        <Select 
+          value={module.style} 
+          onValueChange={(v) => onUpdate({ style: v as BaseModuleConfig['style'] })}
+        >
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="disc">Disc</SelectItem>
+            <SelectItem value="tripod">Tripod</SelectItem>
+            <SelectItem value="ring">Ring</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {module.weight.cavityEnabled && (
+        <div>
+          <Label className="text-xs">Weight Cavity: {module.weight.cavityDiameter}mm</Label>
+          <Slider
+            value={[module.weight.cavityDiameter]}
+            onValueChange={([v]) => onUpdate({ 
+              weight: { ...module.weight, cavityDiameter: v } 
+            })}
+            min={30}
+            max={100}
+            step={5}
+            className="mt-1"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default ModuleEditor;

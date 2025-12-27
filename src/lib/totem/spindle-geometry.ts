@@ -84,6 +84,8 @@ export function subtractSpindleHole(
 /**
  * Create a visual representation of the spindle (ghost spindle)
  * Used for preview in the stack viewer
+ * 
+ * NOTE: This geometry is centered at origin - caller must position it
  */
 export function createSpindlePreviewGeometry(
   spindleSize: SpindleSize,
@@ -92,7 +94,8 @@ export function createSpindlePreviewGeometry(
   const spec = SPINDLE_SPECS[spindleSize];
   const radius = spec.diameter / 2;
   
-  // Create the spindle as a cylinder
+  // Create the spindle as a cylinder centered at origin
+  // The caller (SpindleMesh) will position it appropriately
   const geometry = new THREE.CylinderGeometry(
     radius,
     radius,
@@ -100,8 +103,8 @@ export function createSpindlePreviewGeometry(
     16
   );
   
-  // Position so bottom is at y=0
-  geometry.translate(0, length / 2, 0);
+  // Do NOT translate here - let the component handle positioning
+  // This prevents double-translation issues
   
   return geometry;
 }

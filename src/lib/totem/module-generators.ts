@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { Brush, Evaluator, SUBTRACTION, ADDITION } from 'three-bvh-csg';
+import { mergeGeometries as threeJsMergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   TotemModuleConfig,
   ShadeModuleConfig,
@@ -28,7 +29,8 @@ const SCALE = 0.01;
 // ============================================================================
 
 /**
- * Merge multiple geometries into one
+ * Merge multiple geometries into one using Three.js BufferGeometryUtils
+ * This properly handles all attributes including normals
  */
 function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (geometries.length === 0) {
@@ -36,47 +38,27 @@ function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeomet
   }
   
   if (geometries.length === 1) {
-    return geometries[0].clone();
-  }
-  
-  let totalVertices = 0;
-  let totalIndices = 0;
-  
-  for (const geo of geometries) {
-    totalVertices += geo.attributes.position.count;
-    if (geo.index) {
-      totalIndices += geo.index.count;
+    const geo = geometries[0].clone();
+    if (!geo.attributes.normal) {
+      geo.computeVertexNormals();
     }
+    return geo;
   }
   
-  const positions = new Float32Array(totalVertices * 3);
-  const indices: number[] = [];
-  
-  let vertexOffset = 0;
-  let indexOffset = 0;
-  
-  for (const geo of geometries) {
-    const posAttr = geo.attributes.position;
-    const posArray = posAttr.array as Float32Array;
-    
-    positions.set(posArray, vertexOffset * 3);
-    
-    if (geo.index) {
-      const indexArray = geo.index.array;
-      for (let i = 0; i < indexArray.length; i++) {
-        indices.push(indexArray[i] + vertexOffset);
-      }
+  // Ensure all geometries have normals computed before merging
+  const preparedGeometries = geometries.map(geo => {
+    if (!geo.attributes.normal) {
+      geo.computeVertexNormals();
     }
-    
-    vertexOffset += posAttr.count;
-  }
+    return geo;
+  });
   
-  const merged = new THREE.BufferGeometry();
-  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  if (indices.length > 0) {
-    merged.setIndex(indices);
+  // Use Three.js built-in mergeGeometries for robust attribute handling
+  const merged = threeJsMergeGeometries(preparedGeometries, false);
+  if (!merged) {
+    console.error('Failed to merge geometries');
+    return new THREE.BufferGeometry();
   }
-  merged.computeVertexNormals();
   
   return merged;
 }
