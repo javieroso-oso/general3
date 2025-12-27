@@ -124,6 +124,31 @@ export interface ParametricParams {
   organicNoise: number;
   noiseScale: number;
   
+  // Advanced body customization - Faceting
+  facetCount: number;           // 0 = smooth, 6 = hexagonal, 8 = octagonal, etc.
+  facetSharpness: number;       // 0-1: 0 = rounded facets, 1 = sharp edges
+  
+  // Spiral grooves
+  spiralGrooveCount: number;    // 0-8: number of spiral grooves
+  spiralGrooveDepth: number;    // 0-0.15: how deep the grooves cut
+  spiralGrooveTwist: number;    // 1-10: how many turns around the body
+  
+  // Horizontal ribs
+  horizontalRibCount: number;   // 0-20: number of horizontal ribs
+  horizontalRibDepth: number;   // 0-0.1: depth of ribs
+  horizontalRibWidth: number;   // 0.1-0.5: width of each rib as fraction of spacing
+  
+  // Fluting (vertical grooves)
+  flutingCount: number;         // 0-24: number of vertical grooves
+  flutingDepth: number;         // 0-0.15: depth of flutes
+  
+  // Rim waves
+  rimWaveCount: number;         // 0-12: number of waves around the rim
+  rimWaveDepth: number;         // 0-0.3: how much the rim dips/rises
+  
+  // Profile curve type
+  profileCurve: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave';
+  
   // Base for printing
   baseThickness: number;
   baseType: 'flat' | 'rounded' | 'pedestal';
@@ -302,6 +327,19 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0.05,
     organicNoise: 0,
     noiseScale: 1,
+    facetCount: 0,
+    facetSharpness: 0.5,
+    spiralGrooveCount: 0,
+    spiralGrooveDepth: 0,
+    spiralGrooveTwist: 2,
+    horizontalRibCount: 0,
+    horizontalRibDepth: 0,
+    horizontalRibWidth: 0.3,
+    flutingCount: 0,
+    flutingDepth: 0,
+    rimWaveCount: 0,
+    rimWaveDepth: 0,
+    profileCurve: 'linear',
     baseThickness: 2.0,
     baseType: 'flat',
     baseSizeMode: 'auto',
@@ -373,6 +411,19 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0,
     organicNoise: 0,
     noiseScale: 1,
+    facetCount: 0,
+    facetSharpness: 0.5,
+    spiralGrooveCount: 0,
+    spiralGrooveDepth: 0,
+    spiralGrooveTwist: 2,
+    horizontalRibCount: 0,
+    horizontalRibDepth: 0,
+    horizontalRibWidth: 0.3,
+    flutingCount: 0,
+    flutingDepth: 0,
+    rimWaveCount: 0,
+    rimWaveDepth: 0,
+    profileCurve: 'linear',
     baseThickness: 2.4,
     baseType: 'flat',
     baseSizeMode: 'auto',
@@ -444,6 +495,19 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0,
     organicNoise: 0.03,
     noiseScale: 2,
+    facetCount: 0,
+    facetSharpness: 0.5,
+    spiralGrooveCount: 0,
+    spiralGrooveDepth: 0,
+    spiralGrooveTwist: 2,
+    horizontalRibCount: 0,
+    horizontalRibDepth: 0,
+    horizontalRibWidth: 0.3,
+    flutingCount: 0,
+    flutingDepth: 0,
+    rimWaveCount: 0,
+    rimWaveDepth: 0,
+    profileCurve: 'linear',
     baseThickness: 3.0,
     baseType: 'pedestal',
     baseSizeMode: 'auto',

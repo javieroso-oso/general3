@@ -80,6 +80,20 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       organicNoise,
       noiseScale,
       addLegs,
+      // New body customization params
+      facetCount,
+      facetSharpness,
+      spiralGrooveCount,
+      spiralGrooveDepth,
+      spiralGrooveTwist,
+      horizontalRibCount,
+      horizontalRibDepth,
+      horizontalRibWidth,
+      flutingCount,
+      flutingDepth,
+      rimWaveCount,
+      rimWaveDepth,
+      profileCurve,
     } = params;
 
     // Scale to scene units
@@ -104,16 +118,40 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const t = i / heightSegments;
       const y = t * h;
 
-      // Base profile interpolation
+      // Base profile interpolation based on profileCurve
       let radius: number;
-      if (type === 'lamp') {
-        radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
-      } else if (type === 'sculpture') {
-        const curve = Math.sin(t * Math.PI);
-        radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
-      } else {
-        const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
-        radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
+      const radiusDiff = tRad - bRad;
+      
+      switch (profileCurve) {
+        case 'convex':
+          // Bulges outward in the middle
+          radius = bRad + radiusDiff * t + Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
+          break;
+        case 'concave':
+          // Curves inward in the middle
+          radius = bRad + radiusDiff * t - Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
+          break;
+        case 'hourglass':
+          // Pinched in the middle
+          radius = bRad + radiusDiff * t - Math.sin(t * Math.PI) * (bRad + tRad) * 0.15;
+          break;
+        case 'wave':
+          // Wavy profile with 2 oscillations
+          radius = bRad + radiusDiff * t + Math.sin(t * Math.PI * 4) * bRad * 0.08;
+          break;
+        case 'linear':
+        default:
+          // Apply object-type specific curves on top of linear base
+          if (type === 'lamp') {
+            radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
+          } else if (type === 'sculpture') {
+            const curve = Math.sin(t * Math.PI);
+            radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
+          } else {
+            const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
+            radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
+          }
+          break;
       }
 
       // Organic bulge
@@ -130,6 +168,20 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
         radius += lipT * lipT * lipFlare * bRad;
       }
+      
+      // Horizontal ribs (sinusoidal modulation based on height)
+      if (horizontalRibCount > 0 && horizontalRibDepth > 0) {
+        const ribPhase = t * horizontalRibCount * Math.PI * 2;
+        const ribWave = Math.sin(ribPhase);
+        // Adjust wave shape based on rib width (narrower = sharper peaks)
+        const sharpness = 1 / horizontalRibWidth;
+        const ribModifier = Math.pow(Math.abs(ribWave), sharpness) * Math.sign(ribWave);
+        radius += ribModifier * horizontalRibDepth * bRad;
+      }
+
+      radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
+      radiiAtHeight.push(radius);
+      if (radius > maxRadius) maxRadius = radius;
 
       radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
       radiiAtHeight.push(radius);
@@ -138,7 +190,20 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const twistRad = (twistAngle * Math.PI / 180) * t;
 
       for (let j = 0; j <= segments; j++) {
-        const theta = (j / segments) * Math.PI * 2 + twistRad;
+        // Calculate theta with potential faceting
+        let theta: number;
+        if (facetCount > 0 && facetCount >= 3) {
+          // Faceting: snap to polygon vertices with optional sharpness
+          const baseTheta = (j / segments) * Math.PI * 2;
+          const facetAngle = (Math.PI * 2) / facetCount;
+          const facetIndex = Math.floor(baseTheta / facetAngle + 0.5);
+          const snappedTheta = facetIndex * facetAngle;
+          // Interpolate between smooth and snapped based on sharpness
+          theta = baseTheta + (snappedTheta - baseTheta) * facetSharpness + twistRad;
+        } else {
+          theta = (j / segments) * Math.PI * 2 + twistRad;
+        }
+        
         let r = radius;
 
         // Wobble
@@ -147,10 +212,31 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * bRad;
         }
 
-        // Ripples
+        // Ripples (angular)
         if (rippleCount > 0 && rippleDepth > 0) {
           const maxRipple = Math.min(rippleDepth, 0.1);
           r += Math.sin(theta * rippleCount) * maxRipple * bRad;
+        }
+        
+        // Fluting (vertical grooves like classical columns)
+        if (flutingCount > 0 && flutingDepth > 0) {
+          // Use half-sine for smooth flutes
+          const fluteAngle = theta * flutingCount;
+          const fluteWave = Math.cos(fluteAngle);
+          // Only cut in (negative), not bulge out
+          if (fluteWave < 0) {
+            r += fluteWave * flutingDepth * bRad;
+          }
+        }
+        
+        // Spiral grooves (combine height and angle)
+        if (spiralGrooveCount > 0 && spiralGrooveDepth > 0) {
+          const spiralAngle = theta + t * spiralGrooveTwist * Math.PI * 2;
+          const spiralWave = Math.sin(spiralAngle * spiralGrooveCount);
+          // Only cut in (negative)
+          if (spiralWave < 0) {
+            r += spiralWave * spiralGrooveDepth * bRad;
+          }
         }
 
         // Asymmetry
@@ -174,7 +260,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         const x = Math.cos(theta) * r;
         const z = Math.sin(theta) * r;
         
-        outerVerts.push(x, y, z);
+        // Rim waves: modify Y position for top rows
+        let finalY = y;
+        if (rimWaveCount > 0 && rimWaveDepth > 0) {
+          const rimZone = 0.1; // Top 10% of height
+          const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
+          if (rimT > 0) {
+            const waveOffset = Math.sin(theta * rimWaveCount) * rimWaveDepth * h * rimT;
+            finalY += waveOffset;
+          }
+        }
+        
+        outerVerts.push(x, finalY, z);
       }
     }
 
