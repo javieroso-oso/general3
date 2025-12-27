@@ -16,7 +16,7 @@ import {
   PendantModuleConfig,
 } from '@/types/totem';
 import { generateModuleGeometry } from '@/lib/totem/module-generators';
-import { createSpindlePreviewGeometry, calculateModuleYPosition } from '@/lib/totem/spindle-geometry';
+import { calculateModuleYPosition } from '@/lib/totem/spindle-geometry';
 
 interface TotemStackPreviewProps {
   stack: TotemStack;
@@ -97,9 +97,13 @@ interface SpindleMeshProps {
 }
 
 const SpindleMesh = ({ spindleSize, length }: SpindleMeshProps) => {
+  const spec = SPINDLE_SPECS[spindleSize];
+  
+  // Use a simple cylinder geometry directly to avoid any translation issues
   const geometry = useMemo(() => {
-    return createSpindlePreviewGeometry(spindleSize, length);
-  }, [spindleSize, length]);
+    const radius = spec.diameter / 2;
+    return new THREE.CylinderGeometry(radius * SCALE, radius * SCALE, length * SCALE, 16);
+  }, [spec.diameter, length]);
 
   return (
     <mesh geometry={geometry} position={[0, (length / 2) * SCALE, 0]}>
