@@ -471,10 +471,63 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     unit="mm"
                     onChange={handleChange('cordHoleDiameter')}
                   />
-                  
                 </>
               )}
             </div>
+            
+            {/* Centering Lip Controls - only with legs and cord hole enabled */}
+            {params.cordHoleEnabled && (
+              <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Box className={cn("w-4 h-4", params.centeringLipEnabled ? "text-primary" : "text-muted-foreground")} />
+                    <Label htmlFor="centering-lip" className="text-sm font-medium">Centering Lip</Label>
+                  </div>
+                  <Switch 
+                    id="centering-lip" 
+                    checked={params.centeringLipEnabled} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, centeringLipEnabled: v })}
+                  />
+                </div>
+                
+                {params.centeringLipEnabled && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Socket Type</Label>
+                      <Select 
+                        value={params.socketType} 
+                        onValueChange={(value: 'E26' | 'E12' | 'E14' | 'GU10') => {
+                          onParamsChange({ ...params, socketType: value });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="E26">E26 (26mm - Standard US)</SelectItem>
+                          <SelectItem value="E12">E12 (12mm - Candelabra)</SelectItem>
+                          <SelectItem value="E14">E14 (14mm - Small EU)</SelectItem>
+                          <SelectItem value="GU10">GU10 (35mm - Spotlight)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Inner diameter of the centering lip ring
+                      </p>
+                    </div>
+                    
+                    <ParameterSlider
+                      label="Lip Height"
+                      value={params.centeringLipHeight}
+                      min={2}
+                      max={8}
+                      step={0.5}
+                      unit="mm"
+                      onChange={handleChange('centeringLipHeight')}
+                    />
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

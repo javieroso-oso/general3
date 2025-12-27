@@ -514,21 +514,53 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         indices.push(b, c, d);
       }
       
-      // Bottom base
+      // Bottom base - with cord hole if enabled and no legs
       const baseY = 0;
-      const bottomCenterIdx = vertices.length / 3;
-      vertices.push(0, baseY, 0);
+      const cordHoleRadius = (params.cordHoleDiameter / 2) * SCALE;
       
-      const basePts: number[] = [];
-      for (let j = 0; j <= segments; j++) {
-        const idx = j;
-        basePts.push(outerVerts[idx * 3], outerVerts[idx * 3 + 2]);
-      }
-      
-      for (let j = 0; j < segments; j++) {
-        const curr = j;
-        const next = j + 1;
-        indices.push(bottomCenterIdx, next, curr);
+      if (params.cordHoleEnabled && !addLegs) {
+        // Create annular base (ring) with cord hole
+        const bottomInnerOffset = vertices.length / 3;
+        
+        // Add inner ring vertices at the cord hole radius
+        for (let j = 0; j <= segments; j++) {
+          const theta = (j / segments) * Math.PI * 2;
+          vertices.push(
+            Math.cos(theta) * cordHoleRadius,
+            baseY,
+            Math.sin(theta) * cordHoleRadius
+          );
+        }
+        
+        // Connect outer ring to inner ring (bottom face)
+        for (let j = 0; j < segments; j++) {
+          const outerCurr = j;
+          const outerNext = j + 1;
+          const innerCurr = bottomInnerOffset + j;
+          const innerNext = bottomInnerOffset + j + 1;
+          indices.push(outerCurr, innerCurr, outerNext);
+          indices.push(outerNext, innerCurr, innerNext);
+        }
+        
+        // Connect inner rings of outer and inner walls (cord hole wall)
+        for (let j = 0; j < segments; j++) {
+          const topInner = innerOffset + j;
+          const topInnerNext = innerOffset + j + 1;
+          const bottomInner = bottomInnerOffset + j;
+          const bottomInnerNext = bottomInnerOffset + j + 1;
+          indices.push(topInner, topInnerNext, bottomInner);
+          indices.push(topInnerNext, bottomInnerNext, bottomInner);
+        }
+      } else if (!addLegs) {
+        // Solid base (no cord hole)
+        const bottomCenterIdx = vertices.length / 3;
+        vertices.push(0, baseY, 0);
+        
+        for (let j = 0; j < segments; j++) {
+          const curr = j;
+          const next = j + 1;
+          indices.push(bottomCenterIdx, next, curr);
+        }
       }
     }
 
@@ -589,6 +621,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           wallThickness: params.wallThickness,
           cordHoleEnabled: params.cordHoleEnabled,
           cordHoleDiameter: params.cordHoleDiameter,
+          centeringLipEnabled: params.centeringLipEnabled,
+          centeringLipHeight: params.centeringLipHeight,
+          socketType: params.socketType,
         },
         undefined, // attachmentParams no longer used
         {

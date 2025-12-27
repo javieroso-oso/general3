@@ -35,6 +35,9 @@ export interface SocketParams {
   wallThickness: number;
   cordHoleEnabled?: boolean;
   cordHoleDiameter?: number;
+  centeringLipEnabled?: boolean;
+  centeringLipHeight?: number;
+  socketType?: 'E26' | 'E12' | 'E14' | 'GU10';
 }
 
 // Deterministic noise for consistent results
@@ -560,6 +563,20 @@ function createBaseDisc(
   const cordHoleDiameter = socketParams?.cordHoleDiameter ?? 8;
   const cordHoleRadius = cordHoleDiameter / 2;
   
+  // Centering lip parameters
+  const centeringLipEnabled = socketParams?.centeringLipEnabled ?? false;
+  const centeringLipHeight = socketParams?.centeringLipHeight ?? 3;
+  const socketType = socketParams?.socketType ?? 'E26';
+  
+  // Socket inner diameters in mm
+  const socketDiameters: Record<string, number> = {
+    E26: 26,
+    E12: 12,
+    E14: 14,
+    GU10: 35,
+  };
+  const socketInnerRadius = (socketDiameters[socketType] ?? 26) / 2;
+  
   const getOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
   const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
   const getInnerLipRadius = (theta: number) => calculateDeformedRadius(theta, innerLipRadius, organicParams);
@@ -789,6 +806,41 @@ function createBaseDisc(
           connectRings(prevRing, bottomRing);
         }
       }
+    }
+  }
+  
+  // === Add centering lip ring if enabled ===
+  if (centeringLipEnabled && cordHoleEnabled) {
+    // The centering lip is a ring that sits on top of the platform
+    // Inner radius matches the socket type, outer radius is slightly larger
+    const centeringLipOuterRadius = socketInnerRadius + 3; // 3mm wall thickness
+    const centeringLipInnerRadius = socketInnerRadius;
+    
+    // Only add centering lip if it fits within the available space
+    const availableRadius = lip > 0 ? innerLipRadius : radius * 0.8;
+    
+    if (centeringLipOuterRadius < availableRadius && centeringLipInnerRadius > cordHoleRadius) {
+      const baseY = lip > 0 ? 0 : 0; // Platform surface Y
+      const lipTopY = baseY + centeringLipHeight;
+      
+      // Bottom outer ring of centering lip
+      const clBottomOuter = addRing(() => centeringLipOuterRadius, baseY);
+      // Bottom inner ring of centering lip  
+      const clBottomInner = addRing(() => centeringLipInnerRadius, baseY);
+      // Top outer ring
+      const clTopOuter = addRing(() => centeringLipOuterRadius, lipTopY);
+      // Top inner ring
+      const clTopInner = addRing(() => centeringLipInnerRadius, lipTopY);
+      
+      // Connect the rings to form the centering lip
+      // Outer wall (going up)
+      connectRings(clBottomOuter, clTopOuter);
+      // Inner wall (going down from top to bottom)
+      connectRings(clTopInner, clBottomInner, true);
+      // Top surface (from outer to inner)
+      connectRings(clTopOuter, clTopInner);
+      // Bottom surface (from inner to outer) - actually connects to platform, but we add for closed mesh
+      connectRings(clBottomInner, clBottomOuter);
     }
   }
   
