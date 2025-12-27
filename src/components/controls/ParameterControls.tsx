@@ -232,9 +232,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   <ParameterSlider
                     label="Leg Height"
                     value={params.legHeight}
-                    min={params.legStyle === 'riser' ? 2 : 10}
+                    min={params.legStyle === 'riser' ? 2 : (params.legStyle === 'column' ? 3 : 10)}
                     max={params.legStyle === 'riser' ? 40 : 400}
-                    step={params.legStyle === 'riser' ? 1 : 5}
+                    step={params.legStyle === 'riser' ? 1 : (params.legStyle === 'column' ? 1 : 5)}
                     unit="mm"
                     onChange={handleChange('legHeight')}
                   />
