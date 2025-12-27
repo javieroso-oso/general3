@@ -615,7 +615,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         />
       </Section>
 
-      {/* Surface */}
+      {/* Surface Details */}
       <Section title="Surface Details" defaultOpen={false}>
         <ParameterSlider
           label="Ripple Count"
@@ -649,6 +649,172 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           step={0.25}
           onChange={handleChange('noiseScale')}
         />
+      </Section>
+      
+      {/* Surface Patterns - New advanced body customization */}
+      <Section title="Surface Patterns" defaultOpen={false}>
+        {/* Profile Curve */}
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Profile Curve</Label>
+          <Select 
+            value={params.profileCurve} 
+            onValueChange={(value: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave') => {
+              onParamsChange({ ...params, profileCurve: value });
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="linear">Linear (Default)</SelectItem>
+              <SelectItem value="convex">Convex (Bulges Out)</SelectItem>
+              <SelectItem value="concave">Concave (Curves In)</SelectItem>
+              <SelectItem value="hourglass">Hourglass</SelectItem>
+              <SelectItem value="wave">Wave</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Faceting */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          <Label className="text-xs text-muted-foreground font-semibold">Faceting</Label>
+          <ParameterSlider
+            label="Facet Count"
+            value={params.facetCount}
+            min={0}
+            max={24}
+            step={1}
+            onChange={handleChange('facetCount')}
+          />
+          {params.facetCount >= 3 && (
+            <ParameterSlider
+              label="Facet Sharpness"
+              value={params.facetSharpness}
+              min={0}
+              max={1}
+              step={0.1}
+              onChange={handleChange('facetSharpness')}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            {params.facetCount === 0 && 'Smooth circular profile'}
+            {params.facetCount === 6 && 'Hexagonal shape'}
+            {params.facetCount === 8 && 'Octagonal shape'}
+            {params.facetCount > 0 && params.facetCount !== 6 && params.facetCount !== 8 && `${params.facetCount}-sided polygon`}
+          </p>
+        </div>
+        
+        {/* Horizontal Ribs */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          <Label className="text-xs text-muted-foreground font-semibold">Horizontal Ribs</Label>
+          <ParameterSlider
+            label="Rib Count"
+            value={params.horizontalRibCount}
+            min={0}
+            max={20}
+            step={1}
+            onChange={handleChange('horizontalRibCount')}
+          />
+          {params.horizontalRibCount > 0 && (
+            <>
+              <ParameterSlider
+                label="Rib Depth"
+                value={params.horizontalRibDepth}
+                min={0}
+                max={0.1}
+                step={0.005}
+                onChange={handleChange('horizontalRibDepth')}
+              />
+              <ParameterSlider
+                label="Rib Width"
+                value={params.horizontalRibWidth}
+                min={0.1}
+                max={0.5}
+                step={0.05}
+                onChange={handleChange('horizontalRibWidth')}
+              />
+            </>
+          )}
+        </div>
+        
+        {/* Fluting (Vertical Grooves) */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          <Label className="text-xs text-muted-foreground font-semibold">Fluting (Vertical Grooves)</Label>
+          <ParameterSlider
+            label="Flute Count"
+            value={params.flutingCount}
+            min={0}
+            max={24}
+            step={1}
+            onChange={handleChange('flutingCount')}
+          />
+          {params.flutingCount > 0 && (
+            <ParameterSlider
+              label="Flute Depth"
+              value={params.flutingDepth}
+              min={0}
+              max={0.15}
+              step={0.01}
+              onChange={handleChange('flutingDepth')}
+            />
+          )}
+        </div>
+        
+        {/* Spiral Grooves */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          <Label className="text-xs text-muted-foreground font-semibold">Spiral Grooves</Label>
+          <ParameterSlider
+            label="Spiral Count"
+            value={params.spiralGrooveCount}
+            min={0}
+            max={8}
+            step={1}
+            onChange={handleChange('spiralGrooveCount')}
+          />
+          {params.spiralGrooveCount > 0 && (
+            <>
+              <ParameterSlider
+                label="Groove Depth"
+                value={params.spiralGrooveDepth}
+                min={0}
+                max={0.15}
+                step={0.01}
+                onChange={handleChange('spiralGrooveDepth')}
+              />
+              <ParameterSlider
+                label="Twist Amount"
+                value={params.spiralGrooveTwist}
+                min={0.5}
+                max={10}
+                step={0.5}
+                onChange={handleChange('spiralGrooveTwist')}
+              />
+            </>
+          )}
+        </div>
+        
+        {/* Rim Waves */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          <Label className="text-xs text-muted-foreground font-semibold">Rim Waves</Label>
+          <ParameterSlider
+            label="Wave Count"
+            value={params.rimWaveCount}
+            min={0}
+            max={12}
+            step={1}
+            onChange={handleChange('rimWaveCount')}
+          />
+          {params.rimWaveCount > 0 && (
+            <ParameterSlider
+              label="Wave Depth"
+              value={params.rimWaveDepth}
+              min={0}
+              max={0.3}
+              step={0.02}
+              onChange={handleChange('rimWaveDepth')}
+            />
+          )}
+        </div>
       </Section>
 
       {/* Lip */}
