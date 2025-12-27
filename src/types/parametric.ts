@@ -201,6 +201,7 @@ export interface NonPlanarSettings {
   maxZAngle: number;           // Maximum nozzle tilt angle (degrees, typically 15-45°)
   curvedLayers: boolean;       // Enable curved layer paths
   topSurfaceOptimized: boolean; // Optimize top surface with curved layers
+  fullSurfaceLayers: boolean;  // Stage 2: Follow entire object surface contour
   adaptiveLayerHeight: boolean; // Vary layer height based on surface angle
   minLayerHeight: number;       // Minimum layer height for adaptive (mm)
   maxLayerHeight: number;       // Maximum layer height for adaptive (mm)
@@ -254,6 +255,7 @@ export const defaultNonPlanarSettings: NonPlanarSettings = {
   maxZAngle: 30,
   curvedLayers: false,
   topSurfaceOptimized: false,
+  fullSurfaceLayers: false,
   adaptiveLayerHeight: false,
   minLayerHeight: 0.1,
   maxLayerHeight: 0.3,

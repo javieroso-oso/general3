@@ -30,6 +30,7 @@ const defaultSettings: PrintSettings = {
     maxZAngle: 30,
     curvedLayers: false,
     topSurfaceOptimized: false,
+    fullSurfaceLayers: false,
     adaptiveLayerHeight: false,
     minLayerHeight: 0.1,
     maxLayerHeight: 0.3,
