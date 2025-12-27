@@ -547,154 +547,253 @@ function createBaseDisc(
   const lip = pedestalParams?.lip ?? 0;
   const bottomRadius = radius * (1 - taper);
   
+  // Lip is a raised rim at the outer edge - the inner radius for the lip wall
+  const lipWidth = Math.min(lip * 2, radius * 0.15); // Lip width proportional to lip height
+  const innerLipRadius = radius - lipWidth;
+  
   const cordHoleEnabled = socketParams?.cordHoleEnabled ?? false;
   const cordHoleDiameter = socketParams?.cordHoleDiameter ?? 8;
   const cordHoleRadius = cordHoleDiameter / 2;
   
   const getOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
   const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
+  const getInnerLipRadius = (theta: number) => calculateDeformedRadius(theta, innerLipRadius, organicParams);
   
   if (cordHoleEnabled) {
     // Disc with cord hole
     
-    // Top surface outer ring (y=0 or y=lip if we have a lip)
-    const topY = lip > 0 ? lip : 0;
-    const topOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
-    }
-    
-    // Top surface inner ring (cord hole)
-    const topInnerStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * cordHoleRadius, topY, Math.sin(theta) * cordHoleRadius);
-    }
-    
-    // Top surface (ring between outer and hole)
-    for (let i = 0; i < segments; i++) {
-      indices.push(topOuterStart + i, topInnerStart + i, topOuterStart + i + 1);
-      indices.push(topOuterStart + i + 1, topInnerStart + i, topInnerStart + i + 1);
-    }
-    
-    // If lip > 0, add inner wall (the lip rim going down from topY to 0)
     if (lip > 0) {
-      const lipBottomOuterStart = vertices.length / 3;
+      // === LIP VERSION (with cord hole) ===
+      // Top of lip rim (outer edge at y=lip)
+      const lipTopOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
+      }
+      
+      // Top of lip rim (inner edge at y=lip)
+      const lipTopInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getInnerLipRadius(theta);
+        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
+      }
+      
+      // Lip top surface (ring)
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipTopOuterStart + i, lipTopInnerStart + i, lipTopOuterStart + i + 1);
+        indices.push(lipTopOuterStart + i + 1, lipTopInnerStart + i, lipTopInnerStart + i + 1);
+      }
+      
+      // Inner lip wall bottom (at y=0)
+      const lipInnerBottomStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getInnerLipRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      // Inner lip wall (vertical, from lipTopInner down to lipInnerBottom)
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipTopInnerStart + i, lipInnerBottomStart + i + 1, lipInnerBottomStart + i);
+        indices.push(lipTopInnerStart + i, lipTopInnerStart + i + 1, lipInnerBottomStart + i + 1);
+      }
+      
+      // Main platform surface (from inner lip edge to cord hole, at y=0)
+      const platformInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      // Platform surface
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipInnerBottomStart + i, platformInnerStart + i, lipInnerBottomStart + i + 1);
+        indices.push(lipInnerBottomStart + i + 1, platformInnerStart + i, platformInnerStart + i + 1);
+      }
+      
+      // Bottom surface
+      const bottomOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getBottomRadius(theta);
+        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+      }
+      
+      const bottomInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, bottomInnerStart + i);
+        indices.push(bottomOuterStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
+      }
+      
+      // Outer wall (from lip top to bottom)
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipTopOuterStart + i, bottomOuterStart + i, lipTopOuterStart + i + 1);
+        indices.push(lipTopOuterStart + i + 1, bottomOuterStart + i, bottomOuterStart + i + 1);
+      }
+      
+      // Cord hole wall
+      for (let i = 0; i < segments; i++) {
+        indices.push(platformInnerStart + i, platformInnerStart + i + 1, bottomInnerStart + i);
+        indices.push(platformInnerStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
+      }
+    } else {
+      // === NO LIP VERSION (with cord hole) ===
+      const topOuterStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
         const r = getOuterRadius(theta);
         vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
       }
       
-      // Inner surface of the lip (vertical wall from top to platform)
-      for (let i = 0; i < segments; i++) {
-        indices.push(topOuterStart + i, lipBottomOuterStart + i + 1, lipBottomOuterStart + i);
-        indices.push(topOuterStart + i, topOuterStart + i + 1, lipBottomOuterStart + i + 1);
+      const topInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
       }
-    }
-    
-    // Bottom surface outer ring
-    const bottomOuterStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getBottomRadius(theta);
-      vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-    }
-    
-    // Bottom surface inner ring (cord hole)
-    const bottomInnerStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
-    }
-    
-    // Bottom surface (inverted)
-    for (let i = 0; i < segments; i++) {
-      indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, bottomInnerStart + i);
-      indices.push(bottomOuterStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
-    }
-    
-    // Outer wall (from lip top or top down to bottom)
-    const outerWallTopStart = lip > 0 ? (vertices.length / 3 - 2 * (segments + 1) - (segments + 1)) : topOuterStart;
-    // If lip > 0, we use the lipBottomOuterStart ring, otherwise use topOuterStart
-    if (lip > 0) {
-      // Wall from lipBottomOuter to bottomOuter
-      const lipBottomStart = topOuterStart + (segments + 1) + (segments + 1); // After topOuter, topInner, then lipBottomOuter
+      
       for (let i = 0; i < segments; i++) {
-        const lipIdx = topOuterStart + 2 * (segments + 1) + i; // lipBottomOuterStart
-        indices.push(lipIdx, bottomOuterStart + i, lipIdx + 1);
-        indices.push(lipIdx + 1, bottomOuterStart + i, bottomOuterStart + i + 1);
+        indices.push(topOuterStart + i, topInnerStart + i, topOuterStart + i + 1);
+        indices.push(topOuterStart + i + 1, topInnerStart + i, topInnerStart + i + 1);
       }
-    } else {
+      
+      const bottomOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getBottomRadius(theta);
+        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+      }
+      
+      const bottomInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, bottomInnerStart + i);
+        indices.push(bottomOuterStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
+      }
+      
       for (let i = 0; i < segments; i++) {
         indices.push(topOuterStart + i, bottomOuterStart + i, topOuterStart + i + 1);
         indices.push(topOuterStart + i + 1, bottomOuterStart + i, bottomOuterStart + i + 1);
       }
-    }
-    
-    // Cord hole wall (inner, inverted)
-    for (let i = 0; i < segments; i++) {
-      indices.push(topInnerStart + i, topInnerStart + i + 1, bottomInnerStart + i);
-      indices.push(topInnerStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(topInnerStart + i, topInnerStart + i + 1, bottomInnerStart + i);
+        indices.push(topInnerStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
+      }
     }
   } else {
     // Solid disc (no cord hole)
-    const topY = lip > 0 ? lip : 0;
     
-    // Top surface
-    const topCenterIdx = vertices.length / 3;
-    vertices.push(0, topY, 0);
-    
-    const topRingStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getOuterRadius(theta);
-      vertices.push(Math.cos(theta) * r, topY, Math.sin(theta) * r);
-    }
-    
-    for (let i = 0; i < segments; i++) {
-      indices.push(topCenterIdx, topRingStart + i, topRingStart + i + 1);
-    }
-    
-    // If lip > 0, add a platform at y=0 and inner wall
-    let lipBottomRingStart = -1;
     if (lip > 0) {
-      lipBottomRingStart = vertices.length / 3;
+      // === LIP VERSION (solid) ===
+      // Top of lip rim (outer edge at y=lip)
+      const lipTopOuterStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getOuterRadius(theta);
+        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
+      }
+      
+      // Top of lip rim (inner edge at y=lip)
+      const lipTopInnerStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getInnerLipRadius(theta);
+        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
+      }
+      
+      // Lip top surface (ring)
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipTopOuterStart + i, lipTopInnerStart + i, lipTopOuterStart + i + 1);
+        indices.push(lipTopOuterStart + i + 1, lipTopInnerStart + i, lipTopInnerStart + i + 1);
+      }
+      
+      // Inner lip wall bottom (at y=0)
+      const lipInnerBottomStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getInnerLipRadius(theta);
+        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      }
+      
+      // Inner lip wall
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipTopInnerStart + i, lipInnerBottomStart + i + 1, lipInnerBottomStart + i);
+        indices.push(lipTopInnerStart + i, lipTopInnerStart + i + 1, lipInnerBottomStart + i + 1);
+      }
+      
+      // Main platform surface (center at y=0)
+      const platformCenterIdx = vertices.length / 3;
+      vertices.push(0, 0, 0);
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(platformCenterIdx, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
+      }
+      
+      // Bottom surface
+      const bottomCenterIdx = vertices.length / 3;
+      vertices.push(0, -thickness, 0);
+      
+      const bottomRingStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getBottomRadius(theta);
+        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(bottomCenterIdx, bottomRingStart + i + 1, bottomRingStart + i);
+      }
+      
+      // Outer wall (from lip top to bottom)
+      for (let i = 0; i < segments; i++) {
+        indices.push(lipTopOuterStart + i, bottomRingStart + i, lipTopOuterStart + i + 1);
+        indices.push(lipTopOuterStart + i + 1, bottomRingStart + i, bottomRingStart + i + 1);
+      }
+    } else {
+      // === NO LIP VERSION (solid) ===
+      const topCenterIdx = vertices.length / 3;
+      vertices.push(0, 0, 0);
+      
+      const topRingStart = vertices.length / 3;
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
         const r = getOuterRadius(theta);
         vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
       }
       
-      // Inner wall of lip (from topRing down to lipBottomRing)
       for (let i = 0; i < segments; i++) {
-        indices.push(topRingStart + i, lipBottomRingStart + i + 1, lipBottomRingStart + i);
-        indices.push(topRingStart + i, topRingStart + i + 1, lipBottomRingStart + i + 1);
+        indices.push(topCenterIdx, topRingStart + i, topRingStart + i + 1);
       }
-    }
-    
-    // Bottom surface
-    const bottomCenterIdx = vertices.length / 3;
-    vertices.push(0, -thickness, 0);
-    
-    const bottomRingStart = vertices.length / 3;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = getBottomRadius(theta);
-      vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-    }
-    
-    for (let i = 0; i < segments; i++) {
-      indices.push(bottomCenterIdx, bottomRingStart + i + 1, bottomRingStart + i);
-    }
-    
-    // Outer wall
-    const wallTopRingStart = lip > 0 ? lipBottomRingStart : topRingStart;
-    for (let i = 0; i < segments; i++) {
-      indices.push(wallTopRingStart + i, bottomRingStart + i, wallTopRingStart + i + 1);
-      indices.push(wallTopRingStart + i + 1, bottomRingStart + i, bottomRingStart + i + 1);
+      
+      const bottomCenterIdx = vertices.length / 3;
+      vertices.push(0, -thickness, 0);
+      
+      const bottomRingStart = vertices.length / 3;
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const r = getBottomRadius(theta);
+        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(bottomCenterIdx, bottomRingStart + i + 1, bottomRingStart + i);
+      }
+      
+      for (let i = 0; i < segments; i++) {
+        indices.push(topRingStart + i, bottomRingStart + i, topRingStart + i + 1);
+        indices.push(topRingStart + i + 1, bottomRingStart + i, bottomRingStart + i + 1);
+      }
     }
   }
   
