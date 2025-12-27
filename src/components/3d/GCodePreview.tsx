@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
-import { generateGCodeLayers, GCodeLayer } from '@/lib/stl-export';
+import { generateGCodeLayers } from '@/lib/stl-export';
 
 interface GCodePreviewProps {
   params: ParametricParams;
@@ -38,10 +38,19 @@ const GCodePreview = ({
   const groupRef = useRef<THREE.Group>(null);
   const [animationLayer, setAnimationLayer] = useState(0);
   
+  // Serialize dependencies for reliable comparison
+  const paramsKey = JSON.stringify(params);
+  const settingsKey = JSON.stringify(settings);
+  
   const layers = useMemo(() => 
     generateGCodeLayers(params, type, settings),
-    [params, type, settings]
+    [paramsKey, settingsKey, type]
   );
+  
+  // Reset animation layer when params change
+  useEffect(() => {
+    setAnimationLayer(0);
+  }, [paramsKey, settingsKey, type]);
 
   // Animation
   useFrame((state) => {
