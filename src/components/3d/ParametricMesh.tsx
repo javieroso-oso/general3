@@ -801,45 +801,92 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     }
     // Wall mount with 'back' style uses integrated back wall keyholes (no separate stand)
 
-    // Generate stacking interface geometries
+    // Generate stacking interface geometries - properly integrated into body
     const stackingGeos: THREE.BufferGeometry[] = [];
     if (params.stackingEnabled) {
       const stackDiameter = params.stackingConnectorDiameter * SCALE;
       const stackDepth = params.stackingConnectorDepth * SCALE;
       const stackRadius = stackDiameter / 2;
-      const tolerance = 0.25 * SCALE; // 0.25mm tolerance for press fit
+      const tolerance = 0.2 * SCALE; // 0.2mm tolerance for press fit
+      const chamfer = 0.5 * SCALE; // 0.5mm chamfer for easy insertion
+      const flangeHeight = 1 * SCALE; // 1mm flange where connector meets body
+      const flangeExtra = 1.5 * SCALE; // 1.5mm extra radius for flange
+      
+      // Get actual body radii at top and bottom for proportional sizing
+      const topBodyRadius = radiiAtHeight[radiiAtHeight.length - 1] || tRad;
+      const bottomBodyRadius = radiiAtHeight[0] || bRad;
       
       // Generate top interface
       if (params.topInterface !== 'none') {
         if (params.topInterface === 'male') {
-          // Male: cylinder protrusion going UP from top
-          const maleGeo = new THREE.CylinderGeometry(
-            stackRadius - tolerance, // slightly smaller for fit
-            stackRadius - tolerance,
-            stackDepth,
-            32
-          );
-          maleGeo.translate(0, h + stackDepth / 2, 0);
+          // Male: cylinder that starts INSIDE the body and protrudes up
+          // Main cylinder with chamfered tip
+          const maleRadius = stackRadius - tolerance;
+          
+          // Create chamfered cylinder using lathe geometry
+          const malePoints = [
+            new THREE.Vector2(0, 0),
+            new THREE.Vector2(maleRadius, 0),
+            new THREE.Vector2(maleRadius, stackDepth - chamfer),
+            new THREE.Vector2(maleRadius - chamfer, stackDepth), // chamfer at tip
+            new THREE.Vector2(0, stackDepth),
+          ];
+          const maleGeo = new THREE.LatheGeometry(malePoints, 32);
+          maleGeo.translate(0, h, 0); // Position at top of body
           stackingGeos.push(maleGeo);
+          
+          // Add flange at base for structural strength
+          const flangeGeo = new THREE.CylinderGeometry(
+            maleRadius + flangeExtra,
+            maleRadius + flangeExtra,
+            flangeHeight,
+            32
+          );
+          flangeGeo.translate(0, h - flangeHeight / 2, 0);
+          stackingGeos.push(flangeGeo);
         } else {
-          // Female: ring showing the recess at top
-          const femaleOuterGeo = new THREE.CylinderGeometry(
-            stackRadius + wall * 0.5,
-            stackRadius + wall * 0.5,
+          // Female: recess carved into top of body
+          // Outer ring (visible rim around the hole)
+          const rimThickness = Math.min(wall * 0.8, 2 * SCALE);
+          const femaleOuterRadius = stackRadius + rimThickness;
+          const femaleInnerRadius = stackRadius + tolerance;
+          
+          // Create tube geometry for the socket wall
+          const tubeGeo = new THREE.TubeGeometry(
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(femaleInnerRadius, h - stackDepth, 0),
+              new THREE.Vector3(femaleInnerRadius, h, 0),
+            ]),
+            1,
+            rimThickness / 2,
+            32,
+            false
+          );
+          
+          // Actually use a simple ring shape for the socket opening
+          const ringShape = new THREE.Shape();
+          ringShape.absarc(0, 0, femaleOuterRadius, 0, Math.PI * 2, false);
+          const holePath = new THREE.Path();
+          holePath.absarc(0, 0, femaleInnerRadius, 0, Math.PI * 2, true);
+          ringShape.holes.push(holePath);
+          
+          const ringGeo = new THREE.ExtrudeGeometry(ringShape, {
+            depth: stackDepth,
+            bevelEnabled: false,
+          });
+          ringGeo.rotateX(-Math.PI / 2);
+          ringGeo.translate(0, h, 0);
+          stackingGeos.push(ringGeo);
+          
+          // Inner dark cylinder to show the recess depth
+          const recessGeo = new THREE.CylinderGeometry(
+            femaleInnerRadius - 0.01 * SCALE,
+            femaleInnerRadius - 0.01 * SCALE,
             stackDepth,
             32
           );
-          const femaleInnerGeo = new THREE.CylinderGeometry(
-            stackRadius + tolerance,
-            stackRadius + tolerance,
-            stackDepth + 0.01, // slightly taller for clean subtraction visual
-            32
-          );
-          femaleOuterGeo.translate(0, h - stackDepth / 2, 0);
-          femaleInnerGeo.translate(0, h - stackDepth / 2, 0);
-          stackingGeos.push(femaleOuterGeo);
-          // Inner hole represented as dark ring
-          stackingGeos.push(femaleInnerGeo);
+          recessGeo.translate(0, h - stackDepth / 2, 0);
+          stackingGeos.push(recessGeo);
         }
       }
       
@@ -847,25 +894,60 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       if (params.bottomInterface !== 'none') {
         if (params.bottomInterface === 'male') {
           // Male: cylinder protrusion going DOWN from bottom
-          const maleGeo = new THREE.CylinderGeometry(
-            stackRadius - tolerance,
-            stackRadius - tolerance,
+          const maleRadius = stackRadius - tolerance;
+          
+          // Create chamfered cylinder
+          const malePoints = [
+            new THREE.Vector2(0, 0),
+            new THREE.Vector2(maleRadius - chamfer, 0), // chamfer at tip
+            new THREE.Vector2(maleRadius, chamfer),
+            new THREE.Vector2(maleRadius, stackDepth),
+            new THREE.Vector2(0, stackDepth),
+          ];
+          const maleGeo = new THREE.LatheGeometry(malePoints, 32);
+          maleGeo.rotateX(Math.PI); // Flip upside down
+          maleGeo.translate(0, 0, 0); // Position at bottom of body
+          stackingGeos.push(maleGeo);
+          
+          // Add flange at top for structural strength
+          const flangeGeo = new THREE.CylinderGeometry(
+            maleRadius + flangeExtra,
+            maleRadius + flangeExtra,
+            flangeHeight,
+            32
+          );
+          flangeGeo.translate(0, flangeHeight / 2, 0);
+          stackingGeos.push(flangeGeo);
+        } else {
+          // Female: recess in bottom
+          const rimThickness = Math.min(wall * 0.8, 2 * SCALE);
+          const femaleOuterRadius = stackRadius + rimThickness;
+          const femaleInnerRadius = stackRadius + tolerance;
+          
+          // Ring at bottom opening
+          const ringShape = new THREE.Shape();
+          ringShape.absarc(0, 0, femaleOuterRadius, 0, Math.PI * 2, false);
+          const holePath = new THREE.Path();
+          holePath.absarc(0, 0, femaleInnerRadius, 0, Math.PI * 2, true);
+          ringShape.holes.push(holePath);
+          
+          const ringGeo = new THREE.ExtrudeGeometry(ringShape, {
+            depth: stackDepth,
+            bevelEnabled: false,
+          });
+          ringGeo.rotateX(Math.PI / 2);
+          ringGeo.translate(0, 0, 0);
+          stackingGeos.push(ringGeo);
+          
+          // Inner dark cylinder to show the recess depth
+          const recessGeo = new THREE.CylinderGeometry(
+            femaleInnerRadius - 0.01 * SCALE,
+            femaleInnerRadius - 0.01 * SCALE,
             stackDepth,
             32
           );
-          maleGeo.translate(0, -stackDepth / 2, 0);
-          stackingGeos.push(maleGeo);
-        } else {
-          // Female: recess in bottom (just visual ring)
-          const femaleGeo = new THREE.TorusGeometry(
-            stackRadius,
-            wall * 0.25,
-            8,
-            32
-          );
-          femaleGeo.rotateX(Math.PI / 2);
-          femaleGeo.translate(0, 0.01, 0); // Just above y=0
-          stackingGeos.push(femaleGeo);
+          recessGeo.translate(0, stackDepth / 2, 0);
+          stackingGeos.push(recessGeo);
         }
       }
     }

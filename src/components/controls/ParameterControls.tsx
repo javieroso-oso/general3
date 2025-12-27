@@ -1036,12 +1036,15 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
             <ParameterSlider
               label="Connector Diameter"
               value={params.stackingConnectorDiameter}
-              min={15}
-              max={80}
-              step={5}
+              min={8}
+              max={40}
+              step={1}
               unit="mm"
               onChange={handleChange('stackingConnectorDiameter')}
             />
+            <p className="text-xs text-muted-foreground">
+              Sized ~50-70% of body radius works best
+            </p>
             
             <ParameterSlider
               label="Insert Depth"
