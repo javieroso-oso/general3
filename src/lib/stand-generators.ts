@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrganicParams, SocketParams, AttachmentParams } from './leg-generator';
+import { OrganicParams, SocketParams } from './leg-generator';
 
 /**
  * Stand-specific parameters

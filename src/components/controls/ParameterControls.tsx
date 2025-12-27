@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Box, Grip } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -82,11 +82,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   };
 
   const handleCordHoleToggle = (enabled: boolean) => {
-    const newParams = { ...params, cordHoleEnabled: enabled };
-    if (enabled && type === 'lamp') {
-      newParams.centeringLipEnabled = true;
-    }
-    onParamsChange(newParams);
+    onParamsChange({ ...params, cordHoleEnabled: enabled });
   };
 
   const handleStandTypeChange = (value: StandType) => {
@@ -403,48 +399,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     onChange={handleChange('cordHoleDiameter')}
                   />
                   
-                  {/* Centering Lip Controls */}
-                  <div className="pt-2 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Circle className={cn("w-4 h-4", params.centeringLipEnabled ? "text-primary" : "text-muted-foreground")} />
-                        <Label htmlFor="centering-lip" className="text-xs">Centering Lip</Label>
-                      </div>
-                      <Switch 
-                        id="centering-lip" 
-                        checked={params.centeringLipEnabled} 
-                        onCheckedChange={(v) => onParamsChange({ ...params, centeringLipEnabled: v })}
-                      />
-                    </div>
-                    
-                    {params.centeringLipEnabled && (
-                      <div className="space-y-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Socket Type</Label>
-                          <Select value={params.socketType} onValueChange={(v: 'E26' | 'E12' | 'E14' | 'GU10') => onParamsChange({ ...params, socketType: v })}>
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="E26">E26 (US Standard)</SelectItem>
-                              <SelectItem value="E12">E12 (Candelabra)</SelectItem>
-                              <SelectItem value="E14">E14 (EU Candelabra)</SelectItem>
-                              <SelectItem value="GU10">GU10 (Spotlight)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <ParameterSlider
-                          label="Lip Height"
-                          value={params.centeringLipHeight}
-                          min={2}
-                          max={5}
-                          step={0.5}
-                          unit="mm"
-                          onChange={handleChange('centeringLipHeight')}
-                        />
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
             </div>

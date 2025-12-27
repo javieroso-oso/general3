@@ -626,14 +626,6 @@ export function generateLegsWithBaseMesh(
       wallThickness: params.wallThickness,
       cordHoleEnabled: params.cordHoleEnabled,
       cordHoleDiameter: params.cordHoleDiameter,
-      centeringLipEnabled: params.centeringLipEnabled,
-      centeringLipHeight: params.centeringLipHeight,
-      socketType: params.socketType,
-    },
-    {
-      attachmentType: params.attachmentType,
-      screwCount: params.screwCount,
-      baseRadius: params.baseRadius,
     }
   );
 }
