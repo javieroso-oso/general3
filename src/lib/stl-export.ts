@@ -50,6 +50,7 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
 };
 
 // Calculate radius at a given height t (0-1) - includes ALL surface features
+// NOTE: Caller is responsible for applying twist to theta before calling this function
 function getRadiusAtHeight(
   t: number,
   params: ParametricParams,
@@ -83,12 +84,10 @@ function getRadiusAtHeight(
     horizontalRibWidth,
     flutingCount,
     flutingDepth,
-    twistAngle,
   } = params;
 
-  // Apply twist to theta
-  const twistRad = (twistAngle * Math.PI / 180) * t;
-  let effectiveTheta = theta + twistRad;
+  // Use theta directly - caller applies twist
+  let effectiveTheta = theta;
   
   // Apply faceting (snap theta to polygon vertices)
   if (facetCount > 0 && facetCount >= 3) {
@@ -210,23 +209,21 @@ function getRadiusAtHeight(
 }
 
 // Calculate rim wave Z offset at a given position
+// NOTE: Caller should pass theta WITH twist already applied
 function getRimWaveOffset(
   t: number,
   theta: number,
   params: ParametricParams
 ): number {
-  const { rimWaveCount, rimWaveDepth, height, twistAngle } = params;
+  const { rimWaveCount, rimWaveDepth, height } = params;
   if (!rimWaveCount || rimWaveCount <= 0 || !rimWaveDepth || rimWaveDepth <= 0) return 0;
   
   const rimZone = 0.1; // Top 10% of height (matches ParametricMesh.tsx)
   const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
   if (rimT <= 0) return 0;
   
-  // Apply twist to theta for consistency
-  const twistRad = (twistAngle * Math.PI / 180) * t;
-  const effectiveTheta = theta + twistRad;
-  
-  return Math.sin(effectiveTheta * rimWaveCount) * rimWaveDepth * height * rimT;
+  // theta should already include twist from caller
+  return Math.sin(theta * rimWaveCount) * rimWaveDepth * height * rimT;
 }
 
 // Generate body mesh (open bottom, no base cap) for STL export
@@ -867,10 +864,10 @@ export function generateSpiralVaseLayers(
     const theta = revolutions * Math.PI * 2;
     const twistRad = (twistAngle * Math.PI / 180) * t;
     
-    const outerR = getRadiusAtHeight(t, params, type, theta);
+    const outerR = getRadiusAtHeight(t, params, type, theta + twistRad);
     
-    // Apply rim wave offset to Z
-    const rimOffset = getRimWaveOffset(t, theta, params);
+    // Apply rim wave offset to Z (pass twisted theta)
+    const rimOffset = getRimWaveOffset(t, theta + twistRad, params);
     const finalZ = baseZ + rimOffset;
     
     spiralPath.push({
@@ -1048,16 +1045,17 @@ function generateCurvedTopLayers(
     const tiltAngles: number[] = [];
     
     for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2;
-      const outerR = getRadiusAtHeight(t, params, type, theta);
+      const baseTheta = (j / segments) * Math.PI * 2;
+      const thetaWithTwist = baseTheta + twistRad;
+      const outerR = getRadiusAtHeight(t, params, type, thetaWithTwist);
       const innerR = Math.max(outerR - wallThickness, wallThickness);
       
-      // Apply rim wave offset
-      const rimOffset = getRimWaveOffset(t, theta, params);
+      // Apply rim wave offset (use twisted theta)
+      const rimOffset = getRimWaveOffset(t, thetaWithTwist, params);
       
       // Outer wall point
-      const outerX = Math.cos(theta + twistRad) * outerR;
-      const outerY = Math.sin(theta + twistRad) * outerR;
+      const outerX = Math.cos(thetaWithTwist) * outerR;
+      const outerY = Math.sin(thetaWithTwist) * outerR;
       const outerSurfaceZ = getSurfaceHeightAt(outerX, outerY, params, type);
       
       // Calculate target Z with non-planar adjustment
@@ -1083,8 +1081,8 @@ function generateCurvedTopLayers(
       });
       
       // Inner wall point - follow similar but slightly inside
-      const innerX = Math.cos(theta + twistRad) * innerR;
-      const innerY = Math.sin(theta + twistRad) * innerR;
+      const innerX = Math.cos(thetaWithTwist) * innerR;
+      const innerY = Math.sin(thetaWithTwist) * innerR;
       const innerSurfaceZ = getSurfaceHeightAt(innerX, innerY, params, type);
       const targetInnerZ = baseZ + (innerSurfaceZ - height) * blendFactor + rimOffset;
       const finalInnerZ = baseZ + (targetInnerZ - baseZ) * tiltFactor;
@@ -1134,15 +1132,16 @@ function generateFullSurfaceLayers(
     const wallAngle = Math.abs(getWallAngle(t, params, type));
     
     for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2;
-      const outerR = getRadiusAtHeight(t, params, type, theta);
+      const baseTheta = (j / segments) * Math.PI * 2;
+      const thetaWithTwist = baseTheta + twistRad;
+      const outerR = getRadiusAtHeight(t, params, type, thetaWithTwist);
       const innerR = Math.max(outerR - wallThickness, wallThickness);
       
       // Calculate the surface-following Z offset
-      const surfaceZ = getOuterSurfaceZ(t, theta, params, type);
+      const surfaceZ = getOuterSurfaceZ(t, thetaWithTwist, params, type);
       
-      // Apply rim wave offset
-      const rimOffset = getRimWaveOffset(t, theta, params);
+      // Apply rim wave offset (use twisted theta)
+      const rimOffset = getRimWaveOffset(t, thetaWithTwist, params);
       
       // Clamp tilt angle to maxZAngle
       const effectiveTilt = Math.min(wallAngle, maxTiltAngle);
@@ -1156,15 +1155,15 @@ function generateFullSurfaceLayers(
       
       // Outer wall point
       outerPath.push({
-        x: Math.cos(theta + twistRad) * outerR,
-        y: Math.sin(theta + twistRad) * outerR,
+        x: Math.cos(thetaWithTwist) * outerR,
+        y: Math.sin(thetaWithTwist) * outerR,
         z: finalZ,
       });
       
       // Inner wall point - follows at inner radius
       innerPath.push({
-        x: Math.cos(theta + twistRad) * innerR,
-        y: Math.sin(theta + twistRad) * innerR,
+        x: Math.cos(thetaWithTwist) * innerR,
+        y: Math.sin(thetaWithTwist) * innerR,
         z: finalZ,
       });
     }
@@ -1235,22 +1234,23 @@ export function generateGCodeLayers(
       const innerPath: { x: number; y: number; z: number }[] = [];
       
       for (let j = 0; j <= segments; j++) {
-        const theta = (j / segments) * Math.PI * 2;
-        const outerR = getRadiusAtHeight(t, params, type, theta);
+        const baseTheta = (j / segments) * Math.PI * 2;
+        const thetaWithTwist = baseTheta + twistRad;
+        const outerR = getRadiusAtHeight(t, params, type, thetaWithTwist);
         const innerR = Math.max(outerR - wallThickness, wallThickness);
         
-        const rimOffset = getRimWaveOffset(t, theta, params);
+        const rimOffset = getRimWaveOffset(t, thetaWithTwist, params);
         const pointZ = baseZ + rimOffset;
         
         outerPath.push({
-          x: Math.cos(theta + twistRad) * outerR,
-          y: Math.sin(theta + twistRad) * outerR,
+          x: Math.cos(thetaWithTwist) * outerR,
+          y: Math.sin(thetaWithTwist) * outerR,
           z: pointZ,
         });
         
         innerPath.push({
-          x: Math.cos(theta + twistRad) * innerR,
-          y: Math.sin(theta + twistRad) * innerR,
+          x: Math.cos(thetaWithTwist) * innerR,
+          y: Math.sin(thetaWithTwist) * innerR,
           z: pointZ,
         });
       }
@@ -1266,18 +1266,19 @@ export function generateGCodeLayers(
       const innerPath: { x: number; y: number }[] = [];
       
       for (let j = 0; j <= segments; j++) {
-        const theta = (j / segments) * Math.PI * 2;
-        const outerR = getRadiusAtHeight(t, params, type, theta);
+        const baseTheta = (j / segments) * Math.PI * 2;
+        const thetaWithTwist = baseTheta + twistRad;
+        const outerR = getRadiusAtHeight(t, params, type, thetaWithTwist);
         const innerR = Math.max(outerR - wallThickness, wallThickness);
         
         outerPath.push({
-          x: Math.cos(theta + twistRad) * outerR,
-          y: Math.sin(theta + twistRad) * outerR,
+          x: Math.cos(thetaWithTwist) * outerR,
+          y: Math.sin(thetaWithTwist) * outerR,
         });
         
         innerPath.push({
-          x: Math.cos(theta + twistRad) * innerR,
-          y: Math.sin(theta + twistRad) * innerR,
+          x: Math.cos(thetaWithTwist) * innerR,
+          y: Math.sin(thetaWithTwist) * innerR,
         });
       }
       
