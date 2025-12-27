@@ -274,7 +274,7 @@ function generateFullBody(
   return geometry;
 }
 
-// Generate wall mount body with cut plane
+// Generate wall mount body with cut plane and integrated keyholes
 function generateWallMountBody(
   outerVerts: number[],
   innerVerts: number[],
@@ -404,95 +404,109 @@ function generateWallMountBody(
     }
   }
 
-  // === CREATE BACK WALL ===
-  // Find the boundary where the cut intersects the mesh
-  const outerEdgePoints: { x: number; y: number }[] = [];
-  const innerEdgePoints: { x: number; y: number }[] = [];
+  // === CREATE BACK WALL WITH PROPER INTERSECTION CALCULATION ===
+  // Find actual intersection points where body crosses the cut plane
+  
+  const leftEdgePoints: { x: number; y: number }[] = [];
+  const rightEdgePoints: { x: number; y: number }[] = [];
 
   for (let i = 0; i <= heightSegments; i++) {
     const y = (i / heightSegments) * height;
     
-    // Find outer boundary at this height
-    let minOuterX = Infinity, maxOuterX = -Infinity;
-    let minInnerX = Infinity, maxInnerX = -Infinity;
+    // Collect all intersection points at this height level
+    const intersections: number[] = [];
     
-    for (let j = 0; j <= segments; j++) {
-      const outerIdx = i * (segments + 1) + j;
-      const innerIdx = i * (segments + 1) + j;
+    for (let j = 0; j < segments; j++) {
+      const idx1 = i * (segments + 1) + j;
+      const idx2 = i * (segments + 1) + j + 1;
       
-      const ox = clippedOuter[outerIdx * 3];
-      const oz = clippedOuter[outerIdx * 3 + 2];
-      const ix = clippedInner[innerIdx * 3];
-      const iz = clippedInner[innerIdx * 3 + 2];
+      const x1 = outerVerts[idx1 * 3];
+      const z1 = outerVerts[idx1 * 3 + 2];
+      const x2 = outerVerts[idx2 * 3];
+      const z2 = outerVerts[idx2 * 3 + 2];
       
-      // Points on the cut plane
-      if (Math.abs(oz - cutOffset) < 0.01) {
-        if (ox < minOuterX) minOuterX = ox;
-        if (ox > maxOuterX) maxOuterX = ox;
-      }
-      if (Math.abs(iz - cutOffset) < 0.01) {
-        if (ix < minInnerX) minInnerX = ix;
-        if (ix > maxInnerX) maxInnerX = ix;
+      // Check if the cut plane crosses between these two vertices
+      if ((z1 >= cutOffset && z2 < cutOffset) || (z1 < cutOffset && z2 >= cutOffset)) {
+        const tInterp = (cutOffset - z1) / (z2 - z1);
+        const xIntersect = x1 + tInterp * (x2 - x1);
+        intersections.push(xIntersect);
       }
     }
     
-    if (minOuterX < Infinity && maxOuterX > -Infinity) {
-      outerEdgePoints.push({ x: minOuterX, y });
-      outerEdgePoints.push({ x: maxOuterX, y });
-    }
-    if (minInnerX < Infinity && maxInnerX > -Infinity) {
-      innerEdgePoints.push({ x: minInnerX, y });
-      innerEdgePoints.push({ x: maxInnerX, y });
+    // Take leftmost and rightmost intersections
+    if (intersections.length >= 2) {
+      intersections.sort((a, b) => a - b);
+      leftEdgePoints.push({ x: intersections[0], y });
+      rightEdgePoints.push({ x: intersections[intersections.length - 1], y });
+    } else if (intersections.length === 1) {
+      // Single intersection - use symmetric fallback
+      leftEdgePoints.push({ x: intersections[0], y });
+      rightEdgePoints.push({ x: -intersections[0], y });
     }
   }
 
-  // Build back wall from outer edges (simplified approach - create filled back wall)
-  if (outerEdgePoints.length >= 4) {
-    // Group by Y and create triangulated back wall
-    const pointsByY = new Map<number, { minX: number; maxX: number }>();
-    for (const pt of outerEdgePoints) {
-      const yKey = Math.round(pt.y * 100);
-      if (!pointsByY.has(yKey)) {
-        pointsByY.set(yKey, { minX: pt.x, maxX: pt.x });
-      } else {
-        const entry = pointsByY.get(yKey)!;
-        entry.minX = Math.min(entry.minX, pt.x);
-        entry.maxX = Math.max(entry.maxX, pt.x);
-      }
-    }
-
-    const sortedYs = Array.from(pointsByY.keys()).sort((a, b) => a - b);
+  // Build complete back wall polygon
+  if (leftEdgePoints.length >= 2 && rightEdgePoints.length >= 2) {
+    // Create outline: left edge bottom to top, then right edge top to bottom
+    const outline: { x: number; y: number }[] = [];
     
-    if (sortedYs.length >= 2) {
+    // Left edge (bottom to top)
+    for (const pt of leftEdgePoints) {
+      outline.push(pt);
+    }
+    
+    // Right edge (top to bottom - reversed)
+    for (let i = rightEdgePoints.length - 1; i >= 0; i--) {
+      outline.push(rightEdgePoints[i]);
+    }
+    
+    if (outline.length >= 3) {
+      // Add back wall vertices
       const backWallStartIdx = vertices.length / 3;
-      
-      // Add back wall vertices (left edge, then right edge)
-      const leftEdge: number[] = [];
-      const rightEdge: number[] = [];
-      
-      for (const yKey of sortedYs) {
-        const y = yKey / 100;
-        const { minX, maxX } = pointsByY.get(yKey)!;
-        
-        const leftIdx = vertices.length / 3;
-        vertices.push(minX, y, cutOffset);
-        leftEdge.push(leftIdx);
-        
-        const rightIdx = vertices.length / 3;
-        vertices.push(maxX, y, cutOffset);
-        rightEdge.push(rightIdx);
+      for (const pt of outline) {
+        vertices.push(pt.x, pt.y, cutOffset);
       }
       
-      // Create back wall triangles
-      for (let i = 0; i < sortedYs.length - 1; i++) {
-        const bl = leftEdge[i];
-        const br = rightEdge[i];
-        const tl = leftEdge[i + 1];
-        const tr = rightEdge[i + 1];
-        
-        // Two triangles for each quad
-        indices.push(bl, br, tl);
-        indices.push(tl, br, tr);
+      // Calculate centroid for fan triangulation
+      let centerX = 0, centerY = 0;
+      for (const pt of outline) {
+        centerX += pt.x;
+        centerY += pt.y;
+      }
+      centerX /= outline.length;
+      centerY /= outline.length;
+      
+      const centerIdx = vertices.length / 3;
+      vertices.push(centerX, centerY, cutOffset);
+      
+      // Create fan triangles (facing -Z direction, so we use proper winding)
+      for (let i = 0; i < outline.length; i++) {
+        const a = backWallStartIdx + i;
+        const b = backWallStartIdx + ((i + 1) % outline.length);
+        // Winding for back face (facing -Z)
+        indices.push(centerIdx, b, a);
+      }
+      
+      // === ADD KEYHOLE GEOMETRY TO BACK WALL ===
+      // Create actual keyhole holes in the back wall for proper STL export
+      const KEYHOLE_HEAD_RADIUS = 4; // 8mm diameter head hole
+      const KEYHOLE_SLOT_WIDTH = 2;  // 4mm slot width
+      const KEYHOLE_SLOT_LENGTH = 8; // 8mm slot length
+      const KEYHOLE_DEPTH = wallThickness + 1; // Through the back wall
+      
+      // Calculate keyhole positions (2 vertical holes centered)
+      const holeMargin = height * 0.15;
+      const bottomY = Math.max(holeMargin, 15);
+      const topY = Math.min(height - holeMargin, height - 15);
+      
+      const keyholePositions = [
+        { x: 0, y: bottomY },
+        { x: 0, y: topY }
+      ];
+      
+      // Add keyhole hole geometry for each position
+      for (const pos of keyholePositions) {
+        addKeyholeHole(vertices, indices, pos.x, pos.y, cutOffset, KEYHOLE_HEAD_RADIUS, KEYHOLE_SLOT_WIDTH, KEYHOLE_SLOT_LENGTH, KEYHOLE_DEPTH);
       }
     }
   }
@@ -503,6 +517,87 @@ function generateWallMountBody(
   geometry.computeVertexNormals();
 
   return geometry;
+}
+
+/**
+ * Add keyhole hole geometry to the vertices/indices arrays
+ * Creates a keyhole-shaped hole through the back wall
+ */
+function addKeyholeHole(
+  vertices: number[],
+  indices: number[],
+  cx: number,
+  cy: number,
+  zPos: number,
+  headRadius: number,
+  slotWidth: number,
+  slotLength: number,
+  depth: number
+): void {
+  const segs = 16;
+  const startIdx = vertices.length / 3;
+  
+  // Front ring of keyhole (at back wall surface)
+  // Large circle at bottom
+  for (let i = 0; i <= segs; i++) {
+    const angle = (i / segs) * Math.PI * 2;
+    vertices.push(
+      cx + Math.cos(angle) * headRadius,
+      cy + Math.sin(angle) * headRadius,
+      zPos
+    );
+  }
+  
+  // Back ring of keyhole (through the wall)
+  const backRingStart = vertices.length / 3;
+  for (let i = 0; i <= segs; i++) {
+    const angle = (i / segs) * Math.PI * 2;
+    vertices.push(
+      cx + Math.cos(angle) * headRadius,
+      cy + Math.sin(angle) * headRadius,
+      zPos - depth
+    );
+  }
+  
+  // Keyhole wall (cylinder through wall)
+  for (let i = 0; i < segs; i++) {
+    const frontA = startIdx + i;
+    const frontB = startIdx + i + 1;
+    const backA = backRingStart + i;
+    const backB = backRingStart + i + 1;
+    
+    // Inner wall of hole (reversed winding for inside of hole)
+    indices.push(frontA, frontB, backA);
+    indices.push(backA, frontB, backB);
+  }
+  
+  // Slot going up from circle
+  const slotStartIdx = vertices.length / 3;
+  
+  // Slot front vertices (rectangular slot going up)
+  vertices.push(cx - slotWidth, cy + headRadius * 0.3, zPos); // bottom left
+  vertices.push(cx + slotWidth, cy + headRadius * 0.3, zPos); // bottom right
+  vertices.push(cx + slotWidth, cy + slotLength, zPos);       // top right
+  vertices.push(cx - slotWidth, cy + slotLength, zPos);       // top left
+  
+  // Slot back vertices
+  vertices.push(cx - slotWidth, cy + headRadius * 0.3, zPos - depth); // bottom left
+  vertices.push(cx + slotWidth, cy + headRadius * 0.3, zPos - depth); // bottom right
+  vertices.push(cx + slotWidth, cy + slotLength, zPos - depth);       // top right
+  vertices.push(cx - slotWidth, cy + slotLength, zPos - depth);       // top left
+  
+  // Slot walls (4 sides)
+  // Left wall
+  indices.push(slotStartIdx + 0, slotStartIdx + 3, slotStartIdx + 4);
+  indices.push(slotStartIdx + 4, slotStartIdx + 3, slotStartIdx + 7);
+  
+  // Right wall  
+  indices.push(slotStartIdx + 1, slotStartIdx + 5, slotStartIdx + 2);
+  indices.push(slotStartIdx + 2, slotStartIdx + 5, slotStartIdx + 6);
+  
+  // Top wall
+  indices.push(slotStartIdx + 2, slotStartIdx + 6, slotStartIdx + 3);
+  indices.push(slotStartIdx + 3, slotStartIdx + 6, slotStartIdx + 7);
 }
 
 // Generate legs with base disc mesh for STL export

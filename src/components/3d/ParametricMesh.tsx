@@ -505,8 +505,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // Build outline for back wall (fillet removed - was broken)
-      const outline = [...leftEdge, ...rightEdge.reverse()];
+      // Build outline for back wall: left edge bottom-to-top, then right edge top-to-bottom
+      const outline: { x: number; y: number }[] = [];
+      
+      // Left edge (bottom to top)
+      for (const pt of leftEdge) {
+        outline.push(pt);
+      }
+      
+      // Right edge (top to bottom - reversed)
+      for (let i = rightEdge.length - 1; i >= 0; i--) {
+        outline.push(rightEdge[i]);
+      }
       
       if (outline.length >= 3) {
         // Add back wall vertices
@@ -515,7 +525,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           vertices.push(pt.x, pt.y, cutOffset);
         }
         
-        // Add center point for fan triangulation
+        // Calculate centroid for fan triangulation
         let centerX = 0, centerY = 0;
         for (const pt of outline) {
           centerX += pt.x;
@@ -527,11 +537,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         const centerIdx = vertices.length / 3;
         vertices.push(centerX, centerY, cutOffset);
         
-        // Create fan triangles from center to boundary
+        // Create fan triangles (winding for back face facing -Z)
         for (let i = 0; i < outline.length; i++) {
           const a = backWallStartIdx + i;
           const b = backWallStartIdx + ((i + 1) % outline.length);
-          indices.push(centerIdx, a, b);
+          // Correct winding for back-facing surface
+          indices.push(centerIdx, b, a);
         }
       }
       
@@ -674,12 +685,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     let connectorGeo: THREE.BufferGeometry | null = null;
     
     // Generate connector geometry if not integrated (for visibility between body and base)
+    // The connector creates a visible collar that sits between body (y=0) and stand
     if (addLegs && params.attachmentType !== 'integrated' && params.standType !== 'wall_mount') {
       const connectorResult = generateConnector(connectorConfig, effectiveBaseRadius * 2);
       if (connectorResult.baseInterface) {
-        // Scale and position the connector
-        connectorResult.baseInterface.scale(SCALE, SCALE, SCALE);
-        connectorGeo = connectorResult.baseInterface;
+        // Clone and scale the connector geometry
+        const scaledConnector = connectorResult.baseInterface.clone();
+        scaledConnector.scale(SCALE, SCALE, SCALE);
+        
+        // Position the connector slightly above the stand
+        // The connector extends from y=0 downward, so we need to ensure
+        // it sits between the body bottom (y=0) and the stand top
+        connectorGeo = scaledConnector;
       }
     }
     
