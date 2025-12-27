@@ -441,11 +441,11 @@ export const defaultLampParams: LampParams = {
   wallMountCordHoleEnabled: true,
   wallMountStyle: 'back',
   stackingEnabled: false,
-  topInterface: 'none',
-  bottomInterface: 'none',
-  stackingConnectorType: 'press_fit',
-  stackingConnectorDiameter: 30,
-  stackingConnectorDepth: 8,
+    topInterface: 'none',
+    bottomInterface: 'none',
+    stackingConnectorType: 'press_fit',
+    stackingConnectorDiameter: 15,
+    stackingConnectorDepth: 6,
   
   // Shade rim config
   shade: defaultShadeConfig,
