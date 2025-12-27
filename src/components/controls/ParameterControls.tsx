@@ -926,8 +926,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               label="Wave Depth"
               value={params.rimWaveDepth}
               min={0}
-              max={0.3}
-              step={0.02}
+              max={3}
+              step={0.1}
               onChange={handleChange('rimWaveDepth')}
             />
           )}
