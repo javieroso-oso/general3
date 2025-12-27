@@ -3,6 +3,9 @@ export type ObjectType = 'vase' | 'lamp' | 'sculpture';
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
+// Leg styles for tripod/riser stands
+export type LegStyle = 'tripod' | 'riser' | 'column' | 'ball';
+
 // Wall mount options (simplified - no separate plate needed)
 
 // Attachment types for body-to-stand connection
@@ -60,6 +63,7 @@ export interface ParametricParams {
   // Integrated legs (extending from base)
   addLegs: boolean;
   standType: StandType;       // Type of stand/support structure
+  legStyle: LegStyle;         // Style of legs (tripod, riser, column, ball)
   legCount: 3 | 4;
   legHeight: number;          // Stand height in mm
   legSpread: number;          // Angle in degrees (15-45)
@@ -292,6 +296,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallThickness: 2.0,
     addLegs: false,
     standType: 'tripod',
+    legStyle: 'tripod',
     legCount: 3,
     legHeight: 80,
     legSpread: 25,
@@ -376,6 +381,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallThickness: 1.6,
     addLegs: false,
     standType: 'tripod',
+    legStyle: 'tripod',
     legCount: 3,
     legHeight: 100,
     legSpread: 30,
@@ -460,6 +466,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallThickness: 3.0,
     addLegs: false,
     standType: 'tripod',
+    legStyle: 'tripod',
     legCount: 4,
     legHeight: 60,
     legSpread: 20,

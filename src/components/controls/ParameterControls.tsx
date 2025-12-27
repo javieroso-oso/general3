@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
@@ -89,11 +89,48 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     onParamsChange({ ...params, standType: value });
   };
 
+  const handleLegStyleChange = (value: LegStyle) => {
+    // Adjust defaults based on leg style
+    let newParams = { ...params, legStyle: value };
+    
+    // Set appropriate defaults for each style
+    switch (value) {
+      case 'riser':
+        newParams.legHeight = Math.min(params.legHeight, 15);
+        newParams.legSpread = Math.min(params.legSpread, 10);
+        break;
+      case 'column':
+        newParams.legSpread = 0; // No spread for columns
+        break;
+      case 'ball':
+        // Ball feet use legThickness as diameter
+        break;
+      case 'tripod':
+      default:
+        // Ensure reasonable defaults for tripod
+        if (params.legHeight < 30) newParams.legHeight = 80;
+        if (params.legSpread < 15) newParams.legSpread = 25;
+        break;
+    }
+    
+    onParamsChange(newParams);
+  };
+
   const getStandLabel = (type: StandType): string => {
     switch (type) {
       case 'tripod': return 'Tripod Legs';
       case 'wall_mount': return 'Wall Mount';
       default: return type;
+    }
+  };
+
+  const getLegStyleLabel = (style: LegStyle): string => {
+    switch (style) {
+      case 'tripod': return 'Tripod';
+      case 'riser': return 'Riser';
+      case 'column': return 'Column';
+      case 'ball': return 'Ball Feet';
+      default: return style;
     }
   };
 
@@ -137,6 +174,30 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
             {/* Tripod-specific controls */}
             {params.standType === 'tripod' && (
               <>
+                {/* Leg Style Selector */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Leg Style</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['tripod', 'riser', 'column', 'ball'] as LegStyle[]).map((style) => (
+                      <Button
+                        key={style}
+                        variant={params.legStyle === style ? 'default' : 'outline'}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleLegStyleChange(style)}
+                      >
+                        {getLegStyleLabel(style)}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {params.legStyle === 'tripod' && 'Classic angled legs that spread outward'}
+                    {params.legStyle === 'riser' && 'Small stubby feet for table lamps (3-20mm)'}
+                    {params.legStyle === 'column' && 'Straight vertical legs, no spread'}
+                    {params.legStyle === 'ball' && 'Spherical ball feet at each position'}
+                  </p>
+                </div>
+
                 <div className="flex gap-2">
                   <Button
                     variant={params.legCount === 3 ? 'default' : 'outline'}
@@ -156,41 +217,53 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   </Button>
                 </div>
                 
+                {/* Conditional controls based on leg style */}
+                {params.legStyle !== 'ball' && (
+                  <ParameterSlider
+                    label="Leg Height"
+                    value={params.legHeight}
+                    min={params.legStyle === 'riser' ? 3 : 30}
+                    max={params.legStyle === 'riser' ? 20 : 200}
+                    step={params.legStyle === 'riser' ? 1 : 5}
+                    unit="mm"
+                    onChange={handleChange('legHeight')}
+                  />
+                )}
+                
+                {/* Spread only for tripod and riser */}
+                {(params.legStyle === 'tripod' || params.legStyle === 'riser') && (
+                  <ParameterSlider
+                    label="Leg Spread"
+                    value={params.legSpread}
+                    min={params.legStyle === 'riser' ? 0 : 15}
+                    max={params.legStyle === 'riser' ? 10 : 45}
+                    step={1}
+                    unit="°"
+                    onChange={handleChange('legSpread')}
+                  />
+                )}
+                
                 <ParameterSlider
-                  label="Leg Height"
-                  value={params.legHeight}
-                  min={30}
-                  max={200}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('legHeight')}
-                />
-                <ParameterSlider
-                  label="Leg Spread"
-                  value={params.legSpread}
-                  min={15}
-                  max={45}
-                  step={1}
-                  unit="°"
-                  onChange={handleChange('legSpread')}
-                />
-                <ParameterSlider
-                  label="Leg Thickness"
+                  label={params.legStyle === 'ball' ? 'Ball Size' : 'Leg Thickness'}
                   value={params.legThickness}
-                  min={3}
-                  max={10}
+                  min={params.legStyle === 'ball' ? 5 : 3}
+                  max={params.legStyle === 'ball' ? 15 : 10}
                   step={0.5}
                   unit="mm"
                   onChange={handleChange('legThickness')}
                 />
-                <ParameterSlider
-                  label="Leg Taper"
-                  value={params.legTaper}
-                  min={0}
-                  max={0.8}
-                  step={0.1}
-                  onChange={handleChange('legTaper')}
-                />
+                
+                {/* Taper only for tripod */}
+                {params.legStyle === 'tripod' && (
+                  <ParameterSlider
+                    label="Leg Taper"
+                    value={params.legTaper}
+                    min={0}
+                    max={0.8}
+                    step={0.1}
+                    onChange={handleChange('legTaper')}
+                  />
+                )}
                 
                 {/* Base Size Mode Controls */}
                 <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
