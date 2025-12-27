@@ -545,11 +545,16 @@ function createBaseDisc(
   
   const taper = pedestalParams?.taper ?? 0;
   const lip = pedestalParams?.lip ?? 0;
+  const edgeStyle = pedestalParams?.edgeStyle ?? 'flat';
   const bottomRadius = radius * (1 - taper);
   
-  // Lip is a raised rim at the outer edge - the inner radius for the lip wall
-  const lipWidth = Math.min(lip * 2, radius * 0.15); // Lip width proportional to lip height
+  // Lip is a raised rim at the outer edge
+  const lipWidth = Math.min(lip * 2, radius * 0.15);
   const innerLipRadius = radius - lipWidth;
+  
+  // Edge style dimensions
+  const edgeSize = Math.min(2, thickness * 0.4);
+  const roundedSteps = 4;
   
   const cordHoleEnabled = socketParams?.cordHoleEnabled ?? false;
   const cordHoleDiameter = socketParams?.cordHoleDiameter ?? 8;
@@ -559,240 +564,230 @@ function createBaseDisc(
   const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
   const getInnerLipRadius = (theta: number) => calculateDeformedRadius(theta, innerLipRadius, organicParams);
   
+  // Helper to add a ring of vertices
+  const addRing = (radiusFn: (theta: number) => number, y: number): number => {
+    const startIdx = vertices.length / 3;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const r = radiusFn(theta);
+      vertices.push(Math.cos(theta) * r, y, Math.sin(theta) * r);
+    }
+    return startIdx;
+  };
+  
+  // Helper to add a center point
+  const addCenter = (y: number): number => {
+    const idx = vertices.length / 3;
+    vertices.push(0, y, 0);
+    return idx;
+  };
+  
+  // Helper to connect two rings
+  const connectRings = (ring1Start: number, ring2Start: number, invert: boolean = false) => {
+    for (let i = 0; i < segments; i++) {
+      if (invert) {
+        indices.push(ring1Start + i, ring1Start + i + 1, ring2Start + i);
+        indices.push(ring1Start + i + 1, ring2Start + i + 1, ring2Start + i);
+      } else {
+        indices.push(ring1Start + i, ring2Start + i, ring1Start + i + 1);
+        indices.push(ring1Start + i + 1, ring2Start + i, ring2Start + i + 1);
+      }
+    }
+  };
+  
+  // Helper to fill from center to ring
+  const fillFromCenter = (centerIdx: number, ringStart: number, invert: boolean = false) => {
+    for (let i = 0; i < segments; i++) {
+      if (invert) {
+        indices.push(centerIdx, ringStart + i + 1, ringStart + i);
+      } else {
+        indices.push(centerIdx, ringStart + i, ringStart + i + 1);
+      }
+    }
+  };
+  
+  // Generate edge profile rings (for chamfer/rounded edges)
+  const generateEdgeRings = (topY: number, baseRadiusFn: (theta: number) => number): number[] => {
+    const rings: number[] = [];
+    
+    if (edgeStyle === 'chamfer') {
+      // Chamfer: single angled ring
+      const chamferRing = addRing(
+        (theta) => baseRadiusFn(theta) - edgeSize,
+        topY - thickness
+      );
+      rings.push(chamferRing);
+      
+      // Transition ring at corner
+      const cornerRing = addRing(baseRadiusFn, topY - thickness + edgeSize);
+      rings.push(cornerRing);
+    } else if (edgeStyle === 'rounded') {
+      // Rounded: multiple rings forming a quarter-circle
+      for (let step = 1; step <= roundedSteps; step++) {
+        const angle = (step / roundedSteps) * (Math.PI / 2);
+        const rOffset = edgeSize * (1 - Math.cos(angle));
+        const yOffset = edgeSize * Math.sin(angle);
+        
+        const ring = addRing(
+          (theta) => baseRadiusFn(theta) - rOffset,
+          topY - thickness + edgeSize - yOffset
+        );
+        rings.push(ring);
+      }
+    }
+    
+    return rings;
+  };
+
+  // Top height (lip or flat)
+  const topY = lip > 0 ? lip : 0;
+  
   if (cordHoleEnabled) {
-    // Disc with cord hole
+    // === WITH CORD HOLE ===
     
     if (lip > 0) {
-      // === LIP VERSION (with cord hole) ===
-      // Top of lip rim (outer edge at y=lip)
-      const lipTopOuterStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getOuterRadius(theta);
-        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
-      }
+      // Lip top outer
+      const lipTopOuter = addRing(getOuterRadius, topY);
+      // Lip top inner
+      const lipTopInner = addRing(getInnerLipRadius, topY);
+      // Connect lip top surface
+      connectRings(lipTopOuter, lipTopInner);
       
-      // Top of lip rim (inner edge at y=lip)
-      const lipTopInnerStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getInnerLipRadius(theta);
-        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
-      }
+      // Lip inner wall bottom
+      const lipInnerBottom = addRing(getInnerLipRadius, 0);
+      // Connect inner lip wall
+      connectRings(lipTopInner, lipInnerBottom, true);
       
-      // Lip top surface (ring)
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipTopOuterStart + i, lipTopInnerStart + i, lipTopOuterStart + i + 1);
-        indices.push(lipTopOuterStart + i + 1, lipTopInnerStart + i, lipTopInnerStart + i + 1);
-      }
-      
-      // Inner lip wall bottom (at y=0)
-      const lipInnerBottomStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getInnerLipRadius(theta);
-        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-      }
-      
-      // Inner lip wall (vertical, from lipTopInner down to lipInnerBottom)
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipTopInnerStart + i, lipInnerBottomStart + i + 1, lipInnerBottomStart + i);
-        indices.push(lipTopInnerStart + i, lipTopInnerStart + i + 1, lipInnerBottomStart + i + 1);
-      }
-      
-      // Main platform surface (from inner lip edge to cord hole, at y=0)
-      const platformInnerStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
-      }
-      
-      // Platform surface
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipInnerBottomStart + i, platformInnerStart + i, lipInnerBottomStart + i + 1);
-        indices.push(lipInnerBottomStart + i + 1, platformInnerStart + i, platformInnerStart + i + 1);
-      }
+      // Platform surface (from lip inner to cord hole)
+      const platformInner = addRing(() => cordHoleRadius, 0);
+      connectRings(lipInnerBottom, platformInner);
       
       // Bottom surface
-      const bottomOuterStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getBottomRadius(theta);
-        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-      }
+      const bottomOuter = addRing(getBottomRadius, -thickness);
+      const bottomInner = addRing(() => cordHoleRadius, -thickness);
+      connectRings(bottomOuter, bottomInner, true);
       
-      const bottomInnerStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, bottomInnerStart + i);
-        indices.push(bottomOuterStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
-      }
-      
-      // Outer wall (from lip top to bottom)
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipTopOuterStart + i, bottomOuterStart + i, lipTopOuterStart + i + 1);
-        indices.push(lipTopOuterStart + i + 1, bottomOuterStart + i, bottomOuterStart + i + 1);
+      // Outer wall with edge style
+      if (edgeStyle === 'flat') {
+        connectRings(lipTopOuter, bottomOuter);
+      } else {
+        const edgeRings = generateEdgeRings(topY, getOuterRadius);
+        if (edgeRings.length >= 2 && edgeStyle === 'chamfer') {
+          connectRings(lipTopOuter, edgeRings[1]); // to corner
+          connectRings(edgeRings[1], edgeRings[0]); // corner to chamfer bottom
+          connectRings(edgeRings[0], bottomOuter);  // chamfer bottom to bottom
+        } else if (edgeRings.length > 0 && edgeStyle === 'rounded') {
+          let prevRing = lipTopOuter;
+          for (const ring of edgeRings) {
+            connectRings(prevRing, ring);
+            prevRing = ring;
+          }
+          connectRings(prevRing, bottomOuter);
+        }
       }
       
       // Cord hole wall
-      for (let i = 0; i < segments; i++) {
-        indices.push(platformInnerStart + i, platformInnerStart + i + 1, bottomInnerStart + i);
-        indices.push(platformInnerStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
-      }
+      connectRings(platformInner, bottomInner, true);
     } else {
-      // === NO LIP VERSION (with cord hole) ===
-      const topOuterStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getOuterRadius(theta);
-        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
+      // No lip
+      const topOuter = addRing(getOuterRadius, 0);
+      const topInner = addRing(() => cordHoleRadius, 0);
+      connectRings(topOuter, topInner);
+      
+      const bottomOuter = addRing(getBottomRadius, -thickness);
+      const bottomInner = addRing(() => cordHoleRadius, -thickness);
+      connectRings(bottomOuter, bottomInner, true);
+      
+      // Outer wall with edge style
+      if (edgeStyle === 'flat') {
+        connectRings(topOuter, bottomOuter);
+      } else {
+        const edgeRings = generateEdgeRings(0, getOuterRadius);
+        if (edgeRings.length >= 2 && edgeStyle === 'chamfer') {
+          connectRings(topOuter, edgeRings[1]);
+          connectRings(edgeRings[1], edgeRings[0]);
+          connectRings(edgeRings[0], bottomOuter);
+        } else if (edgeRings.length > 0 && edgeStyle === 'rounded') {
+          let prevRing = topOuter;
+          for (const ring of edgeRings) {
+            connectRings(prevRing, ring);
+            prevRing = ring;
+          }
+          connectRings(prevRing, bottomOuter);
+        }
       }
       
-      const topInnerStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        vertices.push(Math.cos(theta) * cordHoleRadius, 0, Math.sin(theta) * cordHoleRadius);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(topOuterStart + i, topInnerStart + i, topOuterStart + i + 1);
-        indices.push(topOuterStart + i + 1, topInnerStart + i, topInnerStart + i + 1);
-      }
-      
-      const bottomOuterStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getBottomRadius(theta);
-        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-      }
-      
-      const bottomInnerStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        vertices.push(Math.cos(theta) * cordHoleRadius, -thickness, Math.sin(theta) * cordHoleRadius);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(bottomOuterStart + i, bottomOuterStart + i + 1, bottomInnerStart + i);
-        indices.push(bottomOuterStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(topOuterStart + i, bottomOuterStart + i, topOuterStart + i + 1);
-        indices.push(topOuterStart + i + 1, bottomOuterStart + i, bottomOuterStart + i + 1);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(topInnerStart + i, topInnerStart + i + 1, bottomInnerStart + i);
-        indices.push(topInnerStart + i + 1, bottomInnerStart + i + 1, bottomInnerStart + i);
-      }
+      // Cord hole wall
+      connectRings(topInner, bottomInner, true);
     }
   } else {
-    // Solid disc (no cord hole)
+    // === SOLID DISC (no cord hole) ===
     
     if (lip > 0) {
-      // === LIP VERSION (solid) ===
-      // Top of lip rim (outer edge at y=lip)
-      const lipTopOuterStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getOuterRadius(theta);
-        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
-      }
+      // Lip top outer
+      const lipTopOuter = addRing(getOuterRadius, topY);
+      // Lip top inner
+      const lipTopInner = addRing(getInnerLipRadius, topY);
+      connectRings(lipTopOuter, lipTopInner);
       
-      // Top of lip rim (inner edge at y=lip)
-      const lipTopInnerStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getInnerLipRadius(theta);
-        vertices.push(Math.cos(theta) * r, lip, Math.sin(theta) * r);
-      }
+      // Lip inner wall
+      const lipInnerBottom = addRing(getInnerLipRadius, 0);
+      connectRings(lipTopInner, lipInnerBottom, true);
       
-      // Lip top surface (ring)
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipTopOuterStart + i, lipTopInnerStart + i, lipTopOuterStart + i + 1);
-        indices.push(lipTopOuterStart + i + 1, lipTopInnerStart + i, lipTopInnerStart + i + 1);
-      }
+      // Platform center
+      const platformCenter = addCenter(0);
+      fillFromCenter(platformCenter, lipInnerBottom);
       
-      // Inner lip wall bottom (at y=0)
-      const lipInnerBottomStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getInnerLipRadius(theta);
-        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-      }
+      // Bottom
+      const bottomCenter = addCenter(-thickness);
+      const bottomRing = addRing(getBottomRadius, -thickness);
+      fillFromCenter(bottomCenter, bottomRing, true);
       
-      // Inner lip wall
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipTopInnerStart + i, lipInnerBottomStart + i + 1, lipInnerBottomStart + i);
-        indices.push(lipTopInnerStart + i, lipTopInnerStart + i + 1, lipInnerBottomStart + i + 1);
-      }
-      
-      // Main platform surface (center at y=0)
-      const platformCenterIdx = vertices.length / 3;
-      vertices.push(0, 0, 0);
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(platformCenterIdx, lipInnerBottomStart + i, lipInnerBottomStart + i + 1);
-      }
-      
-      // Bottom surface
-      const bottomCenterIdx = vertices.length / 3;
-      vertices.push(0, -thickness, 0);
-      
-      const bottomRingStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getBottomRadius(theta);
-        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(bottomCenterIdx, bottomRingStart + i + 1, bottomRingStart + i);
-      }
-      
-      // Outer wall (from lip top to bottom)
-      for (let i = 0; i < segments; i++) {
-        indices.push(lipTopOuterStart + i, bottomRingStart + i, lipTopOuterStart + i + 1);
-        indices.push(lipTopOuterStart + i + 1, bottomRingStart + i, bottomRingStart + i + 1);
+      // Outer wall with edge style
+      if (edgeStyle === 'flat') {
+        connectRings(lipTopOuter, bottomRing);
+      } else {
+        const edgeRings = generateEdgeRings(topY, getOuterRadius);
+        if (edgeRings.length >= 2 && edgeStyle === 'chamfer') {
+          connectRings(lipTopOuter, edgeRings[1]);
+          connectRings(edgeRings[1], edgeRings[0]);
+          connectRings(edgeRings[0], bottomRing);
+        } else if (edgeRings.length > 0 && edgeStyle === 'rounded') {
+          let prevRing = lipTopOuter;
+          for (const ring of edgeRings) {
+            connectRings(prevRing, ring);
+            prevRing = ring;
+          }
+          connectRings(prevRing, bottomRing);
+        }
       }
     } else {
-      // === NO LIP VERSION (solid) ===
-      const topCenterIdx = vertices.length / 3;
-      vertices.push(0, 0, 0);
+      // No lip - simple disc
+      const topCenter = addCenter(0);
+      const topRing = addRing(getOuterRadius, 0);
+      fillFromCenter(topCenter, topRing);
       
-      const topRingStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getOuterRadius(theta);
-        vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r);
-      }
+      const bottomCenter = addCenter(-thickness);
+      const bottomRing = addRing(getBottomRadius, -thickness);
+      fillFromCenter(bottomCenter, bottomRing, true);
       
-      for (let i = 0; i < segments; i++) {
-        indices.push(topCenterIdx, topRingStart + i, topRingStart + i + 1);
-      }
-      
-      const bottomCenterIdx = vertices.length / 3;
-      vertices.push(0, -thickness, 0);
-      
-      const bottomRingStart = vertices.length / 3;
-      for (let i = 0; i <= segments; i++) {
-        const theta = (i / segments) * Math.PI * 2;
-        const r = getBottomRadius(theta);
-        vertices.push(Math.cos(theta) * r, -thickness, Math.sin(theta) * r);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(bottomCenterIdx, bottomRingStart + i + 1, bottomRingStart + i);
-      }
-      
-      for (let i = 0; i < segments; i++) {
-        indices.push(topRingStart + i, bottomRingStart + i, topRingStart + i + 1);
-        indices.push(topRingStart + i + 1, bottomRingStart + i, bottomRingStart + i + 1);
+      // Outer wall with edge style
+      if (edgeStyle === 'flat') {
+        connectRings(topRing, bottomRing);
+      } else {
+        const edgeRings = generateEdgeRings(0, getOuterRadius);
+        if (edgeRings.length >= 2 && edgeStyle === 'chamfer') {
+          connectRings(topRing, edgeRings[1]);
+          connectRings(edgeRings[1], edgeRings[0]);
+          connectRings(edgeRings[0], bottomRing);
+        } else if (edgeRings.length > 0 && edgeStyle === 'rounded') {
+          let prevRing = topRing;
+          for (const ring of edgeRings) {
+            connectRings(prevRing, ring);
+            prevRing = ring;
+          }
+          connectRings(prevRing, bottomRing);
+        }
       }
     }
   }
