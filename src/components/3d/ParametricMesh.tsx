@@ -74,7 +74,7 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry, connectorGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry, connectorGeometry, stackingGeometries } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -801,6 +801,75 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     }
     // Wall mount with 'back' style uses integrated back wall keyholes (no separate stand)
 
+    // Generate stacking interface geometries
+    const stackingGeos: THREE.BufferGeometry[] = [];
+    if (params.stackingEnabled) {
+      const stackDiameter = params.stackingConnectorDiameter * SCALE;
+      const stackDepth = params.stackingConnectorDepth * SCALE;
+      const stackRadius = stackDiameter / 2;
+      const tolerance = 0.25 * SCALE; // 0.25mm tolerance for press fit
+      
+      // Generate top interface
+      if (params.topInterface !== 'none') {
+        if (params.topInterface === 'male') {
+          // Male: cylinder protrusion going UP from top
+          const maleGeo = new THREE.CylinderGeometry(
+            stackRadius - tolerance, // slightly smaller for fit
+            stackRadius - tolerance,
+            stackDepth,
+            32
+          );
+          maleGeo.translate(0, h + stackDepth / 2, 0);
+          stackingGeos.push(maleGeo);
+        } else {
+          // Female: ring showing the recess at top
+          const femaleOuterGeo = new THREE.CylinderGeometry(
+            stackRadius + wall * 0.5,
+            stackRadius + wall * 0.5,
+            stackDepth,
+            32
+          );
+          const femaleInnerGeo = new THREE.CylinderGeometry(
+            stackRadius + tolerance,
+            stackRadius + tolerance,
+            stackDepth + 0.01, // slightly taller for clean subtraction visual
+            32
+          );
+          femaleOuterGeo.translate(0, h - stackDepth / 2, 0);
+          femaleInnerGeo.translate(0, h - stackDepth / 2, 0);
+          stackingGeos.push(femaleOuterGeo);
+          // Inner hole represented as dark ring
+          stackingGeos.push(femaleInnerGeo);
+        }
+      }
+      
+      // Generate bottom interface
+      if (params.bottomInterface !== 'none') {
+        if (params.bottomInterface === 'male') {
+          // Male: cylinder protrusion going DOWN from bottom
+          const maleGeo = new THREE.CylinderGeometry(
+            stackRadius - tolerance,
+            stackRadius - tolerance,
+            stackDepth,
+            32
+          );
+          maleGeo.translate(0, -stackDepth / 2, 0);
+          stackingGeos.push(maleGeo);
+        } else {
+          // Female: recess in bottom (just visual ring)
+          const femaleGeo = new THREE.TorusGeometry(
+            stackRadius,
+            wall * 0.25,
+            8,
+            32
+          );
+          femaleGeo.rotateX(Math.PI / 2);
+          femaleGeo.translate(0, 0.01, 0); // Just above y=0
+          stackingGeos.push(femaleGeo);
+        }
+      }
+    }
+
     return { 
       bodyGeometry: bodyGeo, 
       wireframeGeo: wireGeo, 
@@ -808,7 +877,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       overhangColors: overhangColorArray,
       keyholeGeometries,
       cordHoleGeometry,
-      connectorGeometry: connectorGeo
+      connectorGeometry: connectorGeo,
+      stackingGeometries: stackingGeos,
     };
   }, [params, type]);
 
@@ -877,6 +947,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           />
         </mesh>
       )}
+      
+      {/* Stacking interface connectors */}
+      {stackingGeometries.map((geo, idx) => (
+        <mesh key={`stacking-${idx}`} geometry={geo} castShadow receiveShadow>
+          <meshStandardMaterial
+            color={idx % 2 === 0 ? "#c4c4c4" : "#2a2a2a"}
+            roughness={0.4}
+            metalness={0.1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      ))}
       
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
