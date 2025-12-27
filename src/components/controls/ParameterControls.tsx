@@ -1,21 +1,17 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Wrench, Link, Box, Grip, Lamp, Square, Weight } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Circle, Box, Grip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints, AttachmentType, StandType, SCREW_SPECS, BAYONET_SPECS } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { toast } from 'sonner';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
-import { BasePresetSelector } from './BasePresetSelector';
-import { BasePresetKey, getParamsWithPreset } from '@/lib/base/preset-adapter';
-import { validateBaseConfig } from '@/lib/base/validation';
-import { DEFAULT_SOCKET_CONFIG, DEFAULT_STAND_CONFIG, DEFAULT_CONNECTOR_CONFIG } from '@/lib/base/types';
 
 interface ParameterControlsProps {
   params: ParametricParams;
@@ -49,7 +45,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
     let newParams = { ...params, [key]: value };
     
-    // If support-free mode is on, apply constraints
     if (params.supportFreeMode) {
       newParams = applySupportFreeConstraints(newParams);
     }
@@ -62,7 +57,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     toast.success('Parameters reset');
   };
   
-  // Get support-free constraints
   const constraints = useMemo(() => getSupportFreeConstraints(params), [params]);
   const compliance = useMemo(() => checkSupportFreeCompliance(params), [params]);
   
@@ -70,7 +64,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     let newParams = { ...params, supportFreeMode: enabled };
     if (enabled) {
       newParams = applySupportFreeConstraints(newParams);
-      toast.success('Support-free mode enabled - parameters constrained');
+      toast.success('Support-free mode enabled');
     }
     onParamsChange(newParams);
   };
@@ -81,9 +75,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   
   const handleLegsToggle = (enabled: boolean) => {
     onParamsChange({ ...params, addLegs: enabled });
-    if (enabled) {
-      toast.success('Legs enabled');
-    }
   };
   
   const handleLegCountChange = (count: 3 | 4) => {
@@ -92,130 +83,21 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
 
   const handleCordHoleToggle = (enabled: boolean) => {
     const newParams = { ...params, cordHoleEnabled: enabled };
-    // Auto-enable centering lip when cord hole is enabled for lamps
     if (enabled && type === 'lamp') {
       newParams.centeringLipEnabled = true;
     }
     onParamsChange(newParams);
-    if (enabled) {
-      toast.success('Cord hole enabled');
-    }
-  };
-
-  const handleCordHoleDiameterChange = (value: number) => {
-    onParamsChange({ ...params, cordHoleDiameter: value });
-  };
-
-  const handleCenteringLipToggle = (enabled: boolean) => {
-    onParamsChange({ ...params, centeringLipEnabled: enabled });
-  };
-
-  const handleCenteringLipHeightChange = (value: number) => {
-    onParamsChange({ ...params, centeringLipHeight: value });
-  };
-
-  const handleSocketTypeChange = (value: 'E26' | 'E12' | 'E14' | 'GU10') => {
-    onParamsChange({ ...params, socketType: value });
-  };
-
-  const handleAttachmentTypeChange = (value: AttachmentType) => {
-    onParamsChange({ ...params, attachmentType: value });
-    toast.success(`Attachment: ${getAttachmentLabel(value)}`);
-  };
-
-  const handleScrewCountChange = (count: 3 | 4) => {
-    onParamsChange({ ...params, screwCount: count });
   };
 
   const handleStandTypeChange = (value: StandType) => {
     onParamsChange({ ...params, standType: value });
-    toast.success(`Stand: ${getStandLabel(value)}`);
   };
 
   const getStandLabel = (type: StandType): string => {
     switch (type) {
       case 'tripod': return 'Tripod Legs';
-      case 'weighted_disc': return 'Weighted Disc';
       case 'wall_mount': return 'Wall Mount';
       default: return type;
-    }
-  };
-  
-  // State for selected preset
-  const [selectedPreset, setSelectedPreset] = useState<BasePresetKey | null>(null);
-  
-  // Calculate validation result when legs are enabled
-  const validation = useMemo(() => {
-    if (!params.addLegs) return null;
-    
-    // Build config objects from params
-    const socketConfig = {
-      ...DEFAULT_SOCKET_CONFIG,
-      socketType: params.socketType,
-      cordHoleEnabled: params.cordHoleEnabled,
-      cordHoleDiameter: params.cordHoleDiameter,
-      lipHeight: params.centeringLipHeight,
-    };
-    
-    const standType = params.standType === 'weighted_disc' ? 'weighted-disc' : 
-                      params.standType === 'wall_mount' ? 'wall-mount' : 'tripod';
-    
-    const standConfig = {
-      ...DEFAULT_STAND_CONFIG,
-      type: standType as 'tripod' | 'weighted-disc' | 'wall-mount',
-      tripod: {
-        legCount: params.legCount,
-        legHeight: params.legHeight,
-        legSpread: params.legSpread,
-        legThickness: params.legThickness,
-        legTaper: params.legTaper,
-        legInset: params.legInset,
-      },
-      baseThickness: params.standBaseThickness,
-      baseTaper: params.standBaseTaper,
-      baseEdgeStyle: params.standBaseEdgeStyle,
-      baseLip: params.standBaseLip,
-    };
-    
-    const connectorConfig = {
-      ...DEFAULT_CONNECTOR_CONFIG,
-      type: params.attachmentType === 'screw_m3' ? 'screw-m3' : 
-            params.attachmentType === 'screw_m4' ? 'screw-m4' : 
-            params.attachmentType === 'bayonet' ? 'bayonet' : 
-            params.attachmentType === 'press_fit' ? 'press-fit' : 'integrated',
-    };
-    
-    return validateBaseConfig(
-      params.baseRadius,
-      params.height,
-      socketConfig as any,
-      standConfig as any,
-      connectorConfig as any
-    );
-  }, [params]);
-  
-  const handlePresetSelect = useCallback((presetKey: BasePresetKey) => {
-    setSelectedPreset(presetKey);
-    const newParams = getParamsWithPreset(params, presetKey);
-    onParamsChange(newParams);
-    toast.success(`Applied ${presetKey.replace(/-/g, ' ')} preset`);
-  }, [params, onParamsChange]);
-
-  const getAttachmentLabel = (type: AttachmentType): string => {
-    switch (type) {
-      case 'integrated': return 'Integrated (one piece)';
-      case 'screw_m3': return 'M3 Screws';
-      case 'screw_m4': return 'M4 Screws';
-      case 'bayonet': return 'Bayonet Lock';
-    }
-  };
-
-  const getAttachmentDescription = (type: AttachmentType): string => {
-    switch (type) {
-      case 'integrated': return 'Body and stand print as one piece. Strongest, no assembly.';
-      case 'screw_m3': return `M3 screws (${SCREW_SPECS.m3.clearanceHole}mm holes). Secure, removable.`;
-      case 'screw_m4': return `M4 screws (${SCREW_SPECS.m4.clearanceHole}mm holes). Heavy-duty.`;
-      case 'bayonet': return 'Twist-lock tabs. Tool-free, quick assembly.';
     }
   };
 
@@ -242,13 +124,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         
         {params.addLegs && (
           <div className="space-y-3 pt-2 border-t border-border/50">
-            {/* Base Preset Selector */}
-            <BasePresetSelector 
-              selectedPreset={selectedPreset}
-              onSelectPreset={handlePresetSelect}
-              validation={validation}
-            />
-            
             {/* Stand Type Selector */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Stand Type</Label>
@@ -258,7 +133,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tripod">Tripod Legs</SelectItem>
-                  <SelectItem value="weighted_disc">Weighted Disc</SelectItem>
                   <SelectItem value="wall_mount">Wall Mount</SelectItem>
                 </SelectContent>
               </Select>
@@ -389,9 +263,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     step={0.05}
                     onChange={handleChange('standBaseTaper')}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    0 = straight sides, 0.5 = 50% narrower at bottom
-                  </p>
                   
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Edge Style</Label>
@@ -421,111 +292,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     unit="mm"
                     onChange={handleChange('standBaseLip')}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Raised edge around base (tray effect)
-                  </p>
-                </div>
-              </>
-            )}
-            
-            {/* Weighted Disc controls */}
-            {params.standType === 'weighted_disc' && (
-              <>
-                <ParameterSlider
-                  label="Disc Diameter"
-                  value={params.pedestalDiameter}
-                  min={60}
-                  max={200}
-                  step={5}
-                  unit="mm"
-                  onChange={handleChange('pedestalDiameter')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Base diameter for stability
-                </p>
-                
-                <ParameterSlider
-                  label="Disc Thickness"
-                  value={params.standBaseThickness}
-                  min={5}
-                  max={20}
-                  step={1}
-                  unit="mm"
-                  onChange={handleChange('standBaseThickness')}
-                />
-                
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Edge Style</Label>
-                  <Select 
-                    value={params.standBaseEdgeStyle} 
-                    onValueChange={(value: 'flat' | 'rounded' | 'chamfer') => {
-                      onParamsChange({ ...params, standBaseEdgeStyle: value });
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="flat">Flat</SelectItem>
-                      <SelectItem value="rounded">Rounded</SelectItem>
-                      <SelectItem value="chamfer">Chamfer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Weight className={cn("w-4 h-4", params.pedestalHollow ? "text-primary" : "text-muted-foreground")} />
-                    <Label className="text-sm font-medium">Weight Cavity</Label>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="weight-cavity" className="text-xs">Enable Weight Cavity</Label>
-                    <Switch 
-                      id="weight-cavity" 
-                      checked={params.pedestalHollow} 
-                      onCheckedChange={(v) => onParamsChange({ ...params, pedestalHollow: v })}
-                    />
-                  </div>
-                  
-                  {params.pedestalHollow && (
-                    <>
-                      <ParameterSlider
-                        label="Cavity Diameter"
-                        value={params.ringBaseDiameter}
-                        min={30}
-                        max={150}
-                        step={5}
-                        unit="mm"
-                        onChange={handleChange('ringBaseDiameter')}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Recess for coins/washers to add weight
-                      </p>
-                    </>
-                  )}
-                </div>
-                
-                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="rubber-feet" className="text-xs">Rubber Feet Recesses</Label>
-                    <div className="flex gap-2">
-                      {([3, 4] as const).map((count) => (
-                        <Button
-                          key={count}
-                          variant={params.legCount === count ? 'default' : 'outline'}
-                          size="sm"
-                          className="w-10"
-                          onClick={() => handleLegCountChange(count)}
-                        >
-                          {count}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Number of circular recesses for rubber feet
-                  </p>
                 </div>
               </>
             )}
@@ -571,9 +337,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   step={0.01}
                   onChange={handleChange('wallMountHoleMargin')}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Distance from edge (smaller = closer to edge)
-                </p>
                 
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
@@ -608,77 +371,11 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {params.wallMountStyle === 'back' ? 'Flat back with keyholes for wall hanging' : 'Base plate with keyholes - sits on surface or mounts to wall'}
+                    {params.wallMountStyle === 'back' ? 'Flat back with keyholes' : 'Base plate with keyholes'}
                   </p>
                 </div>
               </>
             )}
-            
-            {/* Attachment Type Controls */}
-            <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
-              <div className="flex items-center gap-2">
-                <Link className={cn("w-4 h-4", params.attachmentType !== 'integrated' ? "text-primary" : "text-muted-foreground")} />
-                <Label className="text-sm font-medium">Attachment Type</Label>
-              </div>
-              
-              <Select value={params.attachmentType} onValueChange={handleAttachmentTypeChange}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="integrated">Integrated (one piece)</SelectItem>
-                  <SelectItem value="screw_m3">M3 Screw Mount</SelectItem>
-                  <SelectItem value="screw_m4">M4 Screw Mount</SelectItem>
-                  <SelectItem value="bayonet">Bayonet Lock</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <p className="text-xs text-muted-foreground">
-                {getAttachmentDescription(params.attachmentType)}
-              </p>
-              
-              {(params.attachmentType === 'screw_m3' || params.attachmentType === 'screw_m4') && (
-                <div className="flex gap-2">
-                  <Button
-                    variant={params.screwCount === 3 ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleScrewCountChange(3)}
-                  >
-                    3 Screws
-                  </Button>
-                  <Button
-                    variant={params.screwCount === 4 ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleScrewCountChange(4)}
-                  >
-                    4 Screws
-                  </Button>
-                </div>
-              )}
-              
-              {params.attachmentType === 'bayonet' && (
-                <div className="flex gap-2">
-                  <Button
-                    variant={params.screwCount === 3 ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleScrewCountChange(3)}
-                  >
-                    3 Tabs
-                  </Button>
-                  <Button
-                    variant={params.screwCount === 4 ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleScrewCountChange(4)}
-                  >
-                    4 Tabs
-                  </Button>
-                </div>
-              )}
-            </div>
             
             {/* Cord Hole Controls */}
             <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
@@ -703,7 +400,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     max={12}
                     step={0.5}
                     unit="mm"
-                    onChange={handleCordHoleDiameterChange}
+                    onChange={handleChange('cordHoleDiameter')}
                   />
                   
                   {/* Centering Lip Controls */}
@@ -716,7 +413,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       <Switch 
                         id="centering-lip" 
                         checked={params.centeringLipEnabled} 
-                        onCheckedChange={handleCenteringLipToggle}
+                        onCheckedChange={(v) => onParamsChange({ ...params, centeringLipEnabled: v })}
                       />
                     </div>
                     
@@ -724,7 +421,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       <div className="space-y-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Socket Type</Label>
-                          <Select value={params.socketType} onValueChange={handleSocketTypeChange}>
+                          <Select value={params.socketType} onValueChange={(v: 'E26' | 'E12' | 'E14' | 'GU10') => onParamsChange({ ...params, socketType: v })}>
                             <SelectTrigger className="h-8 text-xs">
                               <SelectValue />
                             </SelectTrigger>
@@ -743,7 +440,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                           max={5}
                           step={0.5}
                           unit="mm"
-                          onChange={handleCenteringLipHeightChange}
+                          onChange={handleChange('centeringLipHeight')}
                         />
                       </div>
                     )}
@@ -801,7 +498,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         Reset to Default
       </Button>
 
-      {/* Dimensions - in mm */}
+      {/* Dimensions */}
       <Section title="Dimensions (mm)" defaultOpen={true}>
         <ParameterSlider
           label="Height"
@@ -900,15 +597,16 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           onChange={handleChange('twistAngle')}
         />
         <ParameterSlider
-          label="Wobble Waves"
+          label="Wobble Frequency"
           value={params.wobbleFrequency}
           min={0}
-          max={8}
+          max={params.supportFreeMode ? constraints.wobbleFrequency.max : 8}
           step={1}
           onChange={handleChange('wobbleFrequency')}
+          constrained={params.supportFreeMode}
         />
         <ParameterSlider
-          label="Wobble Depth"
+          label="Wobble Amount"
           value={params.wobbleAmplitude}
           min={0}
           max={params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15}
@@ -921,7 +619,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       {/* Surface */}
       <Section title="Surface Details" defaultOpen={false}>
         <ParameterSlider
-          label="Ripples"
+          label="Ripple Count"
           value={params.rippleCount}
           min={0}
           max={16}
@@ -932,17 +630,19 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Ripple Depth"
           value={params.rippleDepth}
           min={0}
-          max={0.1}
+          max={params.supportFreeMode ? constraints.rippleDepth.max : 0.1}
           step={0.005}
           onChange={handleChange('rippleDepth')}
+          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Organic Noise"
           value={params.organicNoise}
           min={0}
-          max={0.1}
+          max={params.supportFreeMode ? constraints.organicNoise.max : 0.1}
           step={0.005}
           onChange={handleChange('organicNoise')}
+          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Noise Scale"
@@ -973,113 +673,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           step={0.01}
           onChange={handleChange('lipHeight')}
         />
-      </Section>
-      
-      {/* Stacking Interface */}
-      <Section title="Stacking Interface" defaultOpen={false}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Link className={cn("w-4 h-4", params.stackingEnabled ? "text-primary" : "text-muted-foreground")} />
-            <Label htmlFor="stacking-enabled" className="text-sm font-medium">Enable Stacking</Label>
-          </div>
-          <Switch 
-            id="stacking-enabled" 
-            checked={params.stackingEnabled} 
-            onCheckedChange={(enabled) => onParamsChange({ ...params, stackingEnabled: enabled })}
-          />
-        </div>
-        
-        {params.stackingEnabled && (
-          <div className="space-y-3 pt-2 border-t border-border/50">
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Top Interface</Label>
-              <Select 
-                value={params.topInterface} 
-                onValueChange={(value: 'none' | 'male' | 'female') => {
-                  onParamsChange({ ...params, topInterface: value });
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="male">Male (protrusion)</SelectItem>
-                  <SelectItem value="female">Female (recess)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Bottom Interface</Label>
-              <Select 
-                value={params.bottomInterface} 
-                onValueChange={(value: 'none' | 'male' | 'female') => {
-                  onParamsChange({ ...params, bottomInterface: value });
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="male">Male (protrusion)</SelectItem>
-                  <SelectItem value="female">Female (recess)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <p className="text-xs text-muted-foreground">
-              To stack bodies: set top as female, bottom of next body as male (or vice versa)
-            </p>
-            
-            <ParameterSlider
-              label="Connector Diameter"
-              value={params.stackingConnectorDiameter}
-              min={8}
-              max={40}
-              step={1}
-              unit="mm"
-              onChange={handleChange('stackingConnectorDiameter')}
-            />
-            <p className="text-xs text-muted-foreground">
-              Sized ~50-70% of body radius works best
-            </p>
-            
-            <ParameterSlider
-              label="Insert Depth"
-              value={params.stackingConnectorDepth}
-              min={4}
-              max={20}
-              step={1}
-              unit="mm"
-              onChange={handleChange('stackingConnectorDepth')}
-            />
-            
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Connector Type</Label>
-              <Select 
-                value={params.stackingConnectorType} 
-                onValueChange={(value: 'press_fit' | 'bayonet') => {
-                  onParamsChange({ ...params, stackingConnectorType: value });
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="press_fit">Press Fit</SelectItem>
-                  <SelectItem value="bayonet">Bayonet Lock</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {params.stackingConnectorType === 'press_fit' 
-                  ? 'Friction fit - snug tolerance for secure hold' 
-                  : 'Quarter-turn lock tabs - tool-free assembly'}
-              </p>
-            </div>
-          </div>
-        )}
       </Section>
     </motion.div>
   );

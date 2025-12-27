@@ -1,23 +1,9 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ParametricParams, ObjectType, printConstraints, AttachmentType } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate, AttachmentParams } from '@/lib/leg-generator';
-import { generateConnector } from '@/lib/base/connector';
-import { 
-  validateBaseConfig, 
-  getMinimumBodyRadius,
-  ValidationResult,
-  composeBase,
-  BaseAssembly,
-} from '@/lib/base';
-import {
-  SocketMountConfig,
-  StandConfig,
-  ConnectorConfig,
-  SOCKET_THREAD_DIAMETERS,
-} from '@/lib/base/types';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -74,7 +60,7 @@ const SCALE = 0.01;
 const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry, connectorGeometry, stackingGeometries } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -106,16 +92,14 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     const heightSegments = 64;
     
     // For wall mount with BACK style, we generate FULL 360° object then slice with a plane
-    // BASE style wall mount keeps full 360° body and adds a base plate with keyholes
     const isWallMount = addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'back';
-    const cutOffset = (params.wallMountCutOffset || 0) * SCALE; // Convert mm to scene units
+    const cutOffset = (params.wallMountCutOffset || 0) * SCALE;
 
     const outerVerts: number[] = [];
-    // Store radii at each height for sizing calculations
     const radiiAtHeight: number[] = [];
     let maxRadius = 0;
 
-    // Generate full 360° object regardless of wall mount
+    // Generate full 360° object
     for (let i = 0; i <= heightSegments; i++) {
       const t = i / heightSegments;
       const y = t * h;
@@ -141,16 +125,13 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
       radius *= (1 - pinchTop - pinchBottom);
 
-      // Lip flare - guard against division by zero when lipHeight is 0
+      // Lip flare
       if (lipHeight > 0 && lipFlare !== 0) {
         const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
         radius += lipT * lipT * lipFlare * bRad;
       }
 
-      // Ensure minimum radius
       radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
-      
-      // Store radius and track max for plate sizing
       radiiAtHeight.push(radius);
       if (radius > maxRadius) maxRadius = radius;
 
@@ -172,13 +153,10 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += Math.sin(theta * rippleCount) * maxRipple * bRad;
         }
 
-        // Asymmetry - now much crazier with multiple patterns
+        // Asymmetry
         if (asymmetry > 0) {
-          // Primary wave - large one-sided bulge
           const primaryWave = Math.sin(theta) * Math.cos(t * Math.PI) * asymmetry * bRad;
-          // Secondary wave - twisting asymmetry along height
           const secondaryWave = Math.sin(theta * 2 + t * Math.PI * 3) * asymmetry * 0.5 * bRad;
-          // Directional lean - the whole shape leans
           const lean = Math.cos(theta) * t * asymmetry * 0.4 * bRad;
           r += primaryWave + secondaryWave + lean;
         }
@@ -191,7 +169,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
         }
 
-        // Ensure minimum radius
         r = Math.max(r, wall * 2);
 
         const x = Math.cos(theta) * r;
@@ -201,62 +178,20 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       }
     }
 
-    // Build body geometry
     const vertices: number[] = [];
     const indices: number[] = [];
 
-    // Helper function to create keyhole geometry for visual rendering
-    // CORRECT keyhole: large circle at TOP (where you insert screw head), narrow slot going UP (slide up to lock)
-    // When hung on wall: insert screw head in large hole, slide DOWN so screw shaft goes into narrow slot
+    // Helper to create keyhole geometry
     const createKeyholeVisual = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
       const segs = 32;
-      const headRadius = 4 * SCALE;    // 8mm diameter head hole (large circle)
-      const slotWidth = 2 * SCALE;     // 4mm wide slot for screw shaft
-      const slotLength = 8 * SCALE;    // 8mm slot length going UP from circle
-      const depth = 3 * SCALE;         // 3mm depth (goes through back wall)
+      const headRadius = 4 * SCALE;
+      const slotWidth = 2 * SCALE;
+      const slotLength = 8 * SCALE;
+      const depth = 3 * SCALE;
       
-      // Create 2D keyhole shape: large circle at BOTTOM, narrow slot going UP
-      // This is correct because when you hang something:
-      // 1. Put screw in wall
-      // 2. Position large hole over screw head
-      // 3. Slide object DOWN so screw shaft enters narrow slot above
-      const shape = new THREE.Shape();
-      
-      // Draw circle (large opening at bottom for screw head entry)
-      shape.moveTo(headRadius, 0);
-      for (let i = 1; i <= segs; i++) {
-        const angle = (i / segs) * Math.PI * 2;
-        shape.lineTo(Math.cos(angle) * headRadius, Math.sin(angle) * headRadius);
-      }
-      
-      // Add the slot going UP from the circle
-      const slotPath = new THREE.Path();
-      slotPath.moveTo(slotWidth, headRadius * 0.5);
-      slotPath.lineTo(slotWidth, slotLength);
-      
-      // Rounded top of slot
-      for (let i = 0; i <= segs / 2; i++) {
-        const angle = (i / (segs / 2)) * Math.PI;
-        slotPath.lineTo(
-          Math.cos(angle) * slotWidth,
-          slotLength + Math.sin(angle) * slotWidth
-        );
-      }
-      
-      slotPath.lineTo(-slotWidth, headRadius * 0.5);
-      slotPath.closePath();
-      
-      // Add slot as a hole that will merge with circle
-      shape.holes.push(slotPath);
-      
-      // Actually we need to combine them - let's draw as one continuous shape
       const combinedShape = new THREE.Shape();
-      
-      // Start from right side where slot meets circle
       combinedShape.moveTo(slotWidth, headRadius * 0.3);
-      // Go up the slot right side
       combinedShape.lineTo(slotWidth, slotLength);
-      // Round top of slot
       for (let i = 0; i <= segs / 4; i++) {
         const angle = (i / (segs / 4)) * Math.PI;
         combinedShape.lineTo(
@@ -264,27 +199,22 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           slotLength + Math.sin(angle) * slotWidth
         );
       }
-      // Down left side of slot
       combinedShape.lineTo(-slotWidth, headRadius * 0.3);
-      // Around the bottom circle (left side, then bottom, then right side back to start)
       for (let i = 0; i <= segs * 0.75; i++) {
         const angle = Math.PI / 2 + (i / (segs * 0.75)) * (Math.PI * 1.5);
         combinedShape.lineTo(Math.cos(angle) * headRadius, Math.sin(angle) * headRadius);
       }
       combinedShape.closePath();
       
-      // Extrude to create 3D shape
       const geo = new THREE.ExtrudeGeometry(combinedShape, {
         depth: depth,
         bevelEnabled: false,
       });
       
-      // Position: push into the back wall
       geo.translate(cx, cy, zPos - depth);
       return geo;
     };
     
-    // Helper to create circular hole visual
     const createCircleVisual = (cx: number, cy: number, radius: number, zPos: number): THREE.BufferGeometry => {
       const geo = new THREE.CylinderGeometry(radius, radius, 2 * SCALE, 32);
       geo.rotateX(Math.PI / 2);
@@ -292,33 +222,26 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       return geo;
     };
 
-    // Store visual keyhole geometries for wall mount
     let keyholeGeometries: THREE.BufferGeometry[] = [];
     let cordHoleGeometry: THREE.BufferGeometry | null = null;
 
     if (isWallMount) {
-      // Wall mount: clip at z = cutOffset, create proper back wall
-      
-      // === SMART KEYHOLE POSITIONING ===
-      // Minimum dimensions for keyholes
-      const KEYHOLE_HEIGHT = 12 * SCALE;     // 12mm keyhole visual height
-      const KEYHOLE_MIN_MARGIN = 10 * SCALE; // 10mm minimum from edge
-      const KEYHOLE_MIN_SPACING = 25 * SCALE; // 25mm minimum between holes
+      // Wall mount clipping and keyhole generation
+      const KEYHOLE_HEIGHT = 12 * SCALE;
+      const KEYHOLE_MIN_MARGIN = 10 * SCALE;
+      const KEYHOLE_MIN_SPACING = 25 * SCALE;
       
       const holeCount = params.wallMountHoleCount || 2;
       const holeMargin = params.wallMountHoleMargin || 0.15;
       const holePositions: { x: number; y: number }[] = [];
       
-      // Calculate available height for keyholes
       const availableHeight = h - 2 * KEYHOLE_MIN_MARGIN;
       
       if (availableHeight >= KEYHOLE_HEIGHT) {
-        // We have room for at least one keyhole
         const marginY = Math.max(h * holeMargin, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
         const topMarginY = Math.max(h * holeMargin, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
         
         if (holeCount === 2 && availableHeight >= KEYHOLE_MIN_SPACING + KEYHOLE_HEIGHT) {
-          // Two vertical holes only if there's enough spacing
           const bottomY = Math.max(marginY, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
           const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
           
@@ -326,60 +249,24 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
             holePositions.push({ x: 0, y: bottomY });
             holePositions.push({ x: 0, y: topY });
           } else {
-            // Not enough vertical space, use single centered hole
             holePositions.push({ x: 0, y: h / 2 });
           }
-        } else if (holeCount === 3 && availableHeight >= KEYHOLE_MIN_SPACING) {
-          const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
-          holePositions.push({ x: 0, y: topY });
-          
-          // Bottom two holes spread horizontally
-          const bottomSpread = Math.min(bRad * 0.4, bRad - 5 * SCALE);
-          const bottomY = Math.max(marginY, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
-          if (bottomSpread > 5 * SCALE) {
-            holePositions.push({ x: -bottomSpread, y: bottomY });
-            holePositions.push({ x: bottomSpread, y: bottomY });
-          } else {
-            holePositions.push({ x: 0, y: bottomY });
-          }
-        } else if (holeCount >= 4 && availableHeight >= KEYHOLE_MIN_SPACING) {
-          const topSpread = Math.min(tRad * 0.35, tRad - 5 * SCALE);
-          const bottomSpread = Math.min(bRad * 0.35, bRad - 5 * SCALE);
-          const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
-          const bottomY = Math.max(marginY, KEYHOLE_MIN_MARGIN + KEYHOLE_HEIGHT / 2);
-          
-          if (topSpread > 5 * SCALE && bottomSpread > 5 * SCALE && topY - bottomY >= KEYHOLE_MIN_SPACING) {
-            holePositions.push({ x: -topSpread, y: topY });
-            holePositions.push({ x: topSpread, y: topY });
-            holePositions.push({ x: -bottomSpread, y: bottomY });
-            holePositions.push({ x: bottomSpread, y: bottomY });
-          } else {
-            // Fallback to 2 holes
-            holePositions.push({ x: 0, y: bottomY });
-            holePositions.push({ x: 0, y: topY });
-          }
         } else {
-          // Single centered hole for short pieces
           holePositions.push({ x: 0, y: h / 2 });
         }
       }
-      // If availableHeight < KEYHOLE_HEIGHT, no holes are added (piece too short)
       
-      // Create visual keyhole geometries
       for (const pos of holePositions) {
         keyholeGeometries.push(createKeyholeVisual(pos.x, pos.y, cutOffset));
       }
       
-      // Create cord hole visual if enabled
       if (params.wallMountCordHoleEnabled) {
         const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
-        const cordY = h * 0.5;
-        cordHoleGeometry = createCircleVisual(0, cordY, cordRadius, cutOffset);
+        cordHoleGeometry = createCircleVisual(0, h * 0.5, cordRadius, cutOffset);
       }
       
-      // Clip vertices at cut plane
+      // Clip vertices
       const clippedVerts: number[] = [];
-      
       for (let i = 0; i < outerVerts.length; i += 3) {
         const x = outerVerts[i];
         const y = outerVerts[i + 1];
@@ -388,12 +275,11 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         clippedVerts.push(x, y, z);
       }
       
-      // Copy to main array
       for (let i = 0; i < clippedVerts.length; i++) {
         vertices.push(clippedVerts[i]);
       }
       
-      // Build shell surface faces (front part only)
+      // Build faces
       for (let i = 0; i < heightSegments; i++) {
         for (let j = 0; j < segments; j++) {
           const a = i * (segments + 1) + j;
@@ -418,19 +304,14 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         }
       }
       
-      // === CREATE BACK WALL FROM ACTUAL BODY INTERSECTION ===
-      // Scan ALL intersections and use leftmost/rightmost for asymmetric shapes
-      
+      // Create back wall
       const edgePoints: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         const y = t * h;
-        
-        // Collect ALL intersection points at this height level
         const intersections: number[] = [];
         
-        // Scan through all angles to find all intersections with cut plane
         for (let j = 0; j < segments; j++) {
           const idx1 = i * (segments + 1) + j;
           const idx2 = i * (segments + 1) + j + 1;
@@ -440,119 +321,67 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           const x2 = outerVerts[idx2 * 3];
           const z2 = outerVerts[idx2 * 3 + 2];
           
-          // Check if the cut plane crosses between these two vertices
           if ((z1 >= cutOffset && z2 < cutOffset) || (z1 < cutOffset && z2 >= cutOffset)) {
-            // Interpolate to find exact intersection point
             const tInterp = (cutOffset - z1) / (z2 - z1);
-            const xIntersect = x1 + tInterp * (x2 - x1);
-            intersections.push(xIntersect);
+            intersections.push(x1 + tInterp * (x2 - x1));
           }
         }
         
-        // If we found intersections, use leftmost and rightmost
         if (intersections.length >= 2) {
           intersections.sort((a, b) => a - b);
-          const leftX = intersections[0];
-          const rightX = intersections[intersections.length - 1];
-          
-          if (Math.abs(rightX - leftX) > 0.001) {
-            edgePoints.push({ x: leftX, y });
-            edgePoints.push({ x: rightX, y });
-          }
-        } else if (intersections.length === 1) {
-          // Single intersection - use center point on other side
           edgePoints.push({ x: intersections[0], y });
-          edgePoints.push({ x: 0, y }); // Center fallback
-        } else {
-          // No intersection found - fallback to radius calculation
-          const radius = radiiAtHeight[i] || bRad;
-          const rSquared = radius * radius;
-          const zSquared = cutOffset * cutOffset;
-          
-          if (rSquared > zSquared) {
-            const xBoundary = Math.sqrt(rSquared - zSquared);
-            edgePoints.push({ x: -xBoundary, y });
-            edgePoints.push({ x: xBoundary, y });
-          }
+          edgePoints.push({ x: intersections[intersections.length - 1], y });
+        } else if (intersections.length === 1) {
+          edgePoints.push({ x: intersections[0], y });
         }
       }
       
-      // Sort all edge points and create left/right edges
-      const leftEdge: { x: number; y: number }[] = [];
-      const rightEdge: { x: number; y: number }[] = [];
-      
-      // Group by Y and take min/max X for each height
-      const pointsByY = new Map<number, number[]>();
-      for (const pt of edgePoints) {
-        const yKey = Math.round(pt.y * 1000); // Round to avoid floating point issues
-        if (!pointsByY.has(yKey)) {
-          pointsByY.set(yKey, []);
-        }
-        pointsByY.get(yKey)!.push(pt.x);
-      }
-      
-      // Convert to sorted arrays
-      const sortedYKeys = Array.from(pointsByY.keys()).sort((a, b) => a - b);
-      for (const yKey of sortedYKeys) {
-        const xValues = pointsByY.get(yKey)!;
-        const y = yKey / 1000;
-        const minX = Math.min(...xValues);
-        const maxX = Math.max(...xValues);
+      // Create back wall triangles
+      if (edgePoints.length >= 4) {
+        const backStart = vertices.length / 3;
         
-        if (Math.abs(maxX - minX) > 0.001) {
-          leftEdge.push({ x: minX, y });
-          rightEdge.push({ x: maxX, y });
-        }
-      }
-      
-      // Build outline for back wall: left edge bottom-to-top, then right edge top-to-bottom
-      const outline: { x: number; y: number }[] = [];
-      
-      // Left edge (bottom to top)
-      for (const pt of leftEdge) {
-        outline.push(pt);
-      }
-      
-      // Right edge (top to bottom - reversed)
-      for (let i = rightEdge.length - 1; i >= 0; i--) {
-        outline.push(rightEdge[i]);
-      }
-      
-      if (outline.length >= 3) {
-        // Add back wall vertices
-        const backWallStartIdx = vertices.length / 3;
-        for (const pt of outline) {
+        for (const pt of edgePoints) {
           vertices.push(pt.x, pt.y, cutOffset);
         }
         
-        // Calculate centroid for fan triangulation
-        let centerX = 0, centerY = 0;
-        for (const pt of outline) {
-          centerX += pt.x;
-          centerY += pt.y;
-        }
-        centerX /= outline.length;
-        centerY /= outline.length;
-        
-        const centerIdx = vertices.length / 3;
-        vertices.push(centerX, centerY, cutOffset);
-        
-        // Create fan triangles (winding for back face facing -Z)
-        for (let i = 0; i < outline.length; i++) {
-          const a = backWallStartIdx + i;
-          const b = backWallStartIdx + ((i + 1) % outline.length);
-          // Correct winding for back-facing surface
-          indices.push(centerIdx, b, a);
+        for (let i = 0; i < edgePoints.length - 2; i += 2) {
+          const bl = backStart + i;
+          const br = backStart + i + 1;
+          const tl = backStart + i + 2;
+          const tr = backStart + i + 3;
+          
+          if (tl < backStart + edgePoints.length && tr < backStart + edgePoints.length) {
+            indices.push(bl, tl, br);
+            indices.push(br, tl, tr);
+          }
         }
       }
-      
     } else {
-      // Normal full 360° object (no wall mount)
+      // Full 360° body with shell
+      const innerVerts: number[] = [];
+      
+      for (let i = 0; i < outerVerts.length; i += 3) {
+        const ox = outerVerts[i];
+        const oy = outerVerts[i + 1];
+        const oz = outerVerts[i + 2];
+        const or = Math.sqrt(ox * ox + oz * oz);
+        const ir = Math.max(or - wall, 0.01);
+        const angle = Math.atan2(oz, ox);
+        innerVerts.push(Math.cos(angle) * ir, oy, Math.sin(angle) * ir);
+      }
+      
+      // Add outer vertices
       for (let i = 0; i < outerVerts.length; i++) {
         vertices.push(outerVerts[i]);
       }
       
-      // Outer surface indices
+      // Add inner vertices
+      const innerOffset = vertices.length / 3;
+      for (let i = 0; i < innerVerts.length; i++) {
+        vertices.push(innerVerts[i]);
+      }
+      
+      // Outer wall faces
       for (let i = 0; i < heightSegments; i++) {
         for (let j = 0; j < segments; j++) {
           const a = i * (segments + 1) + j;
@@ -563,18 +392,46 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           indices.push(b, c, d);
         }
       }
-    }
-
-    // Add base cap for preview when legs are NOT enabled
-    if (!addLegs) {
-      const baseCenterIdx = vertices.length / 3;
-      vertices.push(0, 0, 0); // Center point at base
       
-      // Connect first ring of vertices to center to create base cap
+      // Inner wall faces (inverted)
+      for (let i = 0; i < heightSegments; i++) {
+        for (let j = 0; j < segments; j++) {
+          const a = innerOffset + i * (segments + 1) + j;
+          const b = a + 1;
+          const c = a + (segments + 1);
+          const d = c + 1;
+          indices.push(a, b, c);
+          indices.push(b, d, c);
+        }
+      }
+      
+      // Top rim
+      const topRowOuter = heightSegments * (segments + 1);
+      const topRowInner = innerOffset + topRowOuter;
       for (let j = 0; j < segments; j++) {
-        const a = j;
-        const b = j + 1;
-        indices.push(baseCenterIdx, b, a);
+        const a = topRowOuter + j;
+        const b = topRowOuter + j + 1;
+        const c = topRowInner + j;
+        const d = topRowInner + j + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+      
+      // Bottom base
+      const baseY = 0;
+      const bottomCenterIdx = vertices.length / 3;
+      vertices.push(0, baseY, 0);
+      
+      const basePts: number[] = [];
+      for (let j = 0; j <= segments; j++) {
+        const idx = j;
+        basePts.push(outerVerts[idx * 3], outerVerts[idx * 3 + 2]);
+      }
+      
+      for (let j = 0; j < segments; j++) {
+        const curr = j;
+        const next = j + 1;
+        indices.push(bottomCenterIdx, next, curr);
       }
     }
 
@@ -583,19 +440,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     bodyGeo.setIndex(indices);
     bodyGeo.computeVertexNormals();
     
-    // Generate overhang colors if enabled
     let overhangColorArray: Float32Array | null = null;
     if (params.showOverhangMap && !isWallMount) {
       overhangColorArray = getOverhangVertexColors(params, heightSegments, segments);
       bodyGeo.setAttribute('color', new THREE.Float32BufferAttribute(overhangColorArray, 3));
     }
 
-    // Wireframe geometry
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
     
-    // Calculate effective base radius based on baseSizeMode
-    const bottomRadiusMM = radiiAtHeight[0] / SCALE;  // Actual bottom radius of the lamp
-    const maxRadiusMM = maxRadius / SCALE;            // Widest point of the lamp
+    // Calculate effective base radius
+    const bottomRadiusMM = radiiAtHeight[0] / SCALE;
+    const maxRadiusMM = maxRadius / SCALE;
     
     let effectiveBaseRadius: number;
     switch (params.baseSizeMode) {
@@ -611,102 +466,12 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         break;
     }
     
-    // Build validation configs from params
-    // Note: We always use press-fit-ring for validation even if centering lip disabled
-    // This ensures socket dimensions are checked for compatibility
-    const socketConfig: SocketMountConfig = {
-      type: 'press-fit-ring',
-      socketType: params.socketType,
-      clearance: 0.5,
-      lipHeight: params.centeringLipEnabled ? (params.centeringLipHeight || 3) : 0,
-      cordHoleEnabled: params.cordHoleEnabled,
-      cordHoleDiameter: params.cordHoleDiameter,
-    };
-    
-    const standConfig: StandConfig = {
-      type: params.standType === 'tripod' ? 'tripod' : 
-            params.standType === 'weighted_disc' ? 'weighted-disc' : 'wall-mount',
-      tripod: params.standType === 'tripod' ? {
-        legCount: params.legCount,
-        legHeight: params.legHeight,
-        legSpread: params.legSpread,
-        legThickness: params.legThickness,
-        legTaper: params.legTaper,
-        legInset: params.legInset,
-      } : undefined,
-      weightedDisc: params.standType === 'weighted_disc' ? {
-        discDiameter: params.pedestalDiameter || 100, // Use UI control directly
-        discThickness: params.standBaseThickness || 8,
-        weightCavityEnabled: params.pedestalHollow || false,
-        weightCavityDiameter: params.pedestalHollow ? (params.ringBaseDiameter || (params.pedestalDiameter * 0.6)) : 0,
-        weightCavityDepth: params.pedestalHollow ? Math.max((params.standBaseThickness || 8) - 2, 2) : 0,
-        rubberFeetEnabled: true,
-        rubberFeetCount: params.legCount || 3,
-        rubberFeetDiameter: 10,
-      } : undefined,
-      baseThickness: params.standBaseThickness || 3,
-      baseTaper: params.standBaseTaper || 0,
-      baseEdgeStyle: params.standBaseEdgeStyle || 'flat',
-      baseLip: params.standBaseLip || 0,
-    };
-    
-    const connectorConfig: ConnectorConfig = {
-      type: params.attachmentType === 'integrated' ? 'integrated' :
-            params.attachmentType === 'press_fit' ? 'press-fit' :
-            params.attachmentType === 'bayonet' ? 'bayonet' :
-            params.attachmentType === 'screw_m3' ? 'screw-m3' : 'screw-m4',
-      tolerance: 0.3,
-      insertDepth: 5,
-      screwCount: params.screwCount,
-    };
-    
-    // Validate base configuration (log warnings to console for now)
-    let validation: ValidationResult | null = null;
-    let baseAssembly: BaseAssembly | null = null;
-    
-    if (addLegs) {
-      validation = validateBaseConfig(
-        effectiveBaseRadius,
-        params.height,
-        socketConfig,
-        standConfig,
-        connectorConfig
-      );
-      
-      if (validation.warnings.length > 0) {
-        console.log('[Base Validation] Warnings:', validation.warnings);
-      }
-      if (!validation.isValid) {
-        console.warn('[Base Validation] Errors:', validation.errors);
-      }
-    }
-    
     let standGeo: THREE.BufferGeometry | null = null;
-    let connectorGeo: THREE.BufferGeometry | null = null;
     
-    // Generate connector geometry if not integrated (for visibility between body and base)
-    // The connector creates a visible collar that sits between body (y=0) and stand
-    // NOTE: For tripod stands, generateLegsWithBase() already handles attachment features,
-    // so we only generate separate connector for weighted_disc (which uses composeBase)
-    if (addLegs && params.attachmentType !== 'integrated' && params.standType === 'weighted_disc') {
-      const connectorResult = generateConnector(connectorConfig, effectiveBaseRadius * 2);
-      if (connectorResult.baseInterface) {
-        // Clone and scale the connector geometry
-        const scaledConnector = connectorResult.baseInterface.clone();
-        scaledConnector.scale(SCALE, SCALE, SCALE);
-        
-        // Position the connector slightly above the stand
-        // The connector extends from y=0 downward, so we need to ensure
-        // it sits between the body bottom (y=0) and the stand top
-        connectorGeo = scaledConnector;
-      }
-    }
-    
-    // For tripod, use the legacy generator which correctly handles organic deformations
-    // The new base system generates simple circular bases - we'll migrate this later
+    // Generate tripod legs using the leg generator
     if (addLegs && params.standType === 'tripod') {
       const attachmentParamsForLegGen: AttachmentParams = {
-        attachmentType: params.attachmentType as AttachmentParams['attachmentType'],
+        attachmentType: 'integrated', // Always integrated now
         screwCount: params.screwCount,
         baseRadius: params.baseRadius,
       };
@@ -747,22 +512,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       );
       legGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = legGeoMM;
-    } else if (addLegs && params.standType === 'weighted_disc') {
-      // Use new composer for weighted disc (doesn't need organic matching)
-      baseAssembly = composeBase(
-        effectiveBaseRadius,
-        params.height,
-        socketConfig,
-        standConfig,
-        connectorConfig
-      );
-      
-      if (baseAssembly.success && baseAssembly.geometry) {
-        baseAssembly.geometry.scale(SCALE, SCALE, SCALE);
-        standGeo = baseAssembly.geometry;
-      }
     } else if (addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'base') {
-      // Base mount with keyholes - a flat plate with mounting holes facing down
+      // Base mount with keyholes
       const baseMountGeoMM = generateBaseMountPlate(
         effectiveBaseRadius,
         params.standBaseThickness || 3,
@@ -785,7 +536,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           socketType: params.socketType,
         },
         {
-          attachmentType: params.attachmentType,
+          attachmentType: 'integrated',
           screwCount: params.screwCount,
           baseRadius: params.baseRadius,
         },
@@ -799,158 +550,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       baseMountGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = baseMountGeoMM;
     }
-    // Wall mount with 'back' style uses integrated back wall keyholes (no separate stand)
-
-    // Generate stacking interface geometries - properly integrated into body
-    const stackingGeos: THREE.BufferGeometry[] = [];
-    if (params.stackingEnabled) {
-      const stackDiameter = params.stackingConnectorDiameter * SCALE;
-      const stackDepth = params.stackingConnectorDepth * SCALE;
-      const stackRadius = stackDiameter / 2;
-      const tolerance = 0.2 * SCALE; // 0.2mm tolerance for press fit
-      const chamfer = 0.5 * SCALE; // 0.5mm chamfer for easy insertion
-      const flangeHeight = 1 * SCALE; // 1mm flange where connector meets body
-      const flangeExtra = 1.5 * SCALE; // 1.5mm extra radius for flange
-      
-      // Get actual body radii at top and bottom for proportional sizing
-      const topBodyRadius = radiiAtHeight[radiiAtHeight.length - 1] || tRad;
-      const bottomBodyRadius = radiiAtHeight[0] || bRad;
-      
-      // Generate top interface
-      if (params.topInterface !== 'none') {
-        if (params.topInterface === 'male') {
-          // Male: cylinder that starts INSIDE the body and protrudes up
-          // Main cylinder with chamfered tip
-          const maleRadius = stackRadius - tolerance;
-          
-          // Create chamfered cylinder using lathe geometry
-          const malePoints = [
-            new THREE.Vector2(0, 0),
-            new THREE.Vector2(maleRadius, 0),
-            new THREE.Vector2(maleRadius, stackDepth - chamfer),
-            new THREE.Vector2(maleRadius - chamfer, stackDepth), // chamfer at tip
-            new THREE.Vector2(0, stackDepth),
-          ];
-          const maleGeo = new THREE.LatheGeometry(malePoints, 32);
-          maleGeo.translate(0, h, 0); // Position at top of body
-          stackingGeos.push(maleGeo);
-          
-          // Add flange at base for structural strength
-          const flangeGeo = new THREE.CylinderGeometry(
-            maleRadius + flangeExtra,
-            maleRadius + flangeExtra,
-            flangeHeight,
-            32
-          );
-          flangeGeo.translate(0, h - flangeHeight / 2, 0);
-          stackingGeos.push(flangeGeo);
-        } else {
-          // Female: recess carved into top of body
-          // Outer ring (visible rim around the hole)
-          const rimThickness = Math.min(wall * 0.8, 2 * SCALE);
-          const femaleOuterRadius = stackRadius + rimThickness;
-          const femaleInnerRadius = stackRadius + tolerance;
-          
-          // Create tube geometry for the socket wall
-          const tubeGeo = new THREE.TubeGeometry(
-            new THREE.CatmullRomCurve3([
-              new THREE.Vector3(femaleInnerRadius, h - stackDepth, 0),
-              new THREE.Vector3(femaleInnerRadius, h, 0),
-            ]),
-            1,
-            rimThickness / 2,
-            32,
-            false
-          );
-          
-          // Actually use a simple ring shape for the socket opening
-          const ringShape = new THREE.Shape();
-          ringShape.absarc(0, 0, femaleOuterRadius, 0, Math.PI * 2, false);
-          const holePath = new THREE.Path();
-          holePath.absarc(0, 0, femaleInnerRadius, 0, Math.PI * 2, true);
-          ringShape.holes.push(holePath);
-          
-          const ringGeo = new THREE.ExtrudeGeometry(ringShape, {
-            depth: stackDepth,
-            bevelEnabled: false,
-          });
-          ringGeo.rotateX(-Math.PI / 2);
-          ringGeo.translate(0, h, 0);
-          stackingGeos.push(ringGeo);
-          
-          // Inner dark cylinder to show the recess depth
-          const recessGeo = new THREE.CylinderGeometry(
-            femaleInnerRadius - 0.01 * SCALE,
-            femaleInnerRadius - 0.01 * SCALE,
-            stackDepth,
-            32
-          );
-          recessGeo.translate(0, h - stackDepth / 2, 0);
-          stackingGeos.push(recessGeo);
-        }
-      }
-      
-      // Generate bottom interface
-      if (params.bottomInterface !== 'none') {
-        if (params.bottomInterface === 'male') {
-          // Male: cylinder protrusion going DOWN from bottom
-          const maleRadius = stackRadius - tolerance;
-          
-          // Create chamfered cylinder
-          const malePoints = [
-            new THREE.Vector2(0, 0),
-            new THREE.Vector2(maleRadius - chamfer, 0), // chamfer at tip
-            new THREE.Vector2(maleRadius, chamfer),
-            new THREE.Vector2(maleRadius, stackDepth),
-            new THREE.Vector2(0, stackDepth),
-          ];
-          const maleGeo = new THREE.LatheGeometry(malePoints, 32);
-          maleGeo.rotateX(Math.PI); // Flip upside down
-          maleGeo.translate(0, 0, 0); // Position at bottom of body
-          stackingGeos.push(maleGeo);
-          
-          // Add flange at top for structural strength
-          const flangeGeo = new THREE.CylinderGeometry(
-            maleRadius + flangeExtra,
-            maleRadius + flangeExtra,
-            flangeHeight,
-            32
-          );
-          flangeGeo.translate(0, flangeHeight / 2, 0);
-          stackingGeos.push(flangeGeo);
-        } else {
-          // Female: recess in bottom
-          const rimThickness = Math.min(wall * 0.8, 2 * SCALE);
-          const femaleOuterRadius = stackRadius + rimThickness;
-          const femaleInnerRadius = stackRadius + tolerance;
-          
-          // Ring at bottom opening
-          const ringShape = new THREE.Shape();
-          ringShape.absarc(0, 0, femaleOuterRadius, 0, Math.PI * 2, false);
-          const holePath = new THREE.Path();
-          holePath.absarc(0, 0, femaleInnerRadius, 0, Math.PI * 2, true);
-          ringShape.holes.push(holePath);
-          
-          const ringGeo = new THREE.ExtrudeGeometry(ringShape, {
-            depth: stackDepth,
-            bevelEnabled: false,
-          });
-          ringGeo.rotateX(Math.PI / 2);
-          ringGeo.translate(0, 0, 0);
-          stackingGeos.push(ringGeo);
-          
-          // Inner dark cylinder to show the recess depth
-          const recessGeo = new THREE.CylinderGeometry(
-            femaleInnerRadius - 0.01 * SCALE,
-            femaleInnerRadius - 0.01 * SCALE,
-            stackDepth,
-            32
-          );
-          recessGeo.translate(0, stackDepth / 2, 0);
-          stackingGeos.push(recessGeo);
-        }
-      }
-    }
 
     return { 
       bodyGeometry: bodyGeo, 
@@ -959,8 +558,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       overhangColors: overhangColorArray,
       keyholeGeometries,
       cordHoleGeometry,
-      connectorGeometry: connectorGeo,
-      stackingGeometries: stackingGeos,
     };
   }, [params, type]);
 
@@ -971,7 +568,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
 
   return (
     <group ref={groupRef}>
-      {/* Legs (extend downward from base) */}
+      {/* Legs */}
       {legGeometry && (
         <mesh geometry={legGeometry} castShadow receiveShadow>
           <meshStandardMaterial
@@ -983,19 +580,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         </mesh>
       )}
       
-      {/* Connector collar between body and base (visible when not integrated) */}
-      {connectorGeometry && (
-        <mesh geometry={connectorGeometry} castShadow receiveShadow>
-          <meshStandardMaterial
-            color="#b8b8b8"
-            roughness={0.3}
-            metalness={0.2}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      )}
-      
-      {/* Organic body (starts at y=0, goes up) */}
+      {/* Organic body */}
       <mesh geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color={params.showOverhangMap ? "#ffffff" : "#e8e8e8"}
@@ -1006,7 +591,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         />
       </mesh>
       
-      {/* Keyhole mounting holes for wall mount (visual) */}
+      {/* Keyhole mounting holes for wall mount */}
       {keyholeGeometries.map((geo, idx) => (
         <mesh key={`keyhole-${idx}`} geometry={geo} castShadow receiveShadow>
           <meshStandardMaterial
@@ -1018,7 +603,7 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         </mesh>
       ))}
       
-      {/* Cord hole for wall mount (visual) */}
+      {/* Cord hole for wall mount */}
       {cordHoleGeometry && (
         <mesh geometry={cordHoleGeometry} castShadow receiveShadow>
           <meshStandardMaterial
@@ -1029,18 +614,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           />
         </mesh>
       )}
-      
-      {/* Stacking interface connectors */}
-      {stackingGeometries.map((geo, idx) => (
-        <mesh key={`stacking-${idx}`} geometry={geo} castShadow receiveShadow>
-          <meshStandardMaterial
-            color={idx % 2 === 0 ? "#c4c4c4" : "#2a2a2a"}
-            roughness={0.4}
-            metalness={0.1}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      ))}
       
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
