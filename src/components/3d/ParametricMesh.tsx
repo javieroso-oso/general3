@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
-import { generateLegsWithBase, generateBaseMountPlate, AttachmentParams } from '@/lib/leg-generator';
+import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -567,12 +567,6 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     
     // Generate tripod legs using the leg generator
     if (addLegs && params.standType === 'tripod') {
-      const attachmentParamsForLegGen: AttachmentParams = {
-        attachmentType: 'integrated', // Always integrated now
-        screwCount: params.screwCount,
-        baseRadius: params.baseRadius,
-      };
-      
       const legGeoMM = generateLegsWithBase(
         effectiveBaseRadius,
         params.legCount,
@@ -595,11 +589,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           wallThickness: params.wallThickness,
           cordHoleEnabled: params.cordHoleEnabled,
           cordHoleDiameter: params.cordHoleDiameter,
-          centeringLipEnabled: params.centeringLipEnabled,
-          centeringLipHeight: params.centeringLipHeight,
-          socketType: params.socketType,
         },
-        attachmentParamsForLegGen,
+        undefined, // attachmentParams no longer used
         {
           thickness: params.standBaseThickness,
           taper: params.standBaseTaper,
@@ -628,15 +619,8 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
           wallThickness: params.wallThickness,
           cordHoleEnabled: params.cordHoleEnabled,
           cordHoleDiameter: params.cordHoleDiameter,
-          centeringLipEnabled: params.centeringLipEnabled,
-          centeringLipHeight: params.centeringLipHeight,
-          socketType: params.socketType,
         },
-        {
-          attachmentType: 'integrated',
-          screwCount: params.screwCount,
-          baseRadius: params.baseRadius,
-        },
+        undefined,
         {
           thickness: params.standBaseThickness,
           taper: params.standBaseTaper,
