@@ -61,15 +61,8 @@ function generateTripodStand(
   );
   geometries.push(discGeometry);
   
-  // 2. Create flush attachment ring if body radius differs from base radius
-  if (bodyBottomRadius && Math.abs(bodyBottomRadius - baseRadius) > 0.5) {
-    const ringGeometry = createTransitionRing(
-      Math.min(bodyBottomRadius, baseRadius),
-      Math.max(bodyBottomRadius, baseRadius),
-      config.baseThickness
-    );
-    geometries.push(ringGeometry);
-  }
+  // Note: Transition ring/collar is now handled by connector.ts when attachmentType !== 'integrated'
+  // This avoids duplicate geometry generation
   
   // 3. Create legs with flush attachment to disc
   const legGeometries = createTripodLegs(
@@ -464,17 +457,8 @@ function generateWeightedDisc(
     }
   }
   
-  // 4. Create solid transition collar from body bottom to disc top
-  if (Math.abs(effectiveBodyRadius - discRadius) > 0.5 || effectiveBodyRadius < discRadius) {
-    const collarHeight = Math.min(15, discThickness * 0.6);
-    const collarGeo = createSolidTransitionCollar(
-      effectiveBodyRadius,
-      Math.min(effectiveBodyRadius + 2, discRadius), // Collar top radius
-      collarHeight,
-      segments
-    );
-    geometries.push(collarGeo);
-  }
+  // Note: Transition collar is now handled by connector.ts when attachmentType !== 'integrated'
+  // This avoids duplicate geometry generation
   
   // 5. Create cord hole if socket config has it enabled
   // Note: Cord hole is typically handled at socket level, but we add visual marker
