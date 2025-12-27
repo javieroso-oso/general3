@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
+import { generateRandomParams } from '@/lib/random-generator';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,15 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
   const handleReset = () => {
     onParamsChange(defaultParams[type]);
     toast.success('Parameters reset');
+  };
+
+  const handleRandomize = () => {
+    let newParams = generateRandomParams(params);
+    if (params.supportFreeMode) {
+      newParams = applySupportFreeConstraints(newParams);
+    }
+    onParamsChange(newParams);
+    toast.success('Random shape generated!');
   };
   
   const constraints = useMemo(() => getSupportFreeConstraints(params), [params]);
@@ -598,10 +608,16 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </div>
       </div>
       
-      <Button variant="outline" size="sm" onClick={handleReset} className="w-full gap-2">
-        <RotateCcw className="w-4 h-4" />
-        Reset to Default
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleRandomize} className="flex-1 gap-2">
+          <Shuffle className="w-4 h-4" />
+          Randomize
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleReset} className="flex-1 gap-2">
+          <RotateCcw className="w-4 h-4" />
+          Reset
+        </Button>
+      </div>
 
       {/* Dimensions */}
       <Section title="Dimensions (mm)" defaultOpen={true}>
