@@ -140,6 +140,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       case 'riser': return 'Riser';
       case 'column': return 'Column';
       case 'ball': return 'Ball Feet';
+      case 'bun': return 'Bun Feet';
+      case 'merged_ball': return 'Merged Ball';
       default: return style;
     }
   };
@@ -188,7 +190,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Leg Style</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['tripod', 'riser', 'column', 'ball'] as LegStyle[]).map((style) => (
+                    {(['tripod', 'riser', 'column', 'ball', 'bun', 'merged_ball'] as LegStyle[]).map((style) => (
                       <Button
                         key={style}
                         variant={params.legStyle === style ? 'default' : 'outline'}
@@ -205,6 +207,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     {params.legStyle === 'riser' && 'Small stubby feet for table lamps (3-20mm)'}
                     {params.legStyle === 'column' && 'Straight vertical legs, no spread'}
                     {params.legStyle === 'ball' && 'Spherical ball feet at each position'}
+                    {params.legStyle === 'bun' && 'Dome-shaped feet, flat on bed, print-friendly'}
+                    {params.legStyle === 'merged_ball' && 'Ball feet blended into base, smooth transition'}
                   </p>
                 </div>
 
@@ -926,8 +930,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               label="Wave Depth"
               value={params.rimWaveDepth}
               min={0}
-              max={3}
-              step={0.1}
+              max={0.3}
+              step={0.02}
               onChange={handleChange('rimWaveDepth')}
             />
           )}

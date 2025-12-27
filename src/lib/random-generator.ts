@@ -80,7 +80,7 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
   }
   if (enabledFeatures.has('rimWaves')) {
     newParams.rimWaveCount = randomInt(4, 12);
-    newParams.rimWaveDepth = randomInRange(0.5, 3);
+    newParams.rimWaveDepth = randomInRange(0.05, 0.3);
   }
 
   // Small chance to add organic noise
