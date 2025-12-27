@@ -600,10 +600,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Wobble Frequency"
           value={params.wobbleFrequency}
           min={0}
-          max={params.supportFreeMode ? constraints.wobbleFrequency.max : 8}
+          max={8}
           step={1}
           onChange={handleChange('wobbleFrequency')}
-          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Wobble Amount"
@@ -630,19 +629,17 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           label="Ripple Depth"
           value={params.rippleDepth}
           min={0}
-          max={params.supportFreeMode ? constraints.rippleDepth.max : 0.1}
+          max={0.1}
           step={0.005}
           onChange={handleChange('rippleDepth')}
-          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Organic Noise"
           value={params.organicNoise}
           min={0}
-          max={params.supportFreeMode ? constraints.organicNoise.max : 0.1}
+          max={0.1}
           step={0.005}
           onChange={handleChange('organicNoise')}
-          constrained={params.supportFreeMode}
         />
         <ParameterSlider
           label="Noise Scale"
