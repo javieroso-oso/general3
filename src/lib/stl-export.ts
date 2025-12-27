@@ -829,6 +829,70 @@ function getSurfaceHeightAt(
   return height;
 }
 
+// Calculate the outer surface Z at a given height t and angle theta
+// This traces the outside contour of the object for full surface non-planar
+function getOuterSurfaceZ(
+  t: number,
+  theta: number,
+  params: ParametricParams,
+  type: ObjectType
+): number {
+  const { height, profileCurve, baseRadius, topRadius } = params;
+  
+  // Get the radius at this height
+  const r = getRadiusAtHeight(t, params, type, theta);
+  const baseZ = t * height;
+  
+  // For full surface mode, we want paths that follow the outer contour
+  // The "surface Z" represents vertical offset based on profile shape
+  
+  // Calculate the surface normal tilt based on profile curve
+  if (profileCurve === 'convex') {
+    // Outward bulging surface - layers curve outward
+    const bulgePhase = Math.sin(t * Math.PI);
+    return baseZ + bulgePhase * r * 0.05;
+  } else if (profileCurve === 'concave') {
+    // Inward curving surface
+    const inwardPhase = Math.sin(t * Math.PI);
+    return baseZ - inwardPhase * r * 0.03;
+  } else if (profileCurve === 'wave') {
+    // Wavy surface - sinusoidal Z offset
+    const wavePhase = Math.sin(t * Math.PI * 3);
+    return baseZ + wavePhase * 2;
+  } else if (profileCurve === 'hourglass') {
+    // Hourglass - curves inward then out
+    const pinchT = Math.abs(t - 0.5) * 2;
+    return baseZ + (1 - pinchT) * 1.5;
+  }
+  
+  // Linear profile - slight curve following taper
+  const taper = (topRadius - baseRadius) / baseRadius;
+  return baseZ + Math.sin(t * Math.PI) * Math.abs(taper) * 2;
+}
+
+// Calculate wall angle at height t (how much the wall leans in/out)
+function getWallAngle(
+  t: number,
+  params: ParametricParams,
+  type: ObjectType,
+  delta: number = 0.01
+): number {
+  const theta = 0; // Sample at theta=0
+  const t1 = Math.max(0, t - delta);
+  const t2 = Math.min(1, t + delta);
+  
+  const r1 = getRadiusAtHeight(t1, params, type, theta);
+  const r2 = getRadiusAtHeight(t2, params, type, theta);
+  const z1 = t1 * params.height;
+  const z2 = t2 * params.height;
+  
+  const dr = r2 - r1;
+  const dz = z2 - z1;
+  
+  // Angle from vertical (positive = outward lean, negative = inward)
+  return Math.atan2(dr, dz) * 180 / Math.PI;
+}
+
 // Calculate tilt angle at a point on the surface (in degrees)
 function calculateTiltAngle(
   x: number,
@@ -936,6 +1000,83 @@ function generateCurvedTopLayers(
   return layers;
 }
 
+// Stage 2: Generate full surface curved layers that follow the entire object contour
+function generateFullSurfaceLayers(
+  params: ParametricParams,
+  type: ObjectType,
+  settings: PrintSettings
+): GCodeLayer[] {
+  const layers: GCodeLayer[] = [];
+  const { height, wallThickness, twistAngle } = params;
+  const { layerHeight, nonPlanar } = settings;
+  const maxTiltAngle = nonPlanar.maxZAngle;
+  
+  const segments = 48;
+  const totalLayers = Math.ceil(height / layerHeight);
+  
+  for (let layerIdx = 0; layerIdx < totalLayers; layerIdx++) {
+    const baseZ = layerIdx * layerHeight;
+    const t = Math.min(baseZ / height, 0.999); // Clamp to prevent overflow
+    const twistRad = (twistAngle * Math.PI / 180) * t;
+    
+    const outerPath: { x: number; y: number; z: number }[] = [];
+    const innerPath: { x: number; y: number; z: number }[] = [];
+    const tiltAngles: number[] = [];
+    
+    // Get wall angle at this height to determine tilt
+    const wallAngle = Math.abs(getWallAngle(t, params, type));
+    
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2 + twistRad;
+      const outerR = getRadiusAtHeight(t, params, type, theta);
+      const innerR = Math.max(outerR - wallThickness, wallThickness);
+      
+      // Calculate the surface-following Z offset
+      const surfaceZ = getOuterSurfaceZ(t, theta, params, type);
+      
+      // Clamp tilt angle to maxZAngle
+      const effectiveTilt = Math.min(wallAngle, maxTiltAngle);
+      const tiltFactor = wallAngle > 0 ? effectiveTilt / wallAngle : 1;
+      
+      // Blend between base Z and surface Z based on allowed tilt
+      const zOffset = (surfaceZ - baseZ) * tiltFactor;
+      const finalZ = baseZ + zOffset;
+      
+      tiltAngles.push(wallAngle);
+      
+      // Outer wall point
+      outerPath.push({
+        x: Math.cos(theta) * outerR,
+        y: Math.sin(theta) * outerR,
+        z: finalZ,
+      });
+      
+      // Inner wall point - follows at inner radius
+      innerPath.push({
+        x: Math.cos(theta) * innerR,
+        y: Math.sin(theta) * innerR,
+        z: finalZ,
+      });
+    }
+    
+    layers.push({
+      z: baseZ,
+      paths: [outerPath, innerPath],
+      isNonPlanar: wallAngle > 1, // Mark as non-planar if wall has significant angle
+      tiltAngles,
+    });
+  }
+  
+  // Add curved top layers if the profile has a curved top
+  const hasCurvedTop = ['convex', 'wave', 'concave'].includes(params.profileCurve);
+  if (hasCurvedTop) {
+    const topLayers = generateCurvedTopLayers(params, type, settings, height * 0.85);
+    layers.push(...topLayers);
+  }
+  
+  return layers;
+}
+
 export function generateGCodeLayers(
   params: ParametricParams,
   type: ObjectType,
@@ -946,16 +1087,25 @@ export function generateGCodeLayers(
     return generateSpiralVaseLayers(params, type, settings);
   }
   
-  const layers: GCodeLayer[] = [];
   const { height, wallThickness, twistAngle, profileCurve } = params;
-  const { layerHeight, nozzleDiameter, printMode, nonPlanar } = settings;
+  const { layerHeight, printMode, nonPlanar } = settings;
   
-  const isNonPlanar = printMode === 'non_planar' && nonPlanar.topSurfaceOptimized;
+  const isNonPlanar = printMode === 'non_planar';
+  const isFullSurface = isNonPlanar && nonPlanar.fullSurfaceLayers;
+  const isTopOptimized = isNonPlanar && nonPlanar.topSurfaceOptimized;
+  
+  // Stage 2: Full surface curved layers
+  if (isFullSurface) {
+    return generateFullSurfaceLayers(params, type, settings);
+  }
+  
+  const layers: GCodeLayer[] = [];
+  
   // Curves that benefit from non-planar top finishing
   const hasCurvedTop = ['convex', 'wave', 'concave'].includes(profileCurve);
   
   // Calculate where non-planar zone begins (top 30% for curved surfaces)
-  const nonPlanarStartZ = isNonPlanar && hasCurvedTop ? height * 0.7 : height;
+  const nonPlanarStartZ = isTopOptimized && hasCurvedTop ? height * 0.7 : height;
   const planarLayerCount = Math.ceil(nonPlanarStartZ / layerHeight);
   
   const segments = 48; // Points per perimeter
@@ -992,8 +1142,8 @@ export function generateGCodeLayers(
     });
   }
   
-  // Add curved non-planar layers for the top surface
-  if (isNonPlanar && hasCurvedTop) {
+  // Add curved non-planar layers for the top surface (Stage 1)
+  if (isTopOptimized && hasCurvedTop) {
     const curvedLayers = generateCurvedTopLayers(params, type, settings, nonPlanarStartZ);
     layers.push(...curvedLayers);
   }

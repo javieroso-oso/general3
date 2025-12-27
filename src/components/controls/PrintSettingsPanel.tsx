@@ -44,6 +44,7 @@ const PrintSettingsPanel = ({ settings, onSettingsChange }: PrintSettingsPanelPr
         ...settings.nonPlanar,
         curvedLayers: true,
         topSurfaceOptimized: true,
+        fullSurfaceLayers: false,
       };
     } else {
       newSettings.spiralVase = false;
@@ -275,6 +276,18 @@ const PrintSettingsPanel = ({ settings, onSettingsChange }: PrintSettingsPanelPr
                 <Switch
                   checked={settings.nonPlanar.topSurfaceOptimized}
                   onCheckedChange={(v) => handleNonPlanarChange('topSurfaceOptimized', v)}
+                />
+              </div>
+
+              {/* Full Surface Layers (Stage 2) */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">Full Surface Layers</Label>
+                  <p className="text-xs text-text-muted">Follow entire object contour</p>
+                </div>
+                <Switch
+                  checked={settings.nonPlanar.fullSurfaceLayers}
+                  onCheckedChange={(v) => handleNonPlanarChange('fullSurfaceLayers', v)}
                 />
               </div>
 
