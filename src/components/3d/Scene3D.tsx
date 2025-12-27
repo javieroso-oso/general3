@@ -86,6 +86,7 @@ const Scene3D = ({
             </group>
           ) : (
             <GCodePreview 
+              key={`gcode-${params.height}-${params.baseRadius}-${params.topRadius}-${params.profileCurve}-${type}-${JSON.stringify(settings.nonPlanar)}`}
               params={params} 
               type={type} 
               settings={settings}
