@@ -180,6 +180,9 @@ export interface ParametricParams {
   supportFreeMode: boolean;
   showOverhangMap: boolean;
   
+  // Preview mode
+  showBaseOnly: boolean;     // Show only base/legs without body for easier editing
+  
   // Stacking interface for body-to-body connections
   stackingEnabled: boolean;
   topInterface: 'none' | 'male' | 'female';
@@ -360,6 +363,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
+    showBaseOnly: false,
     wallMountCutOffset: 0,
     wallMountHoleCount: 2,
     wallMountHoleDiameter: 5,
@@ -445,6 +449,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
+    showBaseOnly: false,
     wallMountCutOffset: 0,
     wallMountHoleCount: 2,
     wallMountHoleDiameter: 5,
@@ -530,6 +535,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     socketType: 'E26',
     supportFreeMode: false,
     showOverhangMap: false,
+    showBaseOnly: false,
     wallMountCutOffset: 0,
     wallMountHoleCount: 2,
     wallMountHoleDiameter: 5,

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -361,6 +361,19 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     unit="mm"
                     onChange={handleChange('standBaseLip')}
                   />
+                  
+                  {/* Base Only Preview */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                    <div className="flex items-center gap-2">
+                      <Layers className={cn("w-4 h-4", params.showBaseOnly ? "text-primary" : "text-muted-foreground")} />
+                      <Label htmlFor="base-only" className="text-xs">Base Only Preview</Label>
+                    </div>
+                    <Switch 
+                      id="base-only" 
+                      checked={params.showBaseOnly} 
+                      onCheckedChange={(v) => onParamsChange({ ...params, showBaseOnly: v })}
+                    />
+                  </div>
                 </div>
               </>
             )}

@@ -697,16 +697,18 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
         </mesh>
       )}
       
-      {/* Organic body */}
-      <mesh geometry={bodyGeometry} castShadow receiveShadow>
-        <meshStandardMaterial
-          color={params.showOverhangMap ? "#ffffff" : "#e8e8e8"}
-          vertexColors={params.showOverhangMap}
-          roughness={0.55}
-          metalness={0.05}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      {/* Organic body - hidden in base only preview mode */}
+      {!params.showBaseOnly && (
+        <mesh geometry={bodyGeometry} castShadow receiveShadow>
+          <meshStandardMaterial
+            color={params.showOverhangMap ? "#ffffff" : "#e8e8e8"}
+            vertexColors={params.showOverhangMap}
+            roughness={0.55}
+            metalness={0.05}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
       
       {/* Keyhole mounting holes for wall mount */}
       {keyholeGeometries.map((geo, idx) => (
