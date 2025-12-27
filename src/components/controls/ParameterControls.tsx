@@ -384,18 +384,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       onCheckedChange={(v) => onParamsChange({ ...params, showBaseOnly: v })}
                     />
                   </div>
-                  
-                  {/* Preview Color */}
-                  <div className="flex items-center justify-between pt-2">
-                    <Label htmlFor="preview-color" className="text-xs">Preview Color</Label>
-                    <input 
-                      type="color" 
-                      id="preview-color"
-                      value={params.previewColor || '#e8e8e8'} 
-                      onChange={(e) => onParamsChange({ ...params, previewColor: e.target.value })}
-                      className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent"
-                    />
-                  </div>
                 </div>
               </>
             )}
@@ -608,7 +596,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </div>
       </div>
       
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <Button variant="outline" size="sm" onClick={handleRandomize} className="flex-1 gap-2">
           <Shuffle className="w-4 h-4" />
           Randomize
@@ -617,6 +605,14 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           <RotateCcw className="w-4 h-4" />
           Reset
         </Button>
+        <input 
+          type="color" 
+          id="preview-color"
+          value={params.previewColor || '#e8e8e8'} 
+          onChange={(e) => onParamsChange({ ...params, previewColor: e.target.value })}
+          className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent shrink-0"
+          title="Preview Color"
+        />
       </div>
 
       {/* Dimensions */}
