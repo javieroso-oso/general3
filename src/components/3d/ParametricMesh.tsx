@@ -686,7 +686,9 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
     
     // Generate connector geometry if not integrated (for visibility between body and base)
     // The connector creates a visible collar that sits between body (y=0) and stand
-    if (addLegs && params.attachmentType !== 'integrated' && params.standType !== 'wall_mount') {
+    // NOTE: For tripod stands, generateLegsWithBase() already handles attachment features,
+    // so we only generate separate connector for weighted_disc (which uses composeBase)
+    if (addLegs && params.attachmentType !== 'integrated' && params.standType === 'weighted_disc') {
       const connectorResult = generateConnector(connectorConfig, effectiveBaseRadius * 2);
       if (connectorResult.baseInterface) {
         // Clone and scale the connector geometry
