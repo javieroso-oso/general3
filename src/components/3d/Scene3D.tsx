@@ -1,8 +1,6 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, PerspectiveCamera, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
 import { Suspense } from 'react';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
 import ParametricMesh from './ParametricMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
@@ -65,51 +63,17 @@ const Scene3D = ({
       <Canvas shadows gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>
         <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
         
-        {/* Professional 3-point lighting setup */}
-        <ambientLight intensity={0.2} />
-        
-        {/* Key light - main light source */}
+        {/* Simple lighting setup */}
+        <ambientLight intensity={0.6} />
         <directionalLight 
-          position={[5, 10, 5]} 
-          intensity={1.0} 
+          position={[5, 5, 5]} 
+          intensity={1} 
           castShadow 
-          shadow-mapSize={[2048, 2048]}
-          shadow-bias={-0.0001}
+          shadow-mapSize={[1024, 1024]}
         />
         
-        {/* Fill light - softer, opposite side */}
-        <directionalLight position={[-5, 5, -5]} intensity={0.25} />
-        
-        {/* Rim/back light - creates edge definition */}
-        <directionalLight position={[0, 3, -8]} intensity={0.35} />
-        
-        {/* Under-fill for product shot feel */}
-        <directionalLight position={[0, -3, 0]} intensity={0.1} />
-        
-        {/* Softer HDRI environment for reflections */}
+        {/* Environment for reflections */}
         <Environment preset="studio" />
-        
-        {/* Soft contact shadows for grounding */}
-        <ContactShadows
-          position={[0, -0.01, 0]}
-          opacity={0.4}
-          scale={8}
-          blur={2.5}
-          far={4}
-          resolution={512}
-          color="#000000"
-        />
-        
-        {/* Subtle ground plane */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-          <circleGeometry args={[3, 64]} />
-          <meshStandardMaterial 
-            color="#1a1a1a" 
-            transparent 
-            opacity={0.05}
-            roughness={0.9}
-          />
-        </mesh>
         
         <Suspense fallback={null}>
           {viewMode === 'model' ? (
@@ -146,21 +110,6 @@ const Scene3D = ({
           enableDamping
           dampingFactor={0.05}
         />
-        
-        {/* Post-processing effects */}
-        <EffectComposer>
-          <Bloom 
-            luminanceThreshold={0.85}
-            luminanceSmoothing={0.025}
-            intensity={0.2}
-            mipmapBlur
-          />
-          <Vignette
-            offset={0.35}
-            darkness={0.25}
-            blendFunction={BlendFunction.NORMAL}
-          />
-        </EffectComposer>
       </Canvas>
     </div>
   );
