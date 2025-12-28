@@ -5,10 +5,14 @@ import { ParametricParams, ObjectType, printConstraints } from '@/types/parametr
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
 
+import { MaterialPreset, MATERIAL_PRESETS } from '@/types/materials';
+
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
   showWireframe?: boolean;
+  materialPreset?: MaterialPreset;
+  autoRotate?: boolean;
 }
 
 // Deterministic noise for consistent results
@@ -57,8 +61,15 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
 // Scale factor: convert mm to scene units (1 unit = 100mm for nice viewport)
 const SCALE = 0.01;
 
-const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshProps) => {
+const ParametricMesh = ({ 
+  params, 
+  type, 
+  showWireframe = false,
+  materialPreset = 'ceramic',
+  autoRotate = true,
+}: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
+  const materialConfig = MATERIAL_PRESETS[materialPreset];
 
   const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
     const {
@@ -679,8 +690,10 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
   }, [params, type]);
 
   useFrame((state) => {
-    const rotation = state.clock.elapsedTime * 0.05;
-    if (groupRef.current) groupRef.current.rotation.y = rotation;
+    if (autoRotate && groupRef.current) {
+      const rotation = state.clock.elapsedTime * 0.15;
+      groupRef.current.rotation.y = rotation;
+    }
   });
 
   return (
@@ -688,10 +701,16 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       {/* Legs */}
       {legGeometry && (
         <mesh geometry={legGeometry} castShadow receiveShadow>
-          <meshStandardMaterial
-            color={params.previewColor || "#d4d4d4"}
-            roughness={0.4}
-            metalness={0.1}
+          <meshPhysicalMaterial
+            color={materialConfig.color}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            clearcoat={materialConfig.clearcoat ?? 0}
+            clearcoatRoughness={materialConfig.clearcoatRoughness ?? 0}
+            transmission={materialConfig.transmission ?? 0}
+            thickness={materialConfig.thickness ?? 0}
+            ior={materialConfig.ior ?? 1.5}
+            envMapIntensity={materialConfig.envMapIntensity ?? 1}
             side={THREE.DoubleSide}
           />
         </mesh>
@@ -700,11 +719,17 @@ const ParametricMesh = ({ params, type, showWireframe = false }: ParametricMeshP
       {/* Organic body - hidden in base only preview mode */}
       {!params.showBaseOnly && (
         <mesh geometry={bodyGeometry} castShadow receiveShadow>
-          <meshStandardMaterial
-            color={params.showOverhangMap ? "#ffffff" : (params.previewColor || "#e8e8e8")}
+          <meshPhysicalMaterial
+            color={params.showOverhangMap ? "#ffffff" : materialConfig.color}
             vertexColors={params.showOverhangMap}
-            roughness={0.55}
-            metalness={0.05}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            clearcoat={materialConfig.clearcoat ?? 0}
+            clearcoatRoughness={materialConfig.clearcoatRoughness ?? 0}
+            transmission={materialConfig.transmission ?? 0}
+            thickness={materialConfig.thickness ?? 0}
+            ior={materialConfig.ior ?? 1.5}
+            envMapIntensity={materialConfig.envMapIntensity ?? 1}
             side={THREE.DoubleSide}
           />
         </mesh>
