@@ -43,7 +43,7 @@ const Index = () => {
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
   const [materialPreset, setMaterialPreset] = useState<MaterialPreset>('ceramic');
   const [autoRotate, setAutoRotate] = useState(true);
-  const [backgroundPreset, setBackgroundPreset] = useState<BackgroundPreset>('gradient');
+  const [backgroundPreset, setBackgroundPreset] = useState<BackgroundPreset>('studio');
   const [customColor, setCustomColor] = useState<string | undefined>(undefined);
   const [usePresetColor, setUsePresetColor] = useState(true);
 

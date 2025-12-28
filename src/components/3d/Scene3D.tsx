@@ -55,7 +55,7 @@ const Scene3D = ({
   gcodeAnimate = false,
   materialPreset = 'ceramic',
   autoRotate = true,
-  backgroundPreset = 'gradient',
+  backgroundPreset = 'studio',
   customColor,
 }: Scene3DProps) => {
   // When legs are enabled, lift the entire object so legs touch ground
@@ -63,16 +63,11 @@ const Scene3D = ({
   const objectYOffset = legHeight * SCALE;
   
   const bgConfig = BACKGROUND_PRESETS[backgroundPreset];
-  const bgStyle = backgroundPreset === 'gradient' 
-    ? `bg-gradient-to-b from-secondary/30 to-secondary/60`
-    : '';
-  const bgInline = backgroundPreset !== 'gradient' 
-    ? { background: `linear-gradient(to bottom, ${bgConfig.from}, ${bgConfig.to})` }
-    : {};
+  const bgInline = { background: `linear-gradient(to bottom, ${bgConfig.from}, ${bgConfig.to})` };
   
   return (
     <div 
-      className={`w-full h-full min-h-[400px] rounded-2xl overflow-hidden ${bgStyle}`}
+      className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden"
       style={bgInline}
     >
       <Canvas shadows gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>
