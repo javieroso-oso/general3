@@ -220,17 +220,15 @@ const Index = () => {
                     </SelectContent>
                   </Select>
                   
-                  {/* Custom Color Picker - only show when custom is selected */}
-                  {materialPreset === 'custom' && (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="color"
-                        value={customColor}
-                        onChange={(e) => setCustomColor(e.target.value)}
-                        className="w-8 h-8 rounded cursor-pointer border border-border"
-                      />
-                    </div>
-                  )}
+                  {/* Color Picker - always visible for all materials */}
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={customColor}
+                      onChange={(e) => setCustomColor(e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer border border-border"
+                    />
+                  </div>
                   
                   {/* Background Selector */}
                   <Select value={backgroundPreset} onValueChange={(v) => setBackgroundPreset(v as BackgroundPreset)}>
