@@ -619,6 +619,7 @@ function generateWallMountBody(
 /**
  * Add keyhole hole geometry to the vertices/indices arrays
  * Creates a keyhole-shaped hole through the back wall
+ * CORRECT KEYHOLE: Large circle at TOP, narrow slot going DOWN
  */
 function addKeyholeHole(
   vertices: number[],
@@ -631,70 +632,74 @@ function addKeyholeHole(
   slotLength: number,
   depth: number
 ): void {
-  const segs = 16;
+  const segs = 24;
   const startIdx = vertices.length / 3;
   
-  // Front ring of keyhole (at back wall surface)
-  // Large circle at bottom
+  // Generate keyhole outline points - circle at TOP, slot going DOWN
+  const outlinePoints: { x: number; y: number }[] = [];
+  
+  // Large circle at top (center at cy, going clockwise from right)
   for (let i = 0; i <= segs; i++) {
-    const angle = (i / segs) * Math.PI * 2;
-    vertices.push(
-      cx + Math.cos(angle) * headRadius,
-      cy + Math.sin(angle) * headRadius,
-      zPos
-    );
+    const angle = -Math.PI / 2 + (i / segs) * Math.PI * 2;
+    outlinePoints.push({
+      x: cx + Math.cos(angle) * headRadius,
+      y: cy + Math.sin(angle) * headRadius
+    });
   }
   
-  // Back ring of keyhole (through the wall)
-  const backRingStart = vertices.length / 3;
-  for (let i = 0; i <= segs; i++) {
-    const angle = (i / segs) * Math.PI * 2;
-    vertices.push(
-      cx + Math.cos(angle) * headRadius,
-      cy + Math.sin(angle) * headRadius,
-      zPos - depth
-    );
+  // Find the points where circle meets slot (at y = cy - some small offset)
+  const slotTopY = cy - headRadius * 0.3;
+  const slotBottomY = cy - slotLength;
+  
+  // Create front vertices for keyhole outline
+  for (const pt of outlinePoints) {
+    vertices.push(pt.x, pt.y, zPos);
   }
   
-  // Keyhole wall (cylinder through wall)
-  for (let i = 0; i < segs; i++) {
+  // Create back vertices for keyhole outline
+  const backStart = vertices.length / 3;
+  for (const pt of outlinePoints) {
+    vertices.push(pt.x, pt.y, zPos - depth);
+  }
+  
+  // Create circle wall faces
+  for (let i = 0; i < outlinePoints.length - 1; i++) {
     const frontA = startIdx + i;
     const frontB = startIdx + i + 1;
-    const backA = backRingStart + i;
-    const backB = backRingStart + i + 1;
+    const backA = backStart + i;
+    const backB = backStart + i + 1;
     
-    // Inner wall of hole (reversed winding for inside of hole)
     indices.push(frontA, frontB, backA);
     indices.push(backA, frontB, backB);
   }
   
-  // Slot going up from circle
+  // Now add the slot going DOWN from circle
   const slotStartIdx = vertices.length / 3;
   
-  // Slot front vertices (rectangular slot going up)
-  vertices.push(cx - slotWidth, cy + headRadius * 0.3, zPos); // bottom left
-  vertices.push(cx + slotWidth, cy + headRadius * 0.3, zPos); // bottom right
-  vertices.push(cx + slotWidth, cy + slotLength, zPos);       // top right
-  vertices.push(cx - slotWidth, cy + slotLength, zPos);       // top left
+  // Slot front vertices - slot going DOWN from circle
+  vertices.push(cx - slotWidth, slotTopY, zPos);      // top left (connects to circle)
+  vertices.push(cx + slotWidth, slotTopY, zPos);      // top right
+  vertices.push(cx + slotWidth, slotBottomY, zPos);   // bottom right
+  vertices.push(cx - slotWidth, slotBottomY, zPos);   // bottom left
   
   // Slot back vertices
-  vertices.push(cx - slotWidth, cy + headRadius * 0.3, zPos - depth); // bottom left
-  vertices.push(cx + slotWidth, cy + headRadius * 0.3, zPos - depth); // bottom right
-  vertices.push(cx + slotWidth, cy + slotLength, zPos - depth);       // top right
-  vertices.push(cx - slotWidth, cy + slotLength, zPos - depth);       // top left
+  vertices.push(cx - slotWidth, slotTopY, zPos - depth);
+  vertices.push(cx + slotWidth, slotTopY, zPos - depth);
+  vertices.push(cx + slotWidth, slotBottomY, zPos - depth);
+  vertices.push(cx - slotWidth, slotBottomY, zPos - depth);
   
-  // Slot walls (4 sides)
+  // Slot walls (left, right, bottom)
   // Left wall
-  indices.push(slotStartIdx + 0, slotStartIdx + 3, slotStartIdx + 4);
-  indices.push(slotStartIdx + 4, slotStartIdx + 3, slotStartIdx + 7);
+  indices.push(slotStartIdx + 0, slotStartIdx + 4, slotStartIdx + 3);
+  indices.push(slotStartIdx + 3, slotStartIdx + 4, slotStartIdx + 7);
   
   // Right wall  
-  indices.push(slotStartIdx + 1, slotStartIdx + 5, slotStartIdx + 2);
-  indices.push(slotStartIdx + 2, slotStartIdx + 5, slotStartIdx + 6);
+  indices.push(slotStartIdx + 1, slotStartIdx + 2, slotStartIdx + 5);
+  indices.push(slotStartIdx + 5, slotStartIdx + 2, slotStartIdx + 6);
   
-  // Top wall
-  indices.push(slotStartIdx + 2, slotStartIdx + 6, slotStartIdx + 3);
-  indices.push(slotStartIdx + 3, slotStartIdx + 6, slotStartIdx + 7);
+  // Bottom wall (rounded would be nice but flat for simplicity)
+  indices.push(slotStartIdx + 2, slotStartIdx + 3, slotStartIdx + 6);
+  indices.push(slotStartIdx + 6, slotStartIdx + 3, slotStartIdx + 7);
 }
 
 // Generate legs with base disc mesh for STL export

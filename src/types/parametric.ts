@@ -93,6 +93,13 @@ export interface ParametricParams {
   wallMountCordHoleEnabled: boolean; // add cord exit hole through flat back
   wallMountStyle: 'back' | 'base';  // mounting style: back (flat cut) or base (plate with keyholes)
   
+  // Hardware attachment bracket (separate printable piece)
+  wallMountBracketEnabled: boolean;  // Enable separate hardware bracket
+  wallMountBracketWidth: number;     // mm - bracket width
+  wallMountBracketHeight: number;    // mm - bracket height
+  wallMountBracketThickness: number; // mm - bracket plate thickness
+  wallMountBracketHoleSpacing: number; // mm - spacing between screw holes
+  
   // Legacy wall bracket (kept for compatibility)
   wallBracketArmLength: number;  // mm - arm extension from wall
   wallBracketArmAngle: number;   // degrees - arm angle from horizontal
@@ -375,7 +382,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
     wallMountStyle: 'back',
-  stackingEnabled: false,
+    wallMountBracketEnabled: false,
+    wallMountBracketWidth: 60,
+    wallMountBracketHeight: 80,
+    wallMountBracketThickness: 5,
+    wallMountBracketHoleSpacing: 50,
+    stackingEnabled: false,
     topInterface: 'none',
     bottomInterface: 'none',
     stackingConnectorType: 'press_fit',
@@ -462,7 +474,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: true,
     wallMountStyle: 'back',
-  stackingEnabled: false,
+    wallMountBracketEnabled: false,
+    wallMountBracketWidth: 60,
+    wallMountBracketHeight: 80,
+    wallMountBracketThickness: 5,
+    wallMountBracketHoleSpacing: 50,
+    stackingEnabled: false,
     topInterface: 'none',
     bottomInterface: 'none',
     stackingConnectorType: 'press_fit',
@@ -549,7 +566,12 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountHoleMargin: 0.15,
     wallMountCordHoleEnabled: false,
     wallMountStyle: 'back',
-  stackingEnabled: false,
+    wallMountBracketEnabled: false,
+    wallMountBracketWidth: 60,
+    wallMountBracketHeight: 80,
+    wallMountBracketThickness: 5,
+    wallMountBracketHoleSpacing: 50,
+    stackingEnabled: false,
     topInterface: 'none',
     bottomInterface: 'none',
     stackingConnectorType: 'press_fit',

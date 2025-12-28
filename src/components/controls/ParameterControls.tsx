@@ -466,6 +466,65 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     {params.wallMountStyle === 'back' ? 'Flat back with keyholes' : 'Base plate with keyholes'}
                   </p>
                 </div>
+                
+                {/* Hardware Bracket Option */}
+                <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Box className={cn("w-4 h-4", params.wallMountBracketEnabled ? "text-primary" : "text-muted-foreground")} />
+                      <Label htmlFor="bracket-enabled" className="text-sm font-medium">Hardware Bracket</Label>
+                    </div>
+                    <Switch 
+                      id="bracket-enabled" 
+                      checked={params.wallMountBracketEnabled} 
+                      onCheckedChange={(v) => onParamsChange({ ...params, wallMountBracketEnabled: v })}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Generates a separate printable bracket with screw holes for standard wall hardware
+                  </p>
+                  
+                  {params.wallMountBracketEnabled && (
+                    <>
+                      <ParameterSlider
+                        label="Bracket Width"
+                        value={params.wallMountBracketWidth}
+                        min={40}
+                        max={120}
+                        step={5}
+                        unit="mm"
+                        onChange={handleChange('wallMountBracketWidth')}
+                      />
+                      <ParameterSlider
+                        label="Bracket Height"
+                        value={params.wallMountBracketHeight}
+                        min={50}
+                        max={150}
+                        step={5}
+                        unit="mm"
+                        onChange={handleChange('wallMountBracketHeight')}
+                      />
+                      <ParameterSlider
+                        label="Bracket Thickness"
+                        value={params.wallMountBracketThickness}
+                        min={3}
+                        max={10}
+                        step={0.5}
+                        unit="mm"
+                        onChange={handleChange('wallMountBracketThickness')}
+                      />
+                      <ParameterSlider
+                        label="Hole Spacing"
+                        value={params.wallMountBracketHoleSpacing}
+                        min={30}
+                        max={100}
+                        step={5}
+                        unit="mm"
+                        onChange={handleChange('wallMountBracketHoleSpacing')}
+                      />
+                    </>
+                  )}
+                </div>
               </>
             )}
             
