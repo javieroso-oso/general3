@@ -605,14 +605,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           <RotateCcw className="w-4 h-4" />
           Reset
         </Button>
-        <input 
-          type="color" 
-          id="preview-color"
-          value={params.previewColor || '#e8e8e8'} 
-          onChange={(e) => onParamsChange({ ...params, previewColor: e.target.value })}
-          className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent shrink-0"
-          title="Preview Color"
-        />
       </div>
 
       {/* Dimensions */}
