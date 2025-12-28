@@ -19,13 +19,13 @@ export const MATERIAL_PRESETS: Record<MaterialPreset, MaterialConfig> = {
     metalness: 0.0,
     clearcoat: 0.8,
     clearcoatRoughness: 0.1,
-    envMapIntensity: 1.2,
+    envMapIntensity: 0.6,
   },
   'matte-clay': {
     color: '#d4c4b5',
     roughness: 0.85,
     metalness: 0.0,
-    envMapIntensity: 0.5,
+    envMapIntensity: 0.3,
   },
   'glossy-plastic': {
     color: '#e8e8e8',
@@ -33,7 +33,7 @@ export const MATERIAL_PRESETS: Record<MaterialPreset, MaterialConfig> = {
     metalness: 0.0,
     clearcoat: 1.0,
     clearcoatRoughness: 0.05,
-    envMapIntensity: 1.5,
+    envMapIntensity: 0.8,
   },
   'frosted-glass': {
     color: '#ffffff',
@@ -42,7 +42,7 @@ export const MATERIAL_PRESETS: Record<MaterialPreset, MaterialConfig> = {
     transmission: 0.6,
     thickness: 2,
     ior: 1.5,
-    envMapIntensity: 1.0,
+    envMapIntensity: 0.5,
   },
 };
 
