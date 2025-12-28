@@ -46,6 +46,12 @@ const Index = () => {
   const [backgroundPreset, setBackgroundPreset] = useState<BackgroundPreset>('studio');
   const [customColor, setCustomColor] = useState<string | undefined>(undefined);
   const [usePresetColor, setUsePresetColor] = useState(true);
+  
+  // Leg/base material settings
+  const [legMaterialPreset, setLegMaterialPreset] = useState<MaterialPreset>('wood');
+  const [legCustomColor, setLegCustomColor] = useState<string | undefined>(undefined);
+  const [useLegPresetColor, setUseLegPresetColor] = useState(true);
+  const [syncLegMaterial, setSyncLegMaterial] = useState(true);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -221,8 +227,9 @@ const Index = () => {
                     </SelectContent>
                   </Select>
                   
-                  {/* Color Picker - always visible for all materials */}
+                  {/* Body Color Picker */}
                   <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">Body:</span>
                     <input
                       type="color"
                       value={customColor || MATERIAL_PRESETS[materialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
@@ -231,6 +238,7 @@ const Index = () => {
                         setUsePresetColor(false);
                       }}
                       className="w-8 h-8 rounded cursor-pointer border border-border"
+                      title="Body color"
                     />
                     {!usePresetColor && (
                       <Button
@@ -247,6 +255,63 @@ const Index = () => {
                       </Button>
                     )}
                   </div>
+                  
+                  {/* Leg/Base Material Controls */}
+                  {params.addLegs && (
+                    <div className="flex items-center gap-1 border-l border-border pl-2">
+                      <Button
+                        variant={syncLegMaterial ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setSyncLegMaterial(!syncLegMaterial)}
+                        className="text-xs h-8 px-2"
+                        title={syncLegMaterial ? 'Legs match body material' : 'Legs have separate material'}
+                      >
+                        {syncLegMaterial ? '🔗' : '🔓'}
+                      </Button>
+                      
+                      {!syncLegMaterial && (
+                        <>
+                          <Select value={legMaterialPreset} onValueChange={(v) => setLegMaterialPreset(v as MaterialPreset)}>
+                            <SelectTrigger className="w-[100px] h-8 text-xs bg-card border-border">
+                              <SelectValue placeholder="Leg Material" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
+                                <SelectItem key={preset} value={preset} className="text-xs">
+                                  {MATERIAL_LABELS[preset]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          <input
+                            type="color"
+                            value={legCustomColor || MATERIAL_PRESETS[legMaterialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
+                            onChange={(e) => {
+                              setLegCustomColor(e.target.value);
+                              setUseLegPresetColor(false);
+                            }}
+                            className="w-8 h-8 rounded cursor-pointer border border-border"
+                            title="Leg/base color"
+                          />
+                          {!useLegPresetColor && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setUseLegPresetColor(true);
+                                setLegCustomColor(undefined);
+                              }}
+                              title="Reset leg color"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Background Selector */}
                   <Select value={backgroundPreset} onValueChange={(v) => setBackgroundPreset(v as BackgroundPreset)}>
@@ -299,6 +364,8 @@ const Index = () => {
                 autoRotate={autoRotate}
                 backgroundPreset={backgroundPreset}
                 customColor={usePresetColor ? undefined : customColor}
+                legMaterialPreset={syncLegMaterial ? materialPreset : legMaterialPreset}
+                legCustomColor={syncLegMaterial ? (usePresetColor ? undefined : customColor) : (useLegPresetColor ? undefined : legCustomColor)}
               />
               
               {/* Dimensions overlay */}

@@ -19,6 +19,8 @@ interface Scene3DProps {
   autoRotate?: boolean;
   backgroundPreset?: BackgroundPreset;
   customColor?: string;
+  legMaterialPreset?: MaterialPreset;
+  legCustomColor?: string;
 }
 
 const defaultSettings: PrintSettings = {
@@ -57,6 +59,8 @@ const Scene3D = ({
   autoRotate = true,
   backgroundPreset = 'studio',
   customColor,
+  legMaterialPreset,
+  legCustomColor,
 }: Scene3DProps) => {
   // When legs are enabled, lift the entire object so legs touch ground
   const legHeight = params.addLegs ? params.legHeight : 0;
@@ -95,6 +99,8 @@ const Scene3D = ({
                 materialPreset={materialPreset}
                 autoRotate={autoRotate}
                 customColor={customColor}
+                legMaterialPreset={legMaterialPreset}
+                legCustomColor={legCustomColor}
               />
             </group>
           ) : (
