@@ -8,6 +8,7 @@ export type MaterialPreset =
   | 'brushed-metal'
   | 'wood'
   | 'concrete'
+  | 'pla-filament'
   | 'custom';
 
 export interface MaterialConfig {
@@ -86,6 +87,14 @@ export const MATERIAL_PRESETS: Record<Exclude<MaterialPreset, 'custom'>, Materia
     metalness: 0.0,
     envMapIntensity: 0.1,
   },
+  'pla-filament': {
+    color: '#e0e0e0',
+    roughness: 0.5,
+    metalness: 0.0,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.3,
+    envMapIntensity: 0.25,
+  },
 };
 
 export const MATERIAL_LABELS: Record<MaterialPreset, string> = {
@@ -98,16 +107,17 @@ export const MATERIAL_LABELS: Record<MaterialPreset, string> = {
   'brushed-metal': 'Brushed Metal',
   'wood': 'Wood',
   'concrete': 'Concrete',
+  'pla-filament': 'PLA Filament',
   'custom': 'Custom Color',
 };
 
-export type BackgroundPreset = 'gradient' | 'dark' | 'light' | 'warm' | 'cool' | 'studio';
+export type BackgroundPreset = 'white' | 'light-gray' | 'dark' | 'warm' | 'cool' | 'studio';
 
 export const BACKGROUND_PRESETS: Record<BackgroundPreset, { from: string; to: string; label: string }> = {
-  'gradient': { from: 'hsl(var(--secondary) / 0.3)', to: 'hsl(var(--secondary) / 0.6)', label: 'Default' },
-  'dark': { from: '#1a1a2e', to: '#0f0f1a', label: 'Dark' },
-  'light': { from: '#f5f5f5', to: '#e8e8e8', label: 'Light' },
-  'warm': { from: '#2d1f1a', to: '#1a1210', label: 'Warm' },
-  'cool': { from: '#1a2433', to: '#0f1520', label: 'Cool' },
-  'studio': { from: '#252530', to: '#18181b', label: 'Studio' },
+  'white': { from: '#ffffff', to: '#f0f0f0', label: 'White' },
+  'light-gray': { from: '#e8e8e8', to: '#d0d0d0', label: 'Light Gray' },
+  'dark': { from: '#1a1a1a', to: '#0a0a0a', label: 'Dark' },
+  'warm': { from: '#f5e6d3', to: '#e8d5c4', label: 'Warm' },
+  'cool': { from: '#d4e5f7', to: '#b8d4ed', label: 'Cool' },
+  'studio': { from: '#3a3a4a', to: '#252530', label: 'Studio' },
 };
