@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
+import earcut from 'earcut';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
 
@@ -542,85 +543,22 @@ function generateWallMountBody(
     }
   }
 
-  // Build complete back wall polygon WITH PROPER THICKNESS
-  const backThickness = wallThickness; // Use wall thickness for the back
+  // Build complete back wall polygon WITH PROPER THICKNESS and KEYHOLE HOLES using earcut
+  const backThickness = wallThickness;
   
   if (leftEdgePoints.length >= 2 && rightEdgePoints.length >= 2) {
     // Create outline: left edge bottom to top, then right edge top to bottom
     const outline: { x: number; y: number }[] = [];
     
-    // Left edge (bottom to top)
-    for (const pt of leftEdgePoints) {
-      outline.push(pt);
-    }
-    
-    // Right edge (top to bottom - reversed)
-    for (let i = rightEdgePoints.length - 1; i >= 0; i--) {
-      outline.push(rightEdgePoints[i]);
-    }
+    for (const pt of leftEdgePoints) outline.push(pt);
+    for (let i = rightEdgePoints.length - 1; i >= 0; i--) outline.push(rightEdgePoints[i]);
     
     if (outline.length >= 3) {
-      // Front face vertices (at cutOffset - facing outward)
-      const frontStartIdx = vertices.length / 3;
-      for (const pt of outline) {
-        vertices.push(pt.x, pt.y, cutOffset);
-      }
+      // Calculate keyhole positions
+      const KEYHOLE_HEAD_RADIUS = 5;
+      const KEYHOLE_SLOT_WIDTH = 2.5;
+      const KEYHOLE_SLOT_LENGTH = 10;
       
-      // Back face vertices (at cutOffset - backThickness - facing wall)
-      const backStartIdx = vertices.length / 3;
-      for (const pt of outline) {
-        vertices.push(pt.x, pt.y, cutOffset - backThickness);
-      }
-      
-      // Calculate centroid for fan triangulation
-      let centerX = 0, centerY = 0;
-      for (const pt of outline) {
-        centerX += pt.x;
-        centerY += pt.y;
-      }
-      centerX /= outline.length;
-      centerY /= outline.length;
-      
-      // Front center vertex
-      const frontCenterIdx = vertices.length / 3;
-      vertices.push(centerX, centerY, cutOffset);
-      
-      // Back center vertex
-      const backCenterIdx = vertices.length / 3;
-      vertices.push(centerX, centerY, cutOffset - backThickness);
-      
-      // Front face triangles (facing +Z)
-      for (let i = 0; i < outline.length; i++) {
-        const a = frontStartIdx + i;
-        const b = frontStartIdx + ((i + 1) % outline.length);
-        indices.push(frontCenterIdx, a, b);
-      }
-      
-      // Back face triangles (facing -Z)
-      for (let i = 0; i < outline.length; i++) {
-        const a = backStartIdx + i;
-        const b = backStartIdx + ((i + 1) % outline.length);
-        indices.push(backCenterIdx, b, a);
-      }
-      
-      // Edge walls connecting front to back (the thickness sides)
-      for (let i = 0; i < outline.length; i++) {
-        const frontA = frontStartIdx + i;
-        const frontB = frontStartIdx + ((i + 1) % outline.length);
-        const backA = backStartIdx + i;
-        const backB = backStartIdx + ((i + 1) % outline.length);
-        
-        indices.push(frontA, backA, frontB);
-        indices.push(frontB, backA, backB);
-      }
-      
-      // === ADD KEYHOLE HOLES THROUGH THE THICK BACK WALL ===
-      const KEYHOLE_HEAD_RADIUS = 5; // 10mm diameter head hole (matches preview)
-      const KEYHOLE_SLOT_WIDTH = 2.5;  // 5mm slot width (matches preview)
-      const KEYHOLE_SLOT_LENGTH = 10; // 10mm slot length (matches preview)
-      const KEYHOLE_DEPTH = backThickness + 2; // Through the back wall with margin
-      
-      // Calculate keyhole positions (2 vertical holes centered)
       const holeMargin = height * 0.15;
       const bottomY = Math.max(holeMargin, 15);
       const topY = Math.min(height - holeMargin, height - 15);
@@ -630,9 +568,96 @@ function generateWallMountBody(
         { x: 0, y: topY }
       ];
       
-      // Add keyhole hole geometry for each position
+      // Helper to generate keyhole outline points
+      const getKeyholeOutline = (cx: number, cy: number, segments: number = 24): { x: number; y: number }[] => {
+        const points: { x: number; y: number }[] = [];
+        
+        points.push({ x: cx - KEYHOLE_SLOT_WIDTH, y: cy - KEYHOLE_SLOT_LENGTH });
+        points.push({ x: cx + KEYHOLE_SLOT_WIDTH, y: cy - KEYHOLE_SLOT_LENGTH });
+        points.push({ x: cx + KEYHOLE_SLOT_WIDTH, y: cy });
+        
+        for (let i = 0; i <= segments; i++) {
+          const angle = -Math.PI / 2 + (i / segments) * Math.PI * 2;
+          const x = cx + Math.cos(angle) * KEYHOLE_HEAD_RADIUS;
+          const y = cy + Math.sin(angle) * KEYHOLE_HEAD_RADIUS;
+          if (y >= cy - KEYHOLE_SLOT_WIDTH * 0.5 || Math.abs(x - cx) >= KEYHOLE_SLOT_WIDTH) {
+            points.push({ x, y });
+          }
+        }
+        
+        points.push({ x: cx - KEYHOLE_SLOT_WIDTH, y: cy });
+        return points;
+      };
+      
+      // Prepare earcut data
+      const flatCoords: number[] = [];
+      const holeIndices: number[] = [];
+      
+      // Add outer outline
+      for (const pt of outline) {
+        flatCoords.push(pt.x, pt.y);
+      }
+      
+      // Add keyhole holes
       for (const pos of keyholePositions) {
-        addKeyholeHole(vertices, indices, pos.x, pos.y, cutOffset, KEYHOLE_HEAD_RADIUS, KEYHOLE_SLOT_WIDTH, KEYHOLE_SLOT_LENGTH, KEYHOLE_DEPTH);
+        holeIndices.push(flatCoords.length / 2);
+        const keyholeOutline = getKeyholeOutline(pos.x, pos.y);
+        for (const pt of keyholeOutline) {
+          flatCoords.push(pt.x, pt.y);
+        }
+      }
+      
+      // Triangulate with earcut
+      const triangleIndices = earcut(flatCoords, holeIndices.length > 0 ? holeIndices : undefined, 2);
+      
+      // Create vertices
+      const frontStartIdx = vertices.length / 3;
+      const numPoints = flatCoords.length / 2;
+      
+      for (let i = 0; i < numPoints; i++) {
+        vertices.push(flatCoords[i * 2], flatCoords[i * 2 + 1], cutOffset);
+      }
+      
+      const backStartIdx = vertices.length / 3;
+      for (let i = 0; i < numPoints; i++) {
+        vertices.push(flatCoords[i * 2], flatCoords[i * 2 + 1], cutOffset - backThickness);
+      }
+      
+      // Front face triangles
+      for (let i = 0; i < triangleIndices.length; i += 3) {
+        indices.push(frontStartIdx + triangleIndices[i], frontStartIdx + triangleIndices[i + 1], frontStartIdx + triangleIndices[i + 2]);
+      }
+      
+      // Back face triangles (reversed winding)
+      for (let i = 0; i < triangleIndices.length; i += 3) {
+        indices.push(backStartIdx + triangleIndices[i], backStartIdx + triangleIndices[i + 2], backStartIdx + triangleIndices[i + 1]);
+      }
+      
+      // Outer edge walls
+      for (let i = 0; i < outline.length; i++) {
+        const frontA = frontStartIdx + i;
+        const frontB = frontStartIdx + ((i + 1) % outline.length);
+        const backA = backStartIdx + i;
+        const backB = backStartIdx + ((i + 1) % outline.length);
+        indices.push(frontA, backA, frontB);
+        indices.push(frontB, backA, backB);
+      }
+      
+      // Keyhole inner edge walls
+      let holeStartIdx = outline.length;
+      for (const pos of keyholePositions) {
+        const keyholeOutline = getKeyholeOutline(pos.x, pos.y);
+        const holeLen = keyholeOutline.length;
+        
+        for (let i = 0; i < holeLen; i++) {
+          const frontA = frontStartIdx + holeStartIdx + i;
+          const frontB = frontStartIdx + holeStartIdx + ((i + 1) % holeLen);
+          const backA = backStartIdx + holeStartIdx + i;
+          const backB = backStartIdx + holeStartIdx + ((i + 1) % holeLen);
+          indices.push(frontA, frontB, backA);
+          indices.push(frontB, backB, backA);
+        }
+        holeStartIdx += holeLen;
       }
     }
   }
