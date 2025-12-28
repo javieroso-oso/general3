@@ -16,10 +16,10 @@ import {
   defaultPrintSettings,
   analyzePrint,
 } from '@/types/parametric';
-import { MaterialPreset, MATERIAL_LABELS } from '@/types/materials';
+import { MaterialPreset, MATERIAL_LABELS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -43,6 +43,8 @@ const Index = () => {
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
   const [materialPreset, setMaterialPreset] = useState<MaterialPreset>('ceramic');
   const [autoRotate, setAutoRotate] = useState(true);
+  const [backgroundPreset, setBackgroundPreset] = useState<BackgroundPreset>('gradient');
+  const [customColor, setCustomColor] = useState('#888888');
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -203,16 +205,43 @@ const Index = () => {
               </div>
               
               {viewMode === 'model' && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {/* Material Preset Selector */}
                   <Select value={materialPreset} onValueChange={(v) => setMaterialPreset(v as MaterialPreset)}>
-                    <SelectTrigger className="w-[130px] h-8 text-xs">
+                    <SelectTrigger className="w-[130px] h-8 text-xs bg-card border-border">
                       <SelectValue placeholder="Material" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-card border-border">
                       {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
                         <SelectItem key={preset} value={preset} className="text-xs">
                           {MATERIAL_LABELS[preset]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Custom Color Picker - only show when custom is selected */}
+                  {materialPreset === 'custom' && (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="color"
+                        value={customColor}
+                        onChange={(e) => setCustomColor(e.target.value)}
+                        className="w-8 h-8 rounded cursor-pointer border border-border"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Background Selector */}
+                  <Select value={backgroundPreset} onValueChange={(v) => setBackgroundPreset(v as BackgroundPreset)}>
+                    <SelectTrigger className="w-[100px] h-8 text-xs bg-card border-border">
+                      <Palette className="w-3 h-3 mr-1" />
+                      <SelectValue placeholder="BG" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {(Object.keys(BACKGROUND_PRESETS) as BackgroundPreset[]).map((preset) => (
+                        <SelectItem key={preset} value={preset} className="text-xs">
+                          {BACKGROUND_PRESETS[preset].label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -252,6 +281,8 @@ const Index = () => {
                 gcodeAnimate={gcodeAnimate}
                 materialPreset={materialPreset}
                 autoRotate={autoRotate}
+                backgroundPreset={backgroundPreset}
+                customColor={customColor}
               />
               
               {/* Dimensions overlay */}

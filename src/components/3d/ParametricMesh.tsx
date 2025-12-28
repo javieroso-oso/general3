@@ -5,7 +5,7 @@ import { ParametricParams, ObjectType, printConstraints } from '@/types/parametr
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
 
-import { MaterialPreset, MATERIAL_PRESETS } from '@/types/materials';
+import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
 interface ParametricMeshProps {
   params: ParametricParams;
@@ -13,6 +13,7 @@ interface ParametricMeshProps {
   showWireframe?: boolean;
   materialPreset?: MaterialPreset;
   autoRotate?: boolean;
+  customColor?: string;
 }
 
 // Deterministic noise for consistent results
@@ -67,9 +68,21 @@ const ParametricMesh = ({
   showWireframe = false,
   materialPreset = 'ceramic',
   autoRotate = true,
+  customColor,
 }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
-  const materialConfig = MATERIAL_PRESETS[materialPreset];
+  
+  // Handle custom color preset
+  const materialConfig: MaterialConfig = materialPreset === 'custom' 
+    ? {
+        color: customColor || '#888888',
+        roughness: 0.3,
+        metalness: 0.0,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.1,
+        envMapIntensity: 0.4,
+      }
+    : MATERIAL_PRESETS[materialPreset];
 
   const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
     const {
