@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
-import { MaterialPreset } from '@/types/materials';
+import { MaterialPreset, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -17,6 +17,8 @@ interface Scene3DProps {
   gcodeAnimate?: boolean;
   materialPreset?: MaterialPreset;
   autoRotate?: boolean;
+  backgroundPreset?: BackgroundPreset;
+  customColor?: string;
 }
 
 const defaultSettings: PrintSettings = {
@@ -53,13 +55,26 @@ const Scene3D = ({
   gcodeAnimate = false,
   materialPreset = 'ceramic',
   autoRotate = true,
+  backgroundPreset = 'gradient',
+  customColor,
 }: Scene3DProps) => {
   // When legs are enabled, lift the entire object so legs touch ground
   const legHeight = params.addLegs ? params.legHeight : 0;
   const objectYOffset = legHeight * SCALE;
   
+  const bgConfig = BACKGROUND_PRESETS[backgroundPreset];
+  const bgStyle = backgroundPreset === 'gradient' 
+    ? `bg-gradient-to-b from-secondary/30 to-secondary/60`
+    : '';
+  const bgInline = backgroundPreset !== 'gradient' 
+    ? { background: `linear-gradient(to bottom, ${bgConfig.from}, ${bgConfig.to})` }
+    : {};
+  
   return (
-    <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-secondary/30 to-secondary/60">
+    <div 
+      className={`w-full h-full min-h-[400px] rounded-2xl overflow-hidden ${bgStyle}`}
+      style={bgInline}
+    >
       <Canvas shadows gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>
         <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
         
@@ -84,6 +99,7 @@ const Scene3D = ({
                 showWireframe={showWireframe}
                 materialPreset={materialPreset}
                 autoRotate={autoRotate}
+                customColor={customColor}
               />
             </group>
           ) : (
