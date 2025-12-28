@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
+import { SUBTRACTION, Brush, Evaluator } from 'three-bvh-csg';
 
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
@@ -330,29 +331,27 @@ const ParametricMesh = ({
     const vertices: number[] = [];
     const indices: number[] = [];
 
-    // Helper to create keyhole geometry
+    // Helper to create keyhole geometry - CORRECT: large circle at TOP, narrow slot going DOWN
     const createKeyholeVisual = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
       const segs = 32;
-      const headRadius = 4 * SCALE;
-      const slotWidth = 2 * SCALE;
-      const slotLength = 8 * SCALE;
-      const depth = 3 * SCALE;
+      const headRadius = 5 * SCALE;  // 10mm diameter for screw head
+      const slotWidth = 2.5 * SCALE; // 5mm wide slot for screw shaft
+      const slotLength = 10 * SCALE; // 10mm slot length
+      const depth = 5 * SCALE;       // 5mm deep (through wall)
       
+      // Create keyhole shape: large circle at TOP, slot going DOWN
       const combinedShape = new THREE.Shape();
-      combinedShape.moveTo(slotWidth, headRadius * 0.3);
-      combinedShape.lineTo(slotWidth, slotLength);
-      for (let i = 0; i <= segs / 4; i++) {
-        const angle = (i / (segs / 4)) * Math.PI;
-        combinedShape.lineTo(
-          Math.cos(angle) * slotWidth,
-          slotLength + Math.sin(angle) * slotWidth
-        );
-      }
-      combinedShape.lineTo(-slotWidth, headRadius * 0.3);
-      for (let i = 0; i <= segs * 0.75; i++) {
-        const angle = Math.PI / 2 + (i / (segs * 0.75)) * (Math.PI * 1.5);
-        combinedShape.lineTo(Math.cos(angle) * headRadius, Math.sin(angle) * headRadius);
-      }
+      
+      // Start at bottom-left of slot
+      combinedShape.moveTo(-slotWidth, -slotLength);
+      // Bottom of slot (rounded bottom)
+      combinedShape.absarc(0, -slotLength, slotWidth, Math.PI, 0, true);
+      // Right side of slot going up to circle
+      combinedShape.lineTo(slotWidth, 0);
+      // Large circle at top (clockwise from right side to left side)
+      combinedShape.absarc(0, 0, headRadius, 0, Math.PI, false);
+      // Left side of slot going down
+      combinedShape.lineTo(-slotWidth, 0);
       combinedShape.closePath();
       
       const geo = new THREE.ExtrudeGeometry(combinedShape, {
@@ -360,7 +359,9 @@ const ParametricMesh = ({
         bevelEnabled: false,
       });
       
-      geo.translate(cx, cy, zPos - depth);
+      // Rotate to face Z direction and position
+      geo.rotateX(Math.PI);
+      geo.translate(cx, cy, zPos);
       return geo;
     };
     
@@ -616,10 +617,51 @@ const ParametricMesh = ({
       }
     }
 
-    const bodyGeo = new THREE.BufferGeometry();
+    let bodyGeo = new THREE.BufferGeometry();
     bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     bodyGeo.setIndex(indices);
     bodyGeo.computeVertexNormals();
+    
+    // Apply CSG to cut keyhole and cord holes into the body (for wall mount)
+    if (isWallMount && (keyholeGeometries.length > 0 || cordHoleGeometry)) {
+      try {
+        const evaluator = new Evaluator();
+        let bodyBrush = new Brush(bodyGeo);
+        bodyBrush.updateMatrixWorld();
+        
+        // Subtract each keyhole from the body
+        for (const keyholeGeo of keyholeGeometries) {
+          const keyholeBrush = new Brush(keyholeGeo);
+          keyholeBrush.updateMatrixWorld();
+          bodyBrush = evaluator.evaluate(bodyBrush, keyholeBrush, SUBTRACTION) as Brush;
+        }
+        
+        // Subtract cord hole if enabled
+        if (cordHoleGeometry) {
+          // Create a cylinder for the cord hole
+          const cordCylGeo = new THREE.CylinderGeometry(
+            (params.cordHoleDiameter || 8) * SCALE / 2,
+            (params.cordHoleDiameter || 8) * SCALE / 2,
+            wall * 4,
+            32
+          );
+          cordCylGeo.rotateX(Math.PI / 2);
+          cordCylGeo.translate(0, h * 0.5, cutOffset - wall * 2);
+          
+          const cordBrush = new Brush(cordCylGeo);
+          cordBrush.updateMatrixWorld();
+          bodyBrush = evaluator.evaluate(bodyBrush, cordBrush, SUBTRACTION) as Brush;
+        }
+        
+        bodyGeo = bodyBrush.geometry;
+        // Clear the keyhole geometries since they're now cut into the body
+        keyholeGeometries = [];
+        cordHoleGeometry = null;
+      } catch (e) {
+        // CSG failed, fall back to visual-only keyholes
+        console.warn('CSG operation failed, using visual keyholes:', e);
+      }
+    }
     
     let overhangColorArray: Float32Array | null = null;
     if (params.showOverhangMap && !isWallMount) {
