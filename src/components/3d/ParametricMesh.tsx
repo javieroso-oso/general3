@@ -14,6 +14,8 @@ interface ParametricMeshProps {
   materialPreset?: MaterialPreset;
   autoRotate?: boolean;
   customColor?: string;
+  legMaterialPreset?: MaterialPreset;
+  legCustomColor?: string;
 }
 
 // Deterministic noise for consistent results
@@ -69,10 +71,12 @@ const ParametricMesh = ({
   materialPreset = 'ceramic',
   autoRotate = true,
   customColor,
+  legMaterialPreset,
+  legCustomColor,
 }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
-  // Get base material config and apply custom color if provided
+  // Get base material config for body
   const baseConfig = materialPreset === 'custom' 
     ? {
         color: '#888888',
@@ -84,10 +88,28 @@ const ParametricMesh = ({
       }
     : MATERIAL_PRESETS[materialPreset];
 
-  // Always apply customColor if provided, otherwise use preset's default color
   const materialConfig: MaterialConfig = {
     ...baseConfig,
     color: customColor || baseConfig.color,
+  };
+  
+  // Get material config for legs/base (defaults to body material if not specified)
+  const legBaseConfig = legMaterialPreset 
+    ? (legMaterialPreset === 'custom' 
+        ? {
+            color: '#888888',
+            roughness: 0.3,
+            metalness: 0.0,
+            clearcoat: 0.5,
+            clearcoatRoughness: 0.1,
+            envMapIntensity: 0.4,
+          }
+        : MATERIAL_PRESETS[legMaterialPreset])
+    : baseConfig;
+
+  const legMaterialConfig: MaterialConfig = {
+    ...legBaseConfig,
+    color: legCustomColor || legBaseConfig.color,
   };
 
   const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
@@ -721,15 +743,15 @@ const ParametricMesh = ({
       {legGeometry && (
         <mesh geometry={legGeometry} castShadow receiveShadow>
           <meshPhysicalMaterial
-            color={materialConfig.color}
-            roughness={materialConfig.roughness}
-            metalness={materialConfig.metalness}
-            clearcoat={materialConfig.clearcoat ?? 0}
-            clearcoatRoughness={materialConfig.clearcoatRoughness ?? 0}
-            transmission={materialConfig.transmission ?? 0}
-            thickness={materialConfig.thickness ?? 0}
-            ior={materialConfig.ior ?? 1.5}
-            envMapIntensity={materialConfig.envMapIntensity ?? 1}
+            color={legMaterialConfig.color}
+            roughness={legMaterialConfig.roughness}
+            metalness={legMaterialConfig.metalness}
+            clearcoat={legMaterialConfig.clearcoat ?? 0}
+            clearcoatRoughness={legMaterialConfig.clearcoatRoughness ?? 0}
+            transmission={legMaterialConfig.transmission ?? 0}
+            thickness={legMaterialConfig.thickness ?? 0}
+            ior={legMaterialConfig.ior ?? 1.5}
+            envMapIntensity={legMaterialConfig.envMapIntensity ?? 1}
             side={THREE.DoubleSide}
           />
         </mesh>
