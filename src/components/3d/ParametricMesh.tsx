@@ -331,38 +331,58 @@ const ParametricMesh = ({
     const vertices: number[] = [];
     const indices: number[] = [];
 
-    // Helper to create keyhole geometry - CORRECT: large circle at TOP, narrow slot going DOWN
-    const createKeyholeVisual = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
-      const segs = 32;
+    // Helper to create keyhole geometry for CSG - CORRECT: large circle at TOP, narrow slot going DOWN
+    // Uses merged cylinder + box primitives for reliable CSG operations
+    const createKeyholeGeometry = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
       const headRadius = 5 * SCALE;  // 10mm diameter for screw head
       const slotWidth = 2.5 * SCALE; // 5mm wide slot for screw shaft
-      const slotLength = 10 * SCALE; // 10mm slot length
-      const depth = 5 * SCALE;       // 5mm deep (through wall)
+      const slotLength = 10 * SCALE; // 10mm slot length going DOWN
+      const depth = wall * 3;        // Through the back wall
       
-      // Create keyhole shape: large circle at TOP, slot going DOWN
-      const combinedShape = new THREE.Shape();
+      // Create head (large circle at TOP) - cylinder aligned to Z axis
+      const headGeometry = new THREE.CylinderGeometry(headRadius, headRadius, depth, 32);
+      headGeometry.rotateX(Math.PI / 2); // Align cylinder to Z axis
+      headGeometry.translate(cx, cy, zPos - depth / 2);
       
-      // Start at bottom-left of slot
-      combinedShape.moveTo(-slotWidth, -slotLength);
-      // Bottom of slot (rounded bottom)
-      combinedShape.absarc(0, -slotLength, slotWidth, Math.PI, 0, true);
-      // Right side of slot going up to circle
-      combinedShape.lineTo(slotWidth, 0);
-      // Large circle at top (clockwise from right side to left side)
-      combinedShape.absarc(0, 0, headRadius, 0, Math.PI, false);
-      // Left side of slot going down
-      combinedShape.lineTo(-slotWidth, 0);
-      combinedShape.closePath();
+      // Create slot (narrow rectangle going DOWN from head)
+      const slotGeometry = new THREE.BoxGeometry(slotWidth * 2, slotLength, depth);
+      slotGeometry.translate(cx, cy - slotLength / 2, zPos - depth / 2);
       
-      const geo = new THREE.ExtrudeGeometry(combinedShape, {
-        depth: depth,
-        bevelEnabled: false,
-      });
+      // Merge the two geometries
+      const mergedPositions: number[] = [];
+      const mergedIndices: number[] = [];
       
-      // Rotate to face Z direction and position
-      geo.rotateX(Math.PI);
-      geo.translate(cx, cy, zPos);
-      return geo;
+      // Add head geometry
+      const headPos = headGeometry.getAttribute('position');
+      const headIdx = headGeometry.getIndex();
+      for (let i = 0; i < headPos.count; i++) {
+        mergedPositions.push(headPos.getX(i), headPos.getY(i), headPos.getZ(i));
+      }
+      if (headIdx) {
+        for (let i = 0; i < headIdx.count; i++) {
+          mergedIndices.push(headIdx.getX(i));
+        }
+      }
+      
+      // Add slot geometry with offset indices
+      const slotPos = slotGeometry.getAttribute('position');
+      const slotIdx = slotGeometry.getIndex();
+      const indexOffset = headPos.count;
+      for (let i = 0; i < slotPos.count; i++) {
+        mergedPositions.push(slotPos.getX(i), slotPos.getY(i), slotPos.getZ(i));
+      }
+      if (slotIdx) {
+        for (let i = 0; i < slotIdx.count; i++) {
+          mergedIndices.push(slotIdx.getX(i) + indexOffset);
+        }
+      }
+      
+      const mergedGeo = new THREE.BufferGeometry();
+      mergedGeo.setAttribute('position', new THREE.Float32BufferAttribute(mergedPositions, 3));
+      mergedGeo.setIndex(mergedIndices);
+      mergedGeo.computeVertexNormals();
+      
+      return mergedGeo;
     };
     
     const createCircleVisual = (cx: number, cy: number, radius: number, zPos: number): THREE.BufferGeometry => {
@@ -407,7 +427,7 @@ const ParametricMesh = ({
       }
       
       for (const pos of holePositions) {
-        keyholeGeometries.push(createKeyholeVisual(pos.x, pos.y, cutOffset));
+        keyholeGeometries.push(createKeyholeGeometry(pos.x, pos.y, cutOffset));
       }
       
       if (params.wallMountCordHoleEnabled) {
