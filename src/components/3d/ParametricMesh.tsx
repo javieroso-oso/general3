@@ -72,10 +72,10 @@ const ParametricMesh = ({
 }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
-  // Handle custom color preset
-  const materialConfig: MaterialConfig = materialPreset === 'custom' 
+  // Get base material config and apply custom color if provided
+  const baseConfig = materialPreset === 'custom' 
     ? {
-        color: customColor || '#888888',
+        color: '#888888',
         roughness: 0.3,
         metalness: 0.0,
         clearcoat: 0.5,
@@ -83,6 +83,12 @@ const ParametricMesh = ({
         envMapIntensity: 0.4,
       }
     : MATERIAL_PRESETS[materialPreset];
+
+  // Always apply customColor if provided, otherwise use preset's default color
+  const materialConfig: MaterialConfig = {
+    ...baseConfig,
+    color: customColor || baseConfig.color,
+  };
 
   const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
     const {
