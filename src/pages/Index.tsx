@@ -16,7 +16,7 @@ import {
   defaultPrintSettings,
   analyzePrint,
 } from '@/types/parametric';
-import { MaterialPreset, MATERIAL_LABELS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
+import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette } from 'lucide-react';
@@ -44,7 +44,8 @@ const Index = () => {
   const [materialPreset, setMaterialPreset] = useState<MaterialPreset>('ceramic');
   const [autoRotate, setAutoRotate] = useState(true);
   const [backgroundPreset, setBackgroundPreset] = useState<BackgroundPreset>('gradient');
-  const [customColor, setCustomColor] = useState('#888888');
+  const [customColor, setCustomColor] = useState<string | undefined>(undefined);
+  const [usePresetColor, setUsePresetColor] = useState(true);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -224,10 +225,27 @@ const Index = () => {
                   <div className="flex items-center gap-1">
                     <input
                       type="color"
-                      value={customColor}
-                      onChange={(e) => setCustomColor(e.target.value)}
+                      value={customColor || MATERIAL_PRESETS[materialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
+                      onChange={(e) => {
+                        setCustomColor(e.target.value);
+                        setUsePresetColor(false);
+                      }}
                       className="w-8 h-8 rounded cursor-pointer border border-border"
                     />
+                    {!usePresetColor && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setUsePresetColor(true);
+                          setCustomColor(undefined);
+                        }}
+                        title="Reset to preset color"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                   
                   {/* Background Selector */}
@@ -280,7 +298,7 @@ const Index = () => {
                 materialPreset={materialPreset}
                 autoRotate={autoRotate}
                 backgroundPreset={backgroundPreset}
-                customColor={customColor}
+                customColor={usePresetColor ? undefined : customColor}
               />
               
               {/* Dimensions overlay */}
