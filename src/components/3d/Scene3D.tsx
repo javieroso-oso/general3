@@ -1,9 +1,12 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, PerspectiveCamera, Grid } from '@react-three/drei';
+import { OrbitControls, Environment, PerspectiveCamera, ContactShadows } from '@react-three/drei';
 import { Suspense } from 'react';
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { BlendFunction } from 'postprocessing';
 import ParametricMesh from './ParametricMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
+import { MaterialPreset } from '@/types/materials';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -14,6 +17,8 @@ interface Scene3DProps {
   gcodeLayer?: number;
   gcodeShowAll?: boolean;
   gcodeAnimate?: boolean;
+  materialPreset?: MaterialPreset;
+  autoRotate?: boolean;
 }
 
 const defaultSettings: PrintSettings = {
@@ -48,6 +53,8 @@ const Scene3D = ({
   gcodeLayer = 0,
   gcodeShowAll = true,
   gcodeAnimate = false,
+  materialPreset = 'ceramic',
+  autoRotate = true,
 }: Scene3DProps) => {
   // When legs are enabled, lift the entire object so legs touch ground
   const legHeight = params.addLegs ? params.legHeight : 0;
@@ -55,34 +62,65 @@ const Scene3D = ({
   
   return (
     <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-secondary/30 to-secondary/60">
-      <Canvas shadows>
+      <Canvas shadows gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>
         <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
         
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
-        <directionalLight position={[-3, 5, -3]} intensity={0.4} />
+        {/* Professional 3-point lighting setup */}
+        <ambientLight intensity={0.3} />
         
-        <Environment preset="studio" />
-        
-        {/* Print bed grid */}
-        <Grid
-          position={[0, -0.01, 0]}
-          args={[4, 4]}
-          cellSize={0.2}
-          cellThickness={0.5}
-          cellColor="#a1a1aa"
-          sectionSize={1}
-          sectionThickness={1}
-          sectionColor="#71717a"
-          fadeDistance={10}
-          fadeStrength={1}
-          followCamera={false}
+        {/* Key light - main light source */}
+        <directionalLight 
+          position={[5, 10, 5]} 
+          intensity={1.8} 
+          castShadow 
+          shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0001}
         />
+        
+        {/* Fill light - softer, opposite side */}
+        <directionalLight position={[-5, 5, -5]} intensity={0.5} />
+        
+        {/* Rim/back light - creates edge definition */}
+        <directionalLight position={[0, 3, -8]} intensity={0.6} />
+        
+        {/* Under-fill for product shot feel */}
+        <directionalLight position={[0, -3, 0]} intensity={0.15} />
+        
+        {/* Better HDRI environment for reflections */}
+        <Environment preset="warehouse" />
+        
+        {/* Soft contact shadows for grounding */}
+        <ContactShadows
+          position={[0, -0.01, 0]}
+          opacity={0.4}
+          scale={8}
+          blur={2.5}
+          far={4}
+          resolution={512}
+          color="#000000"
+        />
+        
+        {/* Subtle ground plane */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+          <circleGeometry args={[3, 64]} />
+          <meshStandardMaterial 
+            color="#1a1a1a" 
+            transparent 
+            opacity={0.05}
+            roughness={0.9}
+          />
+        </mesh>
         
         <Suspense fallback={null}>
           {viewMode === 'model' ? (
             <group position={[0, objectYOffset, 0]}>
-              <ParametricMesh params={params} type={type} showWireframe={showWireframe} />
+              <ParametricMesh 
+                params={params} 
+                type={type} 
+                showWireframe={showWireframe}
+                materialPreset={materialPreset}
+                autoRotate={autoRotate}
+              />
             </group>
           ) : (
             <GCodePreview 
@@ -104,7 +142,25 @@ const Scene3D = ({
           minPolarAngle={0}
           maxPolarAngle={Math.PI}
           target={[0, 0.5, 0]}
+          autoRotate={false}
+          enableDamping
+          dampingFactor={0.05}
         />
+        
+        {/* Post-processing effects */}
+        <EffectComposer>
+          <Bloom 
+            luminanceThreshold={0.85}
+            luminanceSmoothing={0.025}
+            intensity={0.2}
+            mipmapBlur
+          />
+          <Vignette
+            offset={0.35}
+            darkness={0.25}
+            blendFunction={BlendFunction.NORMAL}
+          />
+        </EffectComposer>
       </Canvas>
     </div>
   );

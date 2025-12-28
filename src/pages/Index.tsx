@@ -16,13 +16,21 @@ import {
   defaultPrintSettings,
   analyzePrint,
 } from '@/types/parametric';
+import { MaterialPreset, MATERIAL_LABELS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const Index = () => {
   const [objectType, setObjectType] = useState<ObjectType>('vase');
@@ -33,6 +41,8 @@ const Index = () => {
   const [gcodeLayer, setGcodeLayer] = useState(0);
   const [gcodeShowAll, setGcodeShowAll] = useState(true);
   const [gcodeAnimate, setGcodeAnimate] = useState(false);
+  const [materialPreset, setMaterialPreset] = useState<MaterialPreset>('ceramic');
+  const [autoRotate, setAutoRotate] = useState(true);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -170,7 +180,7 @@ const Index = () => {
           {/* Sticky container for 3D viewer */}
           <div className="lg:sticky lg:top-20 space-y-3">
             {/* View mode toggle */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex gap-2">
                 <Button
                   variant={viewMode === 'model' ? 'default' : 'outline'}
@@ -193,13 +203,39 @@ const Index = () => {
               </div>
               
               {viewMode === 'model' && (
-                <Button
-                  variant={showWireframe ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setShowWireframe(!showWireframe)}
-                >
-                  Wireframe
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Material Preset Selector */}
+                  <Select value={materialPreset} onValueChange={(v) => setMaterialPreset(v as MaterialPreset)}>
+                    <SelectTrigger className="w-[130px] h-8 text-xs">
+                      <SelectValue placeholder="Material" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
+                        <SelectItem key={preset} value={preset} className="text-xs">
+                          {MATERIAL_LABELS[preset]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Auto-rotate toggle */}
+                  <Button
+                    variant={autoRotate ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setAutoRotate(!autoRotate)}
+                    className="gap-1"
+                  >
+                    <RotateCcw className={`w-4 h-4 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
+                  </Button>
+                  
+                  <Button
+                    variant={showWireframe ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setShowWireframe(!showWireframe)}
+                  >
+                    Wireframe
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -214,6 +250,8 @@ const Index = () => {
                 gcodeLayer={gcodeLayer}
                 gcodeShowAll={gcodeShowAll}
                 gcodeAnimate={gcodeAnimate}
+                materialPreset={materialPreset}
+                autoRotate={autoRotate}
               />
               
               {/* Dimensions overlay */}
