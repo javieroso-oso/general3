@@ -709,7 +709,8 @@ export function generateLegsWithBaseMesh(
     params.legThickness,
     params.legTaper,
     params.legInset,
-    params.baseThickness || 3,
+    params.standBaseThickness || params.baseThickness || 3,
+    // OrganicParams - for base disc deformation
     {
       wobbleFrequency: params.wobbleFrequency,
       wobbleAmplitude: params.wobbleAmplitude,
@@ -719,11 +720,24 @@ export function generateLegsWithBaseMesh(
       organicNoise: params.organicNoise,
       noiseScale: params.noiseScale,
     },
+    // SocketParams - for cord hole and centering lip
     {
       wallThickness: params.wallThickness,
       cordHoleEnabled: params.cordHoleEnabled,
       cordHoleDiameter: params.cordHoleDiameter,
-    }
+      centeringLipEnabled: params.centeringLipEnabled,
+      centeringLipHeight: params.centeringLipHeight,
+      socketType: params.socketType,
+    },
+    undefined, // attachmentParams (unused)
+    // PedestalParams - for base disc styling
+    {
+      thickness: params.standBaseThickness || 3,
+      taper: params.standBaseTaper || 0,
+      edgeStyle: params.standBaseEdgeStyle || 'flat',
+      lip: params.standBaseLip || 0,
+    },
+    params.legStyle // Pass the leg style
   );
 }
 
