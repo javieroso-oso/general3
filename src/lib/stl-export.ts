@@ -542,7 +542,9 @@ function generateWallMountBody(
     }
   }
 
-  // Build complete back wall polygon
+  // Build complete back wall polygon WITH PROPER THICKNESS
+  const backThickness = wallThickness; // Use wall thickness for the back
+  
   if (leftEdgePoints.length >= 2 && rightEdgePoints.length >= 2) {
     // Create outline: left edge bottom to top, then right edge top to bottom
     const outline: { x: number; y: number }[] = [];
@@ -558,10 +560,16 @@ function generateWallMountBody(
     }
     
     if (outline.length >= 3) {
-      // Add back wall vertices
-      const backWallStartIdx = vertices.length / 3;
+      // Front face vertices (at cutOffset - facing outward)
+      const frontStartIdx = vertices.length / 3;
       for (const pt of outline) {
         vertices.push(pt.x, pt.y, cutOffset);
+      }
+      
+      // Back face vertices (at cutOffset - backThickness - facing wall)
+      const backStartIdx = vertices.length / 3;
+      for (const pt of outline) {
+        vertices.push(pt.x, pt.y, cutOffset - backThickness);
       }
       
       // Calculate centroid for fan triangulation
@@ -573,23 +581,44 @@ function generateWallMountBody(
       centerX /= outline.length;
       centerY /= outline.length;
       
-      const centerIdx = vertices.length / 3;
+      // Front center vertex
+      const frontCenterIdx = vertices.length / 3;
       vertices.push(centerX, centerY, cutOffset);
       
-      // Create fan triangles (facing -Z direction, so we use proper winding)
+      // Back center vertex
+      const backCenterIdx = vertices.length / 3;
+      vertices.push(centerX, centerY, cutOffset - backThickness);
+      
+      // Front face triangles (facing +Z)
       for (let i = 0; i < outline.length; i++) {
-        const a = backWallStartIdx + i;
-        const b = backWallStartIdx + ((i + 1) % outline.length);
-        // Winding for back face (facing -Z)
-        indices.push(centerIdx, b, a);
+        const a = frontStartIdx + i;
+        const b = frontStartIdx + ((i + 1) % outline.length);
+        indices.push(frontCenterIdx, a, b);
       }
       
-      // === ADD KEYHOLE GEOMETRY TO BACK WALL ===
-      // Create actual keyhole holes in the back wall for proper STL export
-      const KEYHOLE_HEAD_RADIUS = 4; // 8mm diameter head hole
-      const KEYHOLE_SLOT_WIDTH = 2;  // 4mm slot width
-      const KEYHOLE_SLOT_LENGTH = 8; // 8mm slot length
-      const KEYHOLE_DEPTH = wallThickness + 1; // Through the back wall
+      // Back face triangles (facing -Z)
+      for (let i = 0; i < outline.length; i++) {
+        const a = backStartIdx + i;
+        const b = backStartIdx + ((i + 1) % outline.length);
+        indices.push(backCenterIdx, b, a);
+      }
+      
+      // Edge walls connecting front to back (the thickness sides)
+      for (let i = 0; i < outline.length; i++) {
+        const frontA = frontStartIdx + i;
+        const frontB = frontStartIdx + ((i + 1) % outline.length);
+        const backA = backStartIdx + i;
+        const backB = backStartIdx + ((i + 1) % outline.length);
+        
+        indices.push(frontA, backA, frontB);
+        indices.push(frontB, backA, backB);
+      }
+      
+      // === ADD KEYHOLE HOLES THROUGH THE THICK BACK WALL ===
+      const KEYHOLE_HEAD_RADIUS = 5; // 10mm diameter head hole (matches preview)
+      const KEYHOLE_SLOT_WIDTH = 2.5;  // 5mm slot width (matches preview)
+      const KEYHOLE_SLOT_LENGTH = 10; // 10mm slot length (matches preview)
+      const KEYHOLE_DEPTH = backThickness + 2; // Through the back wall with margin
       
       // Calculate keyhole positions (2 vertical holes centered)
       const holeMargin = height * 0.15;
