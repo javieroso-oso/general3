@@ -66,28 +66,28 @@ const Scene3D = ({
         <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
         
         {/* Professional 3-point lighting setup */}
-        <ambientLight intensity={0.3} />
+        <ambientLight intensity={0.2} />
         
         {/* Key light - main light source */}
         <directionalLight 
           position={[5, 10, 5]} 
-          intensity={1.8} 
+          intensity={1.0} 
           castShadow 
           shadow-mapSize={[2048, 2048]}
           shadow-bias={-0.0001}
         />
         
         {/* Fill light - softer, opposite side */}
-        <directionalLight position={[-5, 5, -5]} intensity={0.5} />
+        <directionalLight position={[-5, 5, -5]} intensity={0.25} />
         
         {/* Rim/back light - creates edge definition */}
-        <directionalLight position={[0, 3, -8]} intensity={0.6} />
+        <directionalLight position={[0, 3, -8]} intensity={0.35} />
         
         {/* Under-fill for product shot feel */}
-        <directionalLight position={[0, -3, 0]} intensity={0.15} />
+        <directionalLight position={[0, -3, 0]} intensity={0.1} />
         
-        {/* Better HDRI environment for reflections */}
-        <Environment preset="warehouse" />
+        {/* Softer HDRI environment for reflections */}
+        <Environment preset="studio" />
         
         {/* Soft contact shadows for grounding */}
         <ContactShadows
