@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
-import { SUBTRACTION, Brush, Evaluator } from 'three-bvh-csg';
+// CSG imports removed - using direct geometry generation for keyholes
 
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
@@ -331,69 +331,45 @@ const ParametricMesh = ({
     const vertices: number[] = [];
     const indices: number[] = [];
 
-    // Helper to create keyhole geometry for CSG - CORRECT: large circle at TOP, narrow slot going DOWN
-    // Uses merged cylinder + box primitives for reliable CSG operations
-    const createKeyholeGeometry = (cx: number, cy: number, zPos: number): THREE.BufferGeometry => {
+    // Helper to create keyhole outline points (for direct geometry generation)
+    // CORRECT: large circle at TOP, narrow slot going DOWN
+    const getKeyholeOutline = (cx: number, cy: number, segments: number = 24): { x: number; y: number }[] => {
       const headRadius = 5 * SCALE;  // 10mm diameter for screw head
       const slotWidth = 2.5 * SCALE; // 5mm wide slot for screw shaft
       const slotLength = 10 * SCALE; // 10mm slot length going DOWN
-      const depth = wall * 3;        // Through the back wall
       
-      // Create head (large circle at TOP) - cylinder aligned to Z axis
-      const headGeometry = new THREE.CylinderGeometry(headRadius, headRadius, depth, 32);
-      headGeometry.rotateX(Math.PI / 2); // Align cylinder to Z axis
-      headGeometry.translate(cx, cy, zPos - depth / 2);
+      const points: { x: number; y: number }[] = [];
       
-      // Create slot (narrow rectangle going DOWN from head)
-      const slotGeometry = new THREE.BoxGeometry(slotWidth * 2, slotLength, depth);
-      slotGeometry.translate(cx, cy - slotLength / 2, zPos - depth / 2);
+      // Start at bottom-left of slot and trace clockwise
+      // Bottom of slot (left to right)
+      points.push({ x: cx - slotWidth, y: cy - slotLength });
+      points.push({ x: cx + slotWidth, y: cy - slotLength });
       
-      // Merge the two geometries
-      const mergedPositions: number[] = [];
-      const mergedIndices: number[] = [];
+      // Right side going up
+      points.push({ x: cx + slotWidth, y: cy });
       
-      // Add head geometry
-      const headPos = headGeometry.getAttribute('position');
-      const headIdx = headGeometry.getIndex();
-      for (let i = 0; i < headPos.count; i++) {
-        mergedPositions.push(headPos.getX(i), headPos.getY(i), headPos.getZ(i));
-      }
-      if (headIdx) {
-        for (let i = 0; i < headIdx.count; i++) {
-          mergedIndices.push(headIdx.getX(i));
+      // Circle at top (clockwise from right to left, going over top)
+      for (let i = 0; i <= segments; i++) {
+        const angle = -Math.PI / 2 + (i / segments) * Math.PI * 2;
+        const x = cx + Math.cos(angle) * headRadius;
+        const y = cy + Math.sin(angle) * headRadius;
+        // Skip points that would be inside the slot
+        if (y >= cy - slotWidth * 0.5 || Math.abs(x - cx) >= slotWidth) {
+          points.push({ x, y });
         }
       }
       
-      // Add slot geometry with offset indices
-      const slotPos = slotGeometry.getAttribute('position');
-      const slotIdx = slotGeometry.getIndex();
-      const indexOffset = headPos.count;
-      for (let i = 0; i < slotPos.count; i++) {
-        mergedPositions.push(slotPos.getX(i), slotPos.getY(i), slotPos.getZ(i));
-      }
-      if (slotIdx) {
-        for (let i = 0; i < slotIdx.count; i++) {
-          mergedIndices.push(slotIdx.getX(i) + indexOffset);
-        }
-      }
+      // Left side going down
+      points.push({ x: cx - slotWidth, y: cy });
       
-      const mergedGeo = new THREE.BufferGeometry();
-      mergedGeo.setAttribute('position', new THREE.Float32BufferAttribute(mergedPositions, 3));
-      mergedGeo.setIndex(mergedIndices);
-      mergedGeo.computeVertexNormals();
-      
-      return mergedGeo;
-    };
-    
-    const createCircleVisual = (cx: number, cy: number, radius: number, zPos: number): THREE.BufferGeometry => {
-      const geo = new THREE.CylinderGeometry(radius, radius, 2 * SCALE, 32);
-      geo.rotateX(Math.PI / 2);
-      geo.translate(cx, cy, zPos - 1 * SCALE);
-      return geo;
+      return points;
     };
 
     let keyholeGeometries: THREE.BufferGeometry[] = [];
     let cordHoleGeometry: THREE.BufferGeometry | null = null;
+    
+    // Store keyhole positions for direct geometry generation
+    const keyholePositions: { x: number; y: number }[] = [];
 
     if (isWallMount) {
       // Wall mount clipping and keyhole generation
@@ -403,7 +379,6 @@ const ParametricMesh = ({
       
       const holeCount = params.wallMountHoleCount || 2;
       const holeMargin = params.wallMountHoleMargin || 0.15;
-      const holePositions: { x: number; y: number }[] = [];
       
       const availableHeight = h - 2 * KEYHOLE_MIN_MARGIN;
       
@@ -416,23 +391,23 @@ const ParametricMesh = ({
           const topY = Math.min(h - topMarginY, h - KEYHOLE_MIN_MARGIN - KEYHOLE_HEIGHT / 2);
           
           if (topY - bottomY >= KEYHOLE_MIN_SPACING) {
-            holePositions.push({ x: 0, y: bottomY });
-            holePositions.push({ x: 0, y: topY });
+            keyholePositions.push({ x: 0, y: bottomY });
+            keyholePositions.push({ x: 0, y: topY });
           } else {
-            holePositions.push({ x: 0, y: h / 2 });
+            keyholePositions.push({ x: 0, y: h / 2 });
           }
         } else {
-          holePositions.push({ x: 0, y: h / 2 });
+          keyholePositions.push({ x: 0, y: h / 2 });
         }
       }
       
-      for (const pos of holePositions) {
-        keyholeGeometries.push(createKeyholeGeometry(pos.x, pos.y, cutOffset));
-      }
-      
       if (params.wallMountCordHoleEnabled) {
+        // Cord hole is just a cylinder visual - no CSG needed
         const cordRadius = (params.cordHoleDiameter || 8) * SCALE / 2;
-        cordHoleGeometry = createCircleVisual(0, h * 0.5, cordRadius, cutOffset);
+        const cordGeo = new THREE.CylinderGeometry(cordRadius, cordRadius, wall * 2, 32);
+        cordGeo.rotateX(Math.PI / 2);
+        cordGeo.translate(0, h * 0.5, cutOffset - wall);
+        cordHoleGeometry = cordGeo;
       }
       
       // Clip vertices
@@ -474,8 +449,10 @@ const ParametricMesh = ({
         }
       }
       
-      // Create back wall
-      const edgePoints: { x: number; y: number }[] = [];
+      // Create back wall WITH PROPER THICKNESS
+      const backThickness = wall; // Use wall thickness for the back
+      const leftEdgePoints: { x: number; y: number }[] = [];
+      const rightEdgePoints: { x: number; y: number }[] = [];
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
@@ -499,30 +476,75 @@ const ParametricMesh = ({
         
         if (intersections.length >= 2) {
           intersections.sort((a, b) => a - b);
-          edgePoints.push({ x: intersections[0], y });
-          edgePoints.push({ x: intersections[intersections.length - 1], y });
+          leftEdgePoints.push({ x: intersections[0], y });
+          rightEdgePoints.push({ x: intersections[intersections.length - 1], y });
         } else if (intersections.length === 1) {
-          edgePoints.push({ x: intersections[0], y });
+          leftEdgePoints.push({ x: intersections[0], y });
+          rightEdgePoints.push({ x: -intersections[0], y });
         }
       }
       
-      // Create back wall triangles
-      if (edgePoints.length >= 4) {
-        const backStart = vertices.length / 3;
+      // Create back wall with thickness (front face at cutOffset, back face at cutOffset - backThickness)
+      if (leftEdgePoints.length >= 2 && rightEdgePoints.length >= 2) {
+        // Build outline: left edge bottom to top, then right edge top to bottom
+        const outline: { x: number; y: number }[] = [];
+        for (const pt of leftEdgePoints) outline.push(pt);
+        for (let i = rightEdgePoints.length - 1; i >= 0; i--) outline.push(rightEdgePoints[i]);
         
-        for (const pt of edgePoints) {
-          vertices.push(pt.x, pt.y, cutOffset);
-        }
-        
-        for (let i = 0; i < edgePoints.length - 2; i += 2) {
-          const bl = backStart + i;
-          const br = backStart + i + 1;
-          const tl = backStart + i + 2;
-          const tr = backStart + i + 3;
+        if (outline.length >= 3) {
+          // Front face vertices (at cutOffset - facing outward)
+          const frontStartIdx = vertices.length / 3;
+          for (const pt of outline) {
+            vertices.push(pt.x, pt.y, cutOffset);
+          }
           
-          if (tl < backStart + edgePoints.length && tr < backStart + edgePoints.length) {
-            indices.push(bl, tl, br);
-            indices.push(br, tl, tr);
+          // Back face vertices (at cutOffset - backThickness - facing wall)
+          const backStartIdx = vertices.length / 3;
+          for (const pt of outline) {
+            vertices.push(pt.x, pt.y, cutOffset - backThickness);
+          }
+          
+          // Calculate centroid for fan triangulation
+          let centerX = 0, centerY = 0;
+          for (const pt of outline) {
+            centerX += pt.x;
+            centerY += pt.y;
+          }
+          centerX /= outline.length;
+          centerY /= outline.length;
+          
+          // Front center vertex
+          const frontCenterIdx = vertices.length / 3;
+          vertices.push(centerX, centerY, cutOffset);
+          
+          // Back center vertex
+          const backCenterIdx = vertices.length / 3;
+          vertices.push(centerX, centerY, cutOffset - backThickness);
+          
+          // Front face triangles (facing +Z, so CCW when viewed from +Z)
+          for (let i = 0; i < outline.length; i++) {
+            const a = frontStartIdx + i;
+            const b = frontStartIdx + ((i + 1) % outline.length);
+            indices.push(frontCenterIdx, a, b);
+          }
+          
+          // Back face triangles (facing -Z, so CW when viewed from +Z)
+          for (let i = 0; i < outline.length; i++) {
+            const a = backStartIdx + i;
+            const b = backStartIdx + ((i + 1) % outline.length);
+            indices.push(backCenterIdx, b, a);
+          }
+          
+          // Edge walls connecting front to back (the thickness sides)
+          for (let i = 0; i < outline.length; i++) {
+            const frontA = frontStartIdx + i;
+            const frontB = frontStartIdx + ((i + 1) % outline.length);
+            const backA = backStartIdx + i;
+            const backB = backStartIdx + ((i + 1) % outline.length);
+            
+            // Two triangles for each edge quad
+            indices.push(frontA, backA, frontB);
+            indices.push(frontB, backA, backB);
           }
         }
       }
@@ -642,44 +664,23 @@ const ParametricMesh = ({
     bodyGeo.setIndex(indices);
     bodyGeo.computeVertexNormals();
     
-    // Apply CSG to cut keyhole and cord holes into the body (for wall mount)
-    if (isWallMount && (keyholeGeometries.length > 0 || cordHoleGeometry)) {
-      try {
-        const evaluator = new Evaluator();
-        let bodyBrush = new Brush(bodyGeo);
-        bodyBrush.updateMatrixWorld();
+    // Create keyhole visual geometries for wall mount (no CSG - just visual markers)
+    if (isWallMount && keyholePositions.length > 0) {
+      for (const pos of keyholePositions) {
+        const keyholeOutline = getKeyholeOutline(pos.x, pos.y);
         
-        // Subtract each keyhole from the body
-        for (const keyholeGeo of keyholeGeometries) {
-          const keyholeBrush = new Brush(keyholeGeo);
-          keyholeBrush.updateMatrixWorld();
-          bodyBrush = evaluator.evaluate(bodyBrush, keyholeBrush, SUBTRACTION) as Brush;
+        // Create a flat keyhole shape for visualization
+        const shape = new THREE.Shape();
+        shape.moveTo(keyholeOutline[0].x, keyholeOutline[0].y);
+        for (let i = 1; i < keyholeOutline.length; i++) {
+          shape.lineTo(keyholeOutline[i].x, keyholeOutline[i].y);
         }
+        shape.closePath();
         
-        // Subtract cord hole if enabled
-        if (cordHoleGeometry) {
-          // Create a cylinder for the cord hole
-          const cordCylGeo = new THREE.CylinderGeometry(
-            (params.cordHoleDiameter || 8) * SCALE / 2,
-            (params.cordHoleDiameter || 8) * SCALE / 2,
-            wall * 4,
-            32
-          );
-          cordCylGeo.rotateX(Math.PI / 2);
-          cordCylGeo.translate(0, h * 0.5, cutOffset - wall * 2);
-          
-          const cordBrush = new Brush(cordCylGeo);
-          cordBrush.updateMatrixWorld();
-          bodyBrush = evaluator.evaluate(bodyBrush, cordBrush, SUBTRACTION) as Brush;
-        }
-        
-        bodyGeo = bodyBrush.geometry;
-        // Clear the keyhole geometries since they're now cut into the body
-        keyholeGeometries = [];
-        cordHoleGeometry = null;
-      } catch (e) {
-        // CSG failed, fall back to visual-only keyholes
-        console.warn('CSG operation failed, using visual keyholes:', e);
+        const keyholeGeo = new THREE.ShapeGeometry(shape);
+        keyholeGeo.rotateX(0); // Flat on XY plane
+        keyholeGeo.translate(0, 0, cutOffset + 0.001); // Slightly in front of back wall
+        keyholeGeometries.push(keyholeGeo);
       }
     }
     
