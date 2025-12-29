@@ -225,43 +225,52 @@ export function generateExtrudeMesh(
   const outerShape = new THREE.Shape();
   
   if (extrusionShapeMode === 'direct') {
-    // Direct mode: use the profile as-is as a closed shape
+    // Direct mode: Create a ribbon/strip from the profile edge (lampshade-style)
+    // The drawn line becomes the outer edge, offset inward by wallThickness for inner edge
+    
+    // Calculate perpendicular offset for each point to create inner edge
+    const innerPoints: { x: number; y: number }[] = [];
+    
+    for (let i = 0; i < smoothedProfile.length; i++) {
+      const prev = smoothedProfile[Math.max(0, i - 1)];
+      const curr = smoothedProfile[i];
+      const next = smoothedProfile[Math.min(smoothedProfile.length - 1, i + 1)];
+      
+      // Calculate tangent direction (average of incoming and outgoing)
+      const dx = next.x - prev.x;
+      const dy = next.y - prev.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      
+      // Perpendicular direction (pointing inward - rotate 90 degrees clockwise)
+      const perpX = dy / len;
+      const perpY = -dx / len;
+      
+      // Offset inward by wall thickness
+      innerPoints.push({
+        x: curr.x + perpX * wallThickness,
+        y: curr.y + perpY * wallThickness
+      });
+    }
+    
+    // Create the ribbon shape: outer edge -> bottom cap -> inner edge (reversed) -> top cap
+    // Start at outer edge first point
     outerShape.moveTo(smoothedProfile[0].x, smoothedProfile[0].y);
     
+    // Draw outer edge
     for (let i = 1; i < smoothedProfile.length; i++) {
       outerShape.lineTo(smoothedProfile[i].x, smoothedProfile[i].y);
     }
     
-    outerShape.closePath();
+    // Connect to inner edge at the end (bottom cap of the ribbon strip)
+    outerShape.lineTo(innerPoints[innerPoints.length - 1].x, innerPoints[innerPoints.length - 1].y);
     
-    // Create inner hole for hollow shape (offset inward by wall thickness)
-    if (wallThickness > 0 && smoothedProfile.length >= 3) {
-      // Use a simple offset approach - shrink toward centroid
-      const centroidX = smoothedProfile.reduce((sum, p) => sum + p.x, 0) / smoothedProfile.length;
-      const centroidY = smoothedProfile.reduce((sum, p) => sum + p.y, 0) / smoothedProfile.length;
-      
-      const hole = new THREE.Path();
-      const innerPoints = smoothedProfile.map(p => {
-        const dx = p.x - centroidX;
-        const dy = p.y - centroidY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < wallThickness * 2) return null; // Too small for hollow
-        const scale = (dist - wallThickness) / dist;
-        return {
-          x: centroidX + dx * scale,
-          y: centroidY + dy * scale,
-        };
-      }).filter((p): p is { x: number; y: number } => p !== null);
-      
-      if (innerPoints.length >= 3) {
-        hole.moveTo(innerPoints[0].x, innerPoints[0].y);
-        for (let i = 1; i < innerPoints.length; i++) {
-          hole.lineTo(innerPoints[i].x, innerPoints[i].y);
-        }
-        hole.closePath();
-        outerShape.holes.push(hole);
-      }
+    // Draw inner edge in reverse
+    for (let i = innerPoints.length - 2; i >= 0; i--) {
+      outerShape.lineTo(innerPoints[i].x, innerPoints[i].y);
     }
+    
+    // Close back to start (top cap of the ribbon strip)
+    outerShape.closePath();
   } else {
     // Mirrored mode: sort by Y and mirror for symmetry
     const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
