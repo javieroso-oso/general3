@@ -225,52 +225,121 @@ export function generateExtrudeMesh(
   const outerShape = new THREE.Shape();
   
   if (extrusionShapeMode === 'direct') {
-    // Direct mode: Create a ribbon/strip from the profile edge (lampshade-style)
-    // The drawn line becomes the outer edge, offset inward by wallThickness for inner edge
+    // Direct mode: Create a curved wall surface from the drawn profile
+    // The profile defines the outer edge, wallThickness controls wall depth
+    // extrusionDepth controls how far the surface extends
     
-    // Calculate perpendicular offset for each point to create inner edge
-    const innerPoints: { x: number; y: number }[] = [];
+    const vertices: number[] = [];
+    const indices: number[] = [];
     
-    for (let i = 0; i < smoothedProfile.length; i++) {
+    const numPoints = smoothedProfile.length;
+    
+    // Calculate perpendicular offset for each point (for wall thickness)
+    const offsets: { x: number; y: number }[] = [];
+    
+    for (let i = 0; i < numPoints; i++) {
       const prev = smoothedProfile[Math.max(0, i - 1)];
       const curr = smoothedProfile[i];
-      const next = smoothedProfile[Math.min(smoothedProfile.length - 1, i + 1)];
+      const next = smoothedProfile[Math.min(numPoints - 1, i + 1)];
       
-      // Calculate tangent direction (average of incoming and outgoing)
+      // Calculate tangent direction
       const dx = next.x - prev.x;
       const dy = next.y - prev.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      // Perpendicular direction (pointing inward - rotate 90 degrees clockwise)
-      const perpX = dy / len;
-      const perpY = -dx / len;
-      
-      // Offset inward by wall thickness
-      innerPoints.push({
-        x: curr.x + perpX * wallThickness,
-        y: curr.y + perpY * wallThickness
+      // Perpendicular direction (pointing inward)
+      offsets.push({
+        x: dy / len,
+        y: -dx / len
       });
     }
     
-    // Create the ribbon shape: outer edge -> bottom cap -> inner edge (reversed) -> top cap
-    // Start at outer edge first point
-    outerShape.moveTo(smoothedProfile[0].x, smoothedProfile[0].y);
+    // Create vertices for the curved wall surface
+    // For each profile point, we create 4 vertices:
+    // - front outer, front inner, back outer, back inner
     
-    // Draw outer edge
-    for (let i = 1; i < smoothedProfile.length; i++) {
-      outerShape.lineTo(smoothedProfile[i].x, smoothedProfile[i].y);
+    for (let i = 0; i < numPoints; i++) {
+      const p = smoothedProfile[i];
+      const off = offsets[i];
+      
+      // Outer edge points
+      const outerX = p.x;
+      const outerY = p.y;
+      
+      // Inner edge points (offset by wall thickness)
+      const innerX = p.x + off.x * wallThickness;
+      const innerY = p.y + off.y * wallThickness;
+      
+      if (extrusionDirection === 'vertical') {
+        // Vertical: profile in XZ plane, extrude along Y
+        // Front (Y = 0)
+        vertices.push(outerX, 0, outerY);              // outer front
+        vertices.push(innerX, 0, innerY);              // inner front
+        // Back (Y = depth)
+        vertices.push(outerX, extrusionDepth, outerY); // outer back
+        vertices.push(innerX, extrusionDepth, innerY); // inner back
+      } else {
+        // Horizontal: profile in XY plane, extrude along Z
+        // Front (Z = 0)
+        vertices.push(outerX, outerY, 0);              // outer front
+        vertices.push(innerX, innerY, 0);              // inner front
+        // Back (Z = depth)
+        vertices.push(outerX, outerY, extrusionDepth); // outer back
+        vertices.push(innerX, innerY, extrusionDepth); // inner back
+      }
     }
     
-    // Connect to inner edge at the end (bottom cap of the ribbon strip)
-    outerShape.lineTo(innerPoints[innerPoints.length - 1].x, innerPoints[innerPoints.length - 1].y);
-    
-    // Draw inner edge in reverse
-    for (let i = innerPoints.length - 2; i >= 0; i--) {
-      outerShape.lineTo(innerPoints[i].x, innerPoints[i].y);
+    // Create faces (triangles) connecting the vertices
+    // Each segment of the profile creates 8 triangles (4 quads)
+    for (let i = 0; i < numPoints - 1; i++) {
+      const base = i * 4;
+      const nextBase = (i + 1) * 4;
+      
+      // Indices for current and next point vertices
+      const outerFront = base;
+      const innerFront = base + 1;
+      const outerBack = base + 2;
+      const innerBack = base + 3;
+      
+      const nextOuterFront = nextBase;
+      const nextInnerFront = nextBase + 1;
+      const nextOuterBack = nextBase + 2;
+      const nextInnerBack = nextBase + 3;
+      
+      // Outer surface (facing outward)
+      indices.push(outerFront, nextOuterFront, outerBack);
+      indices.push(nextOuterFront, nextOuterBack, outerBack);
+      
+      // Inner surface (facing inward)
+      indices.push(innerFront, innerBack, nextInnerFront);
+      indices.push(nextInnerFront, innerBack, nextInnerBack);
+      
+      // Front edge (connecting outer and inner at front)
+      indices.push(outerFront, outerBack, innerFront);
+      indices.push(innerFront, outerBack, innerBack);
+      
+      // Back edge (connecting outer and inner at back) - actually we want top/bottom caps
     }
     
-    // Close back to start (top cap of the ribbon strip)
-    outerShape.closePath();
+    // Add end caps (first and last profile points)
+    // Start cap
+    const startOF = 0, startIF = 1, startOB = 2, startIB = 3;
+    indices.push(startOF, startIF, startOB);
+    indices.push(startIF, startIB, startOB);
+    
+    // End cap
+    const endBase = (numPoints - 1) * 4;
+    const endOF = endBase, endIF = endBase + 1, endOB = endBase + 2, endIB = endBase + 3;
+    indices.push(endOF, endOB, endIF);
+    indices.push(endIF, endOB, endIB);
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.center();
+    
+    return geometry;
   } else {
     // Mirrored mode: sort by Y and mirror for symmetry
     const sortedProfile = [...smoothedProfile].sort((a, b) => a.y - b.y);
@@ -324,7 +393,7 @@ export function generateExtrudeMesh(
     }
   }
   
-  // Extrude settings
+  // Extrude settings (only used for mirrored mode now)
   const extrudeSettings = {
     steps: Math.max(2, Math.floor(extrusionDepth / 5)),
     depth: extrusionDepth,
@@ -335,9 +404,6 @@ export function generateExtrudeMesh(
   
   // Transform based on direction
   if (extrusionDirection === 'vertical') {
-    // Rotate so shape stands up from floor (Y becomes Z, Z becomes Y)
-    // Original: Shape in XY plane, extruded along Z
-    // Target: Shape in XZ plane (standing up), extruded along Y (giving depth)
     geometry.rotateX(-Math.PI / 2);
   }
   
