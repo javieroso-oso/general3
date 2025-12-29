@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { DrawerItem } from '@/types/drawer';
+import { DrawerItem, ParametricDrawerItem, CustomDrawerItem, isParametricItem } from '@/types/drawer';
 import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
 
 const STORAGE_KEY = 'parametric-drawer';
 
@@ -14,7 +15,14 @@ export const useDrawer = () => {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          setItems(parsed);
+          // Migrate old items without 'type' field
+          const migrated = parsed.map((item: any) => {
+            if (!item.type && item.params && item.objectType) {
+              return { ...item, type: 'parametric' as const };
+            }
+            return item;
+          });
+          setItems(migrated);
         }
       }
     } catch (e) {
@@ -31,13 +39,14 @@ export const useDrawer = () => {
     }
   }, [items]);
 
-  const addItem = useCallback((
+  const addParametricItem = useCallback((
     params: ParametricParams,
     objectType: ObjectType,
     thumbnail: string
   ) => {
-    const newItem: DrawerItem = {
+    const newItem: ParametricDrawerItem = {
       id: `drawer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: 'parametric',
       params,
       objectType,
       thumbnail,
@@ -46,6 +55,33 @@ export const useDrawer = () => {
     setItems((prev) => [newItem, ...prev]);
     return newItem.id;
   }, []);
+
+  const addCustomItem = useCallback((
+    profile: ProfilePoint[],
+    settings: ProfileSettings,
+    thumbnail: string
+  ) => {
+    const newItem: CustomDrawerItem = {
+      id: `drawer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: 'custom',
+      profile,
+      settings,
+      generationMode: settings.generationMode,
+      thumbnail,
+      createdAt: Date.now(),
+    };
+    setItems((prev) => [newItem, ...prev]);
+    return newItem.id;
+  }, []);
+
+  // Legacy addItem for backwards compatibility
+  const addItem = useCallback((
+    params: ParametricParams,
+    objectType: ObjectType,
+    thumbnail: string
+  ) => {
+    return addParametricItem(params, objectType, thumbnail);
+  }, [addParametricItem]);
 
   const removeItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
@@ -58,6 +94,8 @@ export const useDrawer = () => {
   return {
     items,
     addItem,
+    addParametricItem,
+    addCustomItem,
     removeItem,
     clearAll,
     count: items.length,
