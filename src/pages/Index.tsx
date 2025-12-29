@@ -8,6 +8,9 @@ import ObjectTypeTabs from '@/components/controls/ObjectTypeTabs';
 import PrintAnalysisPanel from '@/components/controls/PrintAnalysisPanel';
 import PrintSettingsPanel from '@/components/controls/PrintSettingsPanel';
 import BatchGenerator from '@/components/controls/BatchGenerator';
+import DrawerPanel from '@/components/drawer/DrawerPanel';
+import KeepButton from '@/components/drawer/KeepButton';
+import { useDrawer } from '@/hooks/useDrawer';
 import { 
   ParametricParams, 
   ObjectType, 
@@ -19,7 +22,7 @@ import {
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -35,6 +38,18 @@ import {
 const Index = () => {
   const [objectType, setObjectType] = useState<ObjectType>('vase');
   const [params, setParams] = useState<ParametricParams>(defaultParams.vase);
+  
+  // Drawer for storing designs locally
+  const drawer = useDrawer();
+  
+  const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
+    setObjectType(drawerType);
+    setParams(drawerParams);
+  }, []);
+  
+  const handleKeepToDrawer = useCallback((keepParams: ParametricParams, keepType: ObjectType, thumbnail: string) => {
+    drawer.addItem(keepParams, keepType, thumbnail);
+  }, [drawer]);
   const [printSettings, setPrintSettings] = useState<PrintSettings>(defaultPrintSettings);
   const [showWireframe, setShowWireframe] = useState(false);
   const [viewMode, setViewMode] = useState<'model' | 'gcode'>('model');
@@ -127,7 +142,7 @@ const Index = () => {
 
           {/* Tabbed Controls */}
           <Tabs defaultValue="design" className="flex flex-col">
-            <TabsList className="mx-4 mt-4 grid grid-cols-4">
+            <TabsList className="mx-4 mt-4 grid grid-cols-5">
               <TabsTrigger value="design" className="text-xs gap-1">
                 <Layers className="w-3 h-3" />
                 Design
@@ -142,6 +157,15 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger value="presets" className="text-xs gap-1">
                 Presets
+              </TabsTrigger>
+              <TabsTrigger value="drawer" className="text-xs gap-1 relative">
+                <Archive className="w-3 h-3" />
+                Drawer
+                {drawer.count > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                    {drawer.count}
+                  </span>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -174,6 +198,14 @@ const Index = () => {
                   type={objectType}
                   currentParams={params}
                   onSelect={setParams}
+                />
+              </TabsContent>
+
+              <TabsContent value="drawer" className="mt-0">
+                <DrawerPanel
+                  items={drawer.items}
+                  onLoad={handleLoadFromDrawer}
+                  onRemove={drawer.removeItem}
                 />
               </TabsContent>
             </div>
@@ -432,6 +464,11 @@ const Index = () => {
 
             {/* Export buttons */}
             <div className="flex gap-2 flex-wrap">
+              <KeepButton
+                params={params}
+                objectType={objectType}
+                onKeep={handleKeepToDrawer}
+              />
               <Button 
                 onClick={handleExportBody} 
                 disabled={!analysis.isValid}
