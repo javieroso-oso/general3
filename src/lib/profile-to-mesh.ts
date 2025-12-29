@@ -227,15 +227,14 @@ export function generateExtrudeMesh(
   if (extrusionShapeMode === 'direct') {
     // Direct mode: Create a curved wall surface from the drawn profile
     // The profile defines the outer edge, wallThickness controls wall depth
-    // extrusionDepth controls how far the surface extends
+    // extrusionDepth controls how far the surface extends (front to back)
     
+    const numPoints = smoothedProfile.length;
     const vertices: number[] = [];
     const indices: number[] = [];
     
-    const numPoints = smoothedProfile.length;
-    
-    // Calculate perpendicular offset for each point (for wall thickness)
-    const offsets: { x: number; y: number }[] = [];
+    // Calculate perpendicular normals for each point (for wall thickness offset)
+    const normals: { x: number; y: number }[] = [];
     
     for (let i = 0; i < numPoints; i++) {
       const prev = smoothedProfile[Math.max(0, i - 1)];
@@ -247,91 +246,82 @@ export function generateExtrudeMesh(
       const dy = next.y - prev.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      // Perpendicular direction (pointing inward)
-      offsets.push({
-        x: dy / len,
-        y: -dx / len
+      // Perpendicular direction (rotate tangent 90 degrees)
+      normals.push({
+        x: -dy / len,
+        y: dx / len
       });
     }
     
-    // Create vertices for the curved wall surface
-    // For each profile point, we create 4 vertices:
-    // - front outer, front inner, back outer, back inner
-    
+    // Build vertices: 4 per profile point (outer-front, outer-back, inner-front, inner-back)
     for (let i = 0; i < numPoints; i++) {
       const p = smoothedProfile[i];
-      const off = offsets[i];
+      const n = normals[i];
       
-      // Outer edge points
       const outerX = p.x;
       const outerY = p.y;
-      
-      // Inner edge points (offset by wall thickness)
-      const innerX = p.x + off.x * wallThickness;
-      const innerY = p.y + off.y * wallThickness;
+      const innerX = p.x + n.x * wallThickness;
+      const innerY = p.y + n.y * wallThickness;
       
       if (extrusionDirection === 'vertical') {
-        // Vertical: profile in XZ plane, extrude along Y
-        // Front (Y = 0)
-        vertices.push(outerX, 0, outerY);              // outer front
-        vertices.push(innerX, 0, innerY);              // inner front
-        // Back (Y = depth)
-        vertices.push(outerX, extrusionDepth, outerY); // outer back
-        vertices.push(innerX, extrusionDepth, innerY); // inner back
+        // Profile in XZ, extrude along Y
+        vertices.push(outerX, 0, outerY);                // 0: outer-front
+        vertices.push(outerX, extrusionDepth, outerY);   // 1: outer-back
+        vertices.push(innerX, 0, innerY);                // 2: inner-front
+        vertices.push(innerX, extrusionDepth, innerY);   // 3: inner-back
       } else {
-        // Horizontal: profile in XY plane, extrude along Z
-        // Front (Z = 0)
-        vertices.push(outerX, outerY, 0);              // outer front
-        vertices.push(innerX, innerY, 0);              // inner front
-        // Back (Z = depth)
-        vertices.push(outerX, outerY, extrusionDepth); // outer back
-        vertices.push(innerX, innerY, extrusionDepth); // inner back
+        // Profile in XY, extrude along Z
+        vertices.push(outerX, outerY, 0);                // 0: outer-front
+        vertices.push(outerX, outerY, extrusionDepth);   // 1: outer-back
+        vertices.push(innerX, innerY, 0);                // 2: inner-front
+        vertices.push(innerX, innerY, extrusionDepth);   // 3: inner-back
       }
     }
     
-    // Create faces (triangles) connecting the vertices
-    // Each segment of the profile creates 8 triangles (4 quads)
+    // Build faces for each segment between adjacent profile points
     for (let i = 0; i < numPoints - 1; i++) {
-      const base = i * 4;
-      const nextBase = (i + 1) * 4;
+      const curr = i * 4;
+      const next = (i + 1) * 4;
       
-      // Indices for current and next point vertices
-      const outerFront = base;
-      const innerFront = base + 1;
-      const outerBack = base + 2;
-      const innerBack = base + 3;
+      // Current point vertices
+      const cOF = curr + 0; // outer-front
+      const cOB = curr + 1; // outer-back
+      const cIF = curr + 2; // inner-front
+      const cIB = curr + 3; // inner-back
       
-      const nextOuterFront = nextBase;
-      const nextInnerFront = nextBase + 1;
-      const nextOuterBack = nextBase + 2;
-      const nextInnerBack = nextBase + 3;
+      // Next point vertices
+      const nOF = next + 0;
+      const nOB = next + 1;
+      const nIF = next + 2;
+      const nIB = next + 3;
       
-      // Outer surface (facing outward)
-      indices.push(outerFront, nextOuterFront, outerBack);
-      indices.push(nextOuterFront, nextOuterBack, outerBack);
+      // Outer surface (2 triangles) - facing outward
+      indices.push(cOF, nOF, cOB);
+      indices.push(nOF, nOB, cOB);
       
-      // Inner surface (facing inward)
-      indices.push(innerFront, innerBack, nextInnerFront);
-      indices.push(nextInnerFront, innerBack, nextInnerBack);
+      // Inner surface (2 triangles) - facing inward (reversed winding)
+      indices.push(cIF, cIB, nIF);
+      indices.push(nIF, cIB, nIB);
       
-      // Front edge (connecting outer and inner at front)
-      indices.push(outerFront, outerBack, innerFront);
-      indices.push(innerFront, outerBack, innerBack);
+      // Front face (2 triangles) - at z=0 or y=0
+      indices.push(cOF, cIF, nOF);
+      indices.push(nOF, cIF, nIF);
       
-      // Back edge (connecting outer and inner at back) - actually we want top/bottom caps
+      // Back face (2 triangles) - at z=depth or y=depth (reversed winding)
+      indices.push(cOB, nOB, cIB);
+      indices.push(nOB, nIB, cIB);
     }
     
-    // Add end caps (first and last profile points)
-    // Start cap
-    const startOF = 0, startIF = 1, startOB = 2, startIB = 3;
-    indices.push(startOF, startIF, startOB);
-    indices.push(startIF, startIB, startOB);
+    // Start cap (first profile point) - quad between outer/inner at front/back
+    const sOF = 0, sOB = 1, sIF = 2, sIB = 3;
+    indices.push(sOF, sOB, sIF);
+    indices.push(sIF, sOB, sIB);
     
-    // End cap
-    const endBase = (numPoints - 1) * 4;
-    const endOF = endBase, endIF = endBase + 1, endOB = endBase + 2, endIB = endBase + 3;
-    indices.push(endOF, endOB, endIF);
-    indices.push(endIF, endOB, endIB);
+    // End cap (last profile point)
+    const lastBase = (numPoints - 1) * 4;
+    const eOF = lastBase + 0, eOB = lastBase + 1, eIF = lastBase + 2, eIB = lastBase + 3;
+    indices.push(eOF, eIF, eOB);
+    indices.push(eIF, eIB, eOB);
     
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
@@ -470,7 +460,11 @@ export function generatePathMesh(
     // Add start cap ring vertices
     for (let i = 0; i <= radialSegments; i++) {
       const theta = (i / radialSegments) * Math.PI * 2;
-      const up = new THREE.Vector3(0, 1, 0);
+      // Use fallback up vector if tangent is nearly vertical
+      let up = new THREE.Vector3(0, 1, 0);
+      if (Math.abs(startTangent.dot(up)) > 0.9) {
+        up = new THREE.Vector3(1, 0, 0);
+      }
       const right = new THREE.Vector3().crossVectors(up, startTangent).normalize();
       const realUp = new THREE.Vector3().crossVectors(startTangent, right).normalize();
       
@@ -499,7 +493,11 @@ export function generatePathMesh(
     // Add end cap ring vertices
     for (let i = 0; i <= radialSegments; i++) {
       const theta = (i / radialSegments) * Math.PI * 2;
-      const up = new THREE.Vector3(0, 1, 0);
+      // Use fallback up vector if tangent is nearly vertical
+      let up = new THREE.Vector3(0, 1, 0);
+      if (Math.abs(endTangent.dot(up)) > 0.9) {
+        up = new THREE.Vector3(1, 0, 0);
+      }
       const right = new THREE.Vector3().crossVectors(up, endTangent).normalize();
       const realUp = new THREE.Vector3().crossVectors(endTangent, right).normalize();
       
