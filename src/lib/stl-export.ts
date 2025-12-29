@@ -569,22 +569,27 @@ function generateWallMountBody(
       ];
       
       // Helper to generate keyhole outline points
+      // CORRECT: large circle at BOTTOM (low Y), narrow slot going UP (high Y)
       const getKeyholeOutline = (cx: number, cy: number, segments: number = 24): { x: number; y: number }[] => {
         const points: { x: number; y: number }[] = [];
         
-        points.push({ x: cx - KEYHOLE_SLOT_WIDTH, y: cy - KEYHOLE_SLOT_LENGTH });
-        points.push({ x: cx + KEYHOLE_SLOT_WIDTH, y: cy - KEYHOLE_SLOT_LENGTH });
+        // Top of slot (left to right)
+        points.push({ x: cx - KEYHOLE_SLOT_WIDTH, y: cy + KEYHOLE_SLOT_LENGTH });
+        points.push({ x: cx + KEYHOLE_SLOT_WIDTH, y: cy + KEYHOLE_SLOT_LENGTH });
+        // Right side going down
         points.push({ x: cx + KEYHOLE_SLOT_WIDTH, y: cy });
         
+        // Circle at bottom (clockwise from right to left)
         for (let i = 0; i <= segments; i++) {
-          const angle = -Math.PI / 2 + (i / segments) * Math.PI * 2;
+          const angle = Math.PI / 2 - (i / segments) * Math.PI * 2;
           const x = cx + Math.cos(angle) * KEYHOLE_HEAD_RADIUS;
           const y = cy + Math.sin(angle) * KEYHOLE_HEAD_RADIUS;
-          if (y >= cy - KEYHOLE_SLOT_WIDTH * 0.5 || Math.abs(x - cx) >= KEYHOLE_SLOT_WIDTH) {
+          if (y <= cy + KEYHOLE_SLOT_WIDTH * 0.5 || Math.abs(x - cx) >= KEYHOLE_SLOT_WIDTH) {
             points.push({ x, y });
           }
         }
         
+        // Left side going up
         points.push({ x: cx - KEYHOLE_SLOT_WIDTH, y: cy });
         return points;
       };
