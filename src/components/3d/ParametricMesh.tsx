@@ -332,34 +332,35 @@ const ParametricMesh = ({
     const indices: number[] = [];
 
     // Helper to create keyhole outline points (for direct geometry generation)
-    // CORRECT: large circle at TOP, narrow slot going DOWN
+    // CORRECT: large circle at BOTTOM (low Y), narrow slot going UP (high Y)
+    // User inserts screw head through large circle at bottom, then lifts lamp up so screw slides into slot
     const getKeyholeOutline = (cx: number, cy: number, segments: number = 24): { x: number; y: number }[] => {
       const headRadius = 5 * SCALE;  // 10mm diameter for screw head
       const slotWidth = 2.5 * SCALE; // 5mm wide slot for screw shaft
-      const slotLength = 10 * SCALE; // 10mm slot length going DOWN
+      const slotLength = 10 * SCALE; // 10mm slot length going UP
       
       const points: { x: number; y: number }[] = [];
       
-      // Start at bottom-left of slot and trace clockwise
-      // Bottom of slot (left to right)
-      points.push({ x: cx - slotWidth, y: cy - slotLength });
-      points.push({ x: cx + slotWidth, y: cy - slotLength });
+      // Start at top-left of slot and trace clockwise
+      // Top of slot (left to right)
+      points.push({ x: cx - slotWidth, y: cy + slotLength });
+      points.push({ x: cx + slotWidth, y: cy + slotLength });
       
-      // Right side going up
+      // Right side going down to circle
       points.push({ x: cx + slotWidth, y: cy });
       
-      // Circle at top (clockwise from right to left, going over top)
+      // Circle at bottom (clockwise from right to left, going under bottom)
       for (let i = 0; i <= segments; i++) {
-        const angle = -Math.PI / 2 + (i / segments) * Math.PI * 2;
+        const angle = Math.PI / 2 - (i / segments) * Math.PI * 2;
         const x = cx + Math.cos(angle) * headRadius;
         const y = cy + Math.sin(angle) * headRadius;
         // Skip points that would be inside the slot
-        if (y >= cy - slotWidth * 0.5 || Math.abs(x - cx) >= slotWidth) {
+        if (y <= cy + slotWidth * 0.5 || Math.abs(x - cx) >= slotWidth) {
           points.push({ x, y });
         }
       }
       
-      // Left side going down
+      // Left side going up
       points.push({ x: cx - slotWidth, y: cy });
       
       return points;
