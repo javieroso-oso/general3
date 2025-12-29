@@ -345,7 +345,7 @@ const CustomGenerator = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="space-y-6"
+            className="space-y-6 lg:sticky lg:top-24 lg:self-start"
           >
             <Card className="h-[500px]">
               <CardContent className="p-0 h-full">
