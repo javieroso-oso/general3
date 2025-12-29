@@ -52,6 +52,11 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
   }, []);
 
   const verifyAndDownload = async (sessionId: string) => {
+    if (!supabase) {
+      toast.error('Payment system not configured');
+      return;
+    }
+    
     setIsExporting(true);
     try {
       const { data, error } = await supabase.functions.invoke('verify-payment', {
@@ -116,6 +121,11 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
   };
 
   const handlePurchase = async () => {
+    if (!supabase) {
+      toast.error('Payment system not configured');
+      return;
+    }
+    
     if (!email || !email.includes('@')) {
       toast.error('Please enter a valid email');
       return;
