@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Download, AlertTriangle, CheckCircle, Pen, Image, RotateCcw, ArrowRight, Spline, Shield, ShieldAlert, ArrowUp, ArrowRightFromLine, FlipHorizontal, Pencil } from 'lucide-react';
+import { Download, AlertTriangle, CheckCircle, Pen, Image, RotateCcw, ArrowRight, Spline, Shield, ShieldAlert, ArrowUp, ArrowRightFromLine, FlipHorizontal, Pencil, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/layout/Layout';
 import ProfileCanvas from '@/components/drawing/ProfileCanvas';
@@ -18,6 +18,8 @@ import ProfileMesh from '@/components/3d/ProfileMesh';
 import { ProfilePoint, ProfileSettings, defaultProfileSettings, validateProfile, GenerationMode, ExtrusionDirection, ExtrusionShapeMode } from '@/types/custom-profile';
 import { defaultPrintSettings, PrintSettings } from '@/types/parametric';
 import { downloadProfileSTL, downloadProfileGCode } from '@/lib/profile-to-mesh';
+import { useDrawer } from '@/hooks/useDrawer';
+import { captureCanvasThumbnail } from '@/lib/thumbnail-capture';
 
 const CustomGenerator = () => {
   const [profile, setProfile] = useState<ProfilePoint[]>([]);
@@ -26,7 +28,9 @@ const CustomGenerator = () => {
   const [wireframe, setWireframe] = useState(false);
   const [activeTab, setActiveTab] = useState<'draw' | 'image'>('draw');
   const [useSupports, setUseSupports] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
+  const { addCustomItem, count: drawerCount } = useDrawer();
   const validation = validateProfile(profile, settings);
 
   // Auto-enable supports when overhangs are detected
@@ -52,6 +56,25 @@ const CustomGenerator = () => {
     }
     downloadProfileGCode(profile, settings, printSettings, 'custom-profile.gcode');
     toast.success('G-code exported successfully');
+  };
+
+  const handleKeep = async () => {
+    if (!validation.isValid || profile.length < 2) {
+      toast.error('Please create a valid profile first');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const thumbnail = await captureCanvasThumbnail();
+      addCustomItem(profile, settings, thumbnail);
+      toast.success('Design saved to drawer!');
+    } catch (error) {
+      console.error('Failed to save:', error);
+      toast.error('Failed to save design');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleModeChange = (mode: GenerationMode) => {
@@ -492,6 +515,18 @@ const CustomGenerator = () => {
                     ))}
                   </div>
                 )}
+
+                <div className="flex gap-3 mb-3">
+                  <Button
+                    onClick={handleKeep}
+                    disabled={!validation.isValid || profile.length < 2 || isSaving}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    <Archive className="w-4 h-4 mr-2" />
+                    {isSaving ? 'Saving...' : `Keep${drawerCount > 0 ? ` (${drawerCount})` : ''}`}
+                  </Button>
+                </div>
 
                 <div className="flex gap-3">
                   <Button

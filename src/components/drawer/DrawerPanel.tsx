@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { DrawerItem } from '@/types/drawer';
+import { DrawerItem, isParametricItem, isCustomItem, ParametricDrawerItem, CustomDrawerItem } from '@/types/drawer';
 import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
 import { X, Archive, Check, Download, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,13 +20,16 @@ import { Label } from '@/components/ui/label';
 
 interface DrawerPanelProps {
   items: DrawerItem[];
-  onLoad: (params: ParametricParams, objectType: ObjectType) => void;
+  onLoadParametric?: (params: ParametricParams, objectType: ObjectType) => void;
+  onLoadCustom?: (profile: ProfilePoint[], settings: ProfileSettings) => void;
   onRemove: (id: string) => void;
+  // Legacy prop for backwards compatibility
+  onLoad?: (params: ParametricParams, objectType: ObjectType) => void;
 }
 
 const EXPORT_PRICE = 2.99;
 
-const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
+const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }: DrawerPanelProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -72,7 +76,7 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
         if (allItems.length > 0) {
           const zip = await exportDrawerItemsToZip(allItems);
           const filename = allItems.length === 1 
-            ? `${allItems[0].objectType}_export.zip`
+            ? `${getItemLabel(allItems[0])}_export.zip`
             : `drawer_export_${allItems.length}_items.zip`;
           downloadBlob(zip, filename);
           toast.success(`Downloaded ${allItems.length} design${allItems.length > 1 ? 's' : ''}`);
@@ -85,6 +89,28 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
       toast.error('Failed to verify payment');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const getItemLabel = (item: DrawerItem): string => {
+    if (isParametricItem(item)) {
+      return item.objectType;
+    } else if (isCustomItem(item)) {
+      return `custom_${item.generationMode}`;
+    }
+    return 'item';
+  };
+
+  const handleItemClick = (item: DrawerItem) => {
+    if (isParametricItem(item)) {
+      // Use onLoadParametric if available, fall back to legacy onLoad
+      if (onLoadParametric) {
+        onLoadParametric(item.params, item.objectType);
+      } else if (onLoad) {
+        onLoad(item.params, item.objectType);
+      }
+    } else if (isCustomItem(item) && onLoadCustom) {
+      onLoadCustom(item.profile, item.settings);
     }
   };
 
@@ -215,6 +241,7 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
           <div className="grid grid-cols-2 gap-3 pr-4">
             {items.map((item) => {
               const isSelected = selectedIds.has(item.id);
+              const label = getItemLabel(item);
               
               return (
                 <div
@@ -224,7 +251,7 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
                       ? 'border-primary ring-2 ring-primary/20' 
                       : 'border-border hover:border-primary/50'
                   }`}
-                  onClick={() => onLoad(item.params, item.objectType)}
+                  onClick={() => handleItemClick(item)}
                 >
                   {/* Selection checkbox */}
                   <div
@@ -249,9 +276,13 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
                     />
                   </div>
                   
-                  {/* Object type badge */}
+                  {/* Type badge */}
                   <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-background/80 backdrop-blur rounded text-[10px] font-medium capitalize">
-                    {item.objectType}
+                    {isCustomItem(item) ? (
+                      <span className="text-primary">{item.generationMode}</span>
+                    ) : (
+                      label
+                    )}
                   </div>
                   
                   {/* Remove button */}
