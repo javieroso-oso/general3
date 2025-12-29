@@ -225,82 +225,46 @@ export function generateExtrudeMesh(
   const outerShape = new THREE.Shape();
   
   if (extrusionShapeMode === 'direct') {
-    // Direct mode: Simply extrude the drawn profile into a surface with thickness
-    // The profile IS the shape, wallThickness controls how thick the surface is
-    // extrusionDepth controls how far it extends (height for vertical, depth for horizontal)
+    // Direct mode: Simply extrude the drawn profile as a ribbon surface
+    // The drawn line becomes a surface - wallThickness controls how far it extrudes
     
     const numPoints = smoothedProfile.length;
     const vertices: number[] = [];
     const indices: number[] = [];
     
-    // Build vertices: 4 per profile point
-    // - 2 for front face (at z=0 or y=0), offset by thickness
-    // - 2 for back face (at z=depth or y=depth), offset by thickness
+    // Build vertices: just 2 per profile point (front and back of ribbon)
     for (let i = 0; i < numPoints; i++) {
       const p = smoothedProfile[i];
       
       if (extrusionDirection === 'vertical') {
-        // Profile in X-Z plane, extrude upward along Y
-        // Front edge (y=0), back edge (y=extrusionDepth)
-        // Thickness along Z axis
-        vertices.push(p.x, 0, p.y);                              // 0: front-outer
-        vertices.push(p.x, 0, p.y + wallThickness);              // 1: front-inner
-        vertices.push(p.x, extrusionDepth, p.y);                 // 2: back-outer
-        vertices.push(p.x, extrusionDepth, p.y + wallThickness); // 3: back-inner
+        // Profile defines X-Y curve (on canvas), extrude along Z
+        // Canvas Y becomes 3D Y (height), wallThickness is the Z depth
+        vertices.push(p.x, p.y, 0);                    // front
+        vertices.push(p.x, p.y, wallThickness);        // back
       } else {
-        // Profile in X-Y plane, extrude along Z
-        // Thickness along X axis (perpendicular to profile direction)
-        vertices.push(p.x, p.y, 0);                              // 0: front-outer
-        vertices.push(p.x + wallThickness, p.y, 0);              // 1: front-inner
-        vertices.push(p.x, p.y, extrusionDepth);                 // 2: back-outer
-        vertices.push(p.x + wallThickness, p.y, extrusionDepth); // 3: back-inner
+        // Profile defines X-Y curve, extrude along Z for horizontal
+        vertices.push(p.x, p.y, 0);                    // front
+        vertices.push(p.x, p.y, wallThickness);        // back
       }
     }
     
-    // Build faces for each segment between adjacent profile points
+    // Build faces: connect adjacent profile points
     for (let i = 0; i < numPoints - 1; i++) {
-      const curr = i * 4;
-      const next = (i + 1) * 4;
+      const currFront = i * 2;
+      const currBack = i * 2 + 1;
+      const nextFront = (i + 1) * 2;
+      const nextBack = (i + 1) * 2 + 1;
       
-      // Indices for current point
-      const cFO = curr + 0; // front-outer
-      const cFI = curr + 1; // front-inner
-      const cBO = curr + 2; // back-outer
-      const cBI = curr + 3; // back-inner
-      
-      // Indices for next point
-      const nFO = next + 0;
-      const nFI = next + 1;
-      const nBO = next + 2;
-      const nBI = next + 3;
-      
-      // Outer surface (the drawn profile side)
-      indices.push(cFO, nFO, cBO);
-      indices.push(nFO, nBO, cBO);
-      
-      // Inner surface (offset by thickness, reversed winding)
-      indices.push(cFI, cBI, nFI);
-      indices.push(nFI, cBI, nBI);
-      
-      // Front face (connecting outer to inner at front)
-      indices.push(cFO, cFI, nFO);
-      indices.push(nFO, cFI, nFI);
-      
-      // Back face (connecting outer to inner at back, reversed)
-      indices.push(cBO, nBO, cBI);
-      indices.push(nBO, nBI, cBI);
+      // Front face (the drawn curve side)
+      indices.push(currFront, nextFront, currBack);
+      indices.push(nextFront, nextBack, currBack);
     }
     
-    // Start cap (first profile point)
-    const sFO = 0, sFI = 1, sBO = 2, sBI = 3;
-    indices.push(sFO, sBO, sFI);
-    indices.push(sFI, sBO, sBI);
+    // Cap the start (first point)
+    // Just a line from front to back at first point - no cap needed for a ribbon
     
-    // End cap (last profile point)
-    const lastBase = (numPoints - 1) * 4;
-    const eFO = lastBase + 0, eFI = lastBase + 1, eBO = lastBase + 2, eBI = lastBase + 3;
-    indices.push(eFO, eFI, eBO);
-    indices.push(eBO, eFI, eBI);
+    // Cap the end (last point)  
+    // Just a line from front to back at last point - no cap needed for a ribbon
     
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
