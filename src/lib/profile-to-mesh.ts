@@ -225,56 +225,35 @@ export function generateExtrudeMesh(
   const outerShape = new THREE.Shape();
   
   if (extrusionShapeMode === 'direct') {
-    // Direct mode: Create a curved wall surface from the drawn profile
-    // The profile defines the outer edge, wallThickness controls wall depth
-    // extrusionDepth controls how far the surface extends (front to back)
+    // Direct mode: Simply extrude the drawn profile into a surface with thickness
+    // The profile IS the shape, wallThickness controls how thick the surface is
+    // extrusionDepth controls how far it extends (height for vertical, depth for horizontal)
     
     const numPoints = smoothedProfile.length;
     const vertices: number[] = [];
     const indices: number[] = [];
     
-    // Calculate perpendicular normals for each point (for wall thickness offset)
-    const normals: { x: number; y: number }[] = [];
-    
-    for (let i = 0; i < numPoints; i++) {
-      const prev = smoothedProfile[Math.max(0, i - 1)];
-      const curr = smoothedProfile[i];
-      const next = smoothedProfile[Math.min(numPoints - 1, i + 1)];
-      
-      // Calculate tangent direction
-      const dx = next.x - prev.x;
-      const dy = next.y - prev.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      
-      // Perpendicular direction (rotate tangent 90 degrees)
-      normals.push({
-        x: -dy / len,
-        y: dx / len
-      });
-    }
-    
-    // Build vertices: 4 per profile point (outer-front, outer-back, inner-front, inner-back)
+    // Build vertices: 4 per profile point
+    // - 2 for front face (at z=0 or y=0), offset by thickness
+    // - 2 for back face (at z=depth or y=depth), offset by thickness
     for (let i = 0; i < numPoints; i++) {
       const p = smoothedProfile[i];
-      const n = normals[i];
-      
-      const outerX = p.x;
-      const outerY = p.y;
-      const innerX = p.x + n.x * wallThickness;
-      const innerY = p.y + n.y * wallThickness;
       
       if (extrusionDirection === 'vertical') {
-        // Profile in XZ, extrude along Y
-        vertices.push(outerX, 0, outerY);                // 0: outer-front
-        vertices.push(outerX, extrusionDepth, outerY);   // 1: outer-back
-        vertices.push(innerX, 0, innerY);                // 2: inner-front
-        vertices.push(innerX, extrusionDepth, innerY);   // 3: inner-back
+        // Profile in X-Z plane, extrude upward along Y
+        // Front edge (y=0), back edge (y=extrusionDepth)
+        // Thickness along Z axis
+        vertices.push(p.x, 0, p.y);                              // 0: front-outer
+        vertices.push(p.x, 0, p.y + wallThickness);              // 1: front-inner
+        vertices.push(p.x, extrusionDepth, p.y);                 // 2: back-outer
+        vertices.push(p.x, extrusionDepth, p.y + wallThickness); // 3: back-inner
       } else {
-        // Profile in XY, extrude along Z
-        vertices.push(outerX, outerY, 0);                // 0: outer-front
-        vertices.push(outerX, outerY, extrusionDepth);   // 1: outer-back
-        vertices.push(innerX, innerY, 0);                // 2: inner-front
-        vertices.push(innerX, innerY, extrusionDepth);   // 3: inner-back
+        // Profile in X-Y plane, extrude along Z
+        // Thickness along X axis (perpendicular to profile direction)
+        vertices.push(p.x, p.y, 0);                              // 0: front-outer
+        vertices.push(p.x + wallThickness, p.y, 0);              // 1: front-inner
+        vertices.push(p.x, p.y, extrusionDepth);                 // 2: back-outer
+        vertices.push(p.x + wallThickness, p.y, extrusionDepth); // 3: back-inner
       }
     }
     
@@ -283,45 +262,45 @@ export function generateExtrudeMesh(
       const curr = i * 4;
       const next = (i + 1) * 4;
       
-      // Current point vertices
-      const cOF = curr + 0; // outer-front
-      const cOB = curr + 1; // outer-back
-      const cIF = curr + 2; // inner-front
-      const cIB = curr + 3; // inner-back
+      // Indices for current point
+      const cFO = curr + 0; // front-outer
+      const cFI = curr + 1; // front-inner
+      const cBO = curr + 2; // back-outer
+      const cBI = curr + 3; // back-inner
       
-      // Next point vertices
-      const nOF = next + 0;
-      const nOB = next + 1;
-      const nIF = next + 2;
-      const nIB = next + 3;
+      // Indices for next point
+      const nFO = next + 0;
+      const nFI = next + 1;
+      const nBO = next + 2;
+      const nBI = next + 3;
       
-      // Outer surface (2 triangles) - facing outward
-      indices.push(cOF, nOF, cOB);
-      indices.push(nOF, nOB, cOB);
+      // Outer surface (the drawn profile side)
+      indices.push(cFO, nFO, cBO);
+      indices.push(nFO, nBO, cBO);
       
-      // Inner surface (2 triangles) - facing inward (reversed winding)
-      indices.push(cIF, cIB, nIF);
-      indices.push(nIF, cIB, nIB);
+      // Inner surface (offset by thickness, reversed winding)
+      indices.push(cFI, cBI, nFI);
+      indices.push(nFI, cBI, nBI);
       
-      // Front face (2 triangles) - at z=0 or y=0
-      indices.push(cOF, cIF, nOF);
-      indices.push(nOF, cIF, nIF);
+      // Front face (connecting outer to inner at front)
+      indices.push(cFO, cFI, nFO);
+      indices.push(nFO, cFI, nFI);
       
-      // Back face (2 triangles) - at z=depth or y=depth (reversed winding)
-      indices.push(cOB, nOB, cIB);
-      indices.push(nOB, nIB, cIB);
+      // Back face (connecting outer to inner at back, reversed)
+      indices.push(cBO, nBO, cBI);
+      indices.push(nBO, nBI, cBI);
     }
     
-    // Start cap (first profile point) - quad between outer/inner at front/back
-    const sOF = 0, sOB = 1, sIF = 2, sIB = 3;
-    indices.push(sOF, sOB, sIF);
-    indices.push(sIF, sOB, sIB);
+    // Start cap (first profile point)
+    const sFO = 0, sFI = 1, sBO = 2, sBI = 3;
+    indices.push(sFO, sBO, sFI);
+    indices.push(sFI, sBO, sBI);
     
     // End cap (last profile point)
     const lastBase = (numPoints - 1) * 4;
-    const eOF = lastBase + 0, eOB = lastBase + 1, eIF = lastBase + 2, eIB = lastBase + 3;
-    indices.push(eOF, eIF, eOB);
-    indices.push(eIF, eIB, eOB);
+    const eFO = lastBase + 0, eFI = lastBase + 1, eBO = lastBase + 2, eBI = lastBase + 3;
+    indices.push(eFO, eFI, eBO);
+    indices.push(eBO, eFI, eBI);
     
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
