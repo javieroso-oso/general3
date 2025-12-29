@@ -147,8 +147,7 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
       }
     });
 
-    // Sort by Y (height)
-    points.sort((a, b) => a.y - b.y);
+    // Keep points in drawing order (no sorting) - important for Extrude Direct mode
 
     // Remove duplicates and very close points
     const filteredPoints: ProfilePoint[] = [];
