@@ -46,15 +46,18 @@ const ProfileCanvas = ({ onProfileChange, width = 400, height = 500 }: ProfileCa
       selection: false,
     });
 
-    // Draw axis line
+    // Draw axis line - make it prominent
     const axisLine = new Line([axisX, 0, axisX, height], {
-      stroke: COLORS.axis,
-      strokeWidth: 2,
+      stroke: '#ef4444', // Red color for high visibility
+      strokeWidth: 3,
       selectable: false,
       evented: false,
-      strokeDashArray: [5, 5],
+      strokeDashArray: [8, 4],
     });
     canvas.add(axisLine);
+    
+    // Add axis label
+    canvas.sendObjectToBack(axisLine); // Ensure it's behind drawings but visible
 
     // Draw grid
     const gridSpacing = 20;
