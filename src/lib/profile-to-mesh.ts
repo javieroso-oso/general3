@@ -225,46 +225,85 @@ export function generateExtrudeMesh(
   const outerShape = new THREE.Shape();
   
   if (extrusionShapeMode === 'direct') {
-    // Direct mode: Simply extrude the drawn profile as a ribbon surface
-    // The drawn line becomes a surface - wallThickness controls how far it extrudes
+    // Direct mode: Extrude the drawn profile as a solid ribbon with thickness
+    // extrusionDepth = how far it extends in Z (the depth)
+    // wallThickness = how thick the ribbon body is (perpendicular to the curve)
     
     const numPoints = smoothedProfile.length;
     const vertices: number[] = [];
     const indices: number[] = [];
     
-    // Build vertices: just 2 per profile point (front and back of ribbon)
+    // For each point, we need 4 vertices: front-top, front-bottom, back-top, back-bottom
+    // The "thickness" is applied perpendicular to the curve direction
     for (let i = 0; i < numPoints; i++) {
       const p = smoothedProfile[i];
       
-      if (extrusionDirection === 'vertical') {
-        // Profile defines X-Y curve (on canvas), extrude along Z
-        // Canvas Y becomes 3D Y (height), wallThickness is the Z depth
-        vertices.push(p.x, p.y, 0);                    // front
-        vertices.push(p.x, p.y, wallThickness);        // back
-      } else {
-        // Profile defines X-Y curve, extrude along Z for horizontal
-        vertices.push(p.x, p.y, 0);                    // front
-        vertices.push(p.x, p.y, wallThickness);        // back
-      }
-    }
-    
-    // Build faces: connect adjacent profile points
-    for (let i = 0; i < numPoints - 1; i++) {
-      const currFront = i * 2;
-      const currBack = i * 2 + 1;
-      const nextFront = (i + 1) * 2;
-      const nextBack = (i + 1) * 2 + 1;
+      // Calculate perpendicular direction for thickness
+      let perpX = 0, perpY = 1; // Default perpendicular (up)
       
-      // Front face (the drawn curve side)
-      indices.push(currFront, nextFront, currBack);
-      indices.push(nextFront, nextBack, currBack);
+      if (i < numPoints - 1) {
+        // Use direction to next point
+        const next = smoothedProfile[i + 1];
+        const dx = next.x - p.x;
+        const dy = next.y - p.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0.001) {
+          // Perpendicular is (-dy, dx) normalized
+          perpX = -dy / len;
+          perpY = dx / len;
+        }
+      } else if (i > 0) {
+        // Use direction from previous point
+        const prev = smoothedProfile[i - 1];
+        const dx = p.x - prev.x;
+        const dy = p.y - prev.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0.001) {
+          perpX = -dy / len;
+          perpY = dx / len;
+        }
+      }
+      
+      const halfThick = wallThickness / 2;
+      
+      // 4 vertices per point: outer-front, inner-front, outer-back, inner-back
+      // outer = offset in +perpendicular direction, inner = offset in -perpendicular direction
+      vertices.push(p.x + perpX * halfThick, p.y + perpY * halfThick, 0);                    // 0: outer-front
+      vertices.push(p.x - perpX * halfThick, p.y - perpY * halfThick, 0);                    // 1: inner-front
+      vertices.push(p.x + perpX * halfThick, p.y + perpY * halfThick, extrusionDepth);       // 2: outer-back
+      vertices.push(p.x - perpX * halfThick, p.y - perpY * halfThick, extrusionDepth);       // 3: inner-back
     }
     
-    // Cap the start (first point)
-    // Just a line from front to back at first point - no cap needed for a ribbon
+    // Build faces connecting adjacent profile points
+    for (let i = 0; i < numPoints - 1; i++) {
+      const curr = i * 4;
+      const next = (i + 1) * 4;
+      
+      // Outer surface (facing outward from curve)
+      indices.push(curr + 0, next + 0, curr + 2);
+      indices.push(next + 0, next + 2, curr + 2);
+      
+      // Inner surface (facing inward from curve)
+      indices.push(curr + 1, curr + 3, next + 1);
+      indices.push(next + 1, curr + 3, next + 3);
+      
+      // Front face (z=0)
+      indices.push(curr + 0, curr + 1, next + 0);
+      indices.push(next + 0, curr + 1, next + 1);
+      
+      // Back face (z=extrusionDepth)
+      indices.push(curr + 2, next + 2, curr + 3);
+      indices.push(next + 2, next + 3, curr + 3);
+    }
     
-    // Cap the end (last point)  
-    // Just a line from front to back at last point - no cap needed for a ribbon
+    // Start cap (first point)
+    indices.push(0, 2, 1);
+    indices.push(1, 2, 3);
+    
+    // End cap (last point)
+    const last = (numPoints - 1) * 4;
+    indices.push(last + 0, last + 1, last + 2);
+    indices.push(last + 1, last + 3, last + 2);
     
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
