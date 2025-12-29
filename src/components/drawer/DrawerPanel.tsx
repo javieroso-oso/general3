@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { DrawerItem } from '@/types/drawer';
 import { ParametricParams, ObjectType } from '@/types/parametric';
-import { X, Archive } from 'lucide-react';
+import { X, Archive, Check, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { exportDrawerItemsToZip, downloadBlob } from '@/lib/batch-export';
+import { toast } from 'sonner';
 
 interface DrawerPanelProps {
   items: DrawerItem[];
@@ -11,6 +15,58 @@ interface DrawerPanelProps {
 }
 
 const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isExporting, setIsExporting] = useState(false);
+
+  const toggleSelect = (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(items.map((item) => item.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleExport = async () => {
+    const selectedItems = items.filter((item) => selectedIds.has(item.id));
+    if (selectedItems.length === 0) {
+      toast.error('Select items to export');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const zip = await exportDrawerItemsToZip(selectedItems, (progress) => {
+        // Could show progress in UI if needed
+      });
+      
+      const filename = selectedItems.length === 1 
+        ? `${selectedItems[0].objectType}_export.zip`
+        : `drawer_export_${selectedItems.length}_items.zip`;
+      
+      downloadBlob(zip, filename);
+      toast.success(`Exported ${selectedItems.length} design${selectedItems.length > 1 ? 's' : ''}`);
+      clearSelection();
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -25,45 +81,103 @@ const DrawerPanel = ({ items, onLoad, onRemove }: DrawerPanelProps) => {
     );
   }
 
+  const hasSelection = selectedIds.size > 0;
+  const allSelected = selectedIds.size === items.length;
+
   return (
-    <ScrollArea className="h-[400px]">
-      <div className="grid grid-cols-2 gap-3 pr-4">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="relative group cursor-pointer rounded-lg overflow-hidden border border-border bg-muted/30 hover:border-primary/50 transition-colors"
-            onClick={() => onLoad(item.params, item.objectType)}
+    <div className="space-y-3">
+      {/* Selection toolbar */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={allSelected ? clearSelection : selectAll}
+            className="text-xs h-7 px-2"
           >
-            {/* Thumbnail */}
-            <div className="aspect-square">
-              <img
-                src={item.thumbnail}
-                alt="Design thumbnail"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            
-            {/* Object type badge */}
-            <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-background/80 backdrop-blur rounded text-[10px] font-medium capitalize">
-              {item.objectType}
-            </div>
-            
-            {/* Remove button */}
-            <Button
-              variant="destructive"
-              size="icon"
-              className="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove(item.id);
-              }}
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          </div>
-        ))}
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </Button>
+          {hasSelection && (
+            <span className="text-xs text-muted-foreground">
+              {selectedIds.size} selected
+            </span>
+          )}
+        </div>
+        
+        {hasSelection && (
+          <Button
+            size="sm"
+            onClick={handleExport}
+            disabled={isExporting}
+            className="gap-1 h-7"
+          >
+            <Download className="w-3 h-3" />
+            {isExporting ? 'Exporting...' : 'Export ZIP'}
+          </Button>
+        )}
       </div>
-    </ScrollArea>
+
+      <ScrollArea className="h-[360px]">
+        <div className="grid grid-cols-2 gap-3 pr-4">
+          {items.map((item) => {
+            const isSelected = selectedIds.has(item.id);
+            
+            return (
+              <div
+                key={item.id}
+                className={`relative group cursor-pointer rounded-lg overflow-hidden border bg-muted/30 transition-colors ${
+                  isSelected 
+                    ? 'border-primary ring-2 ring-primary/20' 
+                    : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => onLoad(item.params, item.objectType)}
+              >
+                {/* Selection checkbox */}
+                <div
+                  className="absolute top-1 left-1 z-10"
+                  onClick={(e) => toggleSelect(item.id, e)}
+                >
+                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                    isSelected 
+                      ? 'bg-primary border-primary' 
+                      : 'bg-background/80 border-border hover:border-primary'
+                  }`}>
+                    {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                  </div>
+                </div>
+
+                {/* Thumbnail */}
+                <div className="aspect-square">
+                  <img
+                    src={item.thumbnail}
+                    alt="Design thumbnail"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Object type badge */}
+                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-background/80 backdrop-blur rounded text-[10px] font-medium capitalize">
+                  {item.objectType}
+                </div>
+                
+                {/* Remove button */}
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(item.id);
+                  }}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
   );
 };
 
