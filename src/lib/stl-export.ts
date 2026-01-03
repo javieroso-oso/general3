@@ -93,6 +93,10 @@ export function calculateDriftOffsets(
   // Values < 1 cause drift to partially decay, creating S-curves
   const damping = 0.92;
   
+  // Secondary per-layer deviation: small offsets that don't align with main drift
+  // These create "disagreement" between layers for an accumulated/built look
+  const deviationMagnitude = driftMagnitude * 0.1; // ~10% of main drift
+  
   for (let i = 0; i <= layerCount; i++) {
     const t = i / layerCount;
     
@@ -126,9 +130,26 @@ export function calculateDriftOffsets(
     // Height factor: drift effect ramps up from base
     const heightFactor = Math.pow(t, 1.2);
     
+    // Calculate primary drift position
+    const primaryX = accumulatedX * heightFactor;
+    const primaryZ = accumulatedZ * heightFactor;
+    
+    // Secondary per-layer deviation: subtle offset NOT aligned with main drift
+    // Uses different noise frequencies/seeds to create independent variation
+    // Perpendicular-ish angle ensures deviation doesn't just add to main drift
+    const deviationAngle = noise3D(t * 1.2, 0.8, 0.4, 0.5) * Math.PI * 2;
+    
+    // Smooth the deviation magnitude across height using low-frequency noise
+    // Peaks in the middle, fades toward base and top for natural look
+    const deviationEnvelope = Math.sin(t * Math.PI) * (0.7 + noise3D(0.2, t * 0.5, 0.9, 0.5) * 0.3);
+    
+    // The deviation itself: small, smooth, non-accumulating
+    const deviationX = Math.cos(deviationAngle) * deviationMagnitude * deviationEnvelope * 0.15;
+    const deviationZ = Math.sin(deviationAngle) * deviationMagnitude * deviationEnvelope * 0.15;
+    
     rawOffsets.push({
-      x: accumulatedX * heightFactor,
-      z: accumulatedZ * heightFactor
+      x: primaryX + deviationX,
+      z: primaryZ + deviationZ
     });
   }
   
