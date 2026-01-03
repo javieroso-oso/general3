@@ -75,7 +75,9 @@ export function calculateDriftOffsets(
   if (drift > 0) {
     let accumulatedX = 0;
     let accumulatedZ = 0;
-    const driftScale = drift * 0.3;
+    // Increased drift scale for visible leaning effect
+    // At drift=1.0, the top of the object can lean up to ~50% of base radius
+    const driftScale = drift * 0.5;
     
     // First pass: calculate raw offsets
     const rawOffsets: { x: number; z: number }[] = [];
@@ -83,13 +85,17 @@ export function calculateDriftOffsets(
     for (let i = 0; i <= layerCount; i++) {
       const t = i / layerCount;
       
+      // Use noise to create organic wandering direction
       const noiseX = noise3D(t * 5, 0.5, 0, 0.8);
       const noiseZ = noise3D(0, t * 5, 0.5, 0.8);
       
-      accumulatedX += noiseX * driftScale * baseRadius * 0.08;
-      accumulatedZ += noiseZ * driftScale * baseRadius * 0.08;
+      // Accumulate drift with stronger effect (was 0.08, now 0.25)
+      // This creates the visible leaning/drifting of the entire shape
+      accumulatedX += noiseX * driftScale * baseRadius * 0.25;
+      accumulatedZ += noiseZ * driftScale * baseRadius * 0.25;
       
-      const heightFactor = Math.pow(t, 1.5);
+      // Height factor makes drift more pronounced at top
+      const heightFactor = Math.pow(t, 1.2);
       
       rawOffsets.push({ 
         x: accumulatedX * heightFactor, 
