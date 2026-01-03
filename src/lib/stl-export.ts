@@ -104,28 +104,27 @@ export function calculateDriftOffsets(
     accumulatedX *= damping;
     accumulatedZ *= damping;
     
-    // Compute a smoothly rotating angle based on height
-    const baseAngle = t * angleRotationRate;
+    // WORLD-SPACE DRIFT: Fixed cardinal directions that don't rotate with twist
+    // Use noise to select between discrete world-space directions
+    // This creates layer disagreement rather than a smooth curved spine
     
-    // Low-frequency noise modulation for subtle "hesitation"
-    // Very low frequency (0.8) ensures slow, continuous variation
-    // Small amplitude (±0.4 radians ≈ ±23°) keeps it subtle
-    const noiseModulation = noise3D(t * 0.8, 0.3, 0.7, 0.5) * 0.4;
+    // Primary axis: oscillates between +X and -X in world space
+    // Low frequency ensures sustained push in one direction before reversing
+    const xAxisNoise = noise3D(t * 0.4, 0.1, 0.5, 0.5);
+    const xSign = xAxisNoise > 0.1 ? 1 : xAxisNoise < -0.1 ? -1 : 0;
     
-    // Combine base rotation with noise-based hesitation
-    const angle = baseAngle + noiseModulation;
+    // Secondary axis: oscillates between +Z and -Z, phase-shifted from X
+    // Different seed creates independent oscillation
+    const zAxisNoise = noise3D(0.3, t * 0.35, 0.8, 0.5);
+    const zSign = zAxisNoise > 0.15 ? 1 : zAxisNoise < -0.15 ? -1 : 0;
     
-    // Derive X and Z offset direction from the modulated angle
-    const dirX = Math.cos(angle);
-    const dirZ = Math.sin(angle);
+    // Magnitude variation per layer
+    const magnitudeNoise = 0.8 + noise3D(0.5, t * 0.6, 0.2, 0.5) * 0.4;
     
-    // Low-frequency noise also subtly varies the impulse magnitude
-    // This creates moments of stronger/weaker drift (hesitation)
-    const magnitudeNoise = 1 + noise3D(0.5, t * 0.6, 0.2, 0.5) * 0.25;
-    
-    // Add new drift impulse in the rotating direction
-    accumulatedX += dirX * driftMagnitude * 0.15 * magnitudeNoise;
-    accumulatedZ += dirZ * driftMagnitude * 0.15 * magnitudeNoise;
+    // Add impulses in fixed world-space directions
+    // X and Z are independent, creating perpendicular disagreement
+    accumulatedX += xSign * driftMagnitude * 0.12 * magnitudeNoise;
+    accumulatedZ += zSign * driftMagnitude * 0.12 * magnitudeNoise;
     
     // Height factor: drift effect ramps up from base
     const heightFactor = Math.pow(t, 0.8);
@@ -134,22 +133,14 @@ export function calculateDriftOffsets(
     const primaryX = accumulatedX * heightFactor;
     const primaryZ = accumulatedZ * heightFactor;
     
-    // Secondary per-layer deviation: subtle offset NOT aligned with main drift
-    // Uses different noise frequencies/seeds to create independent variation
-    // Perpendicular-ish angle ensures deviation doesn't just add to main drift
-    const deviationAngle = noise3D(t * 1.2, 0.8, 0.4, 0.5) * Math.PI * 2;
-    
-    // Smooth the deviation magnitude across height using low-frequency noise
-    // Peaks in the middle, fades toward base and top for natural look
-    const deviationEnvelope = Math.sin(t * Math.PI) * (0.7 + noise3D(0.2, t * 0.5, 0.9, 0.5) * 0.3);
-    
-    // The deviation itself: small, smooth, non-accumulating
-    const deviationX = Math.cos(deviationAngle) * deviationMagnitude * deviationEnvelope * 0.15;
-    const deviationZ = Math.sin(deviationAngle) * deviationMagnitude * deviationEnvelope * 0.15;
+    // Per-layer jitter: small random offset that doesn't accumulate
+    // Creates visible layer-to-layer disagreement
+    const jitterX = noise3D(t * 3.0, 0.2, 0.9, 0.5) * driftMagnitude * 0.08 * heightFactor;
+    const jitterZ = noise3D(0.7, t * 3.0, 0.4, 0.5) * driftMagnitude * 0.08 * heightFactor;
     
     rawOffsets.push({
-      x: primaryX + deviationX,
-      z: primaryZ + deviationZ
+      x: primaryX + jitterX,
+      z: primaryZ + jitterZ
     });
   }
   
