@@ -50,6 +50,47 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
   return (nxy0 * (1 - uz) + nxy1 * uz) * 2 - 1;
 };
 
+// Calculate drift offsets for each height layer - shared between preview and export
+export function calculateDriftOffsets(
+  drift: number,
+  baseRadius: number,
+  layerCount: number
+): { x: number; z: number }[] {
+  const driftOffsets: { x: number; z: number }[] = [];
+  
+  if (drift > 0) {
+    let accumulatedX = 0;
+    let accumulatedZ = 0;
+    const driftScale = drift * 0.3; // Match preview scale
+    
+    for (let i = 0; i <= layerCount; i++) {
+      const t = i / layerCount;
+      
+      // Use noise that varies with height for emergent direction
+      const noiseX = noise3D(t * 5, 0.5, 0, 0.8);
+      const noiseZ = noise3D(0, t * 5, 0.5, 0.8);
+      
+      // Accumulate offset
+      accumulatedX += noiseX * driftScale * baseRadius * 0.08;
+      accumulatedZ += noiseZ * driftScale * baseRadius * 0.08;
+      
+      // Apply height factor - higher layers drift more
+      const heightFactor = Math.pow(t, 1.5);
+      
+      driftOffsets.push({ 
+        x: accumulatedX * heightFactor, 
+        z: accumulatedZ * heightFactor 
+      });
+    }
+  } else {
+    for (let i = 0; i <= layerCount; i++) {
+      driftOffsets.push({ x: 0, z: 0 });
+    }
+  }
+  
+  return driftOffsets;
+}
+
 // Calculate radius at a given height t (0-1) - includes ALL surface features
 // NOTE: Caller is responsible for applying twist to theta before calling this function
 function getRadiusAtHeight(
@@ -926,12 +967,15 @@ export function generateSpiralVaseLayers(
   settings: PrintSettings
 ): GCodeLayer[] {
   const layers: GCodeLayer[] = [];
-  const { height, twistAngle } = params;
+  const { height, twistAngle, drift, baseRadius } = params;
   const { layerHeight } = settings;
   
   const totalLayers = Math.ceil(height / layerHeight);
   const segments = 64; // Points per revolution
   const totalPoints = totalLayers * segments;
+  
+  // Pre-compute drift offsets
+  const driftOffsets = calculateDriftOffsets(drift, baseRadius, totalLayers);
   
   // Single continuous spiral path
   const spiralPath: { x: number; y: number; z: number }[] = [];
@@ -950,9 +994,13 @@ export function generateSpiralVaseLayers(
     const rimOffset = getRimWaveOffset(t, theta + twistRad, params);
     const finalZ = baseZ + rimOffset;
     
+    // Get drift offset for this layer
+    const layerIndex = Math.min(Math.floor(t * totalLayers), totalLayers);
+    const driftOffset = driftOffsets[layerIndex];
+    
     spiralPath.push({
-      x: Math.cos(theta + twistRad) * outerR,
-      y: Math.sin(theta + twistRad) * outerR,
+      x: Math.cos(theta + twistRad) * outerR + driftOffset.x,
+      y: Math.sin(theta + twistRad) * outerR + driftOffset.z, // z drift becomes y in G-code
       z: finalZ,
     });
   }
@@ -1276,7 +1324,7 @@ export function generateGCodeLayers(
     return generateSpiralVaseLayers(params, type, settings);
   }
   
-  const { height, wallThickness, twistAngle, profileCurve } = params;
+  const { height, wallThickness, twistAngle, profileCurve, drift, baseRadius } = params;
   const { layerHeight, printMode, nonPlanar } = settings;
   
   const isNonPlanar = printMode === 'non_planar';
@@ -1299,11 +1347,18 @@ export function generateGCodeLayers(
   
   const segments = 48; // Points per perimeter
   
+  // Pre-compute drift offsets
+  const totalLayers = Math.ceil(height / layerHeight);
+  const driftOffsets = calculateDriftOffsets(drift, baseRadius, totalLayers);
+  
   // Generate planar layers up to the non-planar zone
   for (let layer = 0; layer < planarLayerCount; layer++) {
     const baseZ = layer * layerHeight;
     const t = baseZ / height;
     const twistRad = (twistAngle * Math.PI / 180) * t;
+    
+    // Get drift offset for this layer
+    const driftOffset = driftOffsets[Math.min(layer, totalLayers)];
     
     // Check if this layer needs rim wave (variable Z)
     const hasRimWave = params.rimWaveCount > 0 && params.rimWaveDepth > 0 && t > 0.9;
@@ -1323,14 +1378,14 @@ export function generateGCodeLayers(
         const pointZ = baseZ + rimOffset;
         
         outerPath.push({
-          x: Math.cos(thetaWithTwist) * outerR,
-          y: Math.sin(thetaWithTwist) * outerR,
+          x: Math.cos(thetaWithTwist) * outerR + driftOffset.x,
+          y: Math.sin(thetaWithTwist) * outerR + driftOffset.z,
           z: pointZ,
         });
         
         innerPath.push({
-          x: Math.cos(thetaWithTwist) * innerR,
-          y: Math.sin(thetaWithTwist) * innerR,
+          x: Math.cos(thetaWithTwist) * innerR + driftOffset.x,
+          y: Math.sin(thetaWithTwist) * innerR + driftOffset.z,
           z: pointZ,
         });
       }
@@ -1352,13 +1407,13 @@ export function generateGCodeLayers(
         const innerR = Math.max(outerR - wallThickness, wallThickness);
         
         outerPath.push({
-          x: Math.cos(thetaWithTwist) * outerR,
-          y: Math.sin(thetaWithTwist) * outerR,
+          x: Math.cos(thetaWithTwist) * outerR + driftOffset.x,
+          y: Math.sin(thetaWithTwist) * outerR + driftOffset.z,
         });
         
         innerPath.push({
-          x: Math.cos(thetaWithTwist) * innerR,
-          y: Math.sin(thetaWithTwist) * innerR,
+          x: Math.cos(thetaWithTwist) * innerR + driftOffset.x,
+          y: Math.sin(thetaWithTwist) * innerR + driftOffset.z,
         });
       }
       
@@ -1505,9 +1560,13 @@ export function generateGCode(
   settings: PrintSettings
 ): string {
   const layers = generateGCodeLayers(params, type, settings);
-  const { printSpeed, layerHeight, material, nozzleDiameter } = settings;
+  const { printSpeed, layerHeight, material, nozzleDiameter, buildPlateWidth, buildPlateDepth } = settings;
   const isSpiralVase = settings.spiralVase || settings.printMode === 'vase_spiral';
   const isNonPlanar = settings.printMode === 'non_planar';
+  
+  // Build plate center offset - all coordinates will be offset by this
+  const centerX = (buildPlateWidth || 200) / 2;
+  const centerY = (buildPlateDepth || 200) / 2;
   
   const lines: string[] = [];
   
@@ -1537,6 +1596,8 @@ export function generateGCode(
   lines.push(`; Nozzle Diameter: ${nozzleDiameter}mm`);
   lines.push(`; Print Mode: ${settings.printMode}`);
   lines.push(`; Print Speed: ${printSpeed}mm/s`);
+  lines.push(`; Build Plate: ${buildPlateWidth || 200}x${buildPlateDepth || 200}mm`);
+  lines.push(`; Model centered at: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
   
   if (isSpiralVase) {
     lines.push('; Mode: Spiral Vase (continuous Z movement)');
@@ -1646,9 +1707,12 @@ export function generateGCode(
     if (spiralPath.length > 0) {
       const firstPoint = spiralPath[0];
       const startZ = firstPoint.z || 0;
-      lines.push(`G0 X${firstPoint.x.toFixed(3)} Y${firstPoint.y.toFixed(3)} Z${startZ.toFixed(3)} F3000 ; Move to start`);
-      lastX = firstPoint.x;
-      lastY = firstPoint.y;
+      // Apply center offset
+      const x0 = firstPoint.x + centerX;
+      const y0 = firstPoint.y + centerY;
+      lines.push(`G0 X${x0.toFixed(3)} Y${y0.toFixed(3)} Z${startZ.toFixed(3)} F3000 ; Move to start`);
+      lastX = x0;
+      lastY = y0;
       currentZ = startZ;
       
       for (let i = 1; i < spiralPath.length; i++) {
@@ -1665,10 +1729,13 @@ export function generateGCode(
         const extrusionAmount = calculateExtrusion(dist, extrusionParams);
         e += extrusionAmount;
         
-        lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+        // Apply center offset
+        const px = point.x + centerX;
+        const py = point.y + centerY;
+        lines.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
         
-        lastX = point.x;
-        lastY = point.y;
+        lastX = px;
+        lastY = py;
         currentZ = z2;
       }
     }
@@ -1706,8 +1773,12 @@ export function generateGCode(
         const startPoint = path[0];
         const startZ = startPoint.z !== undefined ? startPoint.z : layerZ;
         
+        // Apply center offset
+        const sx = startPoint.x + centerX;
+        const sy = startPoint.y + centerY;
+        
         // Calculate travel distance to determine if retraction is needed
-        const travel = travelDistance(lastX, lastY, startPoint.x, startPoint.y);
+        const travel = travelDistance(lastX, lastY, sx, sy);
         
         if (pathIndex > 0 || layerIndex > 0) {
           // Add retraction for significant travel moves
@@ -1718,9 +1789,9 @@ export function generateGCode(
         
         // Travel move to path start
         if (isLayerNonPlanar) {
-          lines.push(`G0 X${startPoint.x.toFixed(3)} Y${startPoint.y.toFixed(3)} Z${startZ.toFixed(3)} F3000 ; Travel to path start`);
+          lines.push(`G0 X${sx.toFixed(3)} Y${sy.toFixed(3)} Z${startZ.toFixed(3)} F3000 ; Travel to path start`);
         } else {
-          lines.push(`G0 X${startPoint.x.toFixed(3)} Y${startPoint.y.toFixed(3)} F3000 ; Travel to path start`);
+          lines.push(`G0 X${sx.toFixed(3)} Y${sy.toFixed(3)} F3000 ; Travel to path start`);
         }
         
         // De-retract before printing
@@ -1728,8 +1799,8 @@ export function generateGCode(
           lines.push(...deRetract(startZ));
         }
         
-        lastX = startPoint.x;
-        lastY = startPoint.y;
+        lastX = sx;
+        lastY = sy;
         currentZ = startZ;
         
         // Extrude along path
@@ -1749,15 +1820,19 @@ export function generateGCode(
           const extrusionAmount = calculateExtrusion(dist, extrusionParams);
           e += extrusionAmount;
           
+          // Apply center offset
+          const px = point.x + centerX;
+          const py = point.y + centerY;
+          
           if (isLayerNonPlanar) {
             // Include Z coordinate for non-planar moves
-            lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+            lines.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
           } else {
-            lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+            lines.push(`G1 X${px.toFixed(3)} Y${py.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
           }
           
-          lastX = point.x;
-          lastY = point.y;
+          lastX = px;
+          lastY = py;
           currentZ = z2;
         }
       });
