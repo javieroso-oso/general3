@@ -49,22 +49,19 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
   
   return (nxy0 * (1 - uz) + nxy1 * uz) * 2 - 1;
 };
-
-// Drift offset structure with tilt data for non-planar layers
+// Drift offset structure - purely positional, no tilt/rotation
+// Each layer has an X/Z offset relative to the origin
 export interface DriftOffset {
   x: number;
   z: number;
-  tiltX: number;  // Tilt direction in X (normalized)
-  tiltZ: number;  // Tilt direction in Z (normalized)
-  tiltMagnitude: number;  // How much to tilt (in mm per unit distance)
 }
 
-// Maximum tilt angle in degrees for printer safety (15 degrees = ~0.27 radians)
-const MAX_TILT_ANGLE_DEG = 15;
-const MAX_TILT_SLOPE = Math.tan(MAX_TILT_ANGLE_DEG * Math.PI / 180);
-
 // Calculate drift offsets for each height layer - shared between preview and export
-// Now includes tilt data for true non-planar printing
+// Drift is purely internal positional deviation:
+// - Base remains centered at origin
+// - No global rotation, tilt, or translation
+// - Each slice's center drifts slightly relative to previous
+// - Offsets accumulate smoothly as height increases
 export function calculateDriftOffsets(
   drift: number,
   baseRadius: number,
@@ -72,84 +69,72 @@ export function calculateDriftOffsets(
 ): DriftOffset[] {
   const driftOffsets: DriftOffset[] = [];
   
-  if (drift > 0) {
-    let accumulatedX = 0;
-    let accumulatedZ = 0;
-    // Moderate drift scale - visible lean without being extreme
-    // At drift=1.0, top leans about 15-20% of base radius
-    const driftScale = drift * 0.15;
-    
-    // First pass: calculate raw offsets
-    const rawOffsets: { x: number; z: number }[] = [];
-    
+  // At drift = 0, all offsets are zero
+  if (drift <= 0 || layerCount <= 0) {
     for (let i = 0; i <= layerCount; i++) {
-      const t = i / layerCount;
-      
-      // Use noise to create organic wandering direction
-      const noiseX = noise3D(t * 5, 0.5, 0, 0.8);
-      const noiseZ = noise3D(0, t * 5, 0.5, 0.8);
-      
-      // Moderate accumulation for visible but controlled drift
-      accumulatedX += noiseX * driftScale * baseRadius * 0.15;
-      accumulatedZ += noiseZ * driftScale * baseRadius * 0.15;
-      
-      // Height factor makes drift more pronounced at top
-      const heightFactor = Math.pow(t, 1.3);
-      
-      rawOffsets.push({ 
-        x: accumulatedX * heightFactor, 
-        z: accumulatedZ * heightFactor 
-      });
+      driftOffsets.push({ x: 0, z: 0 });
     }
+    return driftOffsets;
+  }
+  
+  // First pass: generate raw accumulated offsets using smooth noise
+  const rawOffsets: { x: number; z: number }[] = [];
+  let accumulatedX = 0;
+  let accumulatedZ = 0;
+  
+  // Scale factor: at drift=1, max offset at top is ~25% of base radius
+  const driftMagnitude = drift * baseRadius * 0.25;
+  
+  for (let i = 0; i <= layerCount; i++) {
+    const t = i / layerCount;
     
-    // Second pass: calculate subtle tilt for non-planar effect
-    for (let i = 0; i <= layerCount; i++) {
-      const current = rawOffsets[i];
-      const prev = i > 0 ? rawOffsets[i - 1] : { x: 0, z: 0 };
-      
-      // Delta represents the drift direction at this layer
-      const deltaX = current.x - prev.x;
-      const deltaZ = current.z - prev.z;
-      const deltaMag = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
-      
-      // Very subtle tilt - just enough for non-planar effect, not dramatic
-      const tiltIntensity = drift * 0.05;
-      let tiltMag = deltaMag * tiltIntensity;
-      
-      // Clamp to max safe tilt
-      tiltMag = Math.min(tiltMag, MAX_TILT_SLOPE);
-      
-      // Normalize direction
-      const tiltX = deltaMag > 0.001 ? deltaX / deltaMag : 0;
-      const tiltZ = deltaMag > 0.001 ? deltaZ / deltaMag : 0;
-      
+    // Use smooth noise to determine drift direction at this height
+    // Lower frequency for smoother, more organic wandering
+    const noiseX = noise3D(t * 3, 0.5, 0, 0.5);
+    const noiseZ = noise3D(0, t * 3, 0.5, 0.5);
+    
+    // Accumulate small per-layer offsets
+    // The 0.02 factor ensures gradual, smooth accumulation
+    accumulatedX += noiseX * driftMagnitude * 0.02;
+    accumulatedZ += noiseZ * driftMagnitude * 0.02;
+    
+    // Height factor: drift effect increases with height (zero at base)
+    // Using t^2 for smooth ramp-up from base
+    const heightFactor = t * t;
+    
+    rawOffsets.push({
+      x: accumulatedX * heightFactor,
+      z: accumulatedZ * heightFactor
+    });
+  }
+  
+  // Second pass: apply smoothing to eliminate jitter
+  // Use simple 3-point moving average
+  for (let i = 0; i <= layerCount; i++) {
+    if (i === 0) {
+      // Base layer: always exactly at origin
+      driftOffsets.push({ x: 0, z: 0 });
+    } else if (i === layerCount) {
+      // Top layer: average of last two raw values
+      const prev = rawOffsets[i - 1];
+      const curr = rawOffsets[i];
       driftOffsets.push({
-        x: current.x,
-        z: current.z,
-        tiltX,
-        tiltZ,
-        tiltMagnitude: tiltMag
+        x: (prev.x + curr.x) / 2,
+        z: (prev.z + curr.z) / 2
       });
-    }
-  } else {
-    for (let i = 0; i <= layerCount; i++) {
-      driftOffsets.push({ x: 0, z: 0, tiltX: 0, tiltZ: 0, tiltMagnitude: 0 });
+    } else {
+      // Middle layers: 3-point average for smoothness
+      const prev = rawOffsets[i - 1];
+      const curr = rawOffsets[i];
+      const next = rawOffsets[i + 1];
+      driftOffsets.push({
+        x: (prev.x + curr.x + next.x) / 3,
+        z: (prev.z + curr.z + next.z) / 3
+      });
     }
   }
   
   return driftOffsets;
-}
-
-// Calculate Y (height) offset based on position within layer and tilt
-export function calculateTiltOffset(
-  localX: number,
-  localZ: number,
-  driftOffset: DriftOffset
-): number {
-  // The tilt creates a slope: points in the drift direction are lower,
-  // points opposite are higher (creates lean effect)
-  const dotProduct = localX * driftOffset.tiltX + localZ * driftOffset.tiltZ;
-  return -dotProduct * driftOffset.tiltMagnitude;
 }
 
 // Calculate radius at a given height t (0-1) - includes ALL surface features
@@ -1062,11 +1047,8 @@ export function generateSpiralVaseLayers(
     const localX = Math.cos(theta + twistRad) * outerR;
     const localY = Math.sin(theta + twistRad) * outerR;
     
-    // Calculate tilt offset for non-planar Z movement
-    const tiltZOffset = calculateTiltOffset(localX, localY, driftOffset);
-    
-    // Final Z includes base height + rim wave + tilt offset
-    const finalZ = baseZ + rimOffset + tiltZOffset;
+    // Final Z includes base height + rim wave (no tilt - drift is purely positional)
+    const finalZ = baseZ + rimOffset;
     
     spiralPath.push({
       x: localX + driftOffset.x,
