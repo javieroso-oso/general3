@@ -135,6 +135,9 @@ export interface ParametricParams {
   organicNoise: number;
   noiseScale: number;
   
+  // Non-planar drift - accumulated positional offset as body grows
+  drift: number;  // 0 = perfectly centered, higher = more accumulated offset
+  
   // Advanced body customization - Faceting
   facetCount: number;           // 0 = smooth, 6 = hexagonal, 8 = octagonal, etc.
   facetSharpness: number;       // 0-1: 0 = rounded facets, 1 = sharp edges
@@ -363,6 +366,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0.05,
     organicNoise: 0,
     noiseScale: 1,
+    drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
     spiralGrooveCount: 0,
@@ -455,6 +459,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0,
     organicNoise: 0,
     noiseScale: 1,
+    drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
     spiralGrooveCount: 0,
@@ -547,6 +552,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0,
     organicNoise: 0.03,
     noiseScale: 2,
+    drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
     spiralGrooveCount: 0,
