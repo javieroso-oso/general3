@@ -18,9 +18,10 @@ import {
   PrintSettings, 
   defaultPrintSettings,
   analyzePrint,
+  PrintAnalysis,
 } from '@/types/parametric';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
-import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode } from '@/lib/stl-export';
+import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode } from '@/lib/stl-export';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -73,10 +74,40 @@ const Index = () => {
     setParams(defaultParams[type]);
   };
 
-  const analysis = useMemo(() => 
-    analyzePrint(params, printSettings), 
-    [params, printSettings]
-  );
+  const analysis = useMemo((): PrintAnalysis => {
+    const baseAnalysis = analyzePrint(params, printSettings);
+    
+    // Add non-planar analysis when in non-planar mode
+    if (printSettings.printMode === 'non_planar') {
+      const nonPlanarAnalysis = analyzeNonPlanarGCode(params, objectType, printSettings);
+      
+      // Add non-planar specific warnings
+      if (nonPlanarAnalysis.exceedsMaxAngle) {
+        baseAnalysis.warnings.push({
+          type: 'warning',
+          code: 'NON_PLANAR_ANGLE',
+          message: `Max tilt angle (${nonPlanarAnalysis.maxTiltAngle.toFixed(1)}°) exceeds setting (${printSettings.nonPlanar.maxZAngle}°)`,
+          suggestion: 'Reduce surface curvature or increase max Z angle setting',
+        });
+      }
+      
+      if (nonPlanarAnalysis.collisionRiskZones.length > 10) {
+        baseAnalysis.warnings.push({
+          type: 'warning',
+          code: 'COLLISION_RISK',
+          message: `${nonPlanarAnalysis.collisionRiskZones.length} potential collision zones detected`,
+          suggestion: 'Consider reducing max Z angle or simplifying the surface',
+        });
+      }
+      
+      return {
+        ...baseAnalysis,
+        nonPlanarAnalysis,
+      };
+    }
+    
+    return baseAnalysis;
+  }, [params, printSettings, objectType]);
 
   const totalLayers = Math.ceil(params.height / printSettings.layerHeight);
 

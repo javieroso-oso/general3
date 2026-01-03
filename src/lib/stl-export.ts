@@ -1379,18 +1379,154 @@ export function generateGCodeLayers(
   return layers;
 }
 
-// Generate actual G-code string
+// Extrusion calculation parameters
+interface ExtrusionParams {
+  filamentDiameter: number;  // mm (typically 1.75)
+  nozzleDiameter: number;    // mm (typically 0.4)
+  layerHeight: number;       // mm
+  extrusionMultiplier: number; // flow rate multiplier (1.0 = 100%)
+}
+
+// Calculate extrusion amount for a given distance
+function calculateExtrusion(
+  distance: number,
+  params: ExtrusionParams
+): number {
+  // Volume of filament needed = cross-section of printed line * distance
+  // Cross-section = layer height * nozzle diameter (simplified rectangular approximation)
+  const lineArea = params.layerHeight * params.nozzleDiameter;
+  const volumeNeeded = lineArea * distance;
+  
+  // Filament cross-section area
+  const filamentArea = Math.PI * Math.pow(params.filamentDiameter / 2, 2);
+  
+  // Length of filament to extrude
+  const filamentLength = (volumeNeeded / filamentArea) * params.extrusionMultiplier;
+  
+  return filamentLength;
+}
+
+// Retraction settings
+interface RetractionSettings {
+  distance: number;     // mm of filament to retract
+  speed: number;        // mm/s retraction speed
+  zHop: number;         // mm to lift nozzle during travel
+  minTravelDistance: number;  // minimum travel before retracting
+}
+
+const DEFAULT_RETRACTION: RetractionSettings = {
+  distance: 1.0,        // 1mm retraction
+  speed: 45,            // 45mm/s
+  zHop: 0.4,           // 0.4mm lift during travel
+  minTravelDistance: 2, // only retract for travels > 2mm
+};
+
+// Non-planar analysis result
+export interface NonPlanarAnalysis {
+  maxTiltAngle: number;           // Maximum tilt angle encountered (degrees)
+  avgTiltAngle: number;           // Average tilt angle (degrees)
+  nonPlanarLayerCount: number;    // Number of layers with non-planar paths
+  totalLayerCount: number;        // Total layer count
+  collisionRiskZones: Array<{     // Zones where collision might occur
+    layerIndex: number;
+    tiltAngle: number;
+    x: number;
+    y: number;
+    z: number;
+  }>;
+  exceedsMaxAngle: boolean;       // True if any point exceeds configured max angle
+  isSafeForPrinting: boolean;     // Overall safety assessment
+}
+
+// Analyze non-planar G-code for potential issues
+export function analyzeNonPlanarGCode(
+  params: ParametricParams,
+  type: ObjectType,
+  settings: PrintSettings
+): NonPlanarAnalysis {
+  const layers = generateGCodeLayers(params, type, settings);
+  const maxConfiguredAngle = settings.nonPlanar?.maxZAngle || 30;
+  
+  let maxTiltAngle = 0;
+  let totalTiltAngle = 0;
+  let tiltPointCount = 0;
+  let nonPlanarLayerCount = 0;
+  const collisionRiskZones: NonPlanarAnalysis['collisionRiskZones'] = [];
+  
+  layers.forEach((layer, layerIndex) => {
+    if (layer.isNonPlanar) {
+      nonPlanarLayerCount++;
+    }
+    
+    if (layer.tiltAngles) {
+      layer.tiltAngles.forEach((angle, pointIndex) => {
+        maxTiltAngle = Math.max(maxTiltAngle, angle);
+        totalTiltAngle += angle;
+        tiltPointCount++;
+        
+        // Mark collision risk zones (within 5 degrees of max or exceeding)
+        if (angle > maxConfiguredAngle - 5) {
+          const path = layer.paths[0];
+          if (path && path[pointIndex]) {
+            collisionRiskZones.push({
+              layerIndex,
+              tiltAngle: angle,
+              x: path[pointIndex].x,
+              y: path[pointIndex].y,
+              z: path[pointIndex].z || layer.z,
+            });
+          }
+        }
+      });
+    }
+  });
+  
+  const avgTiltAngle = tiltPointCount > 0 ? totalTiltAngle / tiltPointCount : 0;
+  const exceedsMaxAngle = maxTiltAngle > maxConfiguredAngle;
+  
+  // Safety assessment: safe if max angle is within limits and collision zones are minimal
+  const isSafeForPrinting = !exceedsMaxAngle && collisionRiskZones.length < 10;
+  
+  return {
+    maxTiltAngle,
+    avgTiltAngle,
+    nonPlanarLayerCount,
+    totalLayerCount: layers.length,
+    collisionRiskZones,
+    exceedsMaxAngle,
+    isSafeForPrinting,
+  };
+}
+
+// Generate actual G-code string with proper extrusion and retraction
 export function generateGCode(
   params: ParametricParams,
   type: ObjectType,
   settings: PrintSettings
 ): string {
   const layers = generateGCodeLayers(params, type, settings);
-  const { printSpeed, layerHeight, material } = settings;
+  const { printSpeed, layerHeight, material, nozzleDiameter } = settings;
   const isSpiralVase = settings.spiralVase || settings.printMode === 'vase_spiral';
   const isNonPlanar = settings.printMode === 'non_planar';
   
   const lines: string[] = [];
+  
+  // Extrusion parameters
+  const extrusionParams: ExtrusionParams = {
+    filamentDiameter: 1.75,
+    nozzleDiameter: nozzleDiameter,
+    layerHeight: layerHeight,
+    extrusionMultiplier: 1.0,
+  };
+  
+  // Retraction settings (can be made configurable later)
+  const retraction = DEFAULT_RETRACTION;
+  
+  // Non-planar analysis for header comments
+  let nonPlanarAnalysis: NonPlanarAnalysis | null = null;
+  if (isNonPlanar) {
+    nonPlanarAnalysis = analyzeNonPlanarGCode(params, type, settings);
+  }
   
   // G-code header
   lines.push('; Generated by Parametric 3D Generator');
@@ -1398,16 +1534,40 @@ export function generateGCode(
   lines.push(`; Height: ${params.height}mm`);
   lines.push(`; Material: ${material}`);
   lines.push(`; Layer Height: ${layerHeight}mm`);
+  lines.push(`; Nozzle Diameter: ${nozzleDiameter}mm`);
   lines.push(`; Print Mode: ${settings.printMode}`);
+  lines.push(`; Print Speed: ${printSpeed}mm/s`);
+  
   if (isSpiralVase) {
     lines.push('; Mode: Spiral Vase (continuous Z movement)');
   }
-  if (isNonPlanar) {
-    lines.push(`; Non-Planar: Max Z Angle ${settings.nonPlanar.maxZAngle}°`);
+  
+  if (isNonPlanar && nonPlanarAnalysis) {
+    lines.push('; ===== NON-PLANAR PRINTING INFORMATION =====');
+    lines.push(`; Max Z Angle Setting: ${settings.nonPlanar.maxZAngle}°`);
+    lines.push(`; Actual Max Tilt Angle: ${nonPlanarAnalysis.maxTiltAngle.toFixed(1)}°`);
+    lines.push(`; Average Tilt Angle: ${nonPlanarAnalysis.avgTiltAngle.toFixed(1)}°`);
+    lines.push(`; Non-Planar Layers: ${nonPlanarAnalysis.nonPlanarLayerCount}/${nonPlanarAnalysis.totalLayerCount}`);
+    if (nonPlanarAnalysis.exceedsMaxAngle) {
+      lines.push('; ⚠ WARNING: Some points exceed the configured max angle!');
+    }
+    if (nonPlanarAnalysis.collisionRiskZones.length > 0) {
+      lines.push(`; ⚠ CAUTION: ${nonPlanarAnalysis.collisionRiskZones.length} potential collision risk zones detected`);
+    }
+    if (nonPlanarAnalysis.isSafeForPrinting) {
+      lines.push('; ✓ Analysis: Safe for non-planar printing');
+    } else {
+      lines.push('; ✗ Analysis: Review collision risks before printing');
+    }
     lines.push('; Note: Requires non-planar capable slicer/printer');
+    lines.push('; ============================================');
   }
-  lines.push(`; Layers: ${isSpiralVase ? 'Continuous spiral' : layers.length}`);
+  
+  lines.push(`; Total Layers: ${isSpiralVase ? 'Continuous spiral' : layers.length}`);
   lines.push('');
+  
+  // Machine setup
+  lines.push('; ===== MACHINE SETUP =====');
   lines.push('G21 ; Set units to millimeters');
   lines.push('G90 ; Use absolute positioning');
   lines.push('M82 ; Use absolute extrusion');
@@ -1424,17 +1584,59 @@ export function generateGCode(
   };
   const temp = temps[material] || temps.PLA;
   
+  lines.push('; ===== TEMPERATURE =====');
   lines.push(`M140 S${temp.bed} ; Set bed temperature`);
   lines.push(`M104 S${temp.nozzle} ; Set nozzle temperature`);
   lines.push(`M190 S${temp.bed} ; Wait for bed`);
   lines.push(`M109 S${temp.nozzle} ; Wait for nozzle`);
   lines.push('');
   
+  // Prime line (helps ensure consistent flow)
+  lines.push('; ===== PRIME LINE =====');
+  lines.push('G1 Z0.3 F3000');
+  lines.push('G1 X5 Y5 F3000');
+  lines.push('G1 X100 E10 F1500 ; Prime line');
+  lines.push('G1 E-0.5 F3000 ; Small retract');
+  lines.push('G1 Z2 F3000 ; Lift');
+  lines.push('');
+  
   // Print layers
-  let e = 0; // Extrusion distance
-  const filamentDiameter = 1.75;
-  const nozzleDiameter = settings.nozzleDiameter;
-  const extrusionMultiplier = (layerHeight * nozzleDiameter) / (Math.PI * Math.pow(filamentDiameter / 2, 2));
+  let e = 0; // Cumulative extrusion distance
+  let currentZ = 0;
+  let lastX = 0;
+  let lastY = 0;
+  let isRetracted = false;
+  
+  // Helper to generate retraction G-code
+  const retract = (currentZ: number): string[] => {
+    if (isRetracted) return [];
+    isRetracted = true;
+    const cmds: string[] = [];
+    cmds.push(`G1 E${(e - retraction.distance).toFixed(4)} F${retraction.speed * 60} ; Retract`);
+    if (retraction.zHop > 0) {
+      cmds.push(`G1 Z${(currentZ + retraction.zHop).toFixed(3)} F3000 ; Z-hop`);
+    }
+    e -= retraction.distance;
+    return cmds;
+  };
+  
+  // Helper to generate de-retraction G-code
+  const deRetract = (targetZ: number): string[] => {
+    if (!isRetracted) return [];
+    isRetracted = false;
+    const cmds: string[] = [];
+    cmds.push(`G1 Z${targetZ.toFixed(3)} F3000 ; End Z-hop`);
+    e += retraction.distance;
+    cmds.push(`G1 E${e.toFixed(4)} F${retraction.speed * 60} ; De-retract`);
+    return cmds;
+  };
+  
+  // Calculate travel distance
+  const travelDistance = (x1: number, y1: number, x2: number, y2: number): number => {
+    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+  };
+  
+  lines.push('; ===== PRINT START =====');
   
   if (isSpiralVase && layers.length > 0 && layers[0].paths.length > 0) {
     // Spiral vase mode - continuous Z movement
@@ -1443,63 +1645,120 @@ export function generateGCode(
     
     if (spiralPath.length > 0) {
       const firstPoint = spiralPath[0];
-      lines.push(`G0 X${firstPoint.x.toFixed(3)} Y${firstPoint.y.toFixed(3)} Z${(firstPoint.z || 0).toFixed(3)} F3000`);
+      const startZ = firstPoint.z || 0;
+      lines.push(`G0 X${firstPoint.x.toFixed(3)} Y${firstPoint.y.toFixed(3)} Z${startZ.toFixed(3)} F3000 ; Move to start`);
+      lastX = firstPoint.x;
+      lastY = firstPoint.y;
+      currentZ = startZ;
       
       for (let i = 1; i < spiralPath.length; i++) {
         const point = spiralPath[i];
         const prevPoint = spiralPath[i - 1];
         const dx = point.x - prevPoint.x;
         const dy = point.y - prevPoint.y;
-        const dz = (point.z || 0) - (prevPoint.z || 0);
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        e += dist * extrusionMultiplier;
+        const z1 = prevPoint.z || 0;
+        const z2 = point.z || 0;
+        const dz = z2 - z1;
         
-        lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} Z${(point.z || 0).toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+        // 3D distance for proper extrusion calculation
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const extrusionAmount = calculateExtrusion(dist, extrusionParams);
+        e += extrusionAmount;
+        
+        lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+        
+        lastX = point.x;
+        lastY = point.y;
+        currentZ = z2;
       }
     }
   } else {
     // Standard layer-by-layer printing (with non-planar support)
     layers.forEach((layer, layerIndex) => {
       const isLayerNonPlanar = layer.isNonPlanar;
+      const layerZ = layer.z;
       
+      lines.push('');
       if (isLayerNonPlanar) {
-        lines.push(`; Layer ${layerIndex + 1} / ${layers.length} [NON-PLANAR]`);
-        lines.push(`; Warning: Z varies along path - requires non-planar capable printer`);
+        lines.push(`; ===== LAYER ${layerIndex + 1}/${layers.length} [NON-PLANAR] =====`);
+        if (layer.tiltAngles && layer.tiltAngles.length > 0) {
+          const maxAngle = Math.max(...layer.tiltAngles);
+          const minAngle = Math.min(...layer.tiltAngles);
+          lines.push(`; Tilt range: ${minAngle.toFixed(1)}° - ${maxAngle.toFixed(1)}°`);
+        }
       } else {
-        lines.push(`; Layer ${layerIndex + 1} / ${layers.length}`);
-        lines.push(`G1 Z${layer.z.toFixed(3)} F1000`);
+        lines.push(`; ===== LAYER ${layerIndex + 1}/${layers.length} Z=${layerZ.toFixed(2)}mm =====`);
+      }
+      
+      // Move to layer height for planar layers
+      if (!isLayerNonPlanar && layerZ !== currentZ) {
+        if (isRetracted) {
+          lines.push(`G1 Z${layerZ.toFixed(3)} F1000 ; Move to layer Z`);
+        } else {
+          lines.push(`G1 Z${layerZ.toFixed(3)} F1000 ; Move to layer Z`);
+        }
+        currentZ = layerZ;
       }
       
       layer.paths.forEach((path, pathIndex) => {
         if (path.length < 2) return;
         
-        // Move to start - include Z for non-planar
-        const startZ = path[0].z !== undefined ? path[0].z : layer.z;
-        if (isLayerNonPlanar) {
-          lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} Z${startZ.toFixed(3)} F3000`);
-        } else {
-          lines.push(`G0 X${path[0].x.toFixed(3)} Y${path[0].y.toFixed(3)} F3000`);
+        const startPoint = path[0];
+        const startZ = startPoint.z !== undefined ? startPoint.z : layerZ;
+        
+        // Calculate travel distance to determine if retraction is needed
+        const travel = travelDistance(lastX, lastY, startPoint.x, startPoint.y);
+        
+        if (pathIndex > 0 || layerIndex > 0) {
+          // Add retraction for significant travel moves
+          if (travel > retraction.minTravelDistance) {
+            lines.push(...retract(currentZ));
+          }
         }
+        
+        // Travel move to path start
+        if (isLayerNonPlanar) {
+          lines.push(`G0 X${startPoint.x.toFixed(3)} Y${startPoint.y.toFixed(3)} Z${startZ.toFixed(3)} F3000 ; Travel to path start`);
+        } else {
+          lines.push(`G0 X${startPoint.x.toFixed(3)} Y${startPoint.y.toFixed(3)} F3000 ; Travel to path start`);
+        }
+        
+        // De-retract before printing
+        if (isRetracted) {
+          lines.push(...deRetract(startZ));
+        }
+        
+        lastX = startPoint.x;
+        lastY = startPoint.y;
+        currentZ = startZ;
         
         // Extrude along path
         for (let i = 1; i < path.length; i++) {
-          const dx = path[i].x - path[i - 1].x;
-          const dy = path[i].y - path[i - 1].y;
+          const point = path[i];
+          const prevPoint = path[i - 1];
+          
+          const dx = point.x - prevPoint.x;
+          const dy = point.y - prevPoint.y;
           
           // For non-planar, calculate 3D distance including Z delta
-          const z1 = path[i - 1].z !== undefined ? path[i - 1].z : layer.z;
-          const z2 = path[i].z !== undefined ? path[i].z : layer.z;
+          const z1 = prevPoint.z !== undefined ? prevPoint.z : layerZ;
+          const z2 = point.z !== undefined ? point.z : layerZ;
           const dz = z2 - z1;
           
           const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          e += dist * extrusionMultiplier;
+          const extrusionAmount = calculateExtrusion(dist, extrusionParams);
+          e += extrusionAmount;
           
           if (isLayerNonPlanar) {
             // Include Z coordinate for non-planar moves
-            lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+            lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} Z${z2.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
           } else {
-            lines.push(`G1 X${path[i].x.toFixed(3)} Y${path[i].y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
+            lines.push(`G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)} E${e.toFixed(4)} F${printSpeed * 60}`);
           }
+          
+          lastX = point.x;
+          lastY = point.y;
+          currentZ = z2;
         }
       });
     });
@@ -1507,13 +1766,15 @@ export function generateGCode(
   
   // G-code footer
   lines.push('');
-  lines.push('; End G-code');
-  lines.push('G1 E-2 F2400 ; Retract');
-  lines.push(`G1 Z${params.height + 10} F3000 ; Lift nozzle`);
+  lines.push('; ===== END G-CODE =====');
+  lines.push(...retract(currentZ)); // Final retraction
+  lines.push(`G1 Z${Math.min(params.height + 20, 250)} F3000 ; Lift nozzle`);
   lines.push('G28 X Y ; Home X and Y');
   lines.push('M104 S0 ; Turn off nozzle');
   lines.push('M140 S0 ; Turn off bed');
+  lines.push('M107 ; Turn off fan');
   lines.push('M84 ; Disable motors');
+  lines.push('; Print complete');
   
   return lines.join('\n');
 }

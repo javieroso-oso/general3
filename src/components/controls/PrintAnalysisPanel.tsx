@@ -1,5 +1,5 @@
-import { PrintAnalysis, PrintSettings, PrintWarning } from '@/types/parametric';
-import { AlertTriangle, CheckCircle, Clock, Scale, Layers, Info, AlertCircle } from 'lucide-react';
+import { PrintAnalysis, PrintSettings, PrintWarning, NonPlanarAnalysis } from '@/types/parametric';
+import { AlertTriangle, CheckCircle, Clock, Scale, Layers, Info, AlertCircle, Compass, Zap, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -48,23 +48,130 @@ const WarningItem = ({ warning }: { warning: PrintWarning }) => {
   );
 };
 
-const StatCard = ({ icon: Icon, label, value, unit }: { 
+const StatCard = ({ icon: Icon, label, value, unit, variant }: { 
   icon: React.ElementType; 
   label: string; 
   value: string | number; 
   unit?: string;
+  variant?: 'default' | 'success' | 'warning' | 'error';
 }) => (
-  <div className="bg-secondary/50 rounded-lg p-3">
+  <div className={cn(
+    "bg-secondary/50 rounded-lg p-3",
+    variant === 'success' && "bg-emerald-500/10 border border-emerald-500/20",
+    variant === 'warning' && "bg-amber-500/10 border border-amber-500/20",
+    variant === 'error' && "bg-destructive/10 border border-destructive/20",
+  )}>
     <div className="flex items-center gap-2 text-text-muted mb-1">
-      <Icon className="w-4 h-4" />
+      <Icon className={cn(
+        "w-4 h-4",
+        variant === 'success' && "text-emerald-500",
+        variant === 'warning' && "text-amber-500",
+        variant === 'error' && "text-destructive",
+      )} />
       <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
     </div>
     <div className="flex items-baseline gap-1">
-      <span className="text-xl font-semibold text-foreground">{value}</span>
+      <span className={cn(
+        "text-xl font-semibold",
+        variant === 'success' && "text-emerald-600",
+        variant === 'warning' && "text-amber-600",
+        variant === 'error' && "text-destructive",
+        !variant && "text-foreground",
+      )}>{value}</span>
       {unit && <span className="text-sm text-text-secondary">{unit}</span>}
     </div>
   </div>
 );
+
+// Non-planar specific stats panel
+const NonPlanarStats = ({ analysis, settings }: { analysis: NonPlanarAnalysis; settings: PrintSettings }) => {
+  const maxConfiguredAngle = settings.nonPlanar?.maxZAngle || 30;
+  const percentNonPlanar = ((analysis.nonPlanarLayerCount / analysis.totalLayerCount) * 100).toFixed(0);
+  
+  const angleStatus = analysis.exceedsMaxAngle ? 'error' 
+    : analysis.maxTiltAngle > maxConfiguredAngle - 5 ? 'warning' 
+    : 'success';
+  
+  const safetyStatus = analysis.isSafeForPrinting ? 'success' : 'warning';
+  
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Compass className="w-4 h-4 text-primary" />
+        <h4 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">
+          Non-Planar Analysis
+        </h4>
+      </div>
+      
+      {/* Non-planar stats grid */}
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard 
+          icon={Target}
+          label="Max Tilt"
+          value={analysis.maxTiltAngle.toFixed(1)}
+          unit={`° / ${maxConfiguredAngle}°`}
+          variant={angleStatus}
+        />
+        <StatCard 
+          icon={Layers}
+          label="Non-Planar"
+          value={percentNonPlanar}
+          unit="%"
+        />
+      </div>
+      
+      {/* Safety status */}
+      <div className={cn(
+        "flex items-center gap-2 p-3 rounded-lg text-sm",
+        safetyStatus === 'success' && "bg-emerald-500/10 border border-emerald-500/30",
+        safetyStatus === 'warning' && "bg-amber-500/10 border border-amber-500/30",
+      )}>
+        {analysis.isSafeForPrinting ? (
+          <>
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+            <span className="text-emerald-600 font-medium">Safe for non-planar printing</span>
+          </>
+        ) : (
+          <>
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <span className="text-amber-600 font-medium">Review collision risks</span>
+          </>
+        )}
+      </div>
+      
+      {/* Collision zones */}
+      {analysis.collisionRiskZones.length > 0 && (
+        <div className="bg-amber-500/5 rounded-lg p-3 text-sm">
+          <div className="flex items-center gap-2 text-amber-600 mb-2">
+            <Zap className="w-4 h-4" />
+            <span className="font-medium">
+              {analysis.collisionRiskZones.length} potential collision zone{analysis.collisionRiskZones.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <p className="text-text-muted text-xs">
+            Areas where nozzle tilt approaches maximum angle. Consider reducing surface curvature or max Z angle setting.
+          </p>
+        </div>
+      )}
+      
+      {/* Technical details */}
+      <div className="bg-secondary/30 rounded-lg p-3 space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-text-muted">Avg Tilt Angle</span>
+          <span className="font-medium text-foreground">
+            {analysis.avgTiltAngle.toFixed(1)}°
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-muted">Non-Planar Layers</span>
+          <span className="font-medium text-foreground">
+            {analysis.nonPlanarLayerCount} / {analysis.totalLayerCount}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const PrintAnalysisPanel = ({ analysis, settings }: PrintAnalysisPanelProps) => {
   const formatTime = (minutes: number) => {
@@ -177,6 +284,11 @@ const PrintAnalysisPanel = ({ analysis, settings }: PrintAnalysisPanelProps) => 
           </span>
         </div>
       </div>
+
+      {/* Non-Planar Analysis (when in non-planar mode) */}
+      {settings.printMode === 'non_planar' && analysis.nonPlanarAnalysis && (
+        <NonPlanarStats analysis={analysis.nonPlanarAnalysis} settings={settings} />
+      )}
 
       {/* Warnings */}
       {analysis.warnings.length > 0 && (
