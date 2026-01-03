@@ -77,7 +77,7 @@ export function calculateDriftOffsets(
     return driftOffsets;
   }
   
-  // First pass: generate raw accumulated offsets using smooth noise
+  // First pass: generate raw accumulated offsets using rotating angle
   const rawOffsets: { x: number; z: number }[] = [];
   let accumulatedX = 0;
   let accumulatedZ = 0;
@@ -85,22 +85,29 @@ export function calculateDriftOffsets(
   // Scale factor: at drift=1, max offset at top is ~25% of base radius
   const driftMagnitude = drift * baseRadius * 0.25;
   
+  // Angle rotation rate: how fast the drift direction rotates with height
+  // At full height, the angle will have rotated ~1.5 full turns for a nice curve
+  const angleRotationRate = Math.PI * 3;
+  
   for (let i = 0; i <= layerCount; i++) {
     const t = i / layerCount;
     
-    // Use smooth noise to determine drift direction at this height
-    // Lower frequency for smoother, more organic wandering
-    const noiseX = noise3D(t * 3, 0.5, 0, 0.5);
-    const noiseZ = noise3D(0, t * 3, 0.5, 0.5);
+    // Compute a smoothly rotating angle based on height
+    // Using t^0.7 for a nice gradual curve that's not too linear
+    const angle = t * angleRotationRate;
     
-    // Accumulate small per-layer offsets
-    // The 0.02 factor ensures gradual, smooth accumulation
-    accumulatedX += noiseX * driftMagnitude * 0.02;
-    accumulatedZ += noiseZ * driftMagnitude * 0.02;
+    // Derive X and Z offset direction from the rotating angle
+    const dirX = Math.cos(angle);
+    const dirZ = Math.sin(angle);
+    
+    // Accumulate small per-layer offsets in the rotating direction
+    // The 0.015 factor ensures gradual, smooth accumulation
+    accumulatedX += dirX * driftMagnitude * 0.015;
+    accumulatedZ += dirZ * driftMagnitude * 0.015;
     
     // Height factor: drift effect increases with height (zero at base)
-    // Using t^2 for smooth ramp-up from base
-    const heightFactor = t * t;
+    // Using t^1.5 for smooth ramp-up from base
+    const heightFactor = Math.pow(t, 1.5);
     
     rawOffsets.push({
       x: accumulatedX * heightFactor,
@@ -108,28 +115,40 @@ export function calculateDriftOffsets(
     });
   }
   
-  // Second pass: apply smoothing to eliminate jitter
-  // Use simple 3-point moving average
+  // Second pass: apply smoothing to eliminate any remaining jitter
+  // Use 5-point moving average for extra smoothness
   for (let i = 0; i <= layerCount; i++) {
     if (i === 0) {
       // Base layer: always exactly at origin
       driftOffsets.push({ x: 0, z: 0 });
-    } else if (i === layerCount) {
-      // Top layer: average of last two raw values
-      const prev = rawOffsets[i - 1];
+    } else if (i === 1 || i === layerCount - 1) {
+      // Near edges: 3-point average
+      const prev = rawOffsets[Math.max(0, i - 1)];
       const curr = rawOffsets[i];
-      driftOffsets.push({
-        x: (prev.x + curr.x) / 2,
-        z: (prev.z + curr.z) / 2
-      });
-    } else {
-      // Middle layers: 3-point average for smoothness
-      const prev = rawOffsets[i - 1];
-      const curr = rawOffsets[i];
-      const next = rawOffsets[i + 1];
+      const next = rawOffsets[Math.min(layerCount, i + 1)];
       driftOffsets.push({
         x: (prev.x + curr.x + next.x) / 3,
         z: (prev.z + curr.z + next.z) / 3
+      });
+    } else if (i === layerCount) {
+      // Top layer: average of last three
+      const a = rawOffsets[i - 2];
+      const b = rawOffsets[i - 1];
+      const c = rawOffsets[i];
+      driftOffsets.push({
+        x: (a.x + b.x + c.x) / 3,
+        z: (a.z + b.z + c.z) / 3
+      });
+    } else {
+      // Middle layers: 5-point average for maximum smoothness
+      const a = rawOffsets[i - 2];
+      const b = rawOffsets[i - 1];
+      const c = rawOffsets[i];
+      const d = rawOffsets[i + 1];
+      const e = rawOffsets[i + 2];
+      driftOffsets.push({
+        x: (a.x + b.x + c.x + d.x + e.x) / 5,
+        z: (a.z + b.z + c.z + d.z + e.z) / 5
       });
     }
   }
