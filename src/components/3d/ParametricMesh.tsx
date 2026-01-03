@@ -114,6 +114,125 @@ const ParametricMesh = ({
     color: legCustomColor || legBaseConfig.color,
   };
 
+  // Memoize spine visualization data separately for rendering
+  const spineVisualization = useMemo(() => {
+    if (!params.spineEnabled) return null;
+    
+    const h = params.height * SCALE;
+    const spineParams = {
+      spineEnabled: params.spineEnabled,
+      spineAmplitudeX: (params.spineAmplitudeX || 0) * SCALE,
+      spineFrequencyX: params.spineFrequencyX || 2,
+      spinePhaseX: params.spinePhaseX || 0,
+      spineAmplitudeZ: (params.spineAmplitudeZ || 0) * SCALE,
+      spineFrequencyZ: params.spineFrequencyZ || 2,
+      spinePhaseZ: params.spinePhaseZ || 0.25,
+    };
+    
+    // Sample spine at high resolution for smooth curve
+    const spinePoints = sampleSpine(100, h, spineParams);
+    
+    // Create spine curve as THREE.Line
+    const curvePoints: THREE.Vector3[] = spinePoints.map(p => p.position);
+    const curveGeometry = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    const curveMaterial = new THREE.LineBasicMaterial({ color: 0xff3366, linewidth: 2 });
+    const spineCurve = new THREE.Line(curveGeometry, curveMaterial);
+    
+    // Create cross-section rings at key intervals (every 10%)
+    const crossSectionRings: THREE.LineLoop[] = [];
+    const ringCount = 11; // 0%, 10%, 20%, ..., 100%
+    
+    for (let i = 0; i < ringCount; i++) {
+      const t = i / (ringCount - 1);
+      const frameIndex = Math.round(t * 100);
+      const frame = spinePoints[frameIndex];
+      
+      // Calculate radius at this height using the same logic as body generation
+      const bRad = params.baseRadius * SCALE;
+      const tRad = params.topRadius * SCALE;
+      let radius: number;
+      
+      switch (params.profileCurve) {
+        case 'convex':
+          radius = bRad + (tRad - bRad) * t + Math.sin(t * Math.PI) * Math.abs(tRad - bRad) * 0.3;
+          break;
+        case 'concave':
+          radius = bRad + (tRad - bRad) * t - Math.sin(t * Math.PI) * Math.abs(tRad - bRad) * 0.3;
+          break;
+        case 'hourglass':
+          radius = bRad + (tRad - bRad) * t - Math.sin(t * Math.PI) * (bRad + tRad) * 0.15;
+          break;
+        default:
+          radius = bRad + (tRad - bRad) * t;
+      }
+      
+      // Apply bulge
+      const bulgeDist = Math.abs(t - params.bulgePosition);
+      radius += Math.exp(-bulgeDist * bulgeDist * 12) * params.bulgeAmount * bRad;
+      
+      // Create ring points in the frame's plane
+      const ringPoints: THREE.Vector3[] = [];
+      const ringSegments = 32;
+      
+      for (let j = 0; j <= ringSegments; j++) {
+        const theta = (j / ringSegments) * Math.PI * 2;
+        const localX = Math.cos(theta);
+        const localZ = Math.sin(theta);
+        
+        const worldPos = new THREE.Vector3()
+          .addScaledVector(frame.normal, localX * radius)
+          .addScaledVector(frame.binormal, localZ * radius)
+          .add(frame.position);
+        
+        ringPoints.push(worldPos);
+      }
+      
+      const ringGeometry = new THREE.BufferGeometry().setFromPoints(ringPoints);
+      const isEndRing = i === 0 || i === ringCount - 1;
+      const ringMaterial = new THREE.LineBasicMaterial({ 
+        color: isEndRing ? 0xffcc00 : 0x66ccff,
+        opacity: 0.8,
+        transparent: true,
+      });
+      const ring = new THREE.LineLoop(ringGeometry, ringMaterial);
+      crossSectionRings.push(ring);
+    }
+    
+    // Create normal/binormal/tangent indicator lines at key frames
+    const frameIndicators: THREE.Group[] = [];
+    const indicatorLength = Math.max(params.baseRadius, params.topRadius) * SCALE * 0.3;
+    
+    for (let i = 0; i < 5; i++) {
+      const t = i / 4;
+      const frameIndex = Math.round(t * 100);
+      const frame = spinePoints[frameIndex];
+      
+      const group = new THREE.Group();
+      
+      // Tangent (direction of travel) - blue
+      const tangentEnd = frame.position.clone().addScaledVector(frame.tangent, indicatorLength);
+      const tangentGeo = new THREE.BufferGeometry().setFromPoints([frame.position, tangentEnd]);
+      const tangentLine = new THREE.Line(tangentGeo, new THREE.LineBasicMaterial({ color: 0x3366ff }));
+      group.add(tangentLine);
+      
+      // Normal - red
+      const normalEnd = frame.position.clone().addScaledVector(frame.normal, indicatorLength);
+      const normalGeo = new THREE.BufferGeometry().setFromPoints([frame.position, normalEnd]);
+      const normalLine = new THREE.Line(normalGeo, new THREE.LineBasicMaterial({ color: 0xff3333 }));
+      group.add(normalLine);
+      
+      // Binormal - green
+      const binormalEnd = frame.position.clone().addScaledVector(frame.binormal, indicatorLength);
+      const binormalGeo = new THREE.BufferGeometry().setFromPoints([frame.position, binormalEnd]);
+      const binormalLine = new THREE.Line(binormalGeo, new THREE.LineBasicMaterial({ color: 0x33ff33 }));
+      group.add(binormalLine);
+      
+      frameIndicators.push(group);
+    }
+    
+    return { spineCurve, crossSectionRings, frameIndicators };
+  }, [params]);
+
   const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
     const {
       height,
@@ -929,6 +1048,25 @@ const ParametricMesh = ({
         <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
         </lineSegments>
+      )}
+      
+      {/* Spine Visualization - shows sweep path and cross-sections */}
+      {spineVisualization && params.spineEnabled && (
+        <>
+          {/* Main spine curve - pink/magenta line showing the center path */}
+          <primitive object={spineVisualization.spineCurve} />
+          
+          {/* Cross-section rings - show perpendicular planes at intervals */}
+          {spineVisualization.crossSectionRings.map((ring, idx) => (
+            <primitive key={`ring-${idx}`} object={ring} />
+          ))}
+          
+          {/* Frenet frame indicators - show orientation at key points */}
+          {/* Red=Normal, Green=Binormal, Blue=Tangent */}
+          {spineVisualization.frameIndicators.map((group, idx) => (
+            <primitive key={`frame-${idx}`} object={group} />
+          ))}
+        </>
       )}
     </group>
   );
