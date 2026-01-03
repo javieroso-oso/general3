@@ -173,35 +173,26 @@ const ParametricMesh = ({
     if (drift > 0) {
       let accumulatedX = 0;
       let accumulatedZ = 0;
-      const driftScale = drift * 0.003; // Scale factor for drift magnitude
-      const smoothness = 0.15; // How much each layer inherits from previous (lower = smoother)
+      const driftScale = drift * 0.3; // Strong scale factor for visible drift
       
       for (let i = 0; i <= heightSegments; i++) {
         const t = i / heightSegments;
         
-        // Use seeded noise to generate subtle direction changes
-        // The noise is smooth and continuous across layers
-        const noiseX = noise3D(t * 2, 0.5, 0, 0.8) * smoothness;
-        const noiseZ = noise3D(0, t * 2, 0.5, 0.8) * smoothness;
+        // Use noise that varies with height for emergent direction
+        const noiseX = noise3D(t * 5, 0.5, 0, 0.8);
+        const noiseZ = noise3D(0, t * 5, 0.5, 0.8);
         
-        // Accumulate offset - each layer adds a small delta based on noise
-        // This creates the "forgetting center" effect
-        accumulatedX += noiseX * driftScale * bRad;
-        accumulatedZ += noiseZ * driftScale * bRad;
+        // Accumulate offset with each layer adding a small delta
+        accumulatedX += noiseX * driftScale * bRad * 0.08;
+        accumulatedZ += noiseZ * driftScale * bRad * 0.08;
         
-        // Apply a soft bias toward the accumulated direction (momentum)
-        // This prevents sharp reversals while allowing gradual curves
-        const momentum = 0.97;
-        accumulatedX *= momentum;
-        accumulatedZ *= momentum;
+        // Apply height factor - higher layers drift more (t^1.5 for gradual onset)
+        const heightFactor = Math.pow(t, 1.5);
         
-        // Add fresh drift contribution that grows with height
-        // Higher layers drift more (t^0.5 for gradual onset)
-        const heightFactor = Math.pow(t, 0.5);
-        accumulatedX += noiseX * driftScale * bRad * heightFactor * 3;
-        accumulatedZ += noiseZ * driftScale * bRad * heightFactor * 3;
-        
-        driftOffsets.push({ x: accumulatedX, z: accumulatedZ });
+        driftOffsets.push({ 
+          x: accumulatedX * heightFactor, 
+          z: accumulatedZ * heightFactor 
+        });
       }
     } else {
       // No drift - all offsets are zero

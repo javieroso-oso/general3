@@ -31,6 +31,8 @@ const defaultSettings: PrintSettings = {
   material: 'PLA',
   supportEnabled: false,
   brimWidth: 5,
+  buildPlateWidth: 200,
+  buildPlateDepth: 200,
   printMode: 'standard',
   spiralVase: false,
   nonPlanar: {

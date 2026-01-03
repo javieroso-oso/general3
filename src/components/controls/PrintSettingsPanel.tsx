@@ -198,6 +198,35 @@ const PrintSettingsPanel = ({ settings, onSettingsChange }: PrintSettingsPanelPr
         />
       </div>
 
+      {/* Build Plate Size */}
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <label className="text-sm font-medium text-text-secondary">Build Plate Width</label>
+          <span className="text-sm font-semibold">{settings.buildPlateWidth || 200}mm</span>
+        </div>
+        <Slider
+          value={[settings.buildPlateWidth || 200]}
+          min={100}
+          max={400}
+          step={10}
+          onValueChange={([v]) => handleChange('buildPlateWidth', v)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <label className="text-sm font-medium text-text-secondary">Build Plate Depth</label>
+          <span className="text-sm font-semibold">{settings.buildPlateDepth || 200}mm</span>
+        </div>
+        <Slider
+          value={[settings.buildPlateDepth || 200]}
+          min={100}
+          max={400}
+          step={10}
+          onValueChange={([v]) => handleChange('buildPlateDepth', v)}
+        />
+      </div>
+
       {/* Supports - hidden in vase mode */}
       {settings.printMode !== 'vase_spiral' && (
         <div className="flex items-center justify-between py-2">

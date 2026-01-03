@@ -226,6 +226,10 @@ export interface PrintSettings {
   supportEnabled: boolean;
   brimWidth: number;          // mm
   
+  // Build plate dimensions for centering
+  buildPlateWidth: number;    // mm (default 200)
+  buildPlateDepth: number;    // mm (default 200)
+  
   // Advanced print modes
   printMode: PrintMode;
   spiralVase: boolean;        // Spiral vase mode (single wall, continuous Z)
@@ -297,6 +301,8 @@ export const defaultPrintSettings: PrintSettings = {
   material: 'PLA',
   supportEnabled: false,
   brimWidth: 5,
+  buildPlateWidth: 200,
+  buildPlateDepth: 200,
   printMode: 'standard',
   spiralVase: false,
   nonPlanar: defaultNonPlanarSettings,
