@@ -6,6 +6,7 @@ import { ParametricParams, ObjectType, printConstraints } from '@/types/parametr
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
+import { sampleSpine, generateModulatedCrossSection, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
 interface ParametricMeshProps {
@@ -167,9 +168,28 @@ const ParametricMesh = ({
     const radiiAtHeight: number[] = [];
     let maxRadius = 0;
     
-    // Pre-compute drift offsets with tilt data for non-planar layers
-    // Uses shared function from stl-export for consistency
-    const driftOffsets: DriftOffset[] = calculateDriftOffsets(drift, bRad, heightSegments);
+    // Determine geometry mode: spine-based or legacy drift-based
+    const useSpine = params.spineEnabled && 
+      (params.spineAmplitudeX > 0 || params.spineAmplitudeZ > 0);
+    
+    // Sample spine frames if using spine mode
+    const spineParams = {
+      spineEnabled: params.spineEnabled,
+      spineAmplitudeX: (params.spineAmplitudeX || 0) * SCALE,
+      spineFrequencyX: params.spineFrequencyX || 2,
+      spinePhaseX: params.spinePhaseX || 0,
+      spineAmplitudeZ: (params.spineAmplitudeZ || 0) * SCALE,
+      spineFrequencyZ: params.spineFrequencyZ || 2,
+      spinePhaseZ: params.spinePhaseZ || 0.25,
+    };
+    const spineFrames: SpinePoint[] = useSpine 
+      ? sampleSpine(heightSegments, h, spineParams)
+      : [];
+    
+    // Legacy drift offsets (only used when spine is disabled)
+    const driftOffsets: DriftOffset[] = !useSpine 
+      ? calculateDriftOffsets(drift, bRad, heightSegments)
+      : [];
 
     // Generate full 360° object
     for (let i = 0; i <= heightSegments; i++) {
@@ -315,17 +335,37 @@ const ParametricMesh = ({
 
         r = Math.max(r, wall * 2);
 
-        // Calculate base position (local to layer center)
-        const localX = Math.cos(theta) * r;
-        const localZ = Math.sin(theta) * r;
+        // Calculate final vertex position
+        let x: number, finalY: number, z: number;
         
-        // Apply drift offset - shifts this layer's center position
-        // Drift is purely positional (X/Z), no rotation or tilt
-        let x = localX + driftOffsets[i].x;
-        let z = localZ + driftOffsets[i].z;
+        if (useSpine && spineFrames[i]) {
+          // SPINE-BASED: Position vertex using Frenet frame
+          // The cross-section is placed perpendicular to the spine tangent
+          const frame = spineFrames[i];
+          const localX = Math.cos(theta);
+          const localZ = Math.sin(theta);
+          
+          // Transform to world space using the Frenet frame
+          x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
+          finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
+          z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+        } else {
+          // LEGACY: Simple positional drift
+          const localX = Math.cos(theta) * r;
+          const localZ = Math.sin(theta) * r;
+          
+          // Apply drift offset if available
+          if (driftOffsets[i]) {
+            x = localX + driftOffsets[i].x;
+            z = localZ + driftOffsets[i].z;
+          } else {
+            x = localX;
+            z = localZ;
+          }
+          finalY = y;
+        }
         
-        // Rim waves: modify Y position for top rows
-        let finalY = y;
+        // Rim waves: modify Y position for top rows (applies to both modes)
         if (rimWaveCount > 0 && rimWaveDepth > 0) {
           const rimZone = 0.1; // Top 10% of height
           const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
