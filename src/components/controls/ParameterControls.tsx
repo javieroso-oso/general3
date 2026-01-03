@@ -274,14 +274,87 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           onChange={handleChange('wobbleAmplitude')}
           constrained={params.supportFreeMode}
         />
-        <ParameterSlider
-          label="Drift"
-          value={params.drift}
-          min={0}
-          max={1}
-          step={0.02}
-          onChange={handleChange('drift')}
-        />
+      </Section>
+
+      {/* 4b. Spine Curve */}
+      <Section title="Spine Curve" defaultOpen={false}>
+        <div className="flex items-center justify-between mb-3">
+          <Label htmlFor="spine-toggle" className="text-sm">Enable Spine</Label>
+          <Switch
+            id="spine-toggle"
+            checked={params.spineEnabled}
+            onCheckedChange={(enabled) => onParamsChange({ ...params, spineEnabled: enabled })}
+          />
+        </div>
+        
+        {params.spineEnabled && (
+          <>
+            <div className="text-xs text-muted-foreground mb-2">X-Axis Displacement</div>
+            <ParameterSlider
+              label="Amplitude X"
+              value={params.spineAmplitudeX}
+              min={0}
+              max={50}
+              step={1}
+              unit="mm"
+              onChange={handleChange('spineAmplitudeX')}
+            />
+            <ParameterSlider
+              label="Frequency X"
+              value={params.spineFrequencyX}
+              min={0}
+              max={4}
+              step={0.5}
+              onChange={handleChange('spineFrequencyX')}
+            />
+            <ParameterSlider
+              label="Phase X"
+              value={params.spinePhaseX}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={handleChange('spinePhaseX')}
+            />
+            
+            <div className="text-xs text-muted-foreground mt-3 mb-2">Z-Axis Displacement</div>
+            <ParameterSlider
+              label="Amplitude Z"
+              value={params.spineAmplitudeZ}
+              min={0}
+              max={50}
+              step={1}
+              unit="mm"
+              onChange={handleChange('spineAmplitudeZ')}
+            />
+            <ParameterSlider
+              label="Frequency Z"
+              value={params.spineFrequencyZ}
+              min={0}
+              max={4}
+              step={0.5}
+              onChange={handleChange('spineFrequencyZ')}
+            />
+            <ParameterSlider
+              label="Phase Z"
+              value={params.spinePhaseZ}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={handleChange('spinePhaseZ')}
+            />
+          </>
+        )}
+        
+        {!params.spineEnabled && (
+          <ParameterSlider
+            label="Drift (Legacy)"
+            value={params.drift}
+            min={0}
+            max={1}
+            step={0.02}
+            onChange={handleChange('drift')}
+          />
+        )}
       </Section>
 
       {/* 5. Surface Details */}

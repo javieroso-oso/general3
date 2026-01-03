@@ -135,7 +135,17 @@ export interface ParametricParams {
   organicNoise: number;
   noiseScale: number;
   
-  // Non-planar drift - accumulated positional offset as body grows
+  // Spine-based geometry (replaces drift)
+  // The spine is a continuous 3D curve that defines the center-line of the body
+  spineEnabled: boolean;
+  spineAmplitudeX: number;      // 0-50 mm: maximum lateral displacement in X
+  spineFrequencyX: number;      // 0-4: number of half-periods (2 = one S-curve)
+  spinePhaseX: number;          // 0-1: phase offset normalized
+  spineAmplitudeZ: number;      // 0-50 mm: maximum lateral displacement in Z
+  spineFrequencyZ: number;      // 0-4: number of half-periods
+  spinePhaseZ: number;          // 0-1: phase offset normalized
+  
+  // Legacy non-planar drift - kept for compatibility
   drift: number;  // 0 = perfectly centered, higher = more accumulated offset
   
   // Advanced body customization - Faceting
@@ -372,6 +382,13 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0.05,
     organicNoise: 0,
     noiseScale: 1,
+    spineEnabled: false,
+    spineAmplitudeX: 0,
+    spineFrequencyX: 2,
+    spinePhaseX: 0,
+    spineAmplitudeZ: 0,
+    spineFrequencyZ: 2,
+    spinePhaseZ: 0.25,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
@@ -465,6 +482,13 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0,
     organicNoise: 0,
     noiseScale: 1,
+    spineEnabled: false,
+    spineAmplitudeX: 0,
+    spineFrequencyX: 2,
+    spinePhaseX: 0,
+    spineAmplitudeZ: 0,
+    spineFrequencyZ: 2,
+    spinePhaseZ: 0.25,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
@@ -558,6 +582,13 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     lipHeight: 0,
     organicNoise: 0.03,
     noiseScale: 2,
+    spineEnabled: false,
+    spineAmplitudeX: 0,
+    spineFrequencyX: 2,
+    spinePhaseX: 0,
+    spineAmplitudeZ: 0,
+    spineFrequencyZ: 2,
+    spinePhaseZ: 0.25,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,

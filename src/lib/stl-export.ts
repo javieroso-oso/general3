@@ -3,6 +3,7 @@ import { STLExporter } from 'three-stdlib';
 import earcut from 'earcut';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
+import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 
 // Scale factor: mm to scene units
 const SCALE = 0.01;
@@ -367,6 +368,24 @@ export function generateBodyMesh(
   const segments = 64;
   const heightSegments = Math.ceil(height / 2);
 
+  // Determine if using spine-based generation
+  const useSpine = params.spineEnabled && 
+    ((params.spineAmplitudeX || 0) > 0 || (params.spineAmplitudeZ || 0) > 0);
+  
+  // Sample spine frames if using spine mode
+  const spineParams = {
+    spineEnabled: params.spineEnabled || false,
+    spineAmplitudeX: params.spineAmplitudeX || 0,
+    spineFrequencyX: params.spineFrequencyX || 2,
+    spinePhaseX: params.spinePhaseX || 0,
+    spineAmplitudeZ: params.spineAmplitudeZ || 0,
+    spineFrequencyZ: params.spineFrequencyZ || 2,
+    spinePhaseZ: params.spinePhaseZ || 0.25,
+  };
+  const spineFrames: SpinePoint[] = useSpine 
+    ? sampleSpine(heightSegments, height, spineParams)
+    : [];
+
   const outerVerts: number[] = [];
   const innerVerts: number[] = [];
 
@@ -379,9 +398,26 @@ export function generateBodyMesh(
     for (let j = 0; j <= segments; j++) {
       const theta = (j / segments) * Math.PI * 2 + twistRad;
       const r = getRadiusAtHeight(t, params, type, theta);
-      const x = Math.cos(theta) * r;
-      const z = Math.sin(theta) * r;
-      outerVerts.push(x, y, z);
+      
+      let x: number, finalY: number, z: number;
+      
+      if (useSpine && spineFrames[i]) {
+        // SPINE-BASED: Position vertex using Frenet frame
+        const frame = spineFrames[i];
+        const localX = Math.cos(theta);
+        const localZ = Math.sin(theta);
+        
+        x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
+        finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
+        z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+      } else {
+        // Standard centered positioning
+        x = Math.cos(theta) * r;
+        z = Math.sin(theta) * r;
+        finalY = y;
+      }
+      
+      outerVerts.push(x, finalY, z);
     }
   }
 
@@ -395,9 +431,26 @@ export function generateBodyMesh(
       const theta = (j / segments) * Math.PI * 2 + twistRad;
       const outerR = getRadiusAtHeight(t, params, type, theta);
       const r = Math.max(outerR - wallThickness, wallThickness);
-      const x = Math.cos(theta) * r;
-      const z = Math.sin(theta) * r;
-      innerVerts.push(x, y, z);
+      
+      let x: number, finalY: number, z: number;
+      
+      if (useSpine && spineFrames[i]) {
+        // SPINE-BASED: Position vertex using Frenet frame
+        const frame = spineFrames[i];
+        const localX = Math.cos(theta);
+        const localZ = Math.sin(theta);
+        
+        x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
+        finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
+        z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+      } else {
+        // Standard centered positioning
+        x = Math.cos(theta) * r;
+        z = Math.sin(theta) * r;
+        finalY = y;
+      }
+      
+      innerVerts.push(x, finalY, z);
     }
   }
 
