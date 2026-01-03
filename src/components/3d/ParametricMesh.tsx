@@ -5,7 +5,7 @@ import earcut from 'earcut';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
-
+import { calculateDriftOffsets, calculateTiltOffset, DriftOffset } from '@/lib/stl-export';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
 interface ParametricMeshProps {
@@ -167,39 +167,9 @@ const ParametricMesh = ({
     const radiiAtHeight: number[] = [];
     let maxRadius = 0;
     
-    // Pre-compute drift offsets for each height layer
-    // Uses deterministic noise to create smooth, accumulated drift
-    const driftOffsets: { x: number; z: number }[] = [];
-    if (drift > 0) {
-      let accumulatedX = 0;
-      let accumulatedZ = 0;
-      const driftScale = drift * 0.3; // Strong scale factor for visible drift
-      
-      for (let i = 0; i <= heightSegments; i++) {
-        const t = i / heightSegments;
-        
-        // Use noise that varies with height for emergent direction
-        const noiseX = noise3D(t * 5, 0.5, 0, 0.8);
-        const noiseZ = noise3D(0, t * 5, 0.5, 0.8);
-        
-        // Accumulate offset with each layer adding a small delta
-        accumulatedX += noiseX * driftScale * bRad * 0.08;
-        accumulatedZ += noiseZ * driftScale * bRad * 0.08;
-        
-        // Apply height factor - higher layers drift more (t^1.5 for gradual onset)
-        const heightFactor = Math.pow(t, 1.5);
-        
-        driftOffsets.push({ 
-          x: accumulatedX * heightFactor, 
-          z: accumulatedZ * heightFactor 
-        });
-      }
-    } else {
-      // No drift - all offsets are zero
-      for (let i = 0; i <= heightSegments; i++) {
-        driftOffsets.push({ x: 0, z: 0 });
-      }
-    }
+    // Pre-compute drift offsets with tilt data for non-planar layers
+    // Uses shared function from stl-export for consistency
+    const driftOffsets: DriftOffset[] = calculateDriftOffsets(drift, bRad, heightSegments);
 
     // Generate full 360° object
     for (let i = 0; i <= heightSegments; i++) {
@@ -345,16 +315,20 @@ const ParametricMesh = ({
 
         r = Math.max(r, wall * 2);
 
-        // Calculate base position
-        let x = Math.cos(theta) * r;
-        let z = Math.sin(theta) * r;
+        // Calculate base position (local to layer center)
+        const localX = Math.cos(theta) * r;
+        const localZ = Math.sin(theta) * r;
         
         // Apply drift offset - shifts entire layer's center position
-        x += driftOffsets[i].x;
-        z += driftOffsets[i].z;
+        let x = localX + driftOffsets[i].x;
+        let z = localZ + driftOffsets[i].z;
+        
+        // Calculate tilt offset for non-planar effect
+        // This tilts the layer based on drift direction, creating true non-planar geometry
+        const tiltYOffset = calculateTiltOffset(localX, localZ, driftOffsets[i]);
         
         // Rim waves: modify Y position for top rows
-        let finalY = y;
+        let finalY = y + tiltYOffset;
         if (rimWaveCount > 0 && rimWaveDepth > 0) {
           const rimZone = 0.1; // Top 10% of height
           const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
