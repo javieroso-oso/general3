@@ -101,19 +101,29 @@ export function calculateDriftOffsets(
     accumulatedZ *= damping;
     
     // Compute a smoothly rotating angle based on height
-    const angle = t * angleRotationRate;
+    const baseAngle = t * angleRotationRate;
     
-    // Derive X and Z offset direction from the rotating angle
+    // Low-frequency noise modulation for subtle "hesitation"
+    // Very low frequency (0.8) ensures slow, continuous variation
+    // Small amplitude (±0.4 radians ≈ ±23°) keeps it subtle
+    const noiseModulation = noise3D(t * 0.8, 0.3, 0.7, 0.5) * 0.4;
+    
+    // Combine base rotation with noise-based hesitation
+    const angle = baseAngle + noiseModulation;
+    
+    // Derive X and Z offset direction from the modulated angle
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
     
+    // Low-frequency noise also subtly varies the impulse magnitude
+    // This creates moments of stronger/weaker drift (hesitation)
+    const magnitudeNoise = 1 + noise3D(0.5, t * 0.6, 0.2, 0.5) * 0.25;
+    
     // Add new drift impulse in the rotating direction
-    // Higher magnitude to compensate for damping decay
-    accumulatedX += dirX * driftMagnitude * 0.025;
-    accumulatedZ += dirZ * driftMagnitude * 0.025;
+    accumulatedX += dirX * driftMagnitude * 0.025 * magnitudeNoise;
+    accumulatedZ += dirZ * driftMagnitude * 0.025 * magnitudeNoise;
     
     // Height factor: drift effect ramps up from base
-    // Using t^1.2 for a gentler ramp that works with damping
     const heightFactor = Math.pow(t, 1.2);
     
     rawOffsets.push({
