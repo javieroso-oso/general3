@@ -5,7 +5,7 @@ import earcut from 'earcut';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
-import { calculateDriftOffsets, calculateTiltOffset, DriftOffset } from '@/lib/stl-export';
+import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
 interface ParametricMeshProps {
@@ -319,16 +319,13 @@ const ParametricMesh = ({
         const localX = Math.cos(theta) * r;
         const localZ = Math.sin(theta) * r;
         
-        // Apply drift offset - shifts entire layer's center position
+        // Apply drift offset - shifts this layer's center position
+        // Drift is purely positional (X/Z), no rotation or tilt
         let x = localX + driftOffsets[i].x;
         let z = localZ + driftOffsets[i].z;
         
-        // Calculate tilt offset for non-planar effect
-        // This tilts the layer based on drift direction, creating true non-planar geometry
-        const tiltYOffset = calculateTiltOffset(localX, localZ, driftOffsets[i]);
-        
         // Rim waves: modify Y position for top rows
-        let finalY = y + tiltYOffset;
+        let finalY = y;
         if (rimWaveCount > 0 && rimWaveDepth > 0) {
           const rimZone = 0.1; // Top 10% of height
           const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
