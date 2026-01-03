@@ -75,9 +75,9 @@ export function calculateDriftOffsets(
   if (drift > 0) {
     let accumulatedX = 0;
     let accumulatedZ = 0;
-    // Increased drift scale for visible leaning effect
-    // At drift=1.0, the top of the object can lean up to ~50% of base radius
-    const driftScale = drift * 0.5;
+    // Moderate drift scale - visible lean without being extreme
+    // At drift=1.0, top leans about 15-20% of base radius
+    const driftScale = drift * 0.15;
     
     // First pass: calculate raw offsets
     const rawOffsets: { x: number; z: number }[] = [];
@@ -89,13 +89,12 @@ export function calculateDriftOffsets(
       const noiseX = noise3D(t * 5, 0.5, 0, 0.8);
       const noiseZ = noise3D(0, t * 5, 0.5, 0.8);
       
-      // Accumulate drift with stronger effect (was 0.08, now 0.25)
-      // This creates the visible leaning/drifting of the entire shape
-      accumulatedX += noiseX * driftScale * baseRadius * 0.25;
-      accumulatedZ += noiseZ * driftScale * baseRadius * 0.25;
+      // Moderate accumulation for visible but controlled drift
+      accumulatedX += noiseX * driftScale * baseRadius * 0.15;
+      accumulatedZ += noiseZ * driftScale * baseRadius * 0.15;
       
       // Height factor makes drift more pronounced at top
-      const heightFactor = Math.pow(t, 1.2);
+      const heightFactor = Math.pow(t, 1.3);
       
       rawOffsets.push({ 
         x: accumulatedX * heightFactor, 
@@ -103,7 +102,7 @@ export function calculateDriftOffsets(
       });
     }
     
-    // Second pass: calculate tilt based on drift direction changes
+    // Second pass: calculate subtle tilt for non-planar effect
     for (let i = 0; i <= layerCount; i++) {
       const current = rawOffsets[i];
       const prev = i > 0 ? rawOffsets[i - 1] : { x: 0, z: 0 };
@@ -113,9 +112,8 @@ export function calculateDriftOffsets(
       const deltaZ = current.z - prev.z;
       const deltaMag = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
       
-      // Tilt magnitude based on drift intensity (clamped for safety)
-      // Higher drift = more pronounced tilt
-      const tiltIntensity = drift * 0.4; // Scale factor for tilt effect
+      // Very subtle tilt - just enough for non-planar effect, not dramatic
+      const tiltIntensity = drift * 0.05;
       let tiltMag = deltaMag * tiltIntensity;
       
       // Clamp to max safe tilt
