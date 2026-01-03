@@ -77,37 +77,44 @@ export function calculateDriftOffsets(
     return driftOffsets;
   }
   
-  // First pass: generate raw accumulated offsets using rotating angle
+  // First pass: generate raw offsets with damping for S-curve behavior
   const rawOffsets: { x: number; z: number }[] = [];
   let accumulatedX = 0;
   let accumulatedZ = 0;
   
   // Scale factor: at drift=1, max offset at top is ~25% of base radius
-  const driftMagnitude = drift * baseRadius * 0.25;
+  const driftMagnitude = drift * baseRadius * 0.35;
   
   // Angle rotation rate: how fast the drift direction rotates with height
-  // At full height, the angle will have rotated ~1.5 full turns for a nice curve
-  const angleRotationRate = Math.PI * 3;
+  // At full height, the angle will have rotated ~2 full turns for nice S-curves
+  const angleRotationRate = Math.PI * 4;
+  
+  // Damping factor: each layer inherits this fraction of previous offset
+  // Values < 1 cause drift to partially decay, creating S-curves
+  const damping = 0.92;
   
   for (let i = 0; i <= layerCount; i++) {
     const t = i / layerCount;
     
+    // Apply damping: accumulated offset decays toward zero
+    accumulatedX *= damping;
+    accumulatedZ *= damping;
+    
     // Compute a smoothly rotating angle based on height
-    // Using t^0.7 for a nice gradual curve that's not too linear
     const angle = t * angleRotationRate;
     
     // Derive X and Z offset direction from the rotating angle
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
     
-    // Accumulate small per-layer offsets in the rotating direction
-    // The 0.015 factor ensures gradual, smooth accumulation
-    accumulatedX += dirX * driftMagnitude * 0.015;
-    accumulatedZ += dirZ * driftMagnitude * 0.015;
+    // Add new drift impulse in the rotating direction
+    // Higher magnitude to compensate for damping decay
+    accumulatedX += dirX * driftMagnitude * 0.025;
+    accumulatedZ += dirZ * driftMagnitude * 0.025;
     
-    // Height factor: drift effect increases with height (zero at base)
-    // Using t^1.5 for smooth ramp-up from base
-    const heightFactor = Math.pow(t, 1.5);
+    // Height factor: drift effect ramps up from base
+    // Using t^1.2 for a gentler ramp that works with damping
+    const heightFactor = Math.pow(t, 1.2);
     
     rawOffsets.push({
       x: accumulatedX * heightFactor,
