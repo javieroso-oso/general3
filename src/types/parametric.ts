@@ -229,6 +229,23 @@ export interface PrintSettings {
   nonPlanar: NonPlanarSettings;
 }
 
+// Non-planar printing analysis
+export interface NonPlanarAnalysis {
+  maxTiltAngle: number;           // Maximum tilt angle encountered (degrees)
+  avgTiltAngle: number;           // Average tilt angle (degrees)
+  nonPlanarLayerCount: number;    // Number of layers with non-planar paths
+  totalLayerCount: number;        // Total layer count
+  collisionRiskZones: Array<{     // Zones where collision might occur
+    layerIndex: number;
+    tiltAngle: number;
+    x: number;
+    y: number;
+    z: number;
+  }>;
+  exceedsMaxAngle: boolean;       // True if any point exceeds configured max angle
+  isSafeForPrinting: boolean;     // Overall safety assessment
+}
+
 export interface PrintAnalysis {
   isValid: boolean;
   warnings: PrintWarning[];
@@ -242,6 +259,7 @@ export interface PrintAnalysis {
   centerOfMass: { x: number; y: number; z: number };
   needsSupport: boolean;
   guaranteedSupportFree: boolean;  // true when supportFreeMode is on and constraints met
+  nonPlanarAnalysis?: NonPlanarAnalysis;  // Non-planar printing analysis (when in non-planar mode)
 }
 
 export interface PrintWarning {
@@ -685,6 +703,7 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     centerOfMass: { x: 0, y: params.height * 0.4, z: 0 },
     needsSupport,
     guaranteedSupportFree,
+    // nonPlanarAnalysis is added separately by the component when in non-planar mode
   };
 }
 
