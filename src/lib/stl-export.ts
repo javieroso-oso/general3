@@ -91,7 +91,7 @@ export function calculateDriftOffsets(
   
   // Damping factor: each layer inherits this fraction of previous offset
   // Values < 1 cause drift to partially decay, creating S-curves
-  const damping = 0.92;
+  const damping = 0.85;
   
   // Secondary per-layer deviation: small offsets that don't align with main drift
   // These create "disagreement" between layers for an accumulated/built look
@@ -124,11 +124,11 @@ export function calculateDriftOffsets(
     const magnitudeNoise = 1 + noise3D(0.5, t * 0.6, 0.2, 0.5) * 0.25;
     
     // Add new drift impulse in the rotating direction
-    accumulatedX += dirX * driftMagnitude * 0.025 * magnitudeNoise;
-    accumulatedZ += dirZ * driftMagnitude * 0.025 * magnitudeNoise;
+    accumulatedX += dirX * driftMagnitude * 0.15 * magnitudeNoise;
+    accumulatedZ += dirZ * driftMagnitude * 0.15 * magnitudeNoise;
     
     // Height factor: drift effect ramps up from base
-    const heightFactor = Math.pow(t, 1.2);
+    const heightFactor = Math.pow(t, 0.8);
     
     // Calculate primary drift position
     const primaryX = accumulatedX * heightFactor;
