@@ -133,6 +133,7 @@ const ParametricMesh = ({
       organicNoise,
       noiseScale,
       addLegs,
+      drift,
       // New body customization params
       facetCount,
       facetSharpness,
@@ -165,6 +166,49 @@ const ParametricMesh = ({
     const outerVerts: number[] = [];
     const radiiAtHeight: number[] = [];
     let maxRadius = 0;
+    
+    // Pre-compute drift offsets for each height layer
+    // Uses deterministic noise to create smooth, accumulated drift
+    const driftOffsets: { x: number; z: number }[] = [];
+    if (drift > 0) {
+      let accumulatedX = 0;
+      let accumulatedZ = 0;
+      const driftScale = drift * 0.003; // Scale factor for drift magnitude
+      const smoothness = 0.15; // How much each layer inherits from previous (lower = smoother)
+      
+      for (let i = 0; i <= heightSegments; i++) {
+        const t = i / heightSegments;
+        
+        // Use seeded noise to generate subtle direction changes
+        // The noise is smooth and continuous across layers
+        const noiseX = noise3D(t * 2, 0.5, 0, 0.8) * smoothness;
+        const noiseZ = noise3D(0, t * 2, 0.5, 0.8) * smoothness;
+        
+        // Accumulate offset - each layer adds a small delta based on noise
+        // This creates the "forgetting center" effect
+        accumulatedX += noiseX * driftScale * bRad;
+        accumulatedZ += noiseZ * driftScale * bRad;
+        
+        // Apply a soft bias toward the accumulated direction (momentum)
+        // This prevents sharp reversals while allowing gradual curves
+        const momentum = 0.97;
+        accumulatedX *= momentum;
+        accumulatedZ *= momentum;
+        
+        // Add fresh drift contribution that grows with height
+        // Higher layers drift more (t^0.5 for gradual onset)
+        const heightFactor = Math.pow(t, 0.5);
+        accumulatedX += noiseX * driftScale * bRad * heightFactor * 3;
+        accumulatedZ += noiseZ * driftScale * bRad * heightFactor * 3;
+        
+        driftOffsets.push({ x: accumulatedX, z: accumulatedZ });
+      }
+    } else {
+      // No drift - all offsets are zero
+      for (let i = 0; i <= heightSegments; i++) {
+        driftOffsets.push({ x: 0, z: 0 });
+      }
+    }
 
     // Generate full 360° object
     for (let i = 0; i <= heightSegments; i++) {
@@ -310,8 +354,13 @@ const ParametricMesh = ({
 
         r = Math.max(r, wall * 2);
 
-        const x = Math.cos(theta) * r;
-        const z = Math.sin(theta) * r;
+        // Calculate base position
+        let x = Math.cos(theta) * r;
+        let z = Math.sin(theta) * r;
+        
+        // Apply drift offset - shifts entire layer's center position
+        x += driftOffsets[i].x;
+        z += driftOffsets[i].z;
         
         // Rim waves: modify Y position for top rows
         let finalY = y;

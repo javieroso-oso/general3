@@ -274,6 +274,14 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           onChange={handleChange('wobbleAmplitude')}
           constrained={params.supportFreeMode}
         />
+        <ParameterSlider
+          label="Drift"
+          value={params.drift}
+          min={0}
+          max={1}
+          step={0.02}
+          onChange={handleChange('drift')}
+        />
       </Section>
 
       {/* 5. Surface Details */}

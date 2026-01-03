@@ -419,6 +419,7 @@ export const defaultLampParams: LampParams = {
   lipHeight: 0.05,
   organicNoise: 0,
   noiseScale: 1,
+  drift: 0,
   facetCount: 0,
   facetSharpness: 0.5,
   spiralGrooveCount: 0,
