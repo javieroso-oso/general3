@@ -83,7 +83,7 @@ export function calculateDriftOffsets(
   let accumulatedZ = 0;
   
   // Scale factor: at drift=1, max offset at top is ~25% of base radius
-  const driftMagnitude = drift * baseRadius * 0.35;
+  const driftMagnitude = drift * baseRadius * 3.5;
   
   // Angle rotation rate: how fast the drift direction rotates with height
   // At full height, the angle will have rotated ~2 full turns for nice S-curves
