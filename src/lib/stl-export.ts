@@ -153,40 +153,22 @@ export function calculateDriftOffsets(
     });
   }
   
-  // Second pass: apply smoothing to eliminate any remaining jitter
-  // Use 5-point moving average for extra smoothness
+  // Second pass: causal (forward-only) smoothing to preserve S-curves
+  // Each layer interpolates toward raw offset from previous smoothed layer
+  // This smooths jitter without eliminating inflection points
+  const smoothingFactor = 0.7; // How much to move toward raw value (0=fully smooth, 1=no smoothing)
+  
   for (let i = 0; i <= layerCount; i++) {
     if (i === 0) {
       // Base layer: always exactly at origin
       driftOffsets.push({ x: 0, z: 0 });
-    } else if (i === 1 || i === layerCount - 1) {
-      // Near edges: 3-point average
-      const prev = rawOffsets[Math.max(0, i - 1)];
-      const curr = rawOffsets[i];
-      const next = rawOffsets[Math.min(layerCount, i + 1)];
-      driftOffsets.push({
-        x: (prev.x + curr.x + next.x) / 3,
-        z: (prev.z + curr.z + next.z) / 3
-      });
-    } else if (i === layerCount) {
-      // Top layer: average of last three
-      const a = rawOffsets[i - 2];
-      const b = rawOffsets[i - 1];
-      const c = rawOffsets[i];
-      driftOffsets.push({
-        x: (a.x + b.x + c.x) / 3,
-        z: (a.z + b.z + c.z) / 3
-      });
     } else {
-      // Middle layers: 5-point average for maximum smoothness
-      const a = rawOffsets[i - 2];
-      const b = rawOffsets[i - 1];
-      const c = rawOffsets[i];
-      const d = rawOffsets[i + 1];
-      const e = rawOffsets[i + 2];
+      // Interpolate from previous smoothed position toward current raw position
+      const prevSmoothed = driftOffsets[i - 1];
+      const currRaw = rawOffsets[i];
       driftOffsets.push({
-        x: (a.x + b.x + c.x + d.x + e.x) / 5,
-        z: (a.z + b.z + c.z + d.z + e.z) / 5
+        x: prevSmoothed.x + (currRaw.x - prevSmoothed.x) * smoothingFactor,
+        z: prevSmoothed.z + (currRaw.z - prevSmoothed.z) * smoothingFactor
       });
     }
   }
