@@ -1152,15 +1152,15 @@ export function generateSpiralVaseLayers(
   settings: PrintSettings
 ): GCodeLayer[] {
   const layers: GCodeLayer[] = [];
-  const { height, twistAngle, drift, baseRadius } = params;
+  const { height, twistAngle, baseRadius } = params;
   const { layerHeight } = settings;
   
   const totalLayers = Math.ceil(height / layerHeight);
   const segments = 64; // Points per revolution
   const totalPoints = totalLayers * segments;
   
-  // Pre-compute drift offsets
-  const driftOffsets = calculateDriftOffsets(drift, baseRadius, totalLayers);
+  // Pre-compute drift offsets (drift removed, using 0)
+  const driftOffsets = calculateDriftOffsets(0, baseRadius, totalLayers);
   
   // Single continuous spiral path
   const spiralPath: { x: number; y: number; z: number }[] = [];
@@ -1515,7 +1515,7 @@ export function generateGCodeLayers(
     return generateSpiralVaseLayers(params, type, settings);
   }
   
-  const { height, wallThickness, twistAngle, profileCurve, drift, baseRadius } = params;
+  const { height, wallThickness, twistAngle, profileCurve, baseRadius } = params;
   const { layerHeight, printMode, nonPlanar } = settings;
   
   const isNonPlanar = printMode === 'non_planar';
@@ -1538,9 +1538,9 @@ export function generateGCodeLayers(
   
   const segments = 48; // Points per perimeter
   
-  // Pre-compute drift offsets
+  // Pre-compute drift offsets (drift removed, using 0)
   const totalLayers = Math.ceil(height / layerHeight);
-  const driftOffsets = calculateDriftOffsets(drift, baseRadius, totalLayers);
+  const driftOffsets = calculateDriftOffsets(0, baseRadius, totalLayers);
   
   // Generate planar layers up to the non-planar zone
   for (let layer = 0; layer < planarLayerCount; layer++) {
