@@ -398,8 +398,31 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           </>
         )}
         
+        <div className="pt-3 border-t border-border/50 mt-3">
+          <ParameterSlider
+            label="Lateral Drag"
+            value={params.meltDragAmount}
+            min={0}
+            max={30}
+            step={1}
+            unit="mm"
+            onChange={handleChange('meltDragAmount')}
+          />
+          
+          {params.meltDragAmount > 0 && (
+            <ParameterSlider
+              label="Drag Direction"
+              value={params.meltDragAngle}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={handleChange('meltDragAngle')}
+            />
+          )}
+        </div>
+        
         <p className="text-xs text-muted-foreground mt-2">
-          Simulates gravity pulling softened material downward. Offset is zero at base, increases toward top.
+          Simulates gravity pulling softened material downward and sideways. Zero at base, increases toward top.
         </p>
       </Section>
 

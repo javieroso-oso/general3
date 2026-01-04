@@ -417,16 +417,26 @@ export function generateBodyMesh(
         finalY = y;
       }
       
-      // Melt effect: vertical offset simulating gravity pulling softened material
+      // Melt effect: vertical offset + lateral drag
       const meltAmount = params.meltAmount || 0;
       const meltLobes = params.meltLobes || 0;
       const meltVariation = params.meltVariation || 0;
       const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+      const meltDragAmount = params.meltDragAmount || 0;
+      const meltDragAngle = (params.meltDragAngle || 0) * Math.PI * 2;
       
-      if (meltAmount > 0) {
+      if (meltAmount > 0 || meltDragAmount > 0) {
         const heightFactor = t * t;
-        const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
-        finalY -= meltAmount * heightFactor * angularFactor;
+        
+        if (meltAmount > 0) {
+          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+          finalY -= meltAmount * heightFactor * angularFactor;
+        }
+        
+        if (meltDragAmount > 0) {
+          x += meltDragAmount * heightFactor * Math.cos(meltDragAngle);
+          z += meltDragAmount * heightFactor * Math.sin(meltDragAngle);
+        }
       }
       
       outerVerts.push(x, finalY, z);
@@ -462,16 +472,26 @@ export function generateBodyMesh(
         finalY = y;
       }
       
-      // Melt effect for inner wall (same as outer)
+      // Melt effect for inner wall: vertical offset + lateral drag
       const meltAmount = params.meltAmount || 0;
       const meltLobes = params.meltLobes || 0;
       const meltVariation = params.meltVariation || 0;
       const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+      const meltDragAmount = params.meltDragAmount || 0;
+      const meltDragAngle = (params.meltDragAngle || 0) * Math.PI * 2;
       
-      if (meltAmount > 0) {
+      if (meltAmount > 0 || meltDragAmount > 0) {
         const heightFactor = t * t;
-        const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
-        finalY -= meltAmount * heightFactor * angularFactor;
+        
+        if (meltAmount > 0) {
+          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+          finalY -= meltAmount * heightFactor * angularFactor;
+        }
+        
+        if (meltDragAmount > 0) {
+          x += meltDragAmount * heightFactor * Math.cos(meltDragAngle);
+          z += meltDragAmount * heightFactor * Math.sin(meltDragAngle);
+        }
       }
       
       innerVerts.push(x, finalY, z);
