@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { Brush, Evaluator, SUBTRACTION, ADDITION } from 'three-bvh-csg';
 import { ParametricParams, ObjectType } from '@/types/parametric';
+import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
 
 // Scale factor: mm to scene units
 const SCALE = 0.01;
@@ -15,6 +16,7 @@ export interface MoldParams {
   splitAngle: number;           // degrees
   draftAngle: number;           // degrees (0-5)
   gap: number;                  // mm - preview gap between halves
+  offset: number;               // mm - shrinkage/clearance offset
 }
 
 export interface MoldGeometry {
@@ -23,42 +25,12 @@ export interface MoldGeometry {
 }
 
 /**
- * Calculate the body profile radius at a given height (0-1) and angle
- */
-function getBodyRadius(
-  params: ParametricParams,
-  t: number,
-  theta: number
-): number {
-  const { baseRadius, topRadius, bulgePosition, bulgeAmount, pinchAmount } = params;
-  
-  let radius = baseRadius + (topRadius - baseRadius) * t;
-  
-  const bulgeEnv = Math.exp(-Math.pow((t - bulgePosition) / 0.3, 2));
-  radius *= 1 + bulgeAmount * bulgeEnv;
-  
-  const pinchEnv = Math.pow(t, 2);
-  radius *= 1 - pinchAmount * pinchEnv;
-  
-  if (t > 0.95 && params.lipFlare > 0) {
-    const lipT = (t - 0.95) / 0.05;
-    radius *= 1 + params.lipFlare * lipT;
-  }
-  
-  if (params.asymmetry > 0) {
-    radius *= 1 + params.asymmetry * Math.cos(theta);
-  }
-  
-  return radius;
-}
-
-/**
  * Calculate positions for registration keys along the split seam
  */
 function calculateKeyPositions(
   height: number,
   keyCount: number,
-  baseThickness: number
+  _baseThickness: number
 ): number[] {
   const positions: number[] = [];
   const usableHeight = height;
@@ -86,7 +58,7 @@ function createRegistrationKeyBrush(
   const height = keyHeight * SCALE;
   
   // Add tolerance for socket
-  const tolerance = isSocket ? 0.002 : 0; // 0.2mm tolerance for socket
+  const tolerance = isSocket ? 0.003 : 0; // 0.3mm tolerance for socket
   
   const geometry = new THREE.CylinderGeometry(
     topRadius + tolerance,
@@ -136,15 +108,18 @@ function createPourHoleBrush(
 
 /**
  * Generate base mold half geometry (without keys and pour hole)
+ * Uses the actual body profile from the parametric generator
  */
 function generateBaseMoldHalf(
   params: ParametricParams,
   moldParams: MoldParams,
-  isHalfA: boolean
+  isHalfA: boolean,
+  objectType: ObjectType
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
   const wallThickness = moldParams.wallThickness * SCALE;
   const baseThickness = moldParams.baseThickness * SCALE;
+  const offset = moldParams.offset * SCALE;
   const segments = 48;
   const rings = 64;
   
@@ -157,29 +132,31 @@ function generateBaseMoldHalf(
   const endAngle = isHalfA ? Math.PI : Math.PI * 2;
   
   // Calculate max body radius for outer mold bounds
-  let maxBodyRadius = 0;
-  for (let t = 0; t <= 1; t += 0.1) {
-    for (let theta = 0; theta < Math.PI * 2; theta += 0.1) {
-      const r = getBodyRadius(params, t, theta);
-      maxBodyRadius = Math.max(maxBodyRadius, r);
-    }
-  }
-  const outerRadius = (maxBodyRadius + moldParams.wallThickness) * SCALE;
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const outerRadius = maxBodyRadius + wallThickness;
   
-  // Generate inner surface (cavity)
+  // Generate inner surface (cavity) using actual body profile + offset + draft
   const innerVertexStart = vertices.length / 3;
   for (let i = 0; i <= rings; i++) {
     const t = i / rings;
     const y = t * height;
     
+    // Draft angle offset - increases towards bottom for easier demolding
     const draftOffset = (1 - t) * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
     
     for (let j = 0; j <= segments / 2; j++) {
       const thetaRaw = startAngle + (j / (segments / 2)) * Math.PI;
       const theta = thetaRaw + splitRotation;
       
-      let radius = getBodyRadius(params, t, theta - splitRotation) * SCALE;
-      radius += draftOffset * 0.5;
+      // Get actual body radius at this point using the shared generator
+      let radius = getBodyRadius(params, t, theta - splitRotation, { 
+        scale: SCALE, 
+        objectType,
+        includeTwist: true 
+      });
+      
+      // Add offset (shrinkage clearance) and draft
+      radius += offset + draftOffset * 0.5;
       
       const x = Math.cos(theta) * radius;
       const z = Math.sin(theta) * radius;
@@ -188,7 +165,7 @@ function generateBaseMoldHalf(
     }
   }
   
-  // Generate outer surface
+  // Generate outer surface (simple cylinder/box)
   const outerVertexStart = vertices.length / 3;
   for (let i = 0; i <= rings; i++) {
     const t = i / rings;
@@ -207,7 +184,7 @@ function generateBaseMoldHalf(
   
   const halfSegments = segments / 2;
   
-  // Inner surface indices
+  // Inner surface indices (facing inward toward cavity)
   for (let i = 0; i < rings; i++) {
     for (let j = 0; j < halfSegments; j++) {
       const a = innerVertexStart + i * (halfSegments + 1) + j;
@@ -220,7 +197,7 @@ function generateBaseMoldHalf(
     }
   }
   
-  // Outer surface indices
+  // Outer surface indices (facing outward)
   for (let i = 0; i < rings; i++) {
     for (let j = 0; j < halfSegments; j++) {
       const a = outerVertexStart + i * (halfSegments + 1) + j;
@@ -233,7 +210,7 @@ function generateBaseMoldHalf(
     }
   }
   
-  // Split face - left edge
+  // Split face - left edge (connects inner to outer)
   const leftEdgeInner: number[] = [];
   const leftEdgeOuter: number[] = [];
   for (let i = 0; i <= rings; i++) {
@@ -269,7 +246,7 @@ function generateBaseMoldHalf(
     indices.push(b, c, d);
   }
   
-  // Bottom face
+  // Bottom face (base)
   const bottomVertexStart = vertices.length / 3;
   vertices.push(0, -baseThickness, 0);
   const bottomCenter = bottomVertexStart;
@@ -289,7 +266,7 @@ function generateBaseMoldHalf(
     indices.push(a, c, b);
   }
   
-  // Top face
+  // Top face (rim)
   const topVertexStart = vertices.length / 3;
   vertices.push(0, height, 0);
   const topCenter = topVertexStart;
@@ -346,26 +323,21 @@ function generateBaseMoldHalf(
 function generateMoldHalf(
   params: ParametricParams,
   moldParams: MoldParams,
-  isHalfA: boolean
+  isHalfA: boolean,
+  objectType: ObjectType
 ): THREE.BufferGeometry {
   const evaluator = new Evaluator();
   const height = params.height * SCALE;
-  const baseThickness = moldParams.baseThickness * SCALE;
+  const offset = moldParams.offset * SCALE;
   
-  // Calculate max body radius for key positioning
-  let maxBodyRadius = 0;
-  for (let t = 0; t <= 1; t += 0.1) {
-    for (let theta = 0; theta < Math.PI * 2; theta += 0.1) {
-      const r = getBodyRadius(params, t, theta);
-      maxBodyRadius = Math.max(maxBodyRadius, r);
-    }
-  }
-  const outerRadius = (maxBodyRadius + moldParams.wallThickness) * SCALE;
-  const innerRadius = maxBodyRadius * SCALE;
+  // Get max radius using shared generator
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const outerRadius = maxBodyRadius + moldParams.wallThickness * SCALE;
+  const innerRadius = maxBodyRadius + offset;
   const keyDepth = moldParams.registrationKeySize * 1.5; // Key depth in mm
   
   // Generate base mold geometry
-  const baseGeometry = generateBaseMoldHalf(params, moldParams, isHalfA);
+  const baseGeometry = generateBaseMoldHalf(params, moldParams, isHalfA, objectType);
   let resultBrush = new Brush(baseGeometry);
   resultBrush.updateMatrixWorld();
   
@@ -377,7 +349,6 @@ function generateMoldHalf(
   );
   
   // Position keys on the split face (where the two halves meet)
-  // Keys go on the flat face at the split plane
   const splitRotation = moldParams.splitAngle * Math.PI / 180;
   
   // For each key position, add or subtract key geometry
@@ -439,7 +410,7 @@ function generateMoldHalf(
  */
 export function generateMoldGeometry(
   params: ParametricParams,
-  _objectType: ObjectType
+  objectType: ObjectType
 ): MoldGeometry {
   const moldParams: MoldParams = {
     wallThickness: params.moldWallThickness,
@@ -450,10 +421,11 @@ export function generateMoldGeometry(
     splitAngle: params.moldSplitAngle,
     draftAngle: params.moldDraftAngle,
     gap: params.moldGap,
+    offset: params.moldOffset ?? 0.5, // Default 0.5mm offset if not set
   };
   
-  const halfA = generateMoldHalf(params, moldParams, true);
-  const halfB = generateMoldHalf(params, moldParams, false);
+  const halfA = generateMoldHalf(params, moldParams, true, objectType);
+  const halfB = generateMoldHalf(params, moldParams, false, objectType);
   
   return { halfA, halfB };
 }
@@ -500,6 +472,7 @@ export function downloadMoldSTL(
     downloadBlob(blobB, `${baseName}_mold_B.stl`);
   }
   
+  // Dispose geometries
   halfA.dispose();
   halfB.dispose();
 }

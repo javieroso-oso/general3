@@ -164,6 +164,7 @@ export interface ParametricParams {
   moldSplitAngle: number;            // degrees - rotation of split plane (0-180)
   moldDraftAngle: number;            // degrees - draft angle for easier demolding (0-5)
   moldGap: number;                   // mm - gap between halves for preview (0-20mm)
+  moldOffset: number;                // mm - shrinkage/clearance offset (0-2mm)
   
   // Preview mode
   showBaseOnly: boolean;     // Show only base/legs without body for easier editing
@@ -387,6 +388,7 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   moldSplitAngle: 0,
   moldDraftAngle: 2,
   moldGap: 10,
+  moldOffset: 0.5,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   ...overrides,
