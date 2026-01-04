@@ -145,6 +145,13 @@ export interface ParametricParams {
   spineFrequencyZ: number;      // 0-4: number of half-periods
   spinePhaseZ: number;          // 0-1: phase offset normalized
   
+  // Melt effect: vertical offset simulating gravity pulling softened material
+  // δy(t, θ) = -M × t² × (1 + α × sin(nθ + φ))
+  meltAmount: number;           // 0-30 mm: maximum vertical droop at top
+  meltLobes: number;            // 0-8: number of angular variations (lobes)
+  meltVariation: number;        // 0-1: amplitude of angular variation (α)
+  meltPhase: number;            // 0-1: phase offset for angular variation
+  
   // Legacy non-planar drift - kept for compatibility
   drift: number;  // 0 = perfectly centered, higher = more accumulated offset
   
@@ -389,6 +396,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     spineAmplitudeZ: 0,
     spineFrequencyZ: 2,
     spinePhaseZ: 0.25,
+    meltAmount: 0,
+    meltLobes: 3,
+    meltVariation: 0.3,
+    meltPhase: 0,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
@@ -489,6 +500,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     spineAmplitudeZ: 0,
     spineFrequencyZ: 2,
     spinePhaseZ: 0.25,
+    meltAmount: 0,
+    meltLobes: 3,
+    meltVariation: 0.3,
+    meltPhase: 0,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
@@ -589,6 +604,10 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     spineAmplitudeZ: 0,
     spineFrequencyZ: 2,
     spinePhaseZ: 0.25,
+    meltAmount: 0,
+    meltLobes: 3,
+    meltVariation: 0.3,
+    meltPhase: 0,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
