@@ -25,6 +25,23 @@ export interface MoldGeometry {
 }
 
 /**
+ * Ensure geometry has UV attribute (required for CSG operations)
+ */
+function ensureUVAttribute(geometry: THREE.BufferGeometry): void {
+  if (!geometry.attributes.uv) {
+    const positionCount = geometry.attributes.position.count;
+    const uvs = new Float32Array(positionCount * 2);
+    // Simple planar UV mapping
+    const positions = geometry.attributes.position.array;
+    for (let i = 0; i < positionCount; i++) {
+      uvs[i * 2] = positions[i * 3] * 0.1;     // U based on X
+      uvs[i * 2 + 1] = positions[i * 3 + 1] * 0.1; // V based on Y
+    }
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  }
+}
+
+/**
  * Calculate positions for registration keys along the split seam
  */
 function calculateKeyPositions(
@@ -70,6 +87,9 @@ function createRegistrationKeyBrush(
   // Rotate to point outward from split face (along X axis)
   geometry.rotateZ(Math.PI / 2);
   
+  // Ensure UV attribute exists
+  ensureUVAttribute(geometry);
+  
   const brush = new Brush(geometry);
   brush.position.copy(position);
   brush.updateMatrixWorld();
@@ -99,6 +119,9 @@ function createPourHoleBrush(
     24
   );
   
+  // Ensure UV attribute exists
+  ensureUVAttribute(geometry);
+  
   const brush = new Brush(geometry);
   brush.position.set(0, topY - holeDepth / 2 + 0.001, 0);
   brush.updateMatrixWorld();
@@ -126,6 +149,7 @@ function generateBaseMoldHalf(
   const splitRotation = moldParams.splitAngle * Math.PI / 180;
   
   const vertices: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
   
   const startAngle = isHalfA ? 0 : Math.PI;
@@ -145,7 +169,8 @@ function generateBaseMoldHalf(
     const draftOffset = (1 - t) * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
     
     for (let j = 0; j <= segments / 2; j++) {
-      const thetaRaw = startAngle + (j / (segments / 2)) * Math.PI;
+      const u = j / (segments / 2);
+      const thetaRaw = startAngle + u * Math.PI;
       const theta = thetaRaw + splitRotation;
       
       // Get actual body radius at this point using the shared generator
@@ -162,6 +187,7 @@ function generateBaseMoldHalf(
       const z = Math.sin(theta) * radius;
       
       vertices.push(x, y, z);
+      uvs.push(u, t);
     }
   }
   
@@ -172,13 +198,15 @@ function generateBaseMoldHalf(
     const y = t * height;
     
     for (let j = 0; j <= segments / 2; j++) {
-      const thetaRaw = startAngle + (j / (segments / 2)) * Math.PI;
+      const u = j / (segments / 2);
+      const thetaRaw = startAngle + u * Math.PI;
       const theta = thetaRaw + splitRotation;
       
       const x = Math.cos(theta) * outerRadius;
       const z = Math.sin(theta) * outerRadius;
       
       vertices.push(x, y, z);
+      uvs.push(u + 1, t); // Offset U for outer surface
     }
   }
   
@@ -249,14 +277,17 @@ function generateBaseMoldHalf(
   // Bottom face (base)
   const bottomVertexStart = vertices.length / 3;
   vertices.push(0, -baseThickness, 0);
+  uvs.push(0.5, -0.1);
   const bottomCenter = bottomVertexStart;
   
   for (let j = 0; j <= halfSegments; j++) {
-    const thetaRaw = startAngle + (j / halfSegments) * Math.PI;
+    const u = j / halfSegments;
+    const thetaRaw = startAngle + u * Math.PI;
     const theta = thetaRaw + splitRotation;
     const x = Math.cos(theta) * outerRadius;
     const z = Math.sin(theta) * outerRadius;
     vertices.push(x, -baseThickness, z);
+    uvs.push(u, -0.1);
   }
   
   for (let j = 0; j < halfSegments; j++) {
@@ -269,14 +300,17 @@ function generateBaseMoldHalf(
   // Top face (rim)
   const topVertexStart = vertices.length / 3;
   vertices.push(0, height, 0);
+  uvs.push(0.5, 1.1);
   const topCenter = topVertexStart;
   
   for (let j = 0; j <= halfSegments; j++) {
-    const thetaRaw = startAngle + (j / halfSegments) * Math.PI;
+    const u = j / halfSegments;
+    const thetaRaw = startAngle + u * Math.PI;
     const theta = thetaRaw + splitRotation;
     const x = Math.cos(theta) * outerRadius;
     const z = Math.sin(theta) * outerRadius;
     vertices.push(x, height, z);
+    uvs.push(u, 1.1);
   }
   
   for (let j = 0; j < halfSegments; j++) {
@@ -311,6 +345,7 @@ function generateBaseMoldHalf(
   
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   
@@ -326,7 +361,6 @@ function generateMoldHalf(
   isHalfA: boolean,
   objectType: ObjectType
 ): THREE.BufferGeometry {
-  const evaluator = new Evaluator();
   const height = params.height * SCALE;
   const offset = moldParams.offset * SCALE;
   
@@ -338,71 +372,80 @@ function generateMoldHalf(
   
   // Generate base mold geometry
   const baseGeometry = generateBaseMoldHalf(params, moldParams, isHalfA, objectType);
-  let resultBrush = new Brush(baseGeometry);
-  resultBrush.updateMatrixWorld();
   
-  // Calculate key positions along the height
-  const keyPositions = calculateKeyPositions(
-    params.height,
-    moldParams.registrationKeyCount,
-    moldParams.baseThickness
-  );
-  
-  // Position keys on the split face (where the two halves meet)
-  const splitRotation = moldParams.splitAngle * Math.PI / 180;
-  
-  // For each key position, add or subtract key geometry
-  for (const yPos of keyPositions) {
-    const y = yPos * SCALE;
+  // Try CSG operations, fall back to base geometry if they fail
+  try {
+    const evaluator = new Evaluator();
+    let resultBrush = new Brush(baseGeometry);
+    resultBrush.updateMatrixWorld();
     
-    // Keys are positioned at the midpoint between inner and outer radius on split face
-    const keyRadius = (innerRadius + outerRadius) / 2;
+    // Calculate key positions along the height
+    const keyPositions = calculateKeyPositions(
+      params.height,
+      moldParams.registrationKeyCount,
+      moldParams.baseThickness
+    );
     
-    // Two keys per height - one on each split edge (left and right of the half)
-    const keyPositionsXZ = [
-      // Left edge of split
-      { x: Math.cos(splitRotation) * keyRadius, z: Math.sin(splitRotation) * keyRadius },
-      // Right edge of split  
-      { x: Math.cos(splitRotation + Math.PI) * keyRadius, z: Math.sin(splitRotation + Math.PI) * keyRadius },
-    ];
+    // Position keys on the split face (where the two halves meet)
+    const splitRotation = moldParams.splitAngle * Math.PI / 180;
     
-    for (const pos of keyPositionsXZ) {
-      const keyPos = new THREE.Vector3(pos.x, y, pos.z);
+    // For each key position, add or subtract key geometry
+    for (const yPos of keyPositions) {
+      const y = yPos * SCALE;
       
-      // Half A gets pegs (protrusions), Half B gets sockets (indentations)
-      const isSocket = !isHalfA;
-      const keyBrush = createRegistrationKeyBrush(
-        moldParams.registrationKeySize,
-        keyDepth,
-        keyPos,
-        isSocket
-      );
+      // Keys are positioned at the midpoint between inner and outer radius on split face
+      const keyRadius = (innerRadius + outerRadius) / 2;
       
-      if (isHalfA) {
-        // Add pegs to half A
-        resultBrush = evaluator.evaluate(resultBrush, keyBrush, ADDITION);
-      } else {
-        // Subtract sockets from half B
-        resultBrush = evaluator.evaluate(resultBrush, keyBrush, SUBTRACTION);
+      // Two keys per height - one on each split edge (left and right of the half)
+      const keyPositionsXZ = [
+        // Left edge of split
+        { x: Math.cos(splitRotation) * keyRadius, z: Math.sin(splitRotation) * keyRadius },
+        // Right edge of split  
+        { x: Math.cos(splitRotation + Math.PI) * keyRadius, z: Math.sin(splitRotation + Math.PI) * keyRadius },
+      ];
+      
+      for (const pos of keyPositionsXZ) {
+        const keyPos = new THREE.Vector3(pos.x, y, pos.z);
+        
+        // Half A gets pegs (protrusions), Half B gets sockets (indentations)
+        const isSocket = !isHalfA;
+        const keyBrush = createRegistrationKeyBrush(
+          moldParams.registrationKeySize,
+          keyDepth,
+          keyPos,
+          isSocket
+        );
+        
+        if (isHalfA) {
+          // Add pegs to half A
+          resultBrush = evaluator.evaluate(resultBrush, keyBrush, ADDITION);
+        } else {
+          // Subtract sockets from half B
+          resultBrush = evaluator.evaluate(resultBrush, keyBrush, SUBTRACTION);
+        }
       }
     }
+    
+    // Add pour hole at the top
+    const pourHoleDepth = moldParams.baseThickness + 5; // Goes through top into cavity
+    const pourHoleBrush = createPourHoleBrush(
+      moldParams.pourHoleDiameter,
+      pourHoleDepth,
+      height
+    );
+    
+    resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
+    
+    // Get the final geometry
+    const finalGeometry = resultBrush.geometry;
+    finalGeometry.computeVertexNormals();
+    
+    return finalGeometry;
+  } catch (error) {
+    console.warn('CSG operations failed, using base geometry:', error);
+    // Return base geometry without CSG modifications
+    return baseGeometry;
   }
-  
-  // Add pour hole at the top
-  const pourHoleDepth = moldParams.baseThickness + 5; // Goes through top into cavity
-  const pourHoleBrush = createPourHoleBrush(
-    moldParams.pourHoleDiameter,
-    pourHoleDepth,
-    height
-  );
-  
-  resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
-  
-  // Get the final geometry
-  const finalGeometry = resultBrush.geometry;
-  finalGeometry.computeVertexNormals();
-  
-  return finalGeometry;
 }
 
 /**
