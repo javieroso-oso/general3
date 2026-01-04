@@ -284,6 +284,7 @@ const ParametricMesh = ({
 
     const outerVerts: number[] = [];
     const radiiAtHeight: number[] = [];
+    const bottomRadiiArray: number[] = []; // Capture actual radii at t=0 for base disc
     let maxRadius = 0;
     
     // Determine geometry mode: spine-based or legacy drift-based
@@ -452,6 +453,11 @@ const ParametricMesh = ({
         }
 
         r = Math.max(r, wall * 2);
+        
+        // Capture bottom radii for base disc (in mm, before SCALE is applied)
+        if (i === 0) {
+          bottomRadiiArray.push(r / SCALE);
+        }
 
         // Calculate final vertex position
         let x: number, finalY: number, z: number;
@@ -966,7 +972,8 @@ const ParametricMesh = ({
           edgeStyle: params.standBaseEdgeStyle,
           lip: params.standBaseLip,
         },
-        params.legStyle || 'tripod'
+        params.legStyle || 'tripod',
+        bottomRadiiArray // Pass actual bottom radii from body generation
       );
       legGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = legGeoMM;
