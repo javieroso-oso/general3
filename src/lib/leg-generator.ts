@@ -26,6 +26,7 @@ export interface PedestalParams {
   taper: number;           // 0-0.5 - taper from bottom to top
   edgeStyle: 'flat' | 'rounded' | 'chamfer';  // edge profile style
   lip: number;             // mm - raised lip height around edge (0-10mm)
+  lipThickness?: number;   // mm - lip wall thickness (1.5-8mm)
 }
 
 /**
@@ -634,7 +635,8 @@ function createBaseDisc(
   const bottomRadius = radius * (1 - taper);
   
   // Lip is a raised rim at the outer edge
-  const lipWidth = Math.min(lip * 2, radius * 0.15);
+  // Use explicit lipThickness if provided, otherwise calculate from lip height
+  const lipWidth = pedestalParams?.lipThickness ?? Math.max(1.5, lip * 0.4);
   const innerLipRadius = radius - lipWidth;
   
   // Edge style dimensions

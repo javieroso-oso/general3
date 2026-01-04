@@ -449,6 +449,7 @@ export const defaultLampParams: LampParams = {
   standBaseTaper: 0,
   standBaseEdgeStyle: 'flat',
   standBaseLip: 0,
+  standBaseLipThickness: 2,
   cordHoleEnabled: true,
   cordHoleDiameter: 8,
   centeringLipEnabled: true,
