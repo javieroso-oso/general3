@@ -457,16 +457,17 @@ const ParametricMesh = ({
         let x: number, finalY: number, z: number;
         
         if (useSpine && spineFrames[i]) {
-          // SPINE-BASED: Position vertex using Frenet frame
-          // The cross-section is placed perpendicular to the spine tangent
+          // SPINE-BASED: Simple lateral offset without Frenet rotation
+          // Cross-sections stay horizontal, only position shifts along the curved path
+          // This creates elegant S-curves without distorting the shape
           const frame = spineFrames[i];
-          const localX = Math.cos(theta);
-          const localZ = Math.sin(theta);
+          const localX = Math.cos(theta) * r;
+          const localZ = Math.sin(theta) * r;
           
-          // Transform to world space using the Frenet frame
-          x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-          finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-          z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+          // Apply only the lateral offset from the spine, keep cross-section orientation fixed
+          x = localX + frame.position.x;
+          z = localZ + frame.position.z;
+          finalY = frame.position.y;
         } else {
           // LEGACY: Simple positional drift
           const localX = Math.cos(theta) * r;
