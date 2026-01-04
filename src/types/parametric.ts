@@ -154,6 +154,17 @@ export interface ParametricParams {
   supportFreeMode: boolean;
   showOverhangMap: boolean;
   
+  // Mold generation (for ceramics slip-casting)
+  moldEnabled: boolean;              // Toggle mold generation mode
+  moldWallThickness: number;         // mm - thickness of mold walls (15-50mm)
+  moldBaseThickness: number;         // mm - thickness of mold base (10-30mm)
+  moldPourHoleDiameter: number;      // mm - pour hole diameter (15-40mm)
+  moldRegistrationKeySize: number;   // mm - size of registration keys (5-15mm)
+  moldRegistrationKeyCount: number;  // number of keys per seam (2-6)
+  moldSplitAngle: number;            // degrees - rotation of split plane (0-180)
+  moldDraftAngle: number;            // degrees - draft angle for easier demolding (0-5)
+  moldGap: number;                   // mm - gap between halves for preview (0-20mm)
+  
   // Preview mode
   showBaseOnly: boolean;     // Show only base/legs without body for easier editing
   previewColor: string;      // Hex color for preview rendering
@@ -367,6 +378,15 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   socketType: 'E26',
   supportFreeMode: false,
   showOverhangMap: false,
+  moldEnabled: false,
+  moldWallThickness: 25,
+  moldBaseThickness: 15,
+  moldPourHoleDiameter: 25,
+  moldRegistrationKeySize: 8,
+  moldRegistrationKeyCount: 4,
+  moldSplitAngle: 0,
+  moldDraftAngle: 2,
+  moldGap: 10,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   ...overrides,

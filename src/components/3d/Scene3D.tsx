@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
 import { Suspense } from 'react';
 import ParametricMesh from './ParametricMesh';
+import MoldMesh from './MoldMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
 import { MaterialPreset, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
@@ -93,18 +94,26 @@ const Scene3D = ({
         
         <Suspense fallback={null}>
           {viewMode === 'model' ? (
-            <group position={[0, objectYOffset, 0]}>
-              <ParametricMesh 
-                params={params} 
-                type={type} 
+            params.moldEnabled ? (
+              <MoldMesh 
+                params={params}
+                type={type}
                 showWireframe={showWireframe}
-                materialPreset={materialPreset}
-                autoRotate={autoRotate}
-                customColor={customColor}
-                legMaterialPreset={legMaterialPreset}
-                legCustomColor={legCustomColor}
               />
-            </group>
+            ) : (
+              <group position={[0, objectYOffset, 0]}>
+                <ParametricMesh 
+                  params={params} 
+                  type={type} 
+                  showWireframe={showWireframe}
+                  materialPreset={materialPreset}
+                  autoRotate={autoRotate}
+                  customColor={customColor}
+                  legMaterialPreset={legMaterialPreset}
+                  legCustomColor={legCustomColor}
+                />
+              </group>
+            )
           ) : (
             <GCodePreview 
               key={`gcode-${params.height}-${params.baseRadius}-${params.topRadius}-${params.profileCurve}-${type}-${JSON.stringify(settings.nonPlanar)}`}
