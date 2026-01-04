@@ -253,8 +253,7 @@ const ParametricMesh = ({
       organicNoise,
       noiseScale,
       addLegs,
-      drift,
-      // New body customization params
+      // Body customization params
       facetCount,
       facetSharpness,
       spiralGrooveCount,
@@ -305,9 +304,9 @@ const ParametricMesh = ({
       ? sampleSpine(heightSegments, h, spineParams)
       : [];
     
-    // Legacy drift offsets (only used when spine is disabled)
+    // Legacy drift offsets (only used when spine is disabled) - now deprecated, using 0
     const driftOffsets: DriftOffset[] = !useSpine 
-      ? calculateDriftOffsets(drift, bRad, heightSegments)
+      ? calculateDriftOffsets(0, bRad, heightSegments)
       : [];
 
     // Generate full 360° object

@@ -345,16 +345,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           </>
         )}
         
-        {!params.spineEnabled && (
-          <ParameterSlider
-            label="Drift (Legacy)"
-            value={params.drift}
-            min={0}
-            max={1}
-            step={0.02}
-            onChange={handleChange('drift')}
-          />
-        )}
       </Section>
 
       {/* 4c. Melt Effect */}

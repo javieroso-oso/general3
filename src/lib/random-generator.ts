@@ -23,29 +23,72 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
   // Start with current params to preserve leg/stand/print settings
   const newParams = { ...currentParams };
 
-  // Core shape - expanded ranges for more variety
+  // ============================================
+  // CORE SHAPE
+  // ============================================
   newParams.baseRadius = randomInRange(20, 60);
-  // Make topRadius relative to baseRadius (40-140% of base)
   newParams.topRadius = newParams.baseRadius * randomInRange(0.4, 1.4);
-  // Height proportional to base (1.5x to 4x base radius)
   newParams.height = newParams.baseRadius * randomInRange(1.5, 4);
   newParams.profileCurve = randomChoice(profileCurves);
+  newParams.wallThickness = randomInRange(1.5, 3.5);
 
-  // Organic deformations - more noticeable effects
+  // ============================================
+  // ORGANIC SHAPE
+  // ============================================
   newParams.bulgePosition = randomInRange(0.2, 0.8);
   newParams.bulgeAmount = randomInRange(0, 0.25);
   newParams.pinchAmount = randomInRange(0, 0.15);
-  newParams.wobbleFrequency = randomInt(0, 4);
-  newParams.wobbleAmplitude = randomInRange(0, 0.08);
-  newParams.twistAngle = randomInRange(0, 45);
   newParams.asymmetry = randomInRange(0, 0.12);
 
-  // Lip parameters - more variety
-  newParams.lipFlare = randomInRange(0, 0.15);
-  newParams.lipHeight = newParams.height * randomInRange(0, 0.05);
+  // ============================================
+  // DEFORMATIONS
+  // ============================================
+  newParams.twistAngle = randomInRange(0, 45);
+  newParams.wobbleFrequency = randomInt(0, 4);
+  newParams.wobbleAmplitude = randomInRange(0, 0.08);
 
-  // Surface details - allow 0-2 features
-  const surfaceFeatures = ['facets', 'spiralGrooves', 'horizontalRibs', 'fluting', 'rimWaves'] as const;
+  // ============================================
+  // SPINE CURVE (20% chance to enable)
+  // ============================================
+  if (randomBool(0.2)) {
+    newParams.spineEnabled = true;
+    newParams.spineAmplitudeX = randomInRange(5, 25);
+    newParams.spineAmplitudeZ = randomInRange(5, 25);
+    newParams.spineFrequencyX = randomInRange(1, 3);
+    newParams.spineFrequencyZ = randomInRange(1, 3);
+    newParams.spinePhaseX = randomInRange(0, 1);
+    newParams.spinePhaseZ = randomInRange(0, 1);
+  } else {
+    newParams.spineEnabled = false;
+    newParams.spineAmplitudeX = 0;
+    newParams.spineAmplitudeZ = 0;
+  }
+
+  // ============================================
+  // MELT EFFECT (15% chance to enable)
+  // ============================================
+  if (randomBool(0.15)) {
+    newParams.meltAmount = randomInRange(5, 20);
+    newParams.meltLobes = randomInt(2, 6);
+    newParams.meltVariation = randomInRange(0.2, 0.6);
+    newParams.meltPhase = randomInRange(0, 1);
+    newParams.meltDelay = randomInRange(0.2, 0.5);
+    // 50% chance for lateral drag when melt is enabled
+    if (randomBool(0.5)) {
+      newParams.meltDragAmount = randomInRange(5, 15);
+      newParams.meltDragAngle = randomInRange(0, 1);
+    } else {
+      newParams.meltDragAmount = 0;
+    }
+  } else {
+    newParams.meltAmount = 0;
+    newParams.meltDragAmount = 0;
+  }
+
+  // ============================================
+  // SURFACE FEATURES (0-2 features enabled)
+  // ============================================
+  const surfaceFeatures = ['facets', 'spiralGrooves', 'horizontalRibs', 'fluting', 'rimWaves', 'ripples'] as const;
   const enabledFeatures = new Set<string>();
   const featureCount = randomInt(0, 2);
   
@@ -63,29 +106,40 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
   newParams.flutingDepth = 0;
   newParams.rimWaveCount = 0;
   newParams.rimWaveDepth = 0;
+  newParams.rippleCount = 0;
+  newParams.rippleDepth = 0;
 
   // Enable selected features with corrected ranges matching slider maxes
   if (enabledFeatures.has('facets')) {
     newParams.facetCount = randomInt(5, 10);
+    newParams.facetSharpness = randomInRange(0.3, 0.9);
   }
   if (enabledFeatures.has('spiralGrooves')) {
     newParams.spiralGrooveCount = randomInt(2, 6);
-    newParams.spiralGrooveDepth = randomInRange(0.02, 0.1); // Fixed: was 0.2-0.8, slider max is 0.15
+    newParams.spiralGrooveDepth = randomInRange(0.02, 0.1);
+    newParams.spiralGrooveTwist = randomInRange(1, 5);
   }
   if (enabledFeatures.has('horizontalRibs')) {
     newParams.horizontalRibCount = randomInt(3, 10);
-    newParams.horizontalRibDepth = randomInRange(0.01, 0.06); // Fixed: was 0.2-0.5, slider max is 0.1
+    newParams.horizontalRibDepth = randomInRange(0.01, 0.06);
+    newParams.horizontalRibWidth = randomInRange(0.2, 0.4);
   }
   if (enabledFeatures.has('fluting')) {
     newParams.flutingCount = randomInt(5, 16);
-    newParams.flutingDepth = randomInRange(0.02, 0.1); // Fixed: was 0.2-0.8, slider max is 0.15
+    newParams.flutingDepth = randomInRange(0.02, 0.1);
   }
   if (enabledFeatures.has('rimWaves')) {
     newParams.rimWaveCount = randomInt(3, 9);
     newParams.rimWaveDepth = randomInRange(0.03, 0.18);
   }
+  if (enabledFeatures.has('ripples')) {
+    newParams.rippleCount = randomInt(3, 10);
+    newParams.rippleDepth = randomInRange(0.02, 0.06);
+  }
 
-  // Higher chance for organic noise with wider range
+  // ============================================
+  // ORGANIC NOISE (20% chance)
+  // ============================================
   if (randomBool(0.2)) {
     newParams.organicNoise = randomInRange(0.005, 0.03);
     newParams.noiseScale = randomInRange(0.5, 2.5);
@@ -93,6 +147,12 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
     newParams.organicNoise = 0;
     newParams.noiseScale = 1;
   }
+
+  // ============================================
+  // LIP & RIM
+  // ============================================
+  newParams.lipFlare = randomInRange(0, 0.15);
+  newParams.lipHeight = newParams.height * randomInRange(0, 0.05);
 
   return newParams;
 }

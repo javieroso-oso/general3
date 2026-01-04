@@ -6,44 +6,11 @@ export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 // Leg styles for tripod/riser stands
 export type LegStyle = 'tripod' | 'riser' | 'column' | 'bun';
 
-// Wall mount options (simplified - no separate plate needed)
-
-// Attachment types for body-to-stand connection
-export type AttachmentType = 'integrated' | 'screw_m3' | 'screw_m4' | 'bayonet' | 'press_fit';
-
 // Socket mount types for light source
 export type SocketMountType = 'press-fit-ring' | 'led-puck' | 'led-strip' | 'none';
 
 // Bulb socket types
 export type BulbSocketType = 'E26' | 'E12' | 'E14' | 'GU10';
-
-// Screw specifications for M3 and M4
-export const SCREW_SPECS = {
-  m3: {
-    clearanceHole: 3.4,      // mm - hole diameter in base for screw to pass through
-    nutAcrossFlats: 5.5,     // mm - hex nut size
-    nutThickness: 2.4,       // mm - depth of nut recess
-    headDiameter: 5.5,       // mm - screw head diameter
-    headDepth: 3,            // mm - countersink depth
-  },
-  m4: {
-    clearanceHole: 4.5,
-    nutAcrossFlats: 7,
-    nutThickness: 3.2,
-    headDiameter: 7,
-    headDepth: 4,
-  },
-};
-
-// Bayonet lock specifications
-export const BAYONET_SPECS = {
-  tabWidth: 5,              // mm - width of locking tab
-  tabHeight: 3,             // mm - height of tab protrusion
-  tabDepth: 4,              // mm - depth of tab
-  slotLength: 8,            // mm - L-slot vertical portion
-  slotWidth: 5.5,           // mm - slot width (tab width + clearance)
-  rotationAngle: 30,        // degrees - how far to twist to lock
-};
 
 // Socket thread diameters in mm
 export const SOCKET_THREAD_DIAMETERS: Record<BulbSocketType, number> = {
@@ -71,19 +38,6 @@ export interface ParametricParams {
   legTaper: number;           // Taper factor (0-1)
   legInset: number;           // How far inward from edge (0-1)
   
-  // Stand-specific parameters
-  pedestalDiameter: number;   // mm - pedestal base diameter
-  pedestalTaper: number;      // 0-1 - taper from bottom to top
-  pedestalHollow: boolean;    // Hollow for cord routing
-  
-  wireframeRibCount: number;  // 4-8 ribs for wireframe cage
-  wireframeRingCount: number; // 2-4 horizontal rings
-  wireframeThickness: number; // mm - rib/ring thickness
-  
-  pendantCanopyDiameter: number; // mm - ceiling canopy diameter
-  pendantCanopyHeight: number;   // mm - canopy dome height
-  pendantCordLength: number;     // mm - visual cord length in preview
-  
   // Wall mount parameters (planar cut style - no separate plate)
   wallMountCutOffset: number;       // mm - distance from center for cut plane (0 = exact half, positive = keep more)
   wallMountHoleCount: 2 | 3 | 4;    // number of mounting holes on flat back
@@ -99,18 +53,6 @@ export interface ParametricParams {
   wallMountBracketHeight: number;    // mm - bracket height
   wallMountBracketThickness: number; // mm - bracket plate thickness
   wallMountBracketHoleSpacing: number; // mm - spacing between screw holes
-  
-  // Legacy wall bracket (kept for compatibility)
-  wallBracketArmLength: number;  // mm - arm extension from wall
-  wallBracketArmAngle: number;   // degrees - arm angle from horizontal
-  wallBracketPlateSize: number;  // mm - wall plate dimensions
-  
-  ringBaseDiameter: number;      // mm - ring base diameter
-  ringBaseThickness: number;     // mm - ring tube thickness
-  
-  // Body-to-stand attachment
-  attachmentType: AttachmentType;
-  screwCount: 3 | 4;          // Number of screws for screw mount
   
   // Organic deformations
   wobbleFrequency: number;
@@ -135,7 +77,7 @@ export interface ParametricParams {
   organicNoise: number;
   noiseScale: number;
   
-  // Spine-based geometry (replaces drift)
+  // Spine-based geometry
   // The spine is a continuous 3D curve that defines the center-line of the body
   spineEnabled: boolean;
   spineAmplitudeX: number;      // 0-50 mm: maximum lateral displacement in X
@@ -158,9 +100,6 @@ export interface ParametricParams {
   // δx = D × envelope(t) × cos(dragAngle), δz = D × envelope(t) × sin(dragAngle)
   meltDragAmount: number;       // 0-30 mm: how far sideways the top drifts
   meltDragAngle: number;        // 0-1: direction of drag (normalized to 0-2π)
-  
-  // Legacy non-planar drift - kept for compatibility
-  drift: number;  // 0 = perfectly centered, higher = more accumulated offset
   
   // Advanced body customization - Faceting
   facetCount: number;           // 0 = smooth, 6 = hexagonal, 8 = octagonal, etc.
@@ -189,7 +128,6 @@ export interface ParametricParams {
   
   // Base for printing
   baseThickness: number;
-  baseType: 'flat' | 'rounded' | 'pedestal';
   
   // Stand base sizing control
   baseSizeMode: 'auto' | 'tray' | 'custom';  // auto = fit bottom, tray = max radius, custom = user-defined
@@ -217,14 +155,6 @@ export interface ParametricParams {
   // Preview mode
   showBaseOnly: boolean;     // Show only base/legs without body for easier editing
   previewColor: string;      // Hex color for preview rendering
-  
-  // Stacking interface for body-to-body connections
-  stackingEnabled: boolean;
-  topInterface: 'none' | 'male' | 'female';
-  bottomInterface: 'none' | 'male' | 'female';
-  stackingConnectorType: 'press_fit' | 'bayonet';
-  stackingConnectorDiameter: number;  // mm - interface ring diameter
-  stackingConnectorDepth: number;     // mm - how deep the male part inserts
 }
 
 // Print modes
@@ -352,251 +282,118 @@ export const printConstraints = {
   minBaseContactArea: 200,    // mm² for bed adhesion
 };
 
+// Helper to create default params - reduces repetition
+const createDefaultParams = (overrides: Partial<ParametricParams> = {}): ParametricParams => ({
+  height: 120,
+  baseRadius: 40,
+  topRadius: 35,
+  wallThickness: 2.0,
+  addLegs: false,
+  standType: 'tripod',
+  legStyle: 'tripod',
+  legCount: 3,
+  legHeight: 80,
+  legSpread: 25,
+  legThickness: 5,
+  legTaper: 0.5,
+  legInset: 0.3,
+  wallMountCutOffset: 0,
+  wallMountHoleCount: 2,
+  wallMountHoleDiameter: 5,
+  wallMountHoleStyle: 'round',
+  wallMountHoleMargin: 0.15,
+  wallMountCordHoleEnabled: true,
+  wallMountStyle: 'back',
+  wallMountBracketEnabled: false,
+  wallMountBracketWidth: 60,
+  wallMountBracketHeight: 80,
+  wallMountBracketThickness: 5,
+  wallMountBracketHoleSpacing: 50,
+  wobbleFrequency: 0,
+  wobbleAmplitude: 0,
+  twistAngle: 0,
+  bulgePosition: 0.4,
+  bulgeAmount: 0.15,
+  pinchAmount: 0,
+  asymmetry: 0,
+  rippleCount: 0,
+  rippleDepth: 0,
+  lipFlare: 0.08,
+  lipHeight: 0.05,
+  organicNoise: 0,
+  noiseScale: 1,
+  spineEnabled: false,
+  spineAmplitudeX: 0,
+  spineFrequencyX: 2,
+  spinePhaseX: 0,
+  spineAmplitudeZ: 0,
+  spineFrequencyZ: 2,
+  spinePhaseZ: 0.25,
+  meltAmount: 0,
+  meltLobes: 3,
+  meltVariation: 0.3,
+  meltPhase: 0,
+  meltDelay: 0,
+  meltDragAmount: 0,
+  meltDragAngle: 0,
+  facetCount: 0,
+  facetSharpness: 0.5,
+  spiralGrooveCount: 0,
+  spiralGrooveDepth: 0,
+  spiralGrooveTwist: 2,
+  horizontalRibCount: 0,
+  horizontalRibDepth: 0,
+  horizontalRibWidth: 0.3,
+  flutingCount: 0,
+  flutingDepth: 0,
+  rimWaveCount: 0,
+  rimWaveDepth: 0,
+  profileCurve: 'linear',
+  baseThickness: 2.0,
+  baseSizeMode: 'auto',
+  standBaseRadius: 50,
+  standBaseThickness: 3,
+  standBaseTaper: 0,
+  standBaseEdgeStyle: 'flat',
+  standBaseLip: 0,
+  cordHoleEnabled: false,
+  cordHoleDiameter: 8,
+  centeringLipEnabled: false,
+  centeringLipHeight: 3,
+  socketType: 'E26',
+  supportFreeMode: false,
+  showOverhangMap: false,
+  showBaseOnly: false,
+  previewColor: '#e8e8e8',
+  ...overrides,
+});
+
 export const defaultParams: Record<ObjectType, ParametricParams> = {
-  vase: {
-    height: 120,
-    baseRadius: 40,
-    topRadius: 35,
-    wallThickness: 2.0,
-    addLegs: false,
-    standType: 'tripod',
-    legStyle: 'tripod',
-    legCount: 3,
-    legHeight: 80,
-    legSpread: 25,
-    legThickness: 5,
-    legTaper: 0.5,
-    legInset: 0.3,
-    pedestalDiameter: 60,
-    pedestalTaper: 0.3,
-    pedestalHollow: true,
-    wireframeRibCount: 6,
-    wireframeRingCount: 3,
-    wireframeThickness: 4,
-    pendantCanopyDiameter: 80,
-    pendantCanopyHeight: 20,
-    pendantCordLength: 100,
-    wallBracketArmLength: 150,
-    wallBracketArmAngle: 15,
-    wallBracketPlateSize: 80,
-    ringBaseDiameter: 100,
-    ringBaseThickness: 8,
-    attachmentType: 'integrated',
-    screwCount: 3,
-    wobbleFrequency: 0,
-    wobbleAmplitude: 0,
-    twistAngle: 0,
-    bulgePosition: 0.4,
-    bulgeAmount: 0.15,
-    pinchAmount: 0,
-    asymmetry: 0,
-    rippleCount: 0,
-    rippleDepth: 0,
-    lipFlare: 0.08,
-    lipHeight: 0.05,
-    organicNoise: 0,
-    noiseScale: 1,
-    spineEnabled: false,
-    spineAmplitudeX: 0,
-    spineFrequencyX: 2,
-    spinePhaseX: 0,
-    spineAmplitudeZ: 0,
-    spineFrequencyZ: 2,
-    spinePhaseZ: 0.25,
-    meltAmount: 0,
-    meltLobes: 3,
-    meltVariation: 0.3,
-    meltPhase: 0,
-    meltDelay: 0,
-    meltDragAmount: 0,
-    meltDragAngle: 0,
-    drift: 0,
-    facetCount: 0,
-    facetSharpness: 0.5,
-    spiralGrooveCount: 0,
-    spiralGrooveDepth: 0,
-    spiralGrooveTwist: 2,
-    horizontalRibCount: 0,
-    horizontalRibDepth: 0,
-    horizontalRibWidth: 0.3,
-    flutingCount: 0,
-    flutingDepth: 0,
-    rimWaveCount: 0,
-    rimWaveDepth: 0,
-    profileCurve: 'linear',
-    baseThickness: 2.0,
-    baseType: 'flat',
-    baseSizeMode: 'auto',
-    standBaseRadius: 50,
-    standBaseThickness: 3,
-    standBaseTaper: 0,
-    standBaseEdgeStyle: 'flat',
-    standBaseLip: 0,
-    cordHoleEnabled: false,
-    cordHoleDiameter: 8,
-    centeringLipEnabled: false,
-    centeringLipHeight: 3,
-    socketType: 'E26',
-    supportFreeMode: false,
-    showOverhangMap: false,
-    showBaseOnly: false,
-    previewColor: '#e8e8e8',
-    wallMountCutOffset: 0,
-    wallMountHoleCount: 2,
-    wallMountHoleDiameter: 5,
-    wallMountHoleStyle: 'round',
-    wallMountHoleMargin: 0.15,
-    wallMountCordHoleEnabled: true,
-    wallMountStyle: 'back',
-    wallMountBracketEnabled: false,
-    wallMountBracketWidth: 60,
-    wallMountBracketHeight: 80,
-    wallMountBracketThickness: 5,
-    wallMountBracketHoleSpacing: 50,
-    stackingEnabled: false,
-    topInterface: 'none',
-    bottomInterface: 'none',
-    stackingConnectorType: 'press_fit',
-    stackingConnectorDiameter: 15,
-    stackingConnectorDepth: 6,
-  },
-  lamp: {
+  vase: createDefaultParams(),
+  lamp: createDefaultParams({
     height: 100,
     baseRadius: 30,
     topRadius: 60,
     wallThickness: 1.6,
-    addLegs: false,
-    standType: 'tripod',
-    legStyle: 'tripod',
-    legCount: 3,
     legHeight: 100,
     legSpread: 30,
     legThickness: 4,
     legTaper: 0.6,
-    legInset: 0.3,
-    pedestalDiameter: 50,
-    pedestalTaper: 0.2,
-    pedestalHollow: true,
-    wireframeRibCount: 6,
-    wireframeRingCount: 3,
-    wireframeThickness: 3,
-    pendantCanopyDiameter: 80,
-    pendantCanopyHeight: 20,
-    pendantCordLength: 100,
-    wallBracketArmLength: 150,
-    wallBracketArmAngle: 15,
-    wallBracketPlateSize: 80,
-    ringBaseDiameter: 80,
-    ringBaseThickness: 6,
-    attachmentType: 'screw_m3',
-    screwCount: 3,
-    wobbleFrequency: 0,
-    wobbleAmplitude: 0,
-    twistAngle: 0,
     bulgePosition: 0.7,
     bulgeAmount: 0.1,
-    pinchAmount: 0,
-    asymmetry: 0,
-    rippleCount: 0,
-    rippleDepth: 0,
-    lipFlare: 0,
-    lipHeight: 0,
-    organicNoise: 0,
-    noiseScale: 1,
-    spineEnabled: false,
-    spineAmplitudeX: 0,
-    spineFrequencyX: 2,
-    spinePhaseX: 0,
-    spineAmplitudeZ: 0,
-    spineFrequencyZ: 2,
-    spinePhaseZ: 0.25,
-    meltAmount: 0,
-    meltLobes: 3,
-    meltVariation: 0.3,
-    meltPhase: 0,
-    meltDelay: 0,
-    meltDragAmount: 0,
-    meltDragAngle: 0,
-    drift: 0,
-    facetCount: 0,
-    facetSharpness: 0.5,
-    spiralGrooveCount: 0,
-    spiralGrooveDepth: 0,
-    spiralGrooveTwist: 2,
-    horizontalRibCount: 0,
-    horizontalRibDepth: 0,
-    horizontalRibWidth: 0.3,
-    flutingCount: 0,
-    flutingDepth: 0,
-    rimWaveCount: 0,
-    rimWaveDepth: 0,
-    profileCurve: 'linear',
-    baseThickness: 2.4,
-    baseType: 'flat',
-    baseSizeMode: 'auto',
-    standBaseRadius: 50,
-    standBaseThickness: 3,
-    standBaseTaper: 0,
-    standBaseEdgeStyle: 'flat',
-    standBaseLip: 0,
     cordHoleEnabled: true,
-    cordHoleDiameter: 8,
     centeringLipEnabled: true,
-    centeringLipHeight: 3,
-    socketType: 'E26',
-    supportFreeMode: false,
-    showOverhangMap: false,
-    showBaseOnly: false,
-    previewColor: '#e8e8e8',
-    wallMountCutOffset: 0,
-    wallMountHoleCount: 2,
-    wallMountHoleDiameter: 5,
-    wallMountHoleStyle: 'round',
-    wallMountHoleMargin: 0.15,
-    wallMountCordHoleEnabled: true,
-    wallMountStyle: 'back',
-    wallMountBracketEnabled: false,
-    wallMountBracketWidth: 60,
-    wallMountBracketHeight: 80,
-    wallMountBracketThickness: 5,
-    wallMountBracketHoleSpacing: 50,
-    stackingEnabled: false,
-    topInterface: 'none',
-    bottomInterface: 'none',
-    stackingConnectorType: 'press_fit',
-    stackingConnectorDiameter: 15,
-    stackingConnectorDepth: 6,
-  },
-  sculpture: {
+  }),
+  sculpture: createDefaultParams({
     height: 150,
     baseRadius: 35,
     topRadius: 25,
     wallThickness: 3.0,
-    addLegs: false,
-    standType: 'tripod',
-    legStyle: 'tripod',
     legCount: 4,
     legHeight: 60,
     legSpread: 20,
     legThickness: 6,
     legTaper: 0.4,
-    legInset: 0.3,
-    pedestalDiameter: 70,
-    pedestalTaper: 0.15,
-    pedestalHollow: false,
-    wireframeRibCount: 8,
-    wireframeRingCount: 3,
-    wireframeThickness: 5,
-    pendantCanopyDiameter: 100,
-    pendantCanopyHeight: 25,
-    pendantCordLength: 150,
-    wallBracketArmLength: 200,
-    wallBracketArmAngle: 10,
-    wallBracketPlateSize: 100,
-    ringBaseDiameter: 100,
-    ringBaseThickness: 8,
-    attachmentType: 'integrated',
-    screwCount: 4,
     wobbleFrequency: 3,
     wobbleAmplitude: 0.08,
     twistAngle: 30,
@@ -604,76 +401,14 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     bulgeAmount: 0.25,
     pinchAmount: 0.05,
     asymmetry: 0.05,
-    rippleCount: 0,
-    rippleDepth: 0,
     lipFlare: 0,
     lipHeight: 0,
     organicNoise: 0.03,
     noiseScale: 2,
-    spineEnabled: false,
-    spineAmplitudeX: 0,
-    spineFrequencyX: 2,
-    spinePhaseX: 0,
-    spineAmplitudeZ: 0,
-    spineFrequencyZ: 2,
-    spinePhaseZ: 0.25,
-    meltAmount: 0,
-    meltLobes: 3,
-    meltVariation: 0.3,
-    meltPhase: 0,
-    meltDelay: 0,
-    meltDragAmount: 0,
-    meltDragAngle: 0,
-    drift: 0,
-    facetCount: 0,
-    facetSharpness: 0.5,
-    spiralGrooveCount: 0,
-    spiralGrooveDepth: 0,
-    spiralGrooveTwist: 2,
-    horizontalRibCount: 0,
-    horizontalRibDepth: 0,
-    horizontalRibWidth: 0.3,
-    flutingCount: 0,
-    flutingDepth: 0,
-    rimWaveCount: 0,
-    rimWaveDepth: 0,
-    profileCurve: 'linear',
-    baseThickness: 3.0,
-    baseType: 'pedestal',
-    baseSizeMode: 'auto',
-    standBaseRadius: 50,
-    standBaseThickness: 3,
-    standBaseTaper: 0,
-    standBaseEdgeStyle: 'flat',
-    standBaseLip: 0,
-    cordHoleEnabled: false,
-    cordHoleDiameter: 8,
-    centeringLipEnabled: false,
-    centeringLipHeight: 3,
-    socketType: 'E26',
-    supportFreeMode: false,
-    showOverhangMap: false,
-    showBaseOnly: false,
-    previewColor: '#e8e8e8',
-    wallMountCutOffset: 0,
-    wallMountHoleCount: 2,
-    wallMountHoleDiameter: 5,
-    wallMountHoleStyle: 'round',
-    wallMountHoleMargin: 0.15,
+    baseThickness: 2.4,
     wallMountCordHoleEnabled: false,
-    wallMountStyle: 'back',
-    wallMountBracketEnabled: false,
-    wallMountBracketWidth: 60,
-    wallMountBracketHeight: 80,
-    wallMountBracketThickness: 5,
-    wallMountBracketHoleSpacing: 50,
-    stackingEnabled: false,
-    topInterface: 'none',
-    bottomInterface: 'none',
-    stackingConnectorType: 'press_fit',
-    stackingConnectorDiameter: 15,
-    stackingConnectorDepth: 6,
-  },
+    cordHoleEnabled: false,
+  }),
 };
 
 export const presets: Preset[] = [
@@ -781,7 +516,6 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     centerOfMass: { x: 0, y: params.height * 0.4, z: 0 },
     needsSupport,
     guaranteedSupportFree,
-    // nonPlanarAnalysis is added separately by the component when in non-planar mode
   };
 }
 
