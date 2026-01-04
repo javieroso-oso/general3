@@ -22,8 +22,9 @@ import {
 } from '@/types/parametric';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode } from '@/lib/stl-export';
+import { downloadMoldSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -156,6 +157,24 @@ const Index = () => {
     downloadGCode(params, objectType, printSettings, filename);
     toast.success('G-code exported!', { description: filename });
   }, [params, objectType, printSettings, analysis.isValid]);
+
+  const handleExportMoldA = useCallback(() => {
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    downloadMoldSTL(params, objectType, 'A', baseName);
+    toast.success('Mold Half A exported!');
+  }, [params, objectType]);
+
+  const handleExportMoldB = useCallback(() => {
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    downloadMoldSTL(params, objectType, 'B', baseName);
+    toast.success('Mold Half B exported!');
+  }, [params, objectType]);
+
+  const handleExportBothMolds = useCallback(() => {
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    downloadMoldSTL(params, objectType, 'both', baseName);
+    toast.success('Both mold halves exported!');
+  }, [params, objectType]);
 
   return (
     <Layout showFooter={false}>
@@ -495,42 +514,77 @@ const Index = () => {
 
             {/* Export buttons */}
             <div className="flex gap-2 flex-wrap">
-              <KeepButton
-                params={params}
-                objectType={objectType}
-                onKeep={handleKeepToDrawer}
-              />
-              <Button 
-                onClick={handleExportBody} 
-                disabled={!analysis.isValid}
-                className="flex-1 gap-2"
-                size="lg"
-              >
-                <Download className="w-5 h-5" />
-                Body STL
-              </Button>
-              {params.addLegs && (
-                <Button 
-                  onClick={handleExportLegsBase} 
-                  disabled={!analysis.isValid}
-                  variant="secondary"
-                  className="flex-1 gap-2"
-                  size="lg"
-                >
-                  <Download className="w-5 h-5" />
-                  Legs + Base
-                </Button>
+              {params.moldEnabled ? (
+                <>
+                  {/* Mold export buttons */}
+                  <Button 
+                    onClick={handleExportMoldA}
+                    className="flex-1 gap-2"
+                    size="lg"
+                  >
+                    <FlaskConical className="w-5 h-5" />
+                    Mold A
+                  </Button>
+                  <Button 
+                    onClick={handleExportMoldB}
+                    variant="secondary"
+                    className="flex-1 gap-2"
+                    size="lg"
+                  >
+                    <FlaskConical className="w-5 h-5" />
+                    Mold B
+                  </Button>
+                  <Button 
+                    onClick={handleExportBothMolds}
+                    variant="outline"
+                    className="gap-2"
+                    size="lg"
+                  >
+                    <Download className="w-5 h-5" />
+                    Both
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {/* Standard export buttons */}
+                  <KeepButton
+                    params={params}
+                    objectType={objectType}
+                    onKeep={handleKeepToDrawer}
+                  />
+                  <Button 
+                    onClick={handleExportBody} 
+                    disabled={!analysis.isValid}
+                    className="flex-1 gap-2"
+                    size="lg"
+                  >
+                    <Download className="w-5 h-5" />
+                    Body STL
+                  </Button>
+                  {params.addLegs && (
+                    <Button 
+                      onClick={handleExportLegsBase} 
+                      disabled={!analysis.isValid}
+                      variant="secondary"
+                      className="flex-1 gap-2"
+                      size="lg"
+                    >
+                      <Download className="w-5 h-5" />
+                      Legs + Base
+                    </Button>
+                  )}
+                  <Button 
+                    onClick={handleExportGCode} 
+                    disabled={!analysis.isValid}
+                    variant="outline"
+                    className="gap-2"
+                    size="lg"
+                  >
+                    <FileCode className="w-5 h-5" />
+                    G-code
+                  </Button>
+                </>
               )}
-              <Button 
-                onClick={handleExportGCode} 
-                disabled={!analysis.isValid}
-                variant="outline"
-                className="gap-2"
-                size="lg"
-              >
-                <FileCode className="w-5 h-5" />
-                G-code
-              </Button>
             </div>
           </div>
         </motion.div>

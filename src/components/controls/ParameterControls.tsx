@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -1163,6 +1163,115 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
             onCheckedChange={handleOverhangMapToggle}
           />
         </div>
+      </div>
+      
+      {/* 8. Mold Generation */}
+      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FlaskConical className={cn("w-4 h-4", params.moldEnabled ? "text-amber-500" : "text-muted-foreground")} />
+            <Label htmlFor="mold-enabled" className="text-sm font-medium">Ceramic Mold</Label>
+          </div>
+          <Switch 
+            id="mold-enabled" 
+            checked={params.moldEnabled} 
+            onCheckedChange={(enabled) => {
+              onParamsChange({ ...params, moldEnabled: enabled });
+              if (enabled) {
+                toast.success('Mold generation enabled', { description: 'Preview shows 2-part mold halves' });
+              }
+            }}
+          />
+        </div>
+        
+        {params.moldEnabled && (
+          <div className="space-y-3 pt-2 border-t border-border/50">
+            <div className="text-xs text-muted-foreground bg-amber-500/10 p-2 rounded border border-amber-500/30">
+              Generates 2-part slip-casting mold. Export as separate STL files for 3D printing.
+            </div>
+            
+            <ParameterSlider
+              label="Wall Thickness"
+              value={params.moldWallThickness}
+              min={15}
+              max={50}
+              step={1}
+              unit="mm"
+              onChange={handleChange('moldWallThickness')}
+            />
+            
+            <ParameterSlider
+              label="Base Thickness"
+              value={params.moldBaseThickness}
+              min={10}
+              max={30}
+              step={1}
+              unit="mm"
+              onChange={handleChange('moldBaseThickness')}
+            />
+            
+            <ParameterSlider
+              label="Pour Hole Ø"
+              value={params.moldPourHoleDiameter}
+              min={15}
+              max={40}
+              step={1}
+              unit="mm"
+              onChange={handleChange('moldPourHoleDiameter')}
+            />
+            
+            <Subsection title="Registration Keys">
+              <ParameterSlider
+                label="Key Size"
+                value={params.moldRegistrationKeySize}
+                min={5}
+                max={15}
+                step={1}
+                unit="mm"
+                onChange={handleChange('moldRegistrationKeySize')}
+              />
+              <ParameterSlider
+                label="Key Count"
+                value={params.moldRegistrationKeyCount}
+                min={2}
+                max={6}
+                step={1}
+                onChange={handleChange('moldRegistrationKeyCount')}
+              />
+            </Subsection>
+            
+            <Subsection title="Split & Draft">
+              <ParameterSlider
+                label="Split Rotation"
+                value={params.moldSplitAngle}
+                min={0}
+                max={180}
+                step={5}
+                unit="°"
+                onChange={handleChange('moldSplitAngle')}
+              />
+              <ParameterSlider
+                label="Draft Angle"
+                value={params.moldDraftAngle}
+                min={0}
+                max={5}
+                step={0.5}
+                unit="°"
+                onChange={handleChange('moldDraftAngle')}
+              />
+            </Subsection>
+            
+            <ParameterSlider
+              label="Preview Gap"
+              value={params.moldGap}
+              min={0}
+              max={20}
+              step={1}
+              unit="mm"
+              onChange={handleChange('moldGap')}
+            />
+          </div>
+        )}
       </div>
     </motion.div>
   );
