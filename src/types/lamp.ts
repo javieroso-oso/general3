@@ -430,6 +430,8 @@ export const defaultLampParams: LampParams = {
   meltLobes: 3,
   meltVariation: 0.3,
   meltPhase: 0,
+  meltDragAmount: 0,
+  meltDragAngle: 0,
   drift: 0,
   facetCount: 0,
   facetSharpness: 0.5,

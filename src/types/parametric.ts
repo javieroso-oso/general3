@@ -152,6 +152,11 @@ export interface ParametricParams {
   meltVariation: number;        // 0-1: amplitude of angular variation (α)
   meltPhase: number;            // 0-1: phase offset for angular variation
   
+  // Lateral drag: sideways drift proportional to melt, simulating flow
+  // δx = D × t² × cos(dragAngle), δz = D × t² × sin(dragAngle)
+  meltDragAmount: number;       // 0-30 mm: how far sideways the top drifts
+  meltDragAngle: number;        // 0-1: direction of drag (normalized to 0-2π)
+  
   // Legacy non-planar drift - kept for compatibility
   drift: number;  // 0 = perfectly centered, higher = more accumulated offset
   
@@ -400,6 +405,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     meltLobes: 3,
     meltVariation: 0.3,
     meltPhase: 0,
+    meltDragAmount: 0,
+    meltDragAngle: 0,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
@@ -504,6 +511,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     meltLobes: 3,
     meltVariation: 0.3,
     meltPhase: 0,
+    meltDragAmount: 0,
+    meltDragAngle: 0,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,
@@ -608,6 +617,8 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     meltLobes: 3,
     meltVariation: 0.3,
     meltPhase: 0,
+    meltDragAmount: 0,
+    meltDragAngle: 0,
     drift: 0,
     facetCount: 0,
     facetSharpness: 0.5,

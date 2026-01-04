@@ -493,14 +493,27 @@ const ParametricMesh = ({
         const meltVariation = params.meltVariation || 0;
         const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
         
-        if (meltAmount > 0) {
-          // t² gives smooth acceleration - more droop at top
+        // Lateral drag: sideways drift proportional to melt
+        // δx = D × t² × cos(dragAngle), δz = D × t² × sin(dragAngle)
+        const meltDragAmount = (params.meltDragAmount || 0) * SCALE;
+        const meltDragAngle = (params.meltDragAngle || 0) * Math.PI * 2;
+        
+        if (meltAmount > 0 || meltDragAmount > 0) {
+          // t² gives smooth acceleration - more effect at top, zero at base
           const heightFactor = t * t;
-          // Angular variation: 1 + α × sin(nθ + φ)
-          // When α=0, uniform droop; when α>0, creates lobes
-          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
-          // Apply negative Y offset (droop downward)
-          finalY -= meltAmount * heightFactor * angularFactor;
+          
+          // Vertical melt
+          if (meltAmount > 0) {
+            // Angular variation: 1 + α × sin(nθ + φ)
+            const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+            finalY -= meltAmount * heightFactor * angularFactor;
+          }
+          
+          // Lateral drag: fixed direction, proportional to height²
+          if (meltDragAmount > 0) {
+            x += meltDragAmount * heightFactor * Math.cos(meltDragAngle);
+            z += meltDragAmount * heightFactor * Math.sin(meltDragAngle);
+          }
         }
         
         // Rim waves: modify Y position for top rows (applies to both modes)
