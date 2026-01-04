@@ -484,6 +484,25 @@ const ParametricMesh = ({
           finalY = y;
         }
         
+        // Melt effect: vertical offset simulating gravity pulling softened material
+        // δy(t, θ) = -M × t² × (1 + α × sin(nθ + φ))
+        // - Zero at base (t=0), increases smoothly toward top (t=1)
+        // - Angular variation creates lobes of heavier droop
+        const meltAmount = (params.meltAmount || 0) * SCALE;
+        const meltLobes = params.meltLobes || 0;
+        const meltVariation = params.meltVariation || 0;
+        const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+        
+        if (meltAmount > 0) {
+          // t² gives smooth acceleration - more droop at top
+          const heightFactor = t * t;
+          // Angular variation: 1 + α × sin(nθ + φ)
+          // When α=0, uniform droop; when α>0, creates lobes
+          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+          // Apply negative Y offset (droop downward)
+          finalY -= meltAmount * heightFactor * angularFactor;
+        }
+        
         // Rim waves: modify Y position for top rows (applies to both modes)
         if (rimWaveCount > 0 && rimWaveDepth > 0) {
           const rimZone = 0.1; // Top 10% of height

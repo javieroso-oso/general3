@@ -357,6 +357,52 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         )}
       </Section>
 
+      {/* 4c. Melt Effect */}
+      <Section title="Melt Effect" defaultOpen={false}>
+        <ParameterSlider
+          label="Melt Amount"
+          value={params.meltAmount}
+          min={0}
+          max={30}
+          step={1}
+          unit="mm"
+          onChange={handleChange('meltAmount')}
+        />
+        
+        {params.meltAmount > 0 && (
+          <>
+            <ParameterSlider
+              label="Melt Lobes"
+              value={params.meltLobes}
+              min={0}
+              max={8}
+              step={1}
+              onChange={handleChange('meltLobes')}
+            />
+            <ParameterSlider
+              label="Lobe Variation"
+              value={params.meltVariation}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={handleChange('meltVariation')}
+            />
+            <ParameterSlider
+              label="Lobe Phase"
+              value={params.meltPhase}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={handleChange('meltPhase')}
+            />
+          </>
+        )}
+        
+        <p className="text-xs text-muted-foreground mt-2">
+          Simulates gravity pulling softened material downward. Offset is zero at base, increases toward top.
+        </p>
+      </Section>
+
       {/* 5. Surface Details */}
       <Section title="Surface Details" defaultOpen={false}>
         <ParameterSlider

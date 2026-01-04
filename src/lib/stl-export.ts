@@ -417,6 +417,18 @@ export function generateBodyMesh(
         finalY = y;
       }
       
+      // Melt effect: vertical offset simulating gravity pulling softened material
+      const meltAmount = params.meltAmount || 0;
+      const meltLobes = params.meltLobes || 0;
+      const meltVariation = params.meltVariation || 0;
+      const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+      
+      if (meltAmount > 0) {
+        const heightFactor = t * t;
+        const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+        finalY -= meltAmount * heightFactor * angularFactor;
+      }
+      
       outerVerts.push(x, finalY, z);
     }
   }
@@ -448,6 +460,18 @@ export function generateBodyMesh(
         x = Math.cos(theta) * r;
         z = Math.sin(theta) * r;
         finalY = y;
+      }
+      
+      // Melt effect for inner wall (same as outer)
+      const meltAmount = params.meltAmount || 0;
+      const meltLobes = params.meltLobes || 0;
+      const meltVariation = params.meltVariation || 0;
+      const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+      
+      if (meltAmount > 0) {
+        const heightFactor = t * t;
+        const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+        finalY -= meltAmount * heightFactor * angularFactor;
       }
       
       innerVerts.push(x, finalY, z);
