@@ -395,6 +395,17 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               step={0.05}
               onChange={handleChange('meltPhase')}
             />
+            <ParameterSlider
+              label="Melt Delay"
+              value={params.meltDelay}
+              min={0}
+              max={0.8}
+              step={0.05}
+              onChange={handleChange('meltDelay')}
+            />
+            <p className="text-xs text-muted-foreground">
+              Delay controls where melt begins. Higher values keep lower layers rigid.
+            </p>
           </>
         )}
         

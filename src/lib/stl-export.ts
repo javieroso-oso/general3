@@ -417,25 +417,31 @@ export function generateBodyMesh(
         finalY = y;
       }
       
-      // Melt effect: vertical offset + lateral drag
+      // Melt effect: vertical offset + lateral drag with delay envelope
       const meltAmount = params.meltAmount || 0;
       const meltLobes = params.meltLobes || 0;
       const meltVariation = params.meltVariation || 0;
       const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+      const meltDelay = Math.min(params.meltDelay || 0, 0.8);
       const meltDragAmount = params.meltDragAmount || 0;
       const meltDragAngle = (params.meltDragAngle || 0) * Math.PI * 2;
       
       if (meltAmount > 0 || meltDragAmount > 0) {
-        const heightFactor = t * t;
-        
-        if (meltAmount > 0) {
-          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
-          finalY -= meltAmount * heightFactor * angularFactor;
+        // Height-based envelope with delay
+        let envelope = 0;
+        if (t > meltDelay) {
+          const remappedT = (t - meltDelay) / (1 - meltDelay);
+          envelope = remappedT * remappedT;
         }
         
-        if (meltDragAmount > 0) {
-          x += meltDragAmount * heightFactor * Math.cos(meltDragAngle);
-          z += meltDragAmount * heightFactor * Math.sin(meltDragAngle);
+        if (meltAmount > 0 && envelope > 0) {
+          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+          finalY -= meltAmount * envelope * angularFactor;
+        }
+        
+        if (meltDragAmount > 0 && envelope > 0) {
+          x += meltDragAmount * envelope * Math.cos(meltDragAngle);
+          z += meltDragAmount * envelope * Math.sin(meltDragAngle);
         }
       }
       
@@ -472,25 +478,31 @@ export function generateBodyMesh(
         finalY = y;
       }
       
-      // Melt effect for inner wall: vertical offset + lateral drag
+      // Melt effect for inner wall: vertical offset + lateral drag with delay envelope
       const meltAmount = params.meltAmount || 0;
       const meltLobes = params.meltLobes || 0;
       const meltVariation = params.meltVariation || 0;
       const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+      const meltDelay = Math.min(params.meltDelay || 0, 0.8);
       const meltDragAmount = params.meltDragAmount || 0;
       const meltDragAngle = (params.meltDragAngle || 0) * Math.PI * 2;
       
       if (meltAmount > 0 || meltDragAmount > 0) {
-        const heightFactor = t * t;
-        
-        if (meltAmount > 0) {
-          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
-          finalY -= meltAmount * heightFactor * angularFactor;
+        // Height-based envelope with delay
+        let envelope = 0;
+        if (t > meltDelay) {
+          const remappedT = (t - meltDelay) / (1 - meltDelay);
+          envelope = remappedT * remappedT;
         }
         
-        if (meltDragAmount > 0) {
-          x += meltDragAmount * heightFactor * Math.cos(meltDragAngle);
-          z += meltDragAmount * heightFactor * Math.sin(meltDragAngle);
+        if (meltAmount > 0 && envelope > 0) {
+          const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+          finalY -= meltAmount * envelope * angularFactor;
+        }
+        
+        if (meltDragAmount > 0 && envelope > 0) {
+          x += meltDragAmount * envelope * Math.cos(meltDragAngle);
+          z += meltDragAmount * envelope * Math.sin(meltDragAngle);
         }
       }
       
