@@ -1028,6 +1028,7 @@ export function generateLegsWithBaseMesh(
       taper: params.standBaseTaper || 0,
       edgeStyle: params.standBaseEdgeStyle || 'flat',
       lip: params.standBaseLip || 0,
+      lipThickness: params.standBaseLipThickness || 2,
     },
     params.legStyle // Pass the leg style
   );

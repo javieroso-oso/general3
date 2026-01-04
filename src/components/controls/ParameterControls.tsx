@@ -933,14 +933,26 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   </div>
                   
                   <ParameterSlider
-                    label="Lip"
+                    label="Lip Height"
                     value={params.standBaseLip}
                     min={0}
-                    max={10}
+                    max={15}
                     step={0.5}
                     unit="mm"
                     onChange={handleChange('standBaseLip')}
                   />
+                  
+                  {params.standBaseLip > 0 && (
+                    <ParameterSlider
+                      label="Lip Thickness"
+                      value={params.standBaseLipThickness}
+                      min={1.5}
+                      max={8}
+                      step={0.5}
+                      unit="mm"
+                      onChange={handleChange('standBaseLipThickness')}
+                    />
+                  )}
                   
                   <div className="flex items-center justify-between pt-2 border-t border-border/30">
                     <div className="flex items-center gap-2">

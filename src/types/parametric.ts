@@ -138,6 +138,7 @@ export interface ParametricParams {
   standBaseTaper: number;           // 0-0.5 - taper from bottom to top
   standBaseEdgeStyle: 'flat' | 'rounded' | 'chamfer';  // edge profile style
   standBaseLip: number;             // mm - raised lip height around edge (0-10mm)
+  standBaseLipThickness: number;    // mm - lip wall thickness (1.5-8mm)
   
   // Cord exit hole in base (for lamp wiring)
   cordHoleEnabled: boolean;     // Toggle cord exit hole
@@ -356,6 +357,7 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   standBaseTaper: 0,
   standBaseEdgeStyle: 'flat',
   standBaseLip: 0,
+  standBaseLipThickness: 2,
   cordHoleEnabled: false,
   cordHoleDiameter: 8,
   centeringLipEnabled: false,

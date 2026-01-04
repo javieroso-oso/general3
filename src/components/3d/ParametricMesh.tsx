@@ -974,6 +974,7 @@ const ParametricMesh = ({
           taper: params.standBaseTaper,
           edgeStyle: params.standBaseEdgeStyle,
           lip: params.standBaseLip,
+          lipThickness: params.standBaseLipThickness,
         },
         params.legStyle || 'tripod',
         useBottomRadii ? bottomRadiiArray : undefined // Only use exact body shape for 'auto' mode
@@ -1006,6 +1007,7 @@ const ParametricMesh = ({
           taper: params.standBaseTaper,
           edgeStyle: params.standBaseEdgeStyle,
           lip: params.standBaseLip,
+          lipThickness: params.standBaseLipThickness,
         }
       );
       baseMountGeoMM.scale(SCALE, SCALE, SCALE);
