@@ -922,6 +922,8 @@ const ParametricMesh = ({
     const maxRadiusMM = maxRadius / SCALE;
     
     let effectiveBaseRadius: number;
+    let useBottomRadii = false; // Only use exact body shape for 'auto' mode
+    
     switch (params.baseSizeMode) {
       case 'tray':
         effectiveBaseRadius = maxRadiusMM;
@@ -932,6 +934,7 @@ const ParametricMesh = ({
       case 'auto':
       default:
         effectiveBaseRadius = bottomRadiusMM;
+        useBottomRadii = true; // Match exact body shape
         break;
     }
     
@@ -973,7 +976,7 @@ const ParametricMesh = ({
           lip: params.standBaseLip,
         },
         params.legStyle || 'tripod',
-        bottomRadiiArray // Pass actual bottom radii from body generation
+        useBottomRadii ? bottomRadiiArray : undefined // Only use exact body shape for 'auto' mode
       );
       legGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = legGeoMM;
