@@ -52,8 +52,8 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
   // ============================================
   if (randomBool(0.2)) {
     newParams.spineEnabled = true;
-    newParams.spineAmplitudeX = randomInRange(5, 25);
-    newParams.spineAmplitudeZ = randomInRange(5, 25);
+    newParams.spineAmplitudeX = randomInRange(2, 10);
+    newParams.spineAmplitudeZ = randomInRange(2, 10);
     newParams.spineFrequencyX = randomInRange(1, 3);
     newParams.spineFrequencyZ = randomInRange(1, 3);
     newParams.spinePhaseX = randomInRange(0, 1);
