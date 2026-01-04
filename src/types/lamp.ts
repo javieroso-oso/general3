@@ -467,6 +467,7 @@ export const defaultLampParams: LampParams = {
   moldSplitAngle: 0,
   moldDraftAngle: 2,
   moldGap: 10,
+  moldOffset: 0.5,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   

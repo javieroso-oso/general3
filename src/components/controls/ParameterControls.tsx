@@ -1262,6 +1262,19 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
             </Subsection>
             
             <ParameterSlider
+              label="Mold Offset"
+              value={params.moldOffset}
+              min={0}
+              max={2}
+              step={0.1}
+              unit="mm"
+              onChange={handleChange('moldOffset')}
+            />
+            <div className="text-xs text-muted-foreground -mt-2">
+              Gap for clay shrinkage compensation
+            </div>
+            
+            <ParameterSlider
               label="Preview Gap"
               value={params.moldGap}
               min={0}
