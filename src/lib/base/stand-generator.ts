@@ -101,9 +101,11 @@ function createBaseDisc(
   
   // Add lip if specified
   if (lip > 0) {
+    // Lip thickness scales with height (min 1.5mm, or 40% of lip height)
+    const lipThickness = Math.max(1.5, lip * 0.4);
     shape.lineTo(radius, lip);
-    shape.lineTo(radius - 1.5, lip);
-    shape.lineTo(radius - 1.5, 0);
+    shape.lineTo(radius - lipThickness, lip);
+    shape.lineTo(radius - lipThickness, 0);
   }
   
   shape.lineTo(0, 0);
