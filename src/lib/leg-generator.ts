@@ -27,6 +27,7 @@ export interface PedestalParams {
   edgeStyle: 'flat' | 'rounded' | 'chamfer';  // edge profile style
   lip: number;             // mm - raised lip height around edge (0-10mm)
   lipThickness?: number;   // mm - lip wall thickness (1.5-8mm)
+  lipEdgeStyle?: 'flat' | 'rounded' | 'chamfer';  // lip top edge profile
 }
 
 /**
@@ -632,6 +633,7 @@ function createBaseDisc(
   const taper = pedestalParams?.taper ?? 0;
   const lip = pedestalParams?.lip ?? 0;
   const edgeStyle = pedestalParams?.edgeStyle ?? 'flat';
+  const lipEdgeStyle = pedestalParams?.lipEdgeStyle ?? 'flat';
   const bottomRadius = radius * (1 - taper);
   
   // Lip is a raised rim at the outer edge
@@ -641,6 +643,7 @@ function createBaseDisc(
   
   // Edge style dimensions
   const edgeSize = Math.min(2, thickness * 0.4);
+  const lipEdgeSize = Math.min(1, lipWidth * 0.3); // Smaller edge for lip top
   const roundedSteps = 4;
   
   const cordHoleEnabled = socketParams?.cordHoleEnabled ?? false;
@@ -749,6 +752,50 @@ function createBaseDisc(
     
     return rings;
   };
+  
+  // Generate lip inner edge profile (chamfer/rounded on inner edge of lip top)
+  const generateLipInnerEdge = (baseY: number, outerRadiusFn: (theta: number) => number, innerRadiusFn: (theta: number) => number): {
+    outerRing: number;
+    innerRing: number;
+    edgeRings: number[];
+  } => {
+    if (lipEdgeStyle === 'flat') {
+      // Simple flat top
+      return {
+        outerRing: addRing(outerRadiusFn, baseY),
+        innerRing: addRing(innerRadiusFn, baseY),
+        edgeRings: []
+      };
+    } else if (lipEdgeStyle === 'chamfer') {
+      // Chamfered inner edge
+      const outerRing = addRing(outerRadiusFn, baseY);
+      const chamferOuter = addRing(
+        (theta) => innerRadiusFn(theta) + lipEdgeSize,
+        baseY
+      );
+      const innerRing = addRing(innerRadiusFn, baseY - lipEdgeSize);
+      return { outerRing, innerRing, edgeRings: [chamferOuter] };
+    } else {
+      // Rounded inner edge
+      const outerRing = addRing(outerRadiusFn, baseY);
+      const edgeRings: number[] = [];
+      
+      for (let step = 0; step <= roundedSteps; step++) {
+        const angle = (step / roundedSteps) * (Math.PI / 2);
+        const rOffset = lipEdgeSize * Math.cos(angle);
+        const yOffset = lipEdgeSize * Math.sin(angle);
+        
+        const ring = addRing(
+          (theta) => innerRadiusFn(theta) + rOffset,
+          baseY - yOffset
+        );
+        edgeRings.push(ring);
+      }
+      
+      const innerRing = edgeRings[edgeRings.length - 1];
+      return { outerRing, innerRing, edgeRings: edgeRings.slice(0, -1) };
+    }
+  };
 
   // Top height (lip or flat)
   const topY = lip > 0 ? lip : 0;
@@ -757,21 +804,44 @@ function createBaseDisc(
     // === WITH CORD HOLE ===
     
     if (lip > 0) {
-      // Lip top outer
-      const lipTopOuter = addRing(getOuterRadius, topY);
-      // Lip top inner
-      const lipTopInner = addRing(getInnerLipRadius, topY);
+      // Generate lip top with edge styling
+      const lipTop = generateLipInnerEdge(topY, getOuterRadius, getInnerLipRadius);
+      
       // Connect lip top surface
-      connectRings(lipTopOuter, lipTopInner);
+      if (lipTop.edgeRings.length > 0) {
+        // Connect outer to first edge ring
+        connectRings(lipTop.outerRing, lipTop.edgeRings[0]);
+        // Connect edge rings
+        for (let i = 0; i < lipTop.edgeRings.length - 1; i++) {
+          connectRings(lipTop.edgeRings[i], lipTop.edgeRings[i + 1]);
+        }
+        // Connect last edge ring to inner
+        connectRings(lipTop.edgeRings[lipTop.edgeRings.length - 1], lipTop.innerRing);
+      } else {
+        // Flat - direct connection
+        connectRings(lipTop.outerRing, lipTop.innerRing);
+      }
       
-      // Lip inner wall bottom
-      const lipInnerBottom = addRing(getInnerLipRadius, 0);
-      // Connect inner lip wall
-      connectRings(lipTopInner, lipInnerBottom, true);
+      // Platform surface height (where inner lip bottom meets platform)
+      const platformY = lipEdgeStyle === 'flat' ? 0 : (lipEdgeStyle === 'chamfer' ? -lipEdgeSize : -lipEdgeSize);
+      const adjustedPlatformY = Math.max(platformY, -thickness * 0.5); // Don't go below half thickness
       
-      // Platform surface (from lip inner to cord hole)
-      const platformInner = addRing(() => cordHoleRadius, 0);
-      connectRings(lipInnerBottom, platformInner);
+      // Track platform inner ring for cord hole wall
+      let platformInnerRing: number;
+      
+      // Lip inner wall to platform (if flat, wall goes to 0; if styled, inner ring is already lower)
+      if (lipEdgeStyle === 'flat') {
+        const lipInnerBottom = addRing(getInnerLipRadius, 0);
+        connectRings(lipTop.innerRing, lipInnerBottom, true);
+        // Platform surface (from lip inner to cord hole)
+        platformInnerRing = addRing(() => cordHoleRadius, 0);
+        connectRings(lipInnerBottom, platformInnerRing);
+      } else {
+        // Inner ring is already at the lower Y from edge styling
+        // Connect to platform at same height
+        platformInnerRing = addRing(() => cordHoleRadius, adjustedPlatformY);
+        connectRings(lipTop.innerRing, platformInnerRing);
+      }
       
       // Bottom surface
       const bottomOuter = addRing(getBottomRadius, -thickness);
@@ -780,15 +850,15 @@ function createBaseDisc(
       
       // Outer wall with edge style
       if (edgeStyle === 'flat') {
-        connectRings(lipTopOuter, bottomOuter);
+        connectRings(lipTop.outerRing, bottomOuter);
       } else {
         const edgeRings = generateEdgeRings(topY, getOuterRadius);
         if (edgeRings.length >= 2 && edgeStyle === 'chamfer') {
-          connectRings(lipTopOuter, edgeRings[1]); // to corner
+          connectRings(lipTop.outerRing, edgeRings[1]); // to corner
           connectRings(edgeRings[1], edgeRings[0]); // corner to chamfer bottom
           connectRings(edgeRings[0], bottomOuter);  // chamfer bottom to bottom
         } else if (edgeRings.length > 0 && edgeStyle === 'rounded') {
-          let prevRing = lipTopOuter;
+          let prevRing = lipTop.outerRing;
           for (const ring of edgeRings) {
             connectRings(prevRing, ring);
             prevRing = ring;
@@ -798,7 +868,7 @@ function createBaseDisc(
       }
       
       // Cord hole wall
-      connectRings(platformInner, bottomInner, true);
+      connectRings(platformInnerRing, bottomInner, true);
     } else {
       // No lip
       const topOuter = addRing(getOuterRadius, 0);
@@ -835,19 +905,35 @@ function createBaseDisc(
     // === SOLID DISC (no cord hole) ===
     
     if (lip > 0) {
-      // Lip top outer
-      const lipTopOuter = addRing(getOuterRadius, topY);
-      // Lip top inner
-      const lipTopInner = addRing(getInnerLipRadius, topY);
-      connectRings(lipTopOuter, lipTopInner);
+      // Generate lip top with edge styling
+      const lipTop = generateLipInnerEdge(topY, getOuterRadius, getInnerLipRadius);
       
-      // Lip inner wall
-      const lipInnerBottom = addRing(getInnerLipRadius, 0);
-      connectRings(lipTopInner, lipInnerBottom, true);
+      // Connect lip top surface
+      if (lipTop.edgeRings.length > 0) {
+        connectRings(lipTop.outerRing, lipTop.edgeRings[0]);
+        for (let i = 0; i < lipTop.edgeRings.length - 1; i++) {
+          connectRings(lipTop.edgeRings[i], lipTop.edgeRings[i + 1]);
+        }
+        connectRings(lipTop.edgeRings[lipTop.edgeRings.length - 1], lipTop.innerRing);
+      } else {
+        connectRings(lipTop.outerRing, lipTop.innerRing);
+      }
       
-      // Platform center
-      const platformCenter = addCenter(0);
-      fillFromCenter(platformCenter, lipInnerBottom);
+      // Platform surface height
+      const platformY = lipEdgeStyle === 'flat' ? 0 : Math.max(-lipEdgeSize, -thickness * 0.5);
+      
+      // Lip inner wall to platform
+      if (lipEdgeStyle === 'flat') {
+        const lipInnerBottom = addRing(getInnerLipRadius, 0);
+        connectRings(lipTop.innerRing, lipInnerBottom, true);
+        // Platform center
+        const platformCenter = addCenter(0);
+        fillFromCenter(platformCenter, lipInnerBottom);
+      } else {
+        // Inner ring is already at the lower Y from edge styling
+        const platformCenter = addCenter(platformY);
+        fillFromCenter(platformCenter, lipTop.innerRing);
+      }
       
       // Bottom
       const bottomCenter = addCenter(-thickness);
@@ -856,15 +942,15 @@ function createBaseDisc(
       
       // Outer wall with edge style
       if (edgeStyle === 'flat') {
-        connectRings(lipTopOuter, bottomRing);
+        connectRings(lipTop.outerRing, bottomRing);
       } else {
         const edgeRings = generateEdgeRings(topY, getOuterRadius);
         if (edgeRings.length >= 2 && edgeStyle === 'chamfer') {
-          connectRings(lipTopOuter, edgeRings[1]);
+          connectRings(lipTop.outerRing, edgeRings[1]);
           connectRings(edgeRings[1], edgeRings[0]);
           connectRings(edgeRings[0], bottomRing);
         } else if (edgeRings.length > 0 && edgeStyle === 'rounded') {
-          let prevRing = lipTopOuter;
+          let prevRing = lipTop.outerRing;
           for (const ring of edgeRings) {
             connectRings(prevRing, ring);
             prevRing = ring;
