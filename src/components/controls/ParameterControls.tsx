@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -12,7 +12,6 @@ import { generateRandomParams } from '@/lib/random-generator';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronDown } from 'lucide-react';
 
 interface ParameterControlsProps {
   params: ParametricParams;
@@ -39,6 +38,34 @@ const Section = ({ title, defaultOpen = true, children }: SectionProps) => {
         {children}
       </CollapsibleContent>
     </Collapsible>
+  );
+};
+
+// Subsection for advanced features - smaller header, indented
+interface SubsectionProps {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+const Subsection = ({ title, defaultOpen = false, children }: SubsectionProps) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  
+  return (
+    <div className="border-t border-border/50 pt-3 mt-3">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronRight className={cn("w-3 h-3 transition-transform", isOpen && "rotate-90")} />
+        <span className="font-medium">{title}</span>
+      </button>
+      {isOpen && (
+        <div className="space-y-3 pt-3 pl-1">
+          {children}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -122,14 +149,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
     onParamsChange(newParams);
   };
 
-  const getStandLabel = (type: StandType): string => {
-    switch (type) {
-      case 'tripod': return 'Tripod Legs';
-      case 'wall_mount': return 'Wall Mount';
-      default: return type;
-    }
-  };
-
   const getLegStyleLabel = (style: LegStyle): string => {
     switch (style) {
       case 'tripod': return 'Tripod';
@@ -147,7 +166,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       transition={{ duration: 0.3 }}
       className="space-y-3"
     >
-      {/* 1. Randomize / Reset - TOP */}
+      {/* Randomize / Reset */}
       <div className="flex gap-2 items-center">
         <Button variant="outline" size="sm" onClick={handleRandomize} className="flex-1 gap-2">
           <Shuffle className="w-4 h-4" />
@@ -159,8 +178,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </Button>
       </div>
 
-      {/* 2. Dimensions */}
-      <Section title="Dimensions (mm)" defaultOpen={true}>
+      {/* 1. Dimensions */}
+      <Section title="Dimensions" defaultOpen={true}>
         <ParameterSlider
           label="Height"
           value={params.height}
@@ -206,10 +225,33 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           unit="mm"
           onChange={handleChange('baseThickness')}
         />
+        
+        {/* Profile Curve - moved here from Surface Patterns */}
+        <div className="space-y-2 pt-3 border-t border-border/50">
+          <Label className="text-xs text-muted-foreground">Profile Curve</Label>
+          <Select 
+            value={params.profileCurve} 
+            onValueChange={(value: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave') => {
+              onParamsChange({ ...params, profileCurve: value });
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="linear">Linear</SelectItem>
+              <SelectItem value="convex">Convex (Bulges Out)</SelectItem>
+              <SelectItem value="concave">Concave (Curves In)</SelectItem>
+              <SelectItem value="hourglass">Hourglass</SelectItem>
+              <SelectItem value="wave">Wave</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </Section>
 
-      {/* 3. Organic Shape */}
-      <Section title="Organic Shape" defaultOpen={true}>
+      {/* 2. Shape (merged Organic Shape + Deformations) */}
+      <Section title="Shape" defaultOpen={true}>
+        {/* Core organic controls */}
         <ParameterSlider
           label="Bulge Position"
           value={params.bulgePosition}
@@ -236,19 +278,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           onChange={handleChange('pinchAmount')}
         />
         <ParameterSlider
-          label="Asymmetry"
-          value={params.asymmetry}
-          min={0}
-          max={params.supportFreeMode ? constraints.asymmetry.max : 0.35}
-          step={0.01}
-          onChange={handleChange('asymmetry')}
-          constrained={params.supportFreeMode}
-        />
-      </Section>
-
-      {/* 4. Deformations */}
-      <Section title="Deformations" defaultOpen={false}>
-        <ParameterSlider
           label="Twist"
           value={params.twistAngle}
           min={0}
@@ -258,237 +287,178 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           onChange={handleChange('twistAngle')}
         />
         <ParameterSlider
-          label="Wobble Frequency"
-          value={params.wobbleFrequency}
+          label="Asymmetry"
+          value={params.asymmetry}
           min={0}
-          max={8}
-          step={1}
-          onChange={handleChange('wobbleFrequency')}
-        />
-        <ParameterSlider
-          label="Wobble Amount"
-          value={params.wobbleAmplitude}
-          min={0}
-          max={params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15}
+          max={params.supportFreeMode ? constraints.asymmetry.max : 0.35}
           step={0.01}
-          onChange={handleChange('wobbleAmplitude')}
+          onChange={handleChange('asymmetry')}
           constrained={params.supportFreeMode}
         />
-      </Section>
 
-      {/* 4b. Spine Curve */}
-      <Section title="Spine Curve" defaultOpen={false}>
-        <div className="flex items-center justify-between mb-3">
-          <Label htmlFor="spine-toggle" className="text-sm">Enable Spine</Label>
-          <Switch
-            id="spine-toggle"
-            checked={params.spineEnabled}
-            onCheckedChange={(enabled) => onParamsChange({ ...params, spineEnabled: enabled })}
-          />
-        </div>
-        
-        {params.spineEnabled && (
-          <>
-            <div className="text-xs text-muted-foreground mb-2">X-Axis Displacement</div>
+        {/* Advanced Shape - Wobble, Spine, Melt */}
+        <Subsection title="Advanced Shape">
+          {/* Wobble */}
+          <div className="space-y-3">
+            <Label className="text-xs text-muted-foreground font-semibold">Wobble</Label>
             <ParameterSlider
-              label="Amplitude X"
-              value={params.spineAmplitudeX}
-              min={0}
-              max={50}
-              step={1}
-              unit="mm"
-              onChange={handleChange('spineAmplitudeX')}
-            />
-            <ParameterSlider
-              label="Frequency X"
-              value={params.spineFrequencyX}
-              min={0}
-              max={4}
-              step={0.5}
-              onChange={handleChange('spineFrequencyX')}
-            />
-            <ParameterSlider
-              label="Phase X"
-              value={params.spinePhaseX}
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={handleChange('spinePhaseX')}
-            />
-            
-            <div className="text-xs text-muted-foreground mt-3 mb-2">Z-Axis Displacement</div>
-            <ParameterSlider
-              label="Amplitude Z"
-              value={params.spineAmplitudeZ}
-              min={0}
-              max={50}
-              step={1}
-              unit="mm"
-              onChange={handleChange('spineAmplitudeZ')}
-            />
-            <ParameterSlider
-              label="Frequency Z"
-              value={params.spineFrequencyZ}
-              min={0}
-              max={4}
-              step={0.5}
-              onChange={handleChange('spineFrequencyZ')}
-            />
-            <ParameterSlider
-              label="Phase Z"
-              value={params.spinePhaseZ}
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={handleChange('spinePhaseZ')}
-            />
-          </>
-        )}
-        
-      </Section>
-
-      {/* 4c. Melt Effect */}
-      <Section title="Melt Effect" defaultOpen={false}>
-        <ParameterSlider
-          label="Melt Amount"
-          value={params.meltAmount}
-          min={0}
-          max={30}
-          step={1}
-          unit="mm"
-          onChange={handleChange('meltAmount')}
-        />
-        
-        {params.meltAmount > 0 && (
-          <>
-            <ParameterSlider
-              label="Melt Lobes"
-              value={params.meltLobes}
+              label="Frequency"
+              value={params.wobbleFrequency}
               min={0}
               max={8}
               step={1}
-              onChange={handleChange('meltLobes')}
+              onChange={handleChange('wobbleFrequency')}
             />
             <ParameterSlider
-              label="Lobe Variation"
-              value={params.meltVariation}
+              label="Amount"
+              value={params.wobbleAmplitude}
               min={0}
-              max={1}
-              step={0.05}
-              onChange={handleChange('meltVariation')}
+              max={params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15}
+              step={0.01}
+              onChange={handleChange('wobbleAmplitude')}
+              constrained={params.supportFreeMode}
             />
+          </div>
+
+          {/* Spine Curve */}
+          <div className="space-y-3 pt-3 border-t border-border/30">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground font-semibold">Spine Curve</Label>
+              <Switch
+                checked={params.spineEnabled}
+                onCheckedChange={(enabled) => onParamsChange({ ...params, spineEnabled: enabled })}
+              />
+            </div>
+            
+            {params.spineEnabled && (
+              <>
+                <div className="text-xs text-muted-foreground">X-Axis</div>
+                <ParameterSlider
+                  label="Amplitude"
+                  value={params.spineAmplitudeX}
+                  min={0}
+                  max={50}
+                  step={1}
+                  unit="mm"
+                  onChange={handleChange('spineAmplitudeX')}
+                />
+                <ParameterSlider
+                  label="Frequency"
+                  value={params.spineFrequencyX}
+                  min={0}
+                  max={4}
+                  step={0.5}
+                  onChange={handleChange('spineFrequencyX')}
+                />
+                <ParameterSlider
+                  label="Phase"
+                  value={params.spinePhaseX}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('spinePhaseX')}
+                />
+                
+                <div className="text-xs text-muted-foreground mt-2">Z-Axis</div>
+                <ParameterSlider
+                  label="Amplitude"
+                  value={params.spineAmplitudeZ}
+                  min={0}
+                  max={50}
+                  step={1}
+                  unit="mm"
+                  onChange={handleChange('spineAmplitudeZ')}
+                />
+                <ParameterSlider
+                  label="Frequency"
+                  value={params.spineFrequencyZ}
+                  min={0}
+                  max={4}
+                  step={0.5}
+                  onChange={handleChange('spineFrequencyZ')}
+                />
+                <ParameterSlider
+                  label="Phase"
+                  value={params.spinePhaseZ}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('spinePhaseZ')}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Melt Effect */}
+          <div className="space-y-3 pt-3 border-t border-border/30">
+            <Label className="text-xs text-muted-foreground font-semibold">Melt Effect</Label>
             <ParameterSlider
-              label="Lobe Phase"
-              value={params.meltPhase}
+              label="Amount"
+              value={params.meltAmount}
               min={0}
-              max={1}
-              step={0.05}
-              onChange={handleChange('meltPhase')}
+              max={30}
+              step={1}
+              unit="mm"
+              onChange={handleChange('meltAmount')}
             />
+            
+            {params.meltAmount > 0 && (
+              <>
+                <ParameterSlider
+                  label="Lobes"
+                  value={params.meltLobes}
+                  min={0}
+                  max={8}
+                  step={1}
+                  onChange={handleChange('meltLobes')}
+                />
+                <ParameterSlider
+                  label="Variation"
+                  value={params.meltVariation}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('meltVariation')}
+                />
+                <ParameterSlider
+                  label="Delay"
+                  value={params.meltDelay}
+                  min={0}
+                  max={0.8}
+                  step={0.05}
+                  onChange={handleChange('meltDelay')}
+                />
+              </>
+            )}
+            
             <ParameterSlider
-              label="Melt Delay"
-              value={params.meltDelay}
+              label="Lateral Drag"
+              value={params.meltDragAmount}
               min={0}
-              max={0.8}
-              step={0.05}
-              onChange={handleChange('meltDelay')}
+              max={30}
+              step={1}
+              unit="mm"
+              onChange={handleChange('meltDragAmount')}
             />
-            <p className="text-xs text-muted-foreground">
-              Delay controls where melt begins. Higher values keep lower layers rigid.
-            </p>
-          </>
-        )}
-        
-        <div className="pt-3 border-t border-border/50 mt-3">
-          <ParameterSlider
-            label="Lateral Drag"
-            value={params.meltDragAmount}
-            min={0}
-            max={30}
-            step={1}
-            unit="mm"
-            onChange={handleChange('meltDragAmount')}
-          />
-          
-          {params.meltDragAmount > 0 && (
-            <ParameterSlider
-              label="Drag Direction"
-              value={params.meltDragAngle}
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={handleChange('meltDragAngle')}
-            />
-          )}
-        </div>
-        
-        <p className="text-xs text-muted-foreground mt-2">
-          Simulates gravity pulling softened material downward and sideways. Zero at base, increases toward top.
-        </p>
+            
+            {params.meltDragAmount > 0 && (
+              <ParameterSlider
+                label="Drag Direction"
+                value={params.meltDragAngle}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={handleChange('meltDragAngle')}
+              />
+            )}
+          </div>
+        </Subsection>
       </Section>
 
-      {/* 5. Surface Details */}
-      <Section title="Surface Details" defaultOpen={false}>
-        <ParameterSlider
-          label="Ripple Count"
-          value={params.rippleCount}
-          min={0}
-          max={16}
-          step={1}
-          onChange={handleChange('rippleCount')}
-        />
-        <ParameterSlider
-          label="Ripple Depth"
-          value={params.rippleDepth}
-          min={0}
-          max={0.1}
-          step={0.005}
-          onChange={handleChange('rippleDepth')}
-        />
-        <ParameterSlider
-          label="Organic Noise"
-          value={params.organicNoise}
-          min={0}
-          max={0.1}
-          step={0.005}
-          onChange={handleChange('organicNoise')}
-        />
-        <ParameterSlider
-          label="Noise Scale"
-          value={params.noiseScale}
-          min={0.5}
-          max={4}
-          step={0.25}
-          onChange={handleChange('noiseScale')}
-        />
-      </Section>
-      
-      {/* 6. Surface Patterns */}
-      <Section title="Surface Patterns" defaultOpen={false}>
-        {/* Profile Curve */}
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Profile Curve</Label>
-          <Select 
-            value={params.profileCurve} 
-            onValueChange={(value: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave') => {
-              onParamsChange({ ...params, profileCurve: value });
-            }}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="linear">Linear (Default)</SelectItem>
-              <SelectItem value="convex">Convex (Bulges Out)</SelectItem>
-              <SelectItem value="concave">Concave (Curves In)</SelectItem>
-              <SelectItem value="hourglass">Hourglass</SelectItem>
-              <SelectItem value="wave">Wave</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
+      {/* 3. Textures (merged Surface Details + Surface Patterns) */}
+      <Section title="Textures" defaultOpen={false}>
         {/* Faceting */}
-        <div className="pt-3 border-t border-border/50 space-y-3">
+        <div className="space-y-3">
           <Label className="text-xs text-muted-foreground font-semibold">Faceting</Label>
           <ParameterSlider
             label="Facet Count"
@@ -500,7 +470,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           />
           {params.facetCount >= 3 && (
             <ParameterSlider
-              label="Facet Sharpness"
+              label="Sharpness"
               value={params.facetSharpness}
               min={0}
               max={1}
@@ -508,19 +478,13 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               onChange={handleChange('facetSharpness')}
             />
           )}
-          <p className="text-xs text-muted-foreground">
-            {params.facetCount === 0 && 'Smooth circular profile'}
-            {params.facetCount === 6 && 'Hexagonal shape'}
-            {params.facetCount === 8 && 'Octagonal shape'}
-            {params.facetCount > 0 && params.facetCount !== 6 && params.facetCount !== 8 && `${params.facetCount}-sided polygon`}
-          </p>
         </div>
         
         {/* Horizontal Ribs */}
         <div className="pt-3 border-t border-border/50 space-y-3">
           <Label className="text-xs text-muted-foreground font-semibold">Horizontal Ribs</Label>
           <ParameterSlider
-            label="Rib Count"
+            label="Count"
             value={params.horizontalRibCount}
             min={0}
             max={20}
@@ -530,7 +494,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           {params.horizontalRibCount > 0 && (
             <>
               <ParameterSlider
-                label="Rib Depth"
+                label="Depth"
                 value={params.horizontalRibDepth}
                 min={0}
                 max={0.1}
@@ -538,7 +502,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 onChange={handleChange('horizontalRibDepth')}
               />
               <ParameterSlider
-                label="Rib Width"
+                label="Width"
                 value={params.horizontalRibWidth}
                 min={0.1}
                 max={0.5}
@@ -549,11 +513,11 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           )}
         </div>
         
-        {/* Fluting (Vertical Grooves) */}
+        {/* Fluting */}
         <div className="pt-3 border-t border-border/50 space-y-3">
-          <Label className="text-xs text-muted-foreground font-semibold">Fluting (Vertical Grooves)</Label>
+          <Label className="text-xs text-muted-foreground font-semibold">Fluting (Vertical)</Label>
           <ParameterSlider
-            label="Flute Count"
+            label="Count"
             value={params.flutingCount}
             min={0}
             max={24}
@@ -562,7 +526,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           />
           {params.flutingCount > 0 && (
             <ParameterSlider
-              label="Flute Depth"
+              label="Depth"
               value={params.flutingDepth}
               min={0}
               max={0.15}
@@ -576,7 +540,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         <div className="pt-3 border-t border-border/50 space-y-3">
           <Label className="text-xs text-muted-foreground font-semibold">Spiral Grooves</Label>
           <ParameterSlider
-            label="Spiral Count"
+            label="Count"
             value={params.spiralGrooveCount}
             min={0}
             max={8}
@@ -586,7 +550,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           {params.spiralGrooveCount > 0 && (
             <>
               <ParameterSlider
-                label="Groove Depth"
+                label="Depth"
                 value={params.spiralGrooveDepth}
                 min={0}
                 max={0.15}
@@ -594,7 +558,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 onChange={handleChange('spiralGrooveDepth')}
               />
               <ParameterSlider
-                label="Twist Amount"
+                label="Twist"
                 value={params.spiralGrooveTwist}
                 min={0.5}
                 max={10}
@@ -605,31 +569,53 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           )}
         </div>
         
-        {/* Rim Waves */}
+        {/* Ripples */}
         <div className="pt-3 border-t border-border/50 space-y-3">
-          <Label className="text-xs text-muted-foreground font-semibold">Rim Waves</Label>
+          <Label className="text-xs text-muted-foreground font-semibold">Ripples</Label>
           <ParameterSlider
-            label="Wave Count"
-            value={params.rimWaveCount}
+            label="Count"
+            value={params.rippleCount}
             min={0}
-            max={12}
+            max={16}
             step={1}
-            onChange={handleChange('rimWaveCount')}
+            onChange={handleChange('rippleCount')}
           />
-          {params.rimWaveCount > 0 && (
+          {params.rippleCount > 0 && (
             <ParameterSlider
-              label="Wave Depth"
-              value={params.rimWaveDepth}
+              label="Depth"
+              value={params.rippleDepth}
               min={0}
-              max={0.3}
-              step={0.02}
-              onChange={handleChange('rimWaveDepth')}
+              max={0.1}
+              step={0.005}
+              onChange={handleChange('rippleDepth')}
             />
           )}
         </div>
+
+        {/* Organic Noise */}
+        <Subsection title="Organic Noise">
+          <ParameterSlider
+            label="Amount"
+            value={params.organicNoise}
+            min={0}
+            max={0.1}
+            step={0.005}
+            onChange={handleChange('organicNoise')}
+          />
+          {params.organicNoise > 0 && (
+            <ParameterSlider
+              label="Scale"
+              value={params.noiseScale}
+              min={0.5}
+              max={4}
+              step={0.25}
+              onChange={handleChange('noiseScale')}
+            />
+          )}
+        </Subsection>
       </Section>
 
-      {/* 7. Lip & Rim */}
+      {/* 4. Lip & Rim (now includes Rim Waves) */}
       <Section title="Lip & Rim" defaultOpen={false}>
         <ParameterSlider
           label="Lip Flare"
@@ -648,9 +634,32 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           step={0.01}
           onChange={handleChange('lipHeight')}
         />
+        
+        {/* Rim Waves - moved here */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          <Label className="text-xs text-muted-foreground font-semibold">Rim Waves</Label>
+          <ParameterSlider
+            label="Count"
+            value={params.rimWaveCount}
+            min={0}
+            max={12}
+            step={1}
+            onChange={handleChange('rimWaveCount')}
+          />
+          {params.rimWaveCount > 0 && (
+            <ParameterSlider
+              label="Depth"
+              value={params.rimWaveDepth}
+              min={0}
+              max={0.3}
+              step={0.02}
+              onChange={handleChange('rimWaveDepth')}
+            />
+          )}
+        </div>
       </Section>
 
-      {/* 8. Cord Hole - Standalone Section */}
+      {/* 5. Cord Hole */}
       <Section title="Cord Hole" defaultOpen={false}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -667,7 +676,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         {params.cordHoleEnabled && (
           <>
             <ParameterSlider
-              label="Cord Hole Ø"
+              label="Diameter"
               value={params.cordHoleDiameter}
               min={4}
               max={12}
@@ -676,7 +685,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               onChange={handleChange('cordHoleDiameter')}
             />
             
-            {/* Centering Lip Controls */}
+            {/* Centering Lip */}
             <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -704,15 +713,12 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="E26">E26 (26mm - Standard US)</SelectItem>
-                        <SelectItem value="E12">E12 (12mm - Candelabra)</SelectItem>
-                        <SelectItem value="E14">E14 (14mm - Small EU)</SelectItem>
-                        <SelectItem value="GU10">GU10 (35mm - Spotlight)</SelectItem>
+                        <SelectItem value="E26">E26 (Standard US)</SelectItem>
+                        <SelectItem value="E12">E12 (Candelabra)</SelectItem>
+                        <SelectItem value="E14">E14 (Small EU)</SelectItem>
+                        <SelectItem value="GU10">GU10 (Spotlight)</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Inner diameter of the centering lip ring
-                    </p>
                   </div>
                   
                   <ParameterSlider
@@ -731,7 +737,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         )}
       </Section>
 
-      {/* 9. Add Legs/Stand - BOTTOM */}
+      {/* 6. Legs/Stand */}
       <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -747,7 +753,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         
         {params.addLegs && (
           <div className="space-y-3 pt-2 border-t border-border/50">
-            {/* Stand Type Selector */}
+            {/* Stand Type */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Stand Type</Label>
               <Select value={params.standType} onValueChange={handleStandTypeChange}>
@@ -761,10 +767,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
               </Select>
             </div>
             
-            {/* Tripod-specific controls */}
+            {/* Tripod controls */}
             {params.standType === 'tripod' && (
               <>
-                {/* Leg Style Selector */}
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Leg Style</Label>
                   <div className="grid grid-cols-2 gap-2">
@@ -780,12 +785,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       </Button>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {params.legStyle === 'tripod' && 'Classic angled legs that spread outward'}
-                    {params.legStyle === 'riser' && 'Small stubby feet for table lamps (3-20mm)'}
-                    {params.legStyle === 'column' && 'Straight vertical legs, no spread'}
-                    {params.legStyle === 'bun' && 'Dome-shaped feet, flat on bed, print-friendly'}
-                  </p>
                 </div>
 
                 <div className="flex gap-2">
@@ -807,10 +806,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   </Button>
                 </div>
                 
-                {/* Conditional controls based on leg style */}
                 {params.legStyle !== 'bun' && (
                   <ParameterSlider
-                    label="Leg Height"
+                    label="Height"
                     value={params.legHeight}
                     min={params.legStyle === 'riser' ? 2 : (params.legStyle === 'column' ? 3 : 10)}
                     max={params.legStyle === 'riser' ? 40 : 400}
@@ -820,10 +818,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   />
                 )}
                 
-                {/* Spread only for tripod and riser */}
                 {(params.legStyle === 'tripod' || params.legStyle === 'riser') && (
                   <ParameterSlider
-                    label="Leg Spread"
+                    label="Spread"
                     value={params.legSpread}
                     min={params.legStyle === 'riser' ? 0 : 15}
                     max={params.legStyle === 'riser' ? 10 : 45}
@@ -834,7 +831,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 )}
                 
                 <ParameterSlider
-                  label={params.legStyle === 'bun' ? 'Bun Size' : 'Leg Thickness'}
+                  label={params.legStyle === 'bun' ? 'Size' : 'Thickness'}
                   value={params.legThickness}
                   min={params.legStyle === 'bun' ? 5 : 3}
                   max={params.legStyle === 'bun' ? 15 : 10}
@@ -843,10 +840,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   onChange={handleChange('legThickness')}
                 />
                 
-                {/* Taper only for tripod */}
                 {params.legStyle === 'tripod' && (
                   <ParameterSlider
-                    label="Leg Taper"
+                    label="Taper"
                     value={params.legTaper}
                     min={0}
                     max={0.8}
@@ -855,7 +851,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   />
                 )}
                 
-                {/* Base Size Mode Controls */}
+                {/* Base Size */}
                 <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
                   <div className="flex items-center gap-2">
                     <Box className={cn("w-4 h-4", params.baseSizeMode !== 'auto' ? "text-primary" : "text-muted-foreground")} />
@@ -872,21 +868,15 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="auto">Fit to Lamp Bottom</SelectItem>
-                      <SelectItem value="tray">Match Widest Point</SelectItem>
-                      <SelectItem value="custom">Custom Size</SelectItem>
+                      <SelectItem value="auto">Fit to Bottom</SelectItem>
+                      <SelectItem value="tray">Match Widest</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
                   
-                  <p className="text-xs text-muted-foreground">
-                    {params.baseSizeMode === 'auto' && 'Base matches the lamp bottom radius'}
-                    {params.baseSizeMode === 'tray' && 'Base matches widest point (tray effect)'}
-                    {params.baseSizeMode === 'custom' && 'Set your own base size'}
-                  </p>
-                  
                   {params.baseSizeMode === 'custom' && (
                     <ParameterSlider
-                      label="Base Radius"
+                      label="Radius"
                       value={params.standBaseRadius}
                       min={20}
                       max={150}
@@ -897,7 +887,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   )}
                 </div>
                 
-                {/* Base Style Section */}
+                {/* Base Style */}
                 <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
                   <div className="flex items-center gap-2">
                     <Grip className={cn("w-4 h-4", params.standBaseThickness > 3 ? "text-primary" : "text-muted-foreground")} />
@@ -943,7 +933,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   </div>
                   
                   <ParameterSlider
-                    label="Lip Height"
+                    label="Lip"
                     value={params.standBaseLip}
                     min={0}
                     max={10}
@@ -952,7 +942,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                     onChange={handleChange('standBaseLip')}
                   />
                   
-                  {/* Base Only Preview */}
                   <div className="flex items-center justify-between pt-2 border-t border-border/30">
                     <div className="flex items-center gap-2">
                       <Layers className={cn("w-4 h-4", params.showBaseOnly ? "text-primary" : "text-muted-foreground")} />
@@ -980,9 +969,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   unit="mm"
                   onChange={handleChange('wallMountCutOffset')}
                 />
-                <p className="text-xs text-muted-foreground">
-                  0 = exact half, negative = less material, positive = more
-                </p>
                 
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Mounting Holes</Label>
@@ -1013,7 +999,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
                     <Cable className={cn("w-4 h-4", params.wallMountCordHoleEnabled ? "text-primary" : "text-muted-foreground")} />
-                    <Label htmlFor="wall-cord-hole" className="text-xs">Cord Exit Hole</Label>
+                    <Label htmlFor="wall-cord-hole" className="text-xs">Cord Exit</Label>
                   </div>
                   <Switch 
                     id="wall-cord-hole" 
@@ -1042,12 +1028,9 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       Base
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {params.wallMountStyle === 'back' ? 'Flat back with keyholes' : 'Base plate with keyholes'}
-                  </p>
                 </div>
                 
-                {/* Hardware Bracket Option */}
+                {/* Hardware Bracket */}
                 <div className="pt-3 mt-3 border-t border-border/50 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1060,14 +1043,11 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                       onCheckedChange={(v) => onParamsChange({ ...params, wallMountBracketEnabled: v })}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Generates a separate printable bracket with screw holes for standard wall hardware
-                  </p>
                   
                   {params.wallMountBracketEnabled && (
                     <>
                       <ParameterSlider
-                        label="Bracket Width"
+                        label="Width"
                         value={params.wallMountBracketWidth}
                         min={40}
                         max={120}
@@ -1076,7 +1056,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                         onChange={handleChange('wallMountBracketWidth')}
                       />
                       <ParameterSlider
-                        label="Bracket Height"
+                        label="Height"
                         value={params.wallMountBracketHeight}
                         min={50}
                         max={150}
@@ -1085,7 +1065,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                         onChange={handleChange('wallMountBracketHeight')}
                       />
                       <ParameterSlider
-                        label="Bracket Thickness"
+                        label="Thickness"
                         value={params.wallMountBracketThickness}
                         min={3}
                         max={10}
@@ -1111,7 +1091,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         )}
       </div>
       
-      {/* 10. Support-Free Mode - VERY BOTTOM */}
+      {/* 7. Support-Free Mode */}
       <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
