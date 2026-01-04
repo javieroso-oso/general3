@@ -84,7 +84,7 @@ const noise3D = (x: number, y: number, z: number, scale: number) => {
 };
 
 /**
- * Calculate deformed radius at a given angle
+ * Calculate deformed radius at a given angle (fallback when bottomRadiiArray not provided)
  */
 function calculateDeformedRadius(
   theta: number,
@@ -133,6 +133,37 @@ function calculateDeformedRadius(
 }
 
 /**
+ * Get radius at a specific angle, using actual body radii if available
+ */
+function getRadiusAtAngle(
+  theta: number,
+  baseRadius: number,
+  organicParams?: OrganicParams,
+  bottomRadiiArray?: number[]
+): number {
+  if (bottomRadiiArray && bottomRadiiArray.length > 0) {
+    // Use actual radii from body generation
+    // Normalize theta to [0, 2π)
+    let normalizedTheta = theta % (Math.PI * 2);
+    if (normalizedTheta < 0) normalizedTheta += Math.PI * 2;
+    
+    // Convert to array index (radii are stored for each segment)
+    const segmentCount = bottomRadiiArray.length;
+    const index = normalizedTheta / (Math.PI * 2) * segmentCount;
+    
+    // Linear interpolation between adjacent values
+    const i0 = Math.floor(index) % segmentCount;
+    const i1 = (i0 + 1) % segmentCount;
+    const frac = index - Math.floor(index);
+    
+    return bottomRadiiArray[i0] * (1 - frac) + bottomRadiiArray[i1] * frac;
+  }
+  
+  // Fallback to calculated deformation
+  return calculateDeformedRadius(theta, baseRadius, organicParams);
+}
+
+/**
  * Generate legs with a base disc.
  * Base disc top is at y=0, legs extend downward.
  */
@@ -149,32 +180,33 @@ export function generateLegsWithBase(
   socketParams?: SocketParams,
   _attachmentParams?: unknown,
   pedestalParams?: PedestalParams,
-  legStyle: LegStyle = 'tripod'
+  legStyle: LegStyle = 'tripod',
+  bottomRadiiArray?: number[]
 ): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
   
   const effectiveThickness = pedestalParams?.thickness ?? baseThickness;
   
-  // Create base disc
-  const discGeo = createBaseDisc(baseRadius, effectiveThickness, organicParams, socketParams, pedestalParams);
+  // Create base disc with actual bottom radii from body if provided
+  const discGeo = createBaseDisc(baseRadius, effectiveThickness, organicParams, socketParams, pedestalParams, bottomRadiiArray);
   geometries.push(discGeo);
   
   const discBottom = -effectiveThickness;
   
-  // Generate legs based on style
+  // Generate legs based on style (pass bottomRadiiArray for accurate attachment points)
   switch (legStyle) {
     case 'riser':
-      geometries.push(...createRiserLegs(baseRadius, legCount, legHeight, legSpread, legThickness, legInset, discBottom, organicParams));
+      geometries.push(...createRiserLegs(baseRadius, legCount, legHeight, legSpread, legThickness, legInset, discBottom, organicParams, bottomRadiiArray));
       break;
     case 'column':
-      geometries.push(...createColumnLegs(baseRadius, legCount, legHeight, legThickness, legInset, discBottom, organicParams));
+      geometries.push(...createColumnLegs(baseRadius, legCount, legHeight, legThickness, legInset, discBottom, organicParams, bottomRadiiArray));
       break;
     case 'bun':
-      geometries.push(...createBunFeet(baseRadius, legCount, legThickness, legInset, discBottom, organicParams));
+      geometries.push(...createBunFeet(baseRadius, legCount, legThickness, legInset, discBottom, organicParams, bottomRadiiArray));
       break;
     case 'tripod':
     default:
-      geometries.push(...createTripodLegs(baseRadius, legCount, legHeight, legSpread, legThickness, legTaper, legInset, discBottom, organicParams));
+      geometries.push(...createTripodLegs(baseRadius, legCount, legHeight, legSpread, legThickness, legTaper, legInset, discBottom, organicParams, bottomRadiiArray));
       break;
   }
   
@@ -193,7 +225,8 @@ function createTripodLegs(
   legTaper: number,
   legInset: number,
   discBottom: number,
-  organicParams?: OrganicParams
+  organicParams?: OrganicParams,
+  bottomRadiiArray?: number[]
 ): THREE.BufferGeometry[] {
   const geometries: THREE.BufferGeometry[] = [];
   const spreadRad = (legSpread * Math.PI) / 180;
@@ -203,7 +236,8 @@ function createTripodLegs(
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
     
-    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    // Use actual radii from body if available, otherwise use deformation approximation
+    const deformedRadius = getRadiusAtAngle(angle, baseRadius, organicParams, bottomRadiiArray);
     const attachRadius = deformedRadius * (1 - legInset * 0.7);
     
     const attachX = Math.cos(angle) * attachRadius;
@@ -328,7 +362,8 @@ function createRiserLegs(
   legThickness: number,
   legInset: number,
   discBottom: number,
-  organicParams?: OrganicParams
+  organicParams?: OrganicParams,
+  bottomRadiiArray?: number[]
 ): THREE.BufferGeometry[] {
   const geometries: THREE.BufferGeometry[] = [];
   const segments = 12;
@@ -341,7 +376,7 @@ function createRiserLegs(
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
     
-    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const deformedRadius = getRadiusAtAngle(angle, baseRadius, organicParams, bottomRadiiArray);
     const attachRadius = deformedRadius * (1 - legInset * 0.5);
     
     const attachX = Math.cos(angle) * attachRadius;
@@ -425,7 +460,8 @@ function createColumnLegs(
   legThickness: number,
   legInset: number,
   discBottom: number,
-  organicParams?: OrganicParams
+  organicParams?: OrganicParams,
+  bottomRadiiArray?: number[]
 ): THREE.BufferGeometry[] {
   const geometries: THREE.BufferGeometry[] = [];
   const segments = 8;
@@ -435,7 +471,7 @@ function createColumnLegs(
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
     
-    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const deformedRadius = getRadiusAtAngle(angle, baseRadius, organicParams, bottomRadiiArray);
     const attachRadius = deformedRadius * (1 - legInset * 0.7);
     
     const cx = Math.cos(angle) * attachRadius;
@@ -507,7 +543,8 @@ function createBunFeet(
   legThickness: number,
   legInset: number,
   discBottom: number,
-  organicParams?: OrganicParams
+  organicParams?: OrganicParams,
+  bottomRadiiArray?: number[]
 ): THREE.BufferGeometry[] {
   const geometries: THREE.BufferGeometry[] = [];
   const bunRadius = legThickness / 2;
@@ -519,7 +556,7 @@ function createBunFeet(
   for (let leg = 0; leg < legCount; leg++) {
     const angle = (leg / legCount) * Math.PI * 2;
     
-    const deformedRadius = calculateDeformedRadius(angle, baseRadius, organicParams);
+    const deformedRadius = getRadiusAtAngle(angle, baseRadius, organicParams, bottomRadiiArray);
     const attachRadius = deformedRadius * (1 - legInset * 0.5);
     
     const cx = Math.cos(angle) * attachRadius;
@@ -584,7 +621,8 @@ function createBaseDisc(
   thickness: number,
   organicParams?: OrganicParams,
   socketParams?: SocketParams,
-  pedestalParams?: PedestalParams
+  pedestalParams?: PedestalParams,
+  bottomRadiiArray?: number[]
 ): THREE.BufferGeometry {
   const segments = 64;
   const vertices: number[] = [];
@@ -621,9 +659,19 @@ function createBaseDisc(
   };
   const socketInnerRadius = (socketDiameters[socketType] ?? 26) / 2;
   
-  const getOuterRadius = (theta: number) => calculateDeformedRadius(theta, radius, organicParams);
-  const getBottomRadius = (theta: number) => calculateDeformedRadius(theta, bottomRadius, organicParams);
-  const getInnerLipRadius = (theta: number) => calculateDeformedRadius(theta, innerLipRadius, organicParams);
+  // Use actual body radii for outer edge if available, otherwise use deformation
+  const getOuterRadius = (theta: number) => getRadiusAtAngle(theta, radius, organicParams, bottomRadiiArray);
+  // For bottom (tapered), scale the body radii proportionally
+  const getBottomRadius = (theta: number) => {
+    const outerR = getRadiusAtAngle(theta, radius, organicParams, bottomRadiiArray);
+    return outerR * (1 - taper);
+  };
+  // For inner lip, scale the body radii proportionally  
+  const getInnerLipRadius = (theta: number) => {
+    const outerR = getRadiusAtAngle(theta, radius, organicParams, bottomRadiiArray);
+    const lipRatio = innerLipRadius / radius;
+    return outerR * lipRatio;
+  };
   
   // Helper to add a ring of vertices
   const addRing = (radiusFn: (theta: number) => number, y: number): number => {
