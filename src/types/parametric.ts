@@ -146,14 +146,16 @@ export interface ParametricParams {
   spinePhaseZ: number;          // 0-1: phase offset normalized
   
   // Melt effect: vertical offset simulating gravity pulling softened material
-  // δy(t, θ) = -M × t² × (1 + α × sin(nθ + φ))
+  // δy(t, θ) = -M × envelope(t) × (1 + α × sin(nθ + φ))
+  // where envelope(t) = ((t - delay) / (1 - delay))² for t > delay, else 0
   meltAmount: number;           // 0-30 mm: maximum vertical droop at top
   meltLobes: number;            // 0-8: number of angular variations (lobes)
   meltVariation: number;        // 0-1: amplitude of angular variation (α)
   meltPhase: number;            // 0-1: phase offset for angular variation
+  meltDelay: number;            // 0-0.8: height at which melt begins (simulates viscosity gradient)
   
   // Lateral drag: sideways drift proportional to melt, simulating flow
-  // δx = D × t² × cos(dragAngle), δz = D × t² × sin(dragAngle)
+  // δx = D × envelope(t) × cos(dragAngle), δz = D × envelope(t) × sin(dragAngle)
   meltDragAmount: number;       // 0-30 mm: how far sideways the top drifts
   meltDragAngle: number;        // 0-1: direction of drag (normalized to 0-2π)
   
@@ -405,6 +407,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     meltLobes: 3,
     meltVariation: 0.3,
     meltPhase: 0,
+    meltDelay: 0,
     meltDragAmount: 0,
     meltDragAngle: 0,
     drift: 0,
@@ -511,6 +514,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     meltLobes: 3,
     meltVariation: 0.3,
     meltPhase: 0,
+    meltDelay: 0,
     meltDragAmount: 0,
     meltDragAngle: 0,
     drift: 0,
@@ -617,6 +621,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     meltLobes: 3,
     meltVariation: 0.3,
     meltPhase: 0,
+    meltDelay: 0,
     meltDragAmount: 0,
     meltDragAngle: 0,
     drift: 0,

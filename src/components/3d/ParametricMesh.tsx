@@ -485,34 +485,40 @@ const ParametricMesh = ({
         }
         
         // Melt effect: vertical offset simulating gravity pulling softened material
-        // δy(t, θ) = -M × t² × (1 + α × sin(nθ + φ))
-        // - Zero at base (t=0), increases smoothly toward top (t=1)
-        // - Angular variation creates lobes of heavier droop
+        // Uses envelope function with delay for height-based viscosity gradient
+        // envelope(t) = ((t - delay) / (1 - delay))² for t > delay, else 0
         const meltAmount = (params.meltAmount || 0) * SCALE;
         const meltLobes = params.meltLobes || 0;
         const meltVariation = params.meltVariation || 0;
         const meltPhase = (params.meltPhase || 0) * Math.PI * 2;
+        const meltDelay = Math.min(params.meltDelay || 0, 0.8); // Cap at 0.8 to ensure some effect
         
-        // Lateral drag: sideways drift proportional to melt
-        // δx = D × t² × cos(dragAngle), δz = D × t² × sin(dragAngle)
+        // Lateral drag: sideways drift proportional to melt envelope
         const meltDragAmount = (params.meltDragAmount || 0) * SCALE;
         const meltDragAngle = (params.meltDragAngle || 0) * Math.PI * 2;
         
         if (meltAmount > 0 || meltDragAmount > 0) {
-          // t² gives smooth acceleration - more effect at top, zero at base
-          const heightFactor = t * t;
-          
-          // Vertical melt
-          if (meltAmount > 0) {
-            // Angular variation: 1 + α × sin(nθ + φ)
-            const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
-            finalY -= meltAmount * heightFactor * angularFactor;
+          // Height-based envelope with delay:
+          // - Below delay: envelope = 0 (rigid, no deformation)
+          // - Above delay: smooth quadratic ramp from 0 to 1
+          // This simulates decreasing viscosity with height
+          let envelope = 0;
+          if (t > meltDelay) {
+            const remappedT = (t - meltDelay) / (1 - meltDelay);
+            envelope = remappedT * remappedT; // Quadratic for smooth acceleration
           }
           
-          // Lateral drag: fixed direction, proportional to height²
-          if (meltDragAmount > 0) {
-            x += meltDragAmount * heightFactor * Math.cos(meltDragAngle);
-            z += meltDragAmount * heightFactor * Math.sin(meltDragAngle);
+          // Vertical melt
+          if (meltAmount > 0 && envelope > 0) {
+            // Angular variation: 1 + α × sin(nθ + φ)
+            const angularFactor = 1 + meltVariation * Math.sin(meltLobes * theta + meltPhase);
+            finalY -= meltAmount * envelope * angularFactor;
+          }
+          
+          // Lateral drag: fixed direction, proportional to envelope
+          if (meltDragAmount > 0 && envelope > 0) {
+            x += meltDragAmount * envelope * Math.cos(meltDragAngle);
+            z += meltDragAmount * envelope * Math.sin(meltDragAngle);
           }
         }
         
