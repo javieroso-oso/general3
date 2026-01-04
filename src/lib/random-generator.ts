@@ -129,8 +129,8 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
     newParams.flutingDepth = randomInRange(0.02, 0.1);
   }
   if (enabledFeatures.has('rimWaves')) {
-    newParams.rimWaveCount = randomInt(3, 9);
-    newParams.rimWaveDepth = randomInRange(0.03, 0.18);
+    newParams.rimWaveCount = randomInt(4, 8);
+    newParams.rimWaveDepth = randomInRange(0.03, 0.10);
   }
   if (enabledFeatures.has('ripples')) {
     newParams.rippleCount = randomInt(3, 10);
