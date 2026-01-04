@@ -68,14 +68,14 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
   // MELT EFFECT (15% chance to enable)
   // ============================================
   if (randomBool(0.15)) {
-    newParams.meltAmount = randomInRange(5, 20);
-    newParams.meltLobes = randomInt(2, 6);
-    newParams.meltVariation = randomInRange(0.2, 0.6);
+    newParams.meltAmount = randomInRange(5, 15);
+    newParams.meltLobes = randomInt(3, 5);
+    newParams.meltVariation = randomInRange(0.2, 0.5);
     newParams.meltPhase = randomInRange(0, 1);
-    newParams.meltDelay = randomInRange(0.2, 0.5);
+    newParams.meltDelay = randomInRange(0, 0.3);
     // 50% chance for lateral drag when melt is enabled
     if (randomBool(0.5)) {
-      newParams.meltDragAmount = randomInRange(5, 15);
+      newParams.meltDragAmount = randomInRange(5, 12);
       newParams.meltDragAngle = randomInRange(0, 1);
     } else {
       newParams.meltDragAmount = 0;
