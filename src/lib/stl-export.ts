@@ -993,8 +993,26 @@ function addKeyholeHole(
 export function generateLegsWithBaseMesh(
   params: ParametricParams
 ): THREE.BufferGeometry {
+  // Calculate effective base radius based on baseSizeMode (matching preview behavior)
+  let effectiveBaseRadius: number;
+  
+  switch (params.baseSizeMode) {
+    case 'tray':
+      // Use the maximum body radius
+      // We need to calculate this similarly to the preview
+      effectiveBaseRadius = Math.max(params.baseRadius, params.topRadius) * 1.1;
+      break;
+    case 'custom':
+      effectiveBaseRadius = params.standBaseRadius;
+      break;
+    case 'auto':
+    default:
+      effectiveBaseRadius = params.baseRadius;
+      break;
+  }
+  
   return generateLegsWithBase(
-    params.baseRadius,
+    effectiveBaseRadius,
     params.legCount,
     params.legHeight,
     params.legSpread,
@@ -1044,6 +1062,8 @@ export function generatePrintableMesh(
 }
 
 // Export body mesh to STL
+// Body is exported with base (narrow end) at Y=0 for 3D printing
+// This allows printing opening-up (base on print bed)
 export function exportBodyToSTL(
   params: ParametricParams,
   type: ObjectType
