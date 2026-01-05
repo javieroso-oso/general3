@@ -16,7 +16,7 @@ export default {
       fontFamily: {
         sans: ["Satoshi", "system-ui", "sans-serif"],
         display: ["Satoshi", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        mono: ["JetBrains Mono", "SF Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -52,23 +52,6 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        surface: {
-          DEFAULT: "hsl(var(--surface))",
-          elevated: "hsl(var(--surface-elevated))",
-          muted: "hsl(var(--surface-muted))",
-        },
-        text: {
-          primary: "hsl(var(--text-primary))",
-          secondary: "hsl(var(--text-secondary))",
-          muted: "hsl(var(--text-muted))",
-        },
-        "accent-gold": {
-          DEFAULT: "hsl(var(--bauhaus-yellow))",
-        },
-        "bauhaus-yellow": {
-          DEFAULT: "hsl(var(--bauhaus-yellow))",
-          foreground: "hsl(var(--bauhaus-yellow-foreground))",
-        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -84,15 +67,13 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-        none: "0",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
       },
       boxShadow: {
-        brutal: "var(--shadow-brutal)",
-        "brutal-sm": "var(--shadow-brutal-sm)",
-        blue: "var(--shadow-blue)",
-        red: "var(--shadow-red)",
-        yellow: "var(--shadow-yellow)",
         soft: "var(--shadow-soft)",
+        elevated: "var(--shadow-elevated)",
+        glass: "var(--shadow-glass)",
       },
       keyframes: {
         "accordion-down": {
@@ -115,6 +96,10 @@ export default {
           "0%": { opacity: "0", transform: "scale(0.95)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        "dial-pulse": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.02)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -122,6 +107,7 @@ export default {
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "scale-in": "scale-in 0.2s ease-out",
+        "dial-pulse": "dial-pulse 0.15s ease-out",
       },
     },
   },
