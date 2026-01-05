@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -9,6 +9,7 @@ import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams } from '@/lib/random-generator';
+import { analyzeUndercuts, calculateMoldMaterialEstimate } from '@/lib/mold-undercut-detector';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -65,6 +66,310 @@ const Subsection = ({ title, defaultOpen = false, children }: SubsectionProps) =
           {children}
         </div>
       )}
+    </div>
+  );
+};
+
+// Mold controls sub-component with undercut analysis and material estimation
+interface MoldControlsProps {
+  params: ParametricParams;
+  type: ObjectType;
+  onParamsChange: (params: ParametricParams) => void;
+  handleChange: (key: keyof ParametricParams) => (value: number) => void;
+}
+
+const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldControlsProps) => {
+  const undercutAnalysis = useMemo(() => analyzeUndercuts(params, type), [params, type]);
+  const materialEstimate = useMemo(() => calculateMoldMaterialEstimate(params, type), [params, type]);
+
+  return (
+    <div className="space-y-3 pt-2 border-t border-border/50">
+      <div className="text-xs text-muted-foreground bg-amber-500/10 p-2 rounded border border-amber-500/30">
+        Generates 2-part slip-casting mold. Export as separate STL files for 3D printing.
+      </div>
+      
+      {/* Undercut Warning */}
+      {undercutAnalysis.hasUndercuts && (
+        <div className={cn(
+          "text-xs p-2 rounded border",
+          undercutAnalysis.severity > 50 
+            ? "bg-red-500/10 text-red-600 border-red-500/30"
+            : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+        )}>
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="w-3 h-3" />
+            Undercuts Detected ({undercutAnalysis.severity}% severity)
+          </div>
+          <ul className="mt-1 space-y-0.5 pl-5 list-disc">
+            {undercutAnalysis.recommendations.slice(0, 2).map((rec, i) => (
+              <li key={i}>{rec}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {/* Material Estimate */}
+      <div className="text-xs bg-background/50 p-2 rounded border border-border/50 space-y-1">
+        <div className="flex items-center gap-2 font-medium text-foreground">
+          <Ruler className="w-3 h-3" />
+          Material Estimate
+        </div>
+        <div className="grid grid-cols-2 gap-x-3 text-muted-foreground">
+          <span>Mold size:</span>
+          <span>{materialEstimate.totalMoldWidth}×{materialEstimate.totalMoldHeight}mm</span>
+          <span>Volume:</span>
+          <span>~{materialEstimate.volumeCm3} cm³</span>
+          <span>Plaster:</span>
+          <span>~{materialEstimate.plasterKg} kg</span>
+          <span>Silicone:</span>
+          <span>~{materialEstimate.siliconeKg} kg</span>
+        </div>
+      </div>
+      
+      <ParameterSlider
+        label="Wall Thickness"
+        value={params.moldWallThickness}
+        min={15}
+        max={50}
+        step={1}
+        unit="mm"
+        onChange={handleChange('moldWallThickness')}
+      />
+      
+      <ParameterSlider
+        label="Base Thickness"
+        value={params.moldBaseThickness}
+        min={10}
+        max={30}
+        step={1}
+        unit="mm"
+        onChange={handleChange('moldBaseThickness')}
+      />
+      
+      <ParameterSlider
+        label="Pour Hole Ø"
+        value={params.moldPourHoleDiameter}
+        min={15}
+        max={40}
+        step={1}
+        unit="mm"
+        onChange={handleChange('moldPourHoleDiameter')}
+      />
+      
+      {/* Vent Holes */}
+      <Subsection title="Vent Holes">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wind className={cn("w-3 h-3", params.moldVentHolesEnabled ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="vent-holes" className="text-xs">Enable Vents</Label>
+          </div>
+          <Switch 
+            id="vent-holes" 
+            checked={params.moldVentHolesEnabled} 
+            onCheckedChange={(v) => onParamsChange({ ...params, moldVentHolesEnabled: v })}
+          />
+        </div>
+        
+        {params.moldVentHolesEnabled && (
+          <>
+            <ParameterSlider
+              label="Count"
+              value={params.moldVentHoleCount}
+              min={2}
+              max={8}
+              step={1}
+              onChange={handleChange('moldVentHoleCount')}
+            />
+            <ParameterSlider
+              label="Diameter"
+              value={params.moldVentHoleDiameter}
+              min={2}
+              max={5}
+              step={0.5}
+              unit="mm"
+              onChange={handleChange('moldVentHoleDiameter')}
+            />
+            <ParameterSlider
+              label="Position"
+              value={params.moldVentHolePosition}
+              min={0.5}
+              max={0.95}
+              step={0.05}
+              onChange={handleChange('moldVentHolePosition')}
+            />
+          </>
+        )}
+      </Subsection>
+      
+      {/* Spare Collar */}
+      <Subsection title="Spare Collar">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CircleDot className={cn("w-3 h-3", params.moldSpareEnabled ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="spare-collar" className="text-xs">Enable Spare</Label>
+          </div>
+          <Switch 
+            id="spare-collar" 
+            checked={params.moldSpareEnabled} 
+            onCheckedChange={(v) => onParamsChange({ ...params, moldSpareEnabled: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground -mt-1">
+          Raised collar for slip reservoir
+        </div>
+        
+        {params.moldSpareEnabled && (
+          <>
+            <ParameterSlider
+              label="Height"
+              value={params.moldSpareHeight}
+              min={10}
+              max={30}
+              step={2}
+              unit="mm"
+              onChange={handleChange('moldSpareHeight')}
+            />
+            <ParameterSlider
+              label="Diameter"
+              value={params.moldSpareDiameter}
+              min={0}
+              max={60}
+              step={5}
+              unit="mm"
+              onChange={handleChange('moldSpareDiameter')}
+            />
+            <div className="text-xs text-muted-foreground -mt-2">
+              0 = auto (1.5× pour hole)
+            </div>
+          </>
+        )}
+      </Subsection>
+      
+      {/* Strap Notches */}
+      <Subsection title="Strap Notches">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Grip className={cn("w-3 h-3", params.moldStrapNotchesEnabled ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="strap-notches" className="text-xs">Enable Notches</Label>
+          </div>
+          <Switch 
+            id="strap-notches" 
+            checked={params.moldStrapNotchesEnabled} 
+            onCheckedChange={(v) => onParamsChange({ ...params, moldStrapNotchesEnabled: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground -mt-1">
+          Grooves for rubber bands to hold halves
+        </div>
+        
+        {params.moldStrapNotchesEnabled && (
+          <>
+            <ParameterSlider
+              label="Count"
+              value={params.moldStrapNotchCount}
+              min={2}
+              max={4}
+              step={1}
+              onChange={handleChange('moldStrapNotchCount')}
+            />
+            <ParameterSlider
+              label="Width"
+              value={params.moldStrapNotchWidth}
+              min={8}
+              max={15}
+              step={1}
+              unit="mm"
+              onChange={handleChange('moldStrapNotchWidth')}
+            />
+            <ParameterSlider
+              label="Depth"
+              value={params.moldStrapNotchDepth}
+              min={3}
+              max={6}
+              step={0.5}
+              unit="mm"
+              onChange={handleChange('moldStrapNotchDepth')}
+            />
+          </>
+        )}
+      </Subsection>
+      
+      <Subsection title="Registration Keys">
+        <ParameterSlider
+          label="Key Size"
+          value={params.moldRegistrationKeySize}
+          min={5}
+          max={15}
+          step={1}
+          unit="mm"
+          onChange={handleChange('moldRegistrationKeySize')}
+        />
+        <ParameterSlider
+          label="Key Count"
+          value={params.moldRegistrationKeyCount}
+          min={2}
+          max={6}
+          step={1}
+          onChange={handleChange('moldRegistrationKeyCount')}
+        />
+      </Subsection>
+      
+      <Subsection title="Split & Draft">
+        <ParameterSlider
+          label="Split Rotation"
+          value={params.moldSplitAngle}
+          min={0}
+          max={180}
+          step={5}
+          unit="°"
+          onChange={handleChange('moldSplitAngle')}
+        />
+        <ParameterSlider
+          label="Draft Angle"
+          value={params.moldDraftAngle}
+          min={0}
+          max={5}
+          step={0.5}
+          unit="°"
+          onChange={handleChange('moldDraftAngle')}
+        />
+      </Subsection>
+      
+      <ParameterSlider
+        label="Mold Offset"
+        value={params.moldOffset}
+        min={0}
+        max={2}
+        step={0.1}
+        unit="mm"
+        onChange={handleChange('moldOffset')}
+      />
+      <div className="text-xs text-muted-foreground -mt-2">
+        Gap for clay shrinkage compensation
+      </div>
+      
+      <ParameterSlider
+        label="Preview Gap"
+        value={params.moldGap}
+        min={0}
+        max={20}
+        step={1}
+        unit="mm"
+        onChange={handleChange('moldGap')}
+      />
+      
+      {/* Ghost Body Toggle */}
+      <div className="flex items-center justify-between pt-2 border-t border-border/50">
+        <div className="flex items-center gap-2">
+          <Eye className={cn("w-3 h-3", params.moldShowGhostBody ? "text-primary" : "text-muted-foreground")} />
+          <Label htmlFor="ghost-body" className="text-xs">Show Body Inside</Label>
+        </div>
+        <Switch 
+          id="ghost-body" 
+          checked={params.moldShowGhostBody ?? true} 
+          onCheckedChange={(v) => onParamsChange({ ...params, moldShowGhostBody: v })}
+        />
+      </div>
     </div>
   );
 };
@@ -1185,105 +1490,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </div>
         
         {params.moldEnabled && (
-          <div className="space-y-3 pt-2 border-t border-border/50">
-            <div className="text-xs text-muted-foreground bg-amber-500/10 p-2 rounded border border-amber-500/30">
-              Generates 2-part slip-casting mold. Export as separate STL files for 3D printing.
-            </div>
-            
-            <ParameterSlider
-              label="Wall Thickness"
-              value={params.moldWallThickness}
-              min={15}
-              max={50}
-              step={1}
-              unit="mm"
-              onChange={handleChange('moldWallThickness')}
-            />
-            
-            <ParameterSlider
-              label="Base Thickness"
-              value={params.moldBaseThickness}
-              min={10}
-              max={30}
-              step={1}
-              unit="mm"
-              onChange={handleChange('moldBaseThickness')}
-            />
-            
-            <ParameterSlider
-              label="Pour Hole Ø"
-              value={params.moldPourHoleDiameter}
-              min={15}
-              max={40}
-              step={1}
-              unit="mm"
-              onChange={handleChange('moldPourHoleDiameter')}
-            />
-            
-            <Subsection title="Registration Keys">
-              <ParameterSlider
-                label="Key Size"
-                value={params.moldRegistrationKeySize}
-                min={5}
-                max={15}
-                step={1}
-                unit="mm"
-                onChange={handleChange('moldRegistrationKeySize')}
-              />
-              <ParameterSlider
-                label="Key Count"
-                value={params.moldRegistrationKeyCount}
-                min={2}
-                max={6}
-                step={1}
-                onChange={handleChange('moldRegistrationKeyCount')}
-              />
-            </Subsection>
-            
-            <Subsection title="Split & Draft">
-              <ParameterSlider
-                label="Split Rotation"
-                value={params.moldSplitAngle}
-                min={0}
-                max={180}
-                step={5}
-                unit="°"
-                onChange={handleChange('moldSplitAngle')}
-              />
-              <ParameterSlider
-                label="Draft Angle"
-                value={params.moldDraftAngle}
-                min={0}
-                max={5}
-                step={0.5}
-                unit="°"
-                onChange={handleChange('moldDraftAngle')}
-              />
-            </Subsection>
-            
-            <ParameterSlider
-              label="Mold Offset"
-              value={params.moldOffset}
-              min={0}
-              max={2}
-              step={0.1}
-              unit="mm"
-              onChange={handleChange('moldOffset')}
-            />
-            <div className="text-xs text-muted-foreground -mt-2">
-              Gap for clay shrinkage compensation
-            </div>
-            
-            <ParameterSlider
-              label="Preview Gap"
-              value={params.moldGap}
-              min={0}
-              max={20}
-              step={1}
-              unit="mm"
-              onChange={handleChange('moldGap')}
-            />
-          </div>
+          <MoldControls params={params} type={type} onParamsChange={onParamsChange} handleChange={handleChange} />
         )}
       </div>
     </motion.div>

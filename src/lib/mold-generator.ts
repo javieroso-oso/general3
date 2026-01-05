@@ -17,6 +17,18 @@ export interface MoldParams {
   draftAngle: number;           // degrees (0-5)
   gap: number;                  // mm - preview gap between halves
   offset: number;               // mm - shrinkage/clearance offset
+  // Enhancement parameters
+  ventHolesEnabled: boolean;
+  ventHoleCount: number;
+  ventHoleDiameter: number;
+  ventHolePosition: number;     // 0-1 along height
+  spareEnabled: boolean;
+  spareHeight: number;
+  spareDiameter: number;        // 0 = auto
+  strapNotchesEnabled: boolean;
+  strapNotchCount: number;
+  strapNotchWidth: number;
+  strapNotchDepth: number;
 }
 
 export interface MoldGeometry {
@@ -124,6 +136,108 @@ function createPourHoleBrush(
   
   const brush = new Brush(geometry);
   brush.position.set(0, topY - holeDepth / 2 + 0.001, 0);
+  brush.updateMatrixWorld();
+  
+  return brush;
+}
+
+/**
+ * Create vent hole brush for air escape during casting
+ * Positioned at high points of the cavity to allow trapped air to escape
+ */
+function createVentHoleBrush(
+  diameter: number,
+  depth: number,
+  position: THREE.Vector3,
+  angle: number
+): Brush {
+  const radius = (diameter / 2) * SCALE;
+  const holeDepth = depth * SCALE;
+  
+  const geometry = new THREE.CylinderGeometry(
+    radius,
+    radius * 0.8, // Slight taper for better mold release
+    holeDepth,
+    12
+  );
+  
+  // Angle the vent slightly upward (away from cavity)
+  geometry.rotateZ(angle);
+  
+  ensureUVAttribute(geometry);
+  
+  const brush = new Brush(geometry);
+  brush.position.copy(position);
+  brush.updateMatrixWorld();
+  
+  return brush;
+}
+
+/**
+ * Create spare/reservoir collar brush
+ * A raised collar around the pour hole that acts as a slip reservoir
+ */
+function createSpareCollarBrush(
+  innerDiameter: number,
+  outerDiameter: number,
+  height: number,
+  topY: number
+): Brush {
+  const innerRadius = (innerDiameter / 2) * SCALE;
+  const outerRadius = (outerDiameter / 2) * SCALE;
+  const collarHeight = height * SCALE;
+  
+  // Create ring shape using lathe geometry
+  const points = [
+    new THREE.Vector2(innerRadius, 0),
+    new THREE.Vector2(outerRadius, 0),
+    new THREE.Vector2(outerRadius * 0.95, collarHeight * 0.3),
+    new THREE.Vector2(outerRadius * 0.85, collarHeight),
+    new THREE.Vector2(innerRadius * 1.1, collarHeight),
+    new THREE.Vector2(innerRadius, 0),
+  ];
+  
+  const geometry = new THREE.LatheGeometry(points, 32);
+  ensureUVAttribute(geometry);
+  
+  const brush = new Brush(geometry);
+  brush.position.set(0, topY, 0);
+  brush.updateMatrixWorld();
+  
+  return brush;
+}
+
+/**
+ * Create strap notch brush for rubber bands/straps
+ * Grooves cut around the mold perimeter
+ */
+function createStrapNotchBrush(
+  width: number,
+  depth: number,
+  moldRadius: number,
+  y: number,
+  angle: number
+): Brush {
+  const notchWidth = width * SCALE;
+  const notchDepth = depth * SCALE;
+  const radius = moldRadius * SCALE;
+  
+  // Create a box that will be subtracted
+  const geometry = new THREE.BoxGeometry(
+    notchDepth * 2,
+    notchWidth,
+    notchDepth * 2
+  );
+  
+  ensureUVAttribute(geometry);
+  
+  const brush = new Brush(geometry);
+  brush.position.set(
+    Math.cos(angle) * radius,
+    y * SCALE,
+    Math.sin(angle) * radius
+  );
+  brush.rotation.y = angle;
   brush.updateMatrixWorld();
   
   return brush;
@@ -436,6 +550,71 @@ function generateMoldHalf(
     
     resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
     
+    // Add vent holes if enabled
+    if (moldParams.ventHolesEnabled && moldParams.ventHoleCount > 0) {
+      const ventY = height * moldParams.ventHolePosition;
+      const ventDepth = moldParams.wallThickness + 5;
+      const ventAngleStep = Math.PI / moldParams.ventHoleCount;
+      
+      for (let i = 0; i < moldParams.ventHoleCount; i++) {
+        // Position vents on the back side of each half (opposite pour hole)
+        const ventAngle = splitRotation + Math.PI / 2 + ventAngleStep * i - (Math.PI / 4);
+        const ventRadius = outerRadius - moldParams.wallThickness * SCALE * 0.5;
+        
+        const ventPos = new THREE.Vector3(
+          Math.cos(ventAngle) * ventRadius,
+          ventY,
+          Math.sin(ventAngle) * ventRadius
+        );
+        
+        const ventBrush = createVentHoleBrush(
+          moldParams.ventHoleDiameter,
+          ventDepth,
+          ventPos,
+          -Math.PI / 6 // Angle slightly upward
+        );
+        
+        resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
+      }
+    }
+    
+    // Add spare collar if enabled
+    if (moldParams.spareEnabled && moldParams.spareHeight > 0) {
+      const spareDiameter = moldParams.spareDiameter > 0 
+        ? moldParams.spareDiameter 
+        : moldParams.pourHoleDiameter * 1.5;
+      
+      const spareBrush = createSpareCollarBrush(
+        moldParams.pourHoleDiameter,
+        spareDiameter,
+        moldParams.spareHeight,
+        height
+      );
+      
+      resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
+    }
+    
+    // Add strap notches if enabled
+    if (moldParams.strapNotchesEnabled && moldParams.strapNotchCount > 0) {
+      const notchY = height * 0.5; // Center of mold
+      const moldOuterRadius = (outerRadius / SCALE) + moldParams.wallThickness;
+      const notchAngleStep = Math.PI / moldParams.strapNotchCount;
+      
+      for (let i = 0; i < moldParams.strapNotchCount; i++) {
+        const notchAngle = splitRotation + Math.PI / 2 + notchAngleStep * i;
+        
+        const notchBrush = createStrapNotchBrush(
+          moldParams.strapNotchWidth,
+          moldParams.strapNotchDepth,
+          moldOuterRadius,
+          notchY / SCALE,
+          notchAngle
+        );
+        
+        resultBrush = evaluator.evaluate(resultBrush, notchBrush, SUBTRACTION);
+      }
+    }
+    
     // Get the final geometry
     const finalGeometry = resultBrush.geometry;
     finalGeometry.computeVertexNormals();
@@ -464,7 +643,18 @@ export function generateMoldGeometry(
     splitAngle: params.moldSplitAngle,
     draftAngle: params.moldDraftAngle,
     gap: params.moldGap,
-    offset: params.moldOffset ?? 0.5, // Default 0.5mm offset if not set
+    offset: params.moldOffset ?? 0.5,
+    ventHolesEnabled: params.moldVentHolesEnabled ?? false,
+    ventHoleCount: params.moldVentHoleCount ?? 4,
+    ventHoleDiameter: params.moldVentHoleDiameter ?? 3,
+    ventHolePosition: params.moldVentHolePosition ?? 0.8,
+    spareEnabled: params.moldSpareEnabled ?? false,
+    spareHeight: params.moldSpareHeight ?? 20,
+    spareDiameter: params.moldSpareDiameter ?? 0,
+    strapNotchesEnabled: params.moldStrapNotchesEnabled ?? false,
+    strapNotchCount: params.moldStrapNotchCount ?? 2,
+    strapNotchWidth: params.moldStrapNotchWidth ?? 12,
+    strapNotchDepth: params.moldStrapNotchDepth ?? 4,
   };
   
   const halfA = generateMoldHalf(params, moldParams, true, objectType);
