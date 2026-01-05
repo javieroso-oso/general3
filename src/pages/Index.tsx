@@ -302,7 +302,7 @@ const Index = () => {
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 glass-panel px-4 py-3 flex items-center gap-3 max-w-[calc(100vw-32px)] overflow-x-auto"
+        className="fixed bottom-4 left-4 lg:left-[380px] z-20 glass-panel px-4 py-3 flex items-center gap-3 max-w-[calc(100vw-32px)] overflow-x-auto"
       >
         {/* View mode */}
         <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
