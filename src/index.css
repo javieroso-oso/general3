@@ -2,68 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light Bauhaus Brutalism - Bold Primary Colors on Warm White */
+/* Minimal Light - Ultra-clean gallery aesthetic */
 
 @layer base {
   :root {
-    /* Warm off-white background */
-    --background: 45 20% 96%;
-    --foreground: 0 0% 8%;
+    /* Pure whites and warm grays */
+    --background: 0 0% 98%;
+    --foreground: 220 15% 20%;
 
-    /* Pure white cards */
+    /* Pure white cards with glass effect */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 220 15% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover-foreground: 220 15% 20%;
 
-    /* Bauhaus Blue primary */
-    --primary: 220 85% 45%;
+    /* Slate blue-gray primary */
+    --primary: 220 12% 35%;
     --primary-foreground: 0 0% 100%;
 
-    /* Light gray secondary */
-    --secondary: 45 10% 92%;
-    --secondary-foreground: 0 0% 15%;
+    /* Light warm gray secondary */
+    --secondary: 40 15% 96%;
+    --secondary-foreground: 220 15% 25%;
 
-    /* Soft muted */
-    --muted: 45 8% 90%;
-    --muted-foreground: 0 0% 40%;
+    /* Soft muted tones */
+    --muted: 40 10% 94%;
+    --muted-foreground: 220 10% 50%;
 
-    /* Bauhaus Red accent */
-    --accent: 5 85% 50%;
-    --accent-foreground: 0 0% 100%;
+    /* Warm cream accent */
+    --accent: 35 30% 95%;
+    --accent-foreground: 220 15% 25%;
 
-    /* Bauhaus Yellow */
-    --bauhaus-yellow: 48 95% 55%;
-    --bauhaus-yellow-foreground: 0 0% 8%;
+    /* Keep for compatibility but use subtle */
+    --bauhaus-yellow: 35 25% 90%;
+    --bauhaus-yellow-foreground: 220 15% 20%;
 
-    --destructive: 5 85% 50%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Strong visible borders */
-    --border: 0 0% 75%;
-    --input: 45 8% 88%;
-    --ring: 220 85% 45%;
+    /* Subtle borders */
+    --border: 220 10% 90%;
+    --input: 220 10% 94%;
+    --ring: 220 12% 35%;
 
-    --radius: 0;
+    /* Soft radius */
+    --radius: 12px;
 
-    /* Hard offset black shadows */
-    --shadow-brutal: 4px 4px 0 hsl(0 0% 8%);
-    --shadow-brutal-sm: 2px 2px 0 hsl(0 0% 8%);
-    --shadow-blue: 4px 4px 0 hsl(220 85% 45%);
-    --shadow-red: 4px 4px 0 hsl(5 85% 50%);
-    --shadow-yellow: 4px 4px 0 hsl(48 95% 55%);
-    --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.06);
+    /* Refined shadows */
+    --shadow-soft: 0 1px 3px hsla(220, 20%, 20%, 0.03), 
+                   0 4px 12px hsla(220, 20%, 20%, 0.04);
+    --shadow-elevated: 0 4px 20px hsla(220, 20%, 20%, 0.08),
+                       0 1px 4px hsla(220, 20%, 20%, 0.04);
+    --shadow-glass: 0 8px 32px hsla(220, 20%, 20%, 0.06);
     
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 8%;
-    --sidebar-primary: 220 85% 45%;
+    --sidebar-foreground: 220 15% 20%;
+    --sidebar-primary: 220 12% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 45 10% 94%;
-    --sidebar-accent-foreground: 0 0% 8%;
-    --sidebar-border: 0 0% 75%;
-    --sidebar-ring: 220 85% 45%;
+    --sidebar-accent: 40 15% 96%;
+    --sidebar-accent-foreground: 220 15% 25%;
+    --sidebar-border: 220 10% 92%;
+    --sidebar-ring: 220 12% 35%;
   }
 }
 
@@ -77,77 +77,72 @@
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-bold tracking-tight text-foreground;
+    @apply font-display font-medium tracking-tight text-foreground;
   }
 }
 
 @layer components {
-  /* Bauhaus panel */
-  .workshop-panel {
-    @apply bg-card rounded-none border-2 border-foreground;
-    box-shadow: var(--shadow-brutal);
+  /* Glass panel - floating controls */
+  .glass-panel {
+    @apply bg-card/85 backdrop-blur-xl rounded-2xl border border-border/50;
+    box-shadow: var(--shadow-glass);
   }
   
-  .workshop-panel:hover {
-    box-shadow: var(--shadow-blue);
+  .glass-panel-elevated {
+    @apply bg-card/90 backdrop-blur-xl rounded-2xl border border-border/40;
+    box-shadow: var(--shadow-elevated);
   }
   
-  /* Color-accented control card */
+  /* Minimal control card */
   .control-card {
-    @apply bg-card text-card-foreground rounded-none border-2 border-foreground p-4 transition-all duration-150;
-    box-shadow: var(--shadow-brutal-sm);
+    @apply bg-card text-card-foreground rounded-xl p-4 transition-all duration-200;
+    box-shadow: var(--shadow-soft);
   }
   
   .control-card:hover {
-    box-shadow: var(--shadow-blue);
-    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-elevated);
   }
   
-  /* Bold preset card */
+  /* Preset card - minimal */
   .preset-card {
-    @apply bg-secondary rounded-none p-3 cursor-pointer transition-all duration-150 border-2 border-transparent;
+    @apply bg-secondary/50 rounded-xl p-3 cursor-pointer transition-all duration-200 border border-transparent;
   }
   
   .preset-card:hover {
-    @apply border-foreground;
-    box-shadow: var(--shadow-brutal-sm);
-    transform: translate(-1px, -1px);
+    @apply bg-secondary border-border;
   }
   
   .preset-card.active {
-    @apply bg-primary text-primary-foreground border-foreground;
-    box-shadow: var(--shadow-brutal-sm);
+    @apply bg-primary/10 border-primary/30;
   }
   
-  /* Strong label */
+  /* Refined label */
   .label-text {
-    @apply text-xs font-bold text-foreground uppercase tracking-widest;
+    @apply text-xs font-medium text-muted-foreground tracking-wide;
   }
   
   .value-display {
-    @apply font-mono text-sm font-bold tabular-nums text-primary;
+    @apply font-mono text-sm font-medium tabular-nums text-foreground;
   }
   
-  /* Bauhaus slider */
+  /* Minimal slider */
   .slider-track {
-    @apply h-3 rounded-none border-2 border-foreground;
-    background: hsl(var(--bauhaus-yellow));
+    @apply h-1 rounded-full bg-border;
   }
   
   .slider-thumb {
-    @apply w-5 h-5 bg-primary rounded-none border-2 border-foreground cursor-grab active:cursor-grabbing transition-transform duration-100;
-    box-shadow: var(--shadow-brutal-sm);
+    @apply w-4 h-4 bg-card rounded-full cursor-grab active:cursor-grabbing transition-all duration-150;
+    box-shadow: 0 1px 4px hsla(220, 20%, 20%, 0.15), 0 0 0 1px hsla(220, 10%, 20%, 0.05);
   }
   
   .slider-thumb:hover {
-    @apply bg-accent;
-    transform: translate(-1px, -1px);
-    box-shadow: var(--shadow-brutal);
+    @apply scale-110;
+    box-shadow: 0 2px 8px hsla(220, 20%, 20%, 0.2), 0 0 0 1px hsla(220, 10%, 20%, 0.08);
   }
   
-  /* Bold navigation with color underline */
+  /* Minimal navigation */
   .nav-link {
-    @apply relative px-4 py-2 text-muted-foreground font-semibold text-sm uppercase tracking-wide transition-colors duration-150;
+    @apply relative px-4 py-2 text-muted-foreground font-medium text-sm transition-colors duration-200;
   }
   
   .nav-link:hover {
@@ -160,91 +155,93 @@
   
   .nav-link.active::after {
     content: '';
-    @apply absolute bottom-0 left-2 right-2 h-1;
-    background: hsl(var(--bauhaus-yellow));
+    @apply absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full;
   }
   
-  /* Bauhaus tab buttons */
+  /* Minimal tab buttons */
   .tab-button {
-    @apply px-5 py-2.5 font-bold text-muted-foreground transition-all duration-150 rounded-none text-sm uppercase tracking-wide border-2 border-transparent;
+    @apply px-4 py-2 font-medium text-muted-foreground transition-all duration-200 rounded-lg text-sm;
   }
   
   .tab-button:hover {
-    @apply text-foreground bg-secondary border-foreground;
+    @apply text-foreground bg-secondary/50;
   }
   
   .tab-button.active {
-    @apply bg-primary text-primary-foreground border-foreground;
-    box-shadow: var(--shadow-brutal-sm);
+    @apply bg-card text-foreground;
+    box-shadow: var(--shadow-soft);
   }
   
-  /* Colorful icon button */
+  /* Minimal icon button */
   .icon-button {
-    @apply p-2.5 bg-secondary text-foreground rounded-none border-2 border-foreground transition-all duration-150;
+    @apply p-2.5 bg-transparent text-muted-foreground rounded-lg transition-all duration-200;
   }
   
   .icon-button:hover {
-    background: hsl(var(--bauhaus-yellow));
-    box-shadow: var(--shadow-brutal-sm);
-    transform: translate(-1px, -1px);
+    @apply bg-secondary text-foreground;
   }
   
-  /* Bauhaus text */
+  /* Minimal text */
   .gradient-text {
-    @apply text-primary font-bold;
+    @apply text-foreground font-medium;
   }
   
-  /* Color block border */
+  /* Subtle border */
   .gradient-border {
-    @apply relative rounded-none border-2 border-foreground;
-    box-shadow: var(--shadow-blue);
+    @apply relative rounded-xl border border-border;
+    box-shadow: var(--shadow-soft);
   }
   
-  /* Bauhaus badges */
-  .badge-blue {
-    @apply bg-primary text-primary-foreground px-3 py-1 rounded-none text-xs font-bold uppercase;
+  /* Minimal badges */
+  .badge-primary {
+    @apply bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
   
-  .badge-red {
-    @apply bg-accent text-accent-foreground px-3 py-1 rounded-none text-xs font-bold uppercase;
+  .badge-secondary {
+    @apply bg-secondary text-secondary-foreground px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
   
-  .badge-yellow {
-    @apply px-3 py-1 rounded-none text-xs font-bold uppercase;
-    background: hsl(var(--bauhaus-yellow));
-    color: hsl(var(--bauhaus-yellow-foreground));
+  .badge-muted {
+    @apply bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
   
-  .badge-black {
-    @apply bg-foreground text-background px-3 py-1 rounded-none text-xs font-bold uppercase;
+  /* Dial component */
+  .dial-container {
+    @apply relative flex flex-col items-center gap-2;
   }
   
-  /* Brutal button hover */
-  .button-lift {
-    @apply transition-all duration-150;
+  .dial-ring {
+    @apply relative w-16 h-16 rounded-full cursor-pointer;
+    background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--muted)) 100%);
+    box-shadow: inset 0 2px 4px hsla(220, 20%, 20%, 0.05);
   }
   
-  .button-lift:hover {
-    transform: translate(-2px, -2px);
-    box-shadow: var(--shadow-brutal);
+  .dial-ring:hover {
+    box-shadow: inset 0 2px 4px hsla(220, 20%, 20%, 0.08),
+                0 0 0 2px hsla(var(--primary), 0.1);
   }
   
-  .button-lift:active {
-    transform: translate(0, 0);
-    box-shadow: none;
+  .dial-indicator {
+    @apply absolute top-1 left-1/2 w-1 h-3 -translate-x-1/2 rounded-full bg-primary;
   }
   
-  /* Bauhaus color blocks */
-  .block-blue {
-    @apply bg-primary;
+  .dial-value {
+    @apply absolute inset-0 flex items-center justify-center font-mono text-sm font-medium text-foreground;
   }
   
-  .block-red {
-    @apply bg-accent;
+  .dial-label {
+    @apply text-xs text-muted-foreground font-medium;
   }
   
-  .block-yellow {
-    background: hsl(var(--bauhaus-yellow));
+  /* Full bleed viewer */
+  .viewer-fullbleed {
+    @apply fixed inset-0 z-0;
+  }
+  
+  /* Floating panel */
+  .floating-panel {
+    @apply fixed z-10 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/40;
+    box-shadow: var(--shadow-glass);
   }
 }
 
@@ -259,19 +256,6 @@
   
   .animate-pulse-slow {
     animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  /* Bauhaus yellow utilities */
-  .text-bauhaus-yellow {
-    color: hsl(var(--bauhaus-yellow));
-  }
-  
-  .bg-bauhaus-yellow {
-    background: hsl(var(--bauhaus-yellow));
-  }
-  
-  .border-bauhaus-yellow {
-    border-color: hsl(var(--bauhaus-yellow));
   }
 }
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Box, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -16,33 +16,30 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card border-b-2 border-border">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo - Tom Sachs industrial badge style */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div 
-              className="w-10 h-10 bg-primary border-2 border-foreground flex items-center justify-center group-hover:translate-x-[-2px] group-hover:translate-y-[-2px] transition-transform"
-              style={{ boxShadow: '3px 3px 0px hsl(20 10% 5%)' }}
-            >
-              <Box className="w-5 h-5 text-primary-foreground" />
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
+      <div className="container mx-auto px-6">
+        <div className="flex items-center justify-between h-14">
+          {/* Logo - Minimal */}
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+              <Box className="w-4 h-4 text-primary" />
             </div>
-            <span className="font-bold text-lg hidden sm:block text-card-foreground uppercase tracking-wider">
-              <span className="text-primary">P3D</span> Gen
+            <span className="font-medium text-sm hidden sm:block text-foreground tracking-tight">
+              P3D <span className="text-muted-foreground">Generator</span>
             </span>
           </Link>
 
-          {/* Desktop Navigation - Stenciled style */}
-          <nav className="hidden md:flex items-center gap-0">
+          {/* Desktop Navigation - Minimal */}
+          <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'relative px-4 py-2 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-150 border-b-2',
+                  'relative px-3 py-1.5 text-sm font-medium transition-colors duration-200 rounded-lg',
                   location.pathname === item.path
-                    ? 'text-primary border-primary'
-                    : 'text-text-secondary hover:text-card-foreground border-transparent hover:border-text-secondary'
+                    ? 'text-foreground bg-secondary/80'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 )}
               >
                 {item.label}
@@ -50,49 +47,49 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Mobile menu button - Industrial */}
+          {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 bg-secondary text-secondary-foreground border-2 border-border hover:bg-primary hover:text-primary-foreground hover:border-foreground transition-all"
-            style={{ boxShadow: '2px 2px 0px hsl(20 10% 5%)' }}
+            className="md:hidden p-2 text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-lg transition-colors"
           >
             {mobileMenuOpen ? (
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             ) : (
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
             )}
           </button>
         </div>
       </div>
 
-      {/* Mobile Navigation - Workshop panel */}
-      {mobileMenuOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="md:hidden border-t-2 border-border bg-card"
-        >
-          <nav className="container mx-auto px-4 py-4 space-y-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn(
-                  'block px-4 py-3 font-bold uppercase tracking-[0.15em] text-xs transition-all border-2',
-                  location.pathname === item.path
-                    ? 'bg-primary text-primary-foreground border-foreground'
-                    : 'text-text-secondary hover:bg-secondary hover:text-secondary-foreground border-transparent hover:border-border'
-                )}
-                style={location.pathname === item.path ? { boxShadow: '3px 3px 0px hsl(20 10% 5%)' } : {}}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </motion.div>
-      )}
+      {/* Mobile Navigation */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl overflow-hidden"
+          >
+            <nav className="container mx-auto px-6 py-3 space-y-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'block px-3 py-2.5 font-medium text-sm rounded-lg transition-colors',
+                    location.pathname === item.path
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 };

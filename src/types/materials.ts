@@ -111,12 +111,12 @@ export const MATERIAL_LABELS: Record<MaterialPreset, string> = {
   'custom': 'Custom Color',
 };
 
-export type BackgroundPreset = 'white' | 'light-gray' | 'dark' | 'warm' | 'cool' | 'studio';
+export type BackgroundPreset = 'white' | 'light-gray' | 'warm' | 'cool' | 'studio' | 'minimal';
 
 export const BACKGROUND_PRESETS: Record<BackgroundPreset, { from: string; to: string; label: string }> = {
+  'minimal': { from: '#fafafa', to: '#f0f0f2', label: 'Minimal' },
   'white': { from: '#ffffff', to: '#f0f0f0', label: 'White' },
   'light-gray': { from: '#e8e8e8', to: '#d0d0d0', label: 'Light Gray' },
-  'dark': { from: '#1a1a1a', to: '#0a0a0a', label: 'Dark' },
   'warm': { from: '#f5e6d3', to: '#e8d5c4', label: 'Warm' },
   'cool': { from: '#d4e5f7', to: '#b8d4ed', label: 'Cool' },
   'studio': { from: '#3a3a4a', to: '#252530', label: 'Studio' },
