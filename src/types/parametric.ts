@@ -166,6 +166,23 @@ export interface ParametricParams {
   moldGap: number;                   // mm - gap between halves for preview (0-20mm)
   moldOffset: number;                // mm - shrinkage/clearance offset (0-2mm)
   
+  // Mold enhancements
+  moldVentHolesEnabled: boolean;     // Toggle vent holes for air escape
+  moldVentHoleCount: number;         // Number of vent holes (2-8)
+  moldVentHoleDiameter: number;      // mm - vent hole diameter (2-5mm)
+  moldVentHolePosition: number;      // 0-1 - position along height
+  
+  moldSpareEnabled: boolean;         // Toggle spare/reservoir collar
+  moldSpareHeight: number;           // mm - height of spare collar (10-30mm)
+  moldSpareDiameter: number;         // mm - diameter of spare (0 = auto)
+  
+  moldStrapNotchesEnabled: boolean;  // Toggle strap notches
+  moldStrapNotchCount: number;       // Number of notches (2-4)
+  moldStrapNotchWidth: number;       // mm - notch width (8-15mm)
+  moldStrapNotchDepth: number;       // mm - notch depth (3-6mm)
+  
+  moldShowGhostBody: boolean;        // Show body outline inside mold
+  
   // Preview mode
   showBaseOnly: boolean;     // Show only base/legs without body for easier editing
   previewColor: string;      // Hex color for preview rendering
@@ -389,6 +406,18 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   moldDraftAngle: 2,
   moldGap: 10,
   moldOffset: 0.5,
+  moldVentHolesEnabled: false,
+  moldVentHoleCount: 4,
+  moldVentHoleDiameter: 3,
+  moldVentHolePosition: 0.8,
+  moldSpareEnabled: false,
+  moldSpareHeight: 20,
+  moldSpareDiameter: 0,
+  moldStrapNotchesEnabled: false,
+  moldStrapNotchCount: 2,
+  moldStrapNotchWidth: 12,
+  moldStrapNotchDepth: 4,
+  moldShowGhostBody: true,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   ...overrides,
