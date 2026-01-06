@@ -166,6 +166,12 @@ export interface ParametricParams {
   moldGap: number;                   // mm - gap between halves for preview (0-20mm)
   moldOffset: number;                // mm - shrinkage/clearance offset (0-2mm)
   
+  // Multi-part mold
+  moldPartCount: 2 | 3 | 4;          // Number of mold parts (2, 3, or 4)
+  
+  // Mold colors for preview
+  moldColors: string[];              // Hex colors for each mold part
+  
   // Mold enhancements
   moldVentHolesEnabled: boolean;     // Toggle vent holes for air escape
   moldVentHoleCount: number;         // Number of vent holes (2-8)
@@ -406,6 +412,8 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   moldDraftAngle: 2,
   moldGap: 10,
   moldOffset: 0.5,
+  moldPartCount: 2,
+  moldColors: ['#C97B5D', '#7B9E87', '#8B7EC7', '#CBA670'],
   moldVentHolesEnabled: false,
   moldVentHoleCount: 4,
   moldVentHoleDiameter: 3,

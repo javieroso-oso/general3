@@ -82,10 +82,61 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
   const undercutAnalysis = useMemo(() => analyzeUndercuts(params, type), [params, type]);
   const materialEstimate = useMemo(() => calculateMoldMaterialEstimate(params, type), [params, type]);
 
+  const handlePartCountChange = (count: 2 | 3 | 4) => {
+    onParamsChange({ ...params, moldPartCount: count });
+  };
+
+  const handleColorChange = (index: number, color: string) => {
+    const newColors = [...(params.moldColors || ['#C97B5D', '#7B9E87', '#8B7EC7', '#CBA670'])];
+    newColors[index] = color;
+    onParamsChange({ ...params, moldColors: newColors });
+  };
+
+  const partCount = params.moldPartCount || 2;
+  const colors = params.moldColors || ['#C97B5D', '#7B9E87', '#8B7EC7', '#CBA670'];
+  const partLabels = ['A', 'B', 'C', 'D'];
+
   return (
     <div className="space-y-3 pt-2 border-t border-border/50">
       <div className="text-xs text-muted-foreground bg-amber-500/10 p-2 rounded border border-amber-500/30">
-        Generates 2-part slip-casting mold. Export as separate STL files for 3D printing.
+        Generates {partCount}-part slip-casting mold. Export as separate STL files for 3D printing.
+      </div>
+      
+      {/* Part Count Selector */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Mold Parts</Label>
+        <div className="flex gap-2">
+          {([2, 3, 4] as const).map((count) => (
+            <Button
+              key={count}
+              variant={partCount === count ? 'default' : 'outline'}
+              size="sm"
+              className="flex-1"
+              onClick={() => handlePartCountChange(count)}
+            >
+              {count}-Part
+            </Button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Part Colors */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Part Colors</Label>
+        <div className="flex gap-2">
+          {Array.from({ length: partCount }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <input
+                type="color"
+                value={colors[i]}
+                onChange={(e) => handleColorChange(i, e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+                title={`Part ${partLabels[i]} color`}
+              />
+              <span className="text-xs text-muted-foreground">{partLabels[i]}</span>
+            </div>
+          ))}
+        </div>
       </div>
       
       {/* Undercut Warning */}
@@ -105,6 +156,9 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
               <li key={i}>{rec}</li>
             ))}
           </ul>
+          {partCount === 2 && undercutAnalysis.severity > 30 && (
+            <p className="mt-2 text-xs font-medium">💡 Try a 3 or 4-part mold to avoid undercuts</p>
+          )}
         </div>
       )}
       
