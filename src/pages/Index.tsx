@@ -355,6 +355,50 @@ const Index = () => {
               title="Body color"
             />
 
+            {/* Leg/Base material sync toggle */}
+            {params.addLegs && (
+              <>
+                <div className="w-px h-6 bg-border/50" />
+                <div className="flex items-center gap-1">
+                  <Switch
+                    checked={syncLegMaterial}
+                    onCheckedChange={setSyncLegMaterial}
+                    className="scale-75"
+                  />
+                  <span className="text-xs text-muted-foreground">Sync</span>
+                </div>
+
+                {/* Separate leg material controls (when not synced) */}
+                {!syncLegMaterial && (
+                  <>
+                    <Select value={legMaterialPreset} onValueChange={(v) => setLegMaterialPreset(v as MaterialPreset)}>
+                      <SelectTrigger className="w-[90px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
+                        <SelectValue placeholder="Legs" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border rounded-lg">
+                        {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
+                          <SelectItem key={preset} value={preset} className="text-xs">
+                            {MATERIAL_LABELS[preset]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <input
+                      type="color"
+                      value={legCustomColor || MATERIAL_PRESETS[legMaterialPreset]?.color || '#8B4513'}
+                      onChange={(e) => {
+                        setLegCustomColor(e.target.value);
+                        setUseLegPresetColor(false);
+                      }}
+                      className="w-8 h-8 rounded-lg cursor-pointer border border-border/50"
+                      title="Leg/Base color"
+                    />
+                  </>
+                )}
+              </>
+            )}
+
             <Select value={backgroundPreset} onValueChange={(v) => setBackgroundPreset(v as BackgroundPreset)}>
               <SelectTrigger className="w-[90px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
                 <Palette className="w-3 h-3 mr-1" />
@@ -451,6 +495,18 @@ const Index = () => {
               <Download className="w-3.5 h-3.5" />
               STL
             </Button>
+            {params.addLegs && (
+              <Button 
+                onClick={handleExportLegsBase} 
+                disabled={!analysis.isValid}
+                variant="secondary"
+                size="sm"
+                className="gap-1.5 h-8 rounded-lg"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Base
+              </Button>
+            )}
             <Button 
               onClick={handleExportGCode} 
               disabled={!analysis.isValid}
