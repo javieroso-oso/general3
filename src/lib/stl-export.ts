@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import earcut from 'earcut';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
@@ -1135,7 +1136,48 @@ export function downloadLegsWithBaseSTL(
   URL.revokeObjectURL(url);
 }
 
-// Download both parts
+// Export combined body + legs/base mesh to STL
+export function exportCombinedToSTL(
+  params: ParametricParams,
+  type: ObjectType
+): Blob {
+  const bodyGeometry = generateBodyMesh(params, type);
+  
+  if (params.addLegs) {
+    const legsGeometry = generateLegsWithBaseMesh(params);
+    const combined = mergeGeometries([bodyGeometry, legsGeometry]);
+    const mesh = new THREE.Mesh(combined);
+    const exporter = new STLExporter();
+    const result = exporter.parse(mesh);
+    return new Blob([result], { type: 'application/octet-stream' });
+  }
+  
+  const mesh = new THREE.Mesh(bodyGeometry);
+  const exporter = new STLExporter();
+  const result = exporter.parse(mesh);
+  return new Blob([result], { type: 'application/octet-stream' });
+}
+
+// Download combined STL
+export function downloadCombinedSTL(
+  params: ParametricParams,
+  type: ObjectType,
+  filename: string = 'combined.stl'
+): void {
+  const blob = exportCombinedToSTL(params, type);
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+}
+
+// Download both parts separately
 export function downloadAllParts(
   params: ParametricParams,
   type: ObjectType,
