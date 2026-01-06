@@ -389,10 +389,8 @@ function generateBaseMoldHalf(
   }
   
   // ========== BOTTOM FACE (BASE) - WATERTIGHT ==========
-  // The bottom has:
-  // 1. An inner ring at y=0 from the cavity (where inner surface starts)
-  // 2. An outer ring at y=-baseThickness (outer surface projected down)
-  // 3. A solid base connecting center to outer, with inner cavity rising from it
+  // The bottom is an annulus (ring) from inner radius to outer radius
+  // Plus two straight edges along the split line to close the half-disc
   
   // Get inner bottom ring vertex indices (first ring of inner surface at y=0)
   const innerBottomRing: number[] = [];
@@ -400,13 +398,7 @@ function generateBaseMoldHalf(
     innerBottomRing.push(innerVertexStart + j);
   }
   
-  // Create bottom base center and outer ring at y=-baseThickness
-  const bottomVertexStart = vertices.length / 3;
-  vertices.push(0, -baseThickness, 0);
-  uvs.push(0.5, -0.1);
-  const bottomCenter = bottomVertexStart;
-  
-  // Outer ring at base level
+  // Outer ring at base level (y=-baseThickness)
   const bottomOuterRingStart = vertices.length / 3;
   for (let j = 0; j <= halfSegments; j++) {
     const u = j / halfSegments;
@@ -440,12 +432,32 @@ function generateBaseMoldHalf(
     uvs.push(u, -0.05);
   }
   
-  // Bottom face triangles: center to inner ring (at base level)
+  // Create vertices along the split line edges at base level (for closing the half-disc)
+  // Left split edge: from center to inner radius to outer radius
+  const leftSplitTheta = startAngle + splitRotation;
+  const rightSplitTheta = startAngle + Math.PI + splitRotation;
+  
+  // Get inner radii at split edges
+  const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+  let leftInnerR = getBodyRadius(params, 0, startAngle, { scale: SCALE, objectType, includeTwist: true });
+  leftInnerR += offset + draftOffset * 0.5;
+  let rightInnerR = getBodyRadius(params, 0, startAngle + Math.PI, { scale: SCALE, objectType, includeTwist: true });
+  rightInnerR += offset + draftOffset * 0.5;
+  
+  // Center point at base level - positioned at origin on the split line
+  const baseCenterStart = vertices.length / 3;
+  vertices.push(0, -baseThickness, 0);
+  uvs.push(0.5, -0.1);
+  
+  // Left split edge vertices at base level (inner and outer already exist in rings)
+  // Right split edge vertices at base level (inner and outer already exist in rings)
+  
+  // Bottom face: Create triangular fan from center to inner ring
   for (let j = 0; j < halfSegments; j++) {
-    const a = bottomCenter;
+    const a = baseCenterStart;
     const b = bottomInnerRingStart + j;
     const c = bottomInnerRingStart + j + 1;
-    indices.push(a, c, b);
+    indices.push(a, c, b); // Face downward (normal pointing -Y)
   }
   
   // Bottom face quads: inner ring to outer ring (at base level)
@@ -528,42 +540,73 @@ function generateBaseMoldHalf(
     indices.push(surfaceB, rimA, rimB);
   }
   
-  // ========== SPLIT FACE CLOSURES ==========
-  // Close the split face corners at bottom (connecting inner, outer, and base)
+  // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
+  // These close the left and right edges of the half-mold from top to bottom
   
-  // Left split edge - bottom corner
+  // Left split edge indices
   const leftInnerBottom = innerBottomRing[0];
   const leftOuterBottom = outerVertexStart;
   const leftBaseInner = bottomInnerRingStart;
   const leftBaseOuter = bottomOuterRingStart;
-  
-  // Triangle connecting left inner bottom to base
-  indices.push(leftInnerBottom, leftBaseInner, leftOuterBottom);
-  indices.push(leftBaseInner, leftBaseOuter, leftOuterBottom);
-  
-  // Right split edge - bottom corner
-  const rightInnerBottom = innerBottomRing[halfSegments];
-  const rightOuterBottom = outerVertexStart + halfSegments;
-  const rightBaseInner = bottomInnerRingStart + halfSegments;
-  const rightBaseOuter = bottomOuterRingStart + halfSegments;
-  
-  indices.push(rightInnerBottom, rightOuterBottom, rightBaseInner);
-  indices.push(rightBaseInner, rightOuterBottom, rightBaseOuter);
-  
-  // Left split edge - top corner
   const leftInnerTop = innerTopRing[0];
   const leftOuterTop = outerTopRing;
   const leftRimOuter = topVertexStart;
   
-  indices.push(leftInnerTop, leftOuterTop, leftRimOuter);
-  
-  // Right split edge - top corner
+  // Right split edge indices
+  const rightInnerBottom = innerBottomRing[halfSegments];
+  const rightOuterBottom = outerVertexStart + halfSegments;
+  const rightBaseInner = bottomInnerRingStart + halfSegments;
+  const rightBaseOuter = bottomOuterRingStart + halfSegments;
   const rightInnerTop = innerTopRing[halfSegments];
   const rightOuterTop = outerTopRing + halfSegments;
   const rightRimOuter = topVertexStart + halfSegments;
   
-  indices.push(rightInnerTop, rightRimOuter, rightOuterTop);
+  // LEFT SPLIT FACE - Full vertical wall from base to rim
+  // Bottom section: center -> baseInner -> baseOuter (triangular fill at bottom)
+  indices.push(baseCenterStart, leftBaseOuter, leftBaseInner);
   
+  // Base to cavity bottom: baseInner -> innerBottom, baseOuter -> outerBottom
+  indices.push(leftBaseInner, leftBaseOuter, leftInnerBottom);
+  indices.push(leftInnerBottom, leftBaseOuter, leftOuterBottom);
+  
+  // Cavity bottom to cavity top: innerBottom -> innerTop, outerBottom -> outerTop (main wall)
+  // We need intermediate vertices - use the split face vertices from inner and outer surfaces
+  for (let i = 0; i < rings; i++) {
+    const innerA = innerVertexStart + i * (halfSegments + 1);
+    const innerB = innerVertexStart + (i + 1) * (halfSegments + 1);
+    const outerA = outerVertexStart + i * (halfSegments + 1);
+    const outerB = outerVertexStart + (i + 1) * (halfSegments + 1);
+    
+    // Quad from inner edge to outer edge
+    indices.push(innerA, outerA, innerB);
+    indices.push(innerB, outerA, outerB);
+  }
+  
+  // Top section: innerTop -> outerTop -> rimOuter
+  indices.push(leftInnerTop, leftOuterTop, leftRimOuter);
+  
+  // RIGHT SPLIT FACE - Full vertical wall from base to rim (opposite winding)
+  // Bottom section: center -> baseInner -> baseOuter
+  indices.push(baseCenterStart, rightBaseInner, rightBaseOuter);
+  
+  // Base to cavity bottom
+  indices.push(rightBaseInner, rightInnerBottom, rightBaseOuter);
+  indices.push(rightInnerBottom, rightOuterBottom, rightBaseOuter);
+  
+  // Cavity bottom to cavity top (main wall)
+  for (let i = 0; i < rings; i++) {
+    const innerA = innerVertexStart + i * (halfSegments + 1) + halfSegments;
+    const innerB = innerVertexStart + (i + 1) * (halfSegments + 1) + halfSegments;
+    const outerA = outerVertexStart + i * (halfSegments + 1) + halfSegments;
+    const outerB = outerVertexStart + (i + 1) * (halfSegments + 1) + halfSegments;
+    
+    // Quad from inner edge to outer edge (opposite winding)
+    indices.push(innerA, innerB, outerA);
+    indices.push(innerB, outerB, outerA);
+  }
+  
+  // Top section
+  indices.push(rightInnerTop, rightRimOuter, rightOuterTop);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
