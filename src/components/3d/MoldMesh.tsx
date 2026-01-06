@@ -1,10 +1,18 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { generateMoldGeometry } from '@/lib/mold-generator';
+import { generateMultiPartMoldGeometry } from '@/lib/mold-generator';
 import { ParametricParams, ObjectType } from '@/types/parametric';
-import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
+import { getBodyRadius } from '@/lib/body-profile-generator';
 
 const SCALE = 0.01;
+
+// Default mold colors palette
+const DEFAULT_MOLD_COLORS = [
+  '#C97B5D',  // Part A - Terracotta
+  '#7B9E87',  // Part B - Sage Green  
+  '#8B7EC7',  // Part C - Lavender
+  '#CBA670',  // Part D - Mustard
+];
 
 interface MoldMeshProps {
   params: ParametricParams;
@@ -13,13 +21,19 @@ interface MoldMeshProps {
 }
 
 const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
-  const { halfA, halfB, gap, showGhostBody } = useMemo(() => {
-    const { halfA, halfB } = generateMoldGeometry(params, type);
+  const { parts, gap, showGhostBody, partCount, colors } = useMemo(() => {
+    const partCount = params.moldPartCount || 2;
+    const moldGeometry = generateMultiPartMoldGeometry(params, type);
+    const colors = params.moldColors?.length >= partCount 
+      ? params.moldColors 
+      : DEFAULT_MOLD_COLORS;
+    
     return { 
-      halfA, 
-      halfB, 
+      parts: moldGeometry.parts,
       gap: params.moldGap * SCALE,
-      showGhostBody: params.moldShowGhostBody ?? true
+      showGhostBody: params.moldShowGhostBody ?? true,
+      partCount,
+      colors
     };
   }, [params, type]);
 
@@ -78,28 +92,21 @@ const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
     return geometry;
   }, [params, type, showGhostBody]);
 
-  // Material for mold halves - semi-transparent
-  const moldMaterialA = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#8B7355'),
-      roughness: 0.9,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
+  // Create materials for each mold part
+  const moldMaterials = useMemo(() => {
+    return colors.slice(0, partCount).map((color, index) => {
+      // Alternate opacity slightly for visual distinction
+      const opacity = 0.85 - (index % 2) * 0.05;
+      return new THREE.MeshStandardMaterial({
+        color: new THREE.Color(color),
+        roughness: 0.9,
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity,
+      });
     });
-  }, []);
-
-  const moldMaterialB = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#A0917B'),
-      roughness: 0.9,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
-    });
-  }, []);
+  }, [colors, partCount]);
 
   // Ghost body material - wireframe with subtle fill
   const ghostMaterial = useMemo(() => {
@@ -130,32 +137,37 @@ const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
     });
   }, []);
 
-  // Feature highlight material for registration keys
-  const keyHighlightMaterial = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#D4A574'),
-      roughness: 0.7,
-      metalness: 0.1,
-    });
-  }, []);
-
   // Calculate body center for positioning
   const bodyHeight = params.height * SCALE;
   const centerY = bodyHeight / 2;
 
+  // Calculate part positions for preview gap
+  // Parts are spread radially outward based on their angular position
+  const getPartOffset = (partIndex: number): [number, number, number] => {
+    const anglePerPart = (Math.PI * 2) / partCount;
+    const partCenterAngle = anglePerPart * partIndex + anglePerPart / 2 + (params.moldSplitAngle * Math.PI / 180);
+    
+    // Offset each part outward from center
+    const offsetX = Math.cos(partCenterAngle) * (gap / 2);
+    const offsetZ = Math.sin(partCenterAngle) * (gap / 2);
+    
+    return [offsetX, 0, offsetZ];
+  };
+
   return (
     <group position={[0, -centerY, 0]}>
-      {/* Half A - offset to the left */}
-      <group position={[-gap / 2, 0, 0]}>
-        <mesh geometry={halfA} material={moldMaterialA} />
-        {showWireframe && <mesh geometry={halfA} material={wireframeMaterial} />}
-      </group>
-
-      {/* Half B - offset to the right */}
-      <group position={[gap / 2, 0, 0]}>
-        <mesh geometry={halfB} material={moldMaterialB} />
-        {showWireframe && <mesh geometry={halfB} material={wireframeMaterial} />}
-      </group>
+      {/* Render each mold part */}
+      {parts.map((partGeometry, index) => {
+        const [offsetX, offsetY, offsetZ] = getPartOffset(index);
+        const material = moldMaterials[index] || moldMaterials[0];
+        
+        return (
+          <group key={index} position={[offsetX, offsetY, offsetZ]}>
+            <mesh geometry={partGeometry} material={material} />
+            {showWireframe && <mesh geometry={partGeometry} material={wireframeMaterial} />}
+          </group>
+        );
+      })}
 
       {/* Ghost body preview - shows the body shape inside the mold */}
       {showGhostBody && ghostBodyGeometry && (

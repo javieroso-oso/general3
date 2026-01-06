@@ -36,6 +36,11 @@ export interface MoldGeometry {
   halfB: THREE.BufferGeometry;
 }
 
+export interface MultiPartMoldGeometry {
+  parts: THREE.BufferGeometry[];
+  partAngles: number[];  // Starting angle for each part in radians
+}
+
 /**
  * Ensure geometry has UV attribute (required for CSG operations)
  */
@@ -778,7 +783,7 @@ function generateMoldHalf(
 }
 
 /**
- * Generate both mold halves
+ * Generate both mold halves (legacy 2-part function)
  */
 export function generateMoldGeometry(
   params: ParametricParams,
@@ -811,6 +816,382 @@ export function generateMoldGeometry(
   const halfB = generateMoldHalf(params, moldParams, false, objectType);
   
   return { halfA, halfB };
+}
+
+/**
+ * Generate multi-part mold geometry (2, 3, or 4 parts)
+ */
+export function generateMultiPartMoldGeometry(
+  params: ParametricParams,
+  objectType: ObjectType
+): MultiPartMoldGeometry {
+  const partCount = params.moldPartCount || 2;
+  const anglePerPart = (Math.PI * 2) / partCount;
+  const partAngles: number[] = [];
+  const parts: THREE.BufferGeometry[] = [];
+  
+  const moldParams: MoldParams = {
+    wallThickness: params.moldWallThickness,
+    baseThickness: params.moldBaseThickness,
+    pourHoleDiameter: params.moldPourHoleDiameter,
+    registrationKeySize: params.moldRegistrationKeySize,
+    registrationKeyCount: params.moldRegistrationKeyCount,
+    splitAngle: params.moldSplitAngle,
+    draftAngle: params.moldDraftAngle,
+    gap: params.moldGap,
+    offset: params.moldOffset ?? 0.5,
+    ventHolesEnabled: params.moldVentHolesEnabled ?? false,
+    ventHoleCount: params.moldVentHoleCount ?? 4,
+    ventHoleDiameter: params.moldVentHoleDiameter ?? 3,
+    ventHolePosition: params.moldVentHolePosition ?? 0.8,
+    spareEnabled: params.moldSpareEnabled ?? false,
+    spareHeight: params.moldSpareHeight ?? 20,
+    spareDiameter: params.moldSpareDiameter ?? 0,
+    strapNotchesEnabled: params.moldStrapNotchesEnabled ?? false,
+    strapNotchCount: params.moldStrapNotchCount ?? 2,
+    strapNotchWidth: params.moldStrapNotchWidth ?? 12,
+    strapNotchDepth: params.moldStrapNotchDepth ?? 4,
+  };
+  
+  for (let i = 0; i < partCount; i++) {
+    const startAngle = anglePerPart * i;
+    partAngles.push(startAngle);
+    
+    const partGeometry = generateMoldPart(
+      params,
+      moldParams,
+      startAngle,
+      startAngle + anglePerPart,
+      i,
+      partCount,
+      objectType
+    );
+    parts.push(partGeometry);
+  }
+  
+  return { parts, partAngles };
+}
+
+/**
+ * Generate a single mold part for N-part molds
+ */
+function generateMoldPart(
+  params: ParametricParams,
+  moldParams: MoldParams,
+  startAngle: number,
+  endAngle: number,
+  partIndex: number,
+  totalParts: number,
+  objectType: ObjectType
+): THREE.BufferGeometry {
+  const height = params.height * SCALE;
+  const wallThickness = moldParams.wallThickness * SCALE;
+  const baseThickness = moldParams.baseThickness * SCALE;
+  const offset = moldParams.offset * SCALE;
+  const segments = 48;
+  const rings = 64;
+  
+  const splitRotation = moldParams.splitAngle * Math.PI / 180;
+  const adjustedStartAngle = startAngle + splitRotation;
+  const adjustedEndAngle = endAngle + splitRotation;
+  const angleSpan = endAngle - startAngle;
+  
+  const vertices: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  
+  // Calculate segments for this part (proportional to angle)
+  const partSegments = Math.floor(segments * (angleSpan / (Math.PI * 2)));
+  
+  // Calculate max body radius for outer mold bounds
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const outerRadius = maxBodyRadius + wallThickness;
+  
+  // Generate inner surface (cavity)
+  const innerVertexStart = vertices.length / 3;
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    const y = t * height;
+    const draftOffset = (1 - t) * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+    
+    for (let j = 0; j <= partSegments; j++) {
+      const u = j / partSegments;
+      const theta = adjustedStartAngle + u * angleSpan;
+      const thetaRaw = theta - splitRotation;
+      
+      let radius = getBodyRadius(params, t, thetaRaw, { 
+        scale: SCALE, 
+        objectType,
+        includeTwist: true 
+      });
+      radius += offset + draftOffset * 0.5;
+      
+      const x = Math.cos(theta) * radius;
+      const z = Math.sin(theta) * radius;
+      
+      vertices.push(x, y, z);
+      uvs.push(u, t);
+    }
+  }
+  
+  // Generate outer surface
+  const outerVertexStart = vertices.length / 3;
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    const y = t * height;
+    
+    for (let j = 0; j <= partSegments; j++) {
+      const u = j / partSegments;
+      const theta = adjustedStartAngle + u * angleSpan;
+      
+      const x = Math.cos(theta) * outerRadius;
+      const z = Math.sin(theta) * outerRadius;
+      
+      vertices.push(x, y, z);
+      uvs.push(u + 1, t);
+    }
+  }
+  
+  // Inner surface indices
+  for (let i = 0; i < rings; i++) {
+    for (let j = 0; j < partSegments; j++) {
+      const a = innerVertexStart + i * (partSegments + 1) + j;
+      const b = a + partSegments + 1;
+      const c = a + 1;
+      const d = b + 1;
+      
+      indices.push(a, b, c);
+      indices.push(c, b, d);
+    }
+  }
+  
+  // Outer surface indices
+  for (let i = 0; i < rings; i++) {
+    for (let j = 0; j < partSegments; j++) {
+      const a = outerVertexStart + i * (partSegments + 1) + j;
+      const b = a + partSegments + 1;
+      const c = a + 1;
+      const d = b + 1;
+      
+      indices.push(a, c, b);
+      indices.push(c, d, b);
+    }
+  }
+  
+  // Split faces (left and right edges)
+  const leftEdgeInner: number[] = [];
+  const leftEdgeOuter: number[] = [];
+  const rightEdgeInner: number[] = [];
+  const rightEdgeOuter: number[] = [];
+  
+  for (let i = 0; i <= rings; i++) {
+    leftEdgeInner.push(innerVertexStart + i * (partSegments + 1));
+    leftEdgeOuter.push(outerVertexStart + i * (partSegments + 1));
+    rightEdgeInner.push(innerVertexStart + i * (partSegments + 1) + partSegments);
+    rightEdgeOuter.push(outerVertexStart + i * (partSegments + 1) + partSegments);
+  }
+  
+  // Left split face
+  for (let i = 0; i < rings; i++) {
+    const a = leftEdgeInner[i];
+    const b = leftEdgeInner[i + 1];
+    const c = leftEdgeOuter[i];
+    const d = leftEdgeOuter[i + 1];
+    
+    indices.push(a, b, c);
+    indices.push(b, d, c);
+  }
+  
+  // Right split face
+  for (let i = 0; i < rings; i++) {
+    const a = rightEdgeInner[i];
+    const b = rightEdgeInner[i + 1];
+    const c = rightEdgeOuter[i];
+    const d = rightEdgeOuter[i + 1];
+    
+    indices.push(a, c, b);
+    indices.push(b, c, d);
+  }
+  
+  // Bottom face
+  const innerBottomRing: number[] = [];
+  for (let j = 0; j <= partSegments; j++) {
+    innerBottomRing.push(innerVertexStart + j);
+  }
+  
+  // Outer ring at base level
+  const bottomOuterRingStart = vertices.length / 3;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const x = Math.cos(theta) * outerRadius;
+    const z = Math.sin(theta) * outerRadius;
+    vertices.push(x, -baseThickness, z);
+    uvs.push(u, -0.1);
+  }
+  
+  // Inner ring at base level
+  const bottomInnerRingStart = vertices.length / 3;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const thetaRaw = theta - splitRotation;
+    
+    const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+    let innerR = getBodyRadius(params, 0, thetaRaw, { 
+      scale: SCALE, 
+      objectType,
+      includeTwist: true 
+    });
+    innerR += offset + draftOffset * 0.5;
+    
+    const x = Math.cos(theta) * innerR;
+    const z = Math.sin(theta) * innerR;
+    vertices.push(x, -baseThickness, z);
+    uvs.push(u, -0.05);
+  }
+  
+  // Center point at base level
+  const baseCenterStart = vertices.length / 3;
+  vertices.push(0, -baseThickness, 0);
+  uvs.push(0.5, -0.1);
+  
+  // Bottom face triangular fan from center to inner ring
+  for (let j = 0; j < partSegments; j++) {
+    const a = baseCenterStart;
+    const b = bottomInnerRingStart + j;
+    const c = bottomInnerRingStart + j + 1;
+    indices.push(a, c, b);
+  }
+  
+  // Bottom face quads: inner ring to outer ring
+  for (let j = 0; j < partSegments; j++) {
+    const innerA = bottomInnerRingStart + j;
+    const innerB = bottomInnerRingStart + j + 1;
+    const outerA = bottomOuterRingStart + j;
+    const outerB = bottomOuterRingStart + j + 1;
+    
+    indices.push(innerA, outerA, innerB);
+    indices.push(innerB, outerA, outerB);
+  }
+  
+  // Connect inner cavity bottom to bottom inner ring
+  for (let j = 0; j < partSegments; j++) {
+    const topA = innerBottomRing[j];
+    const topB = innerBottomRing[j + 1];
+    const bottomA = bottomInnerRingStart + j;
+    const bottomB = bottomInnerRingStart + j + 1;
+    
+    indices.push(topA, topB, bottomA);
+    indices.push(topB, bottomB, bottomA);
+  }
+  
+  // Connect outer surface bottom to outer base ring
+  for (let j = 0; j < partSegments; j++) {
+    const topOuter = outerVertexStart + j;
+    const topOuterNext = outerVertexStart + j + 1;
+    const bottomOuter = bottomOuterRingStart + j;
+    const bottomOuterNext = bottomOuterRingStart + j + 1;
+    
+    indices.push(topOuter, bottomOuter, topOuterNext);
+    indices.push(topOuterNext, bottomOuter, bottomOuterNext);
+  }
+  
+  // Top face (rim)
+  const innerTopRing: number[] = [];
+  for (let j = 0; j <= partSegments; j++) {
+    innerTopRing.push(innerVertexStart + rings * (partSegments + 1) + j);
+  }
+  
+  const topVertexStart = vertices.length / 3;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const x = Math.cos(theta) * outerRadius;
+    const z = Math.sin(theta) * outerRadius;
+    vertices.push(x, height, z);
+    uvs.push(u, 1.1);
+  }
+  
+  // Top rim: connect inner top ring to outer top ring
+  for (let j = 0; j < partSegments; j++) {
+    const innerA = innerTopRing[j];
+    const innerB = innerTopRing[j + 1];
+    const outerA = topVertexStart + j;
+    const outerB = topVertexStart + j + 1;
+    
+    indices.push(innerA, innerB, outerA);
+    indices.push(innerB, outerB, outerA);
+  }
+  
+  // Connect outer surface top to rim
+  const outerTopRing = outerVertexStart + rings * (partSegments + 1);
+  for (let j = 0; j < partSegments; j++) {
+    const surfaceA = outerTopRing + j;
+    const surfaceB = outerTopRing + j + 1;
+    const rimA = topVertexStart + j;
+    const rimB = topVertexStart + j + 1;
+    
+    indices.push(surfaceA, rimA, surfaceB);
+    indices.push(surfaceB, rimA, rimB);
+  }
+  
+  // Full split face closures
+  const leftInnerBottom = innerBottomRing[0];
+  const leftOuterBottom = outerVertexStart;
+  const leftBaseInner = bottomInnerRingStart;
+  const leftBaseOuter = bottomOuterRingStart;
+  const leftInnerTop = innerTopRing[0];
+  const leftRimOuter = topVertexStart;
+  
+  const rightInnerBottom = innerBottomRing[partSegments];
+  const rightOuterBottom = outerVertexStart + partSegments;
+  const rightBaseInner = bottomInnerRingStart + partSegments;
+  const rightBaseOuter = bottomOuterRingStart + partSegments;
+  const rightInnerTop = innerTopRing[partSegments];
+  const rightRimOuter = topVertexStart + partSegments;
+  
+  // Left split face closure
+  indices.push(baseCenterStart, leftBaseOuter, leftBaseInner);
+  indices.push(leftBaseInner, leftBaseOuter, leftInnerBottom);
+  indices.push(leftInnerBottom, leftBaseOuter, leftOuterBottom);
+  
+  for (let i = 0; i < rings; i++) {
+    const innerA = innerVertexStart + i * (partSegments + 1);
+    const innerB = innerVertexStart + (i + 1) * (partSegments + 1);
+    const outerA = outerVertexStart + i * (partSegments + 1);
+    const outerB = outerVertexStart + (i + 1) * (partSegments + 1);
+    
+    indices.push(innerA, outerA, innerB);
+    indices.push(innerB, outerA, outerB);
+  }
+  
+  indices.push(leftInnerTop, outerVertexStart + rings * (partSegments + 1), leftRimOuter);
+  
+  // Right split face closure
+  indices.push(baseCenterStart, rightBaseInner, rightBaseOuter);
+  indices.push(rightBaseInner, rightInnerBottom, rightBaseOuter);
+  indices.push(rightInnerBottom, rightOuterBottom, rightBaseOuter);
+  
+  for (let i = 0; i < rings; i++) {
+    const innerA = innerVertexStart + i * (partSegments + 1) + partSegments;
+    const innerB = innerVertexStart + (i + 1) * (partSegments + 1) + partSegments;
+    const outerA = outerVertexStart + i * (partSegments + 1) + partSegments;
+    const outerB = outerVertexStart + (i + 1) * (partSegments + 1) + partSegments;
+    
+    indices.push(innerA, innerB, outerA);
+    indices.push(innerB, outerB, outerA);
+  }
+  
+  indices.push(rightInnerTop, rightRimOuter, outerVertexStart + rings * (partSegments + 1) + partSegments);
+  
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  
+  return geometry;
 }
 
 /**

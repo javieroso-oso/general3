@@ -480,6 +480,8 @@ export const defaultLampParams: LampParams = {
   moldStrapNotchWidth: 12,
   moldStrapNotchDepth: 4,
   moldShowGhostBody: true,
+  moldPartCount: 2,
+  moldColors: ['#C97B5D', '#7B9E87', '#8B7EC7', '#CBA670'],
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
