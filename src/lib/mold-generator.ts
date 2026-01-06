@@ -388,12 +388,26 @@ function generateBaseMoldHalf(
     indices.push(b, c, d);
   }
   
-  // Bottom face (base)
+  // ========== BOTTOM FACE (BASE) - WATERTIGHT ==========
+  // The bottom has:
+  // 1. An inner ring at y=0 from the cavity (where inner surface starts)
+  // 2. An outer ring at y=-baseThickness (outer surface projected down)
+  // 3. A solid base connecting center to outer, with inner cavity rising from it
+  
+  // Get inner bottom ring vertex indices (first ring of inner surface at y=0)
+  const innerBottomRing: number[] = [];
+  for (let j = 0; j <= halfSegments; j++) {
+    innerBottomRing.push(innerVertexStart + j);
+  }
+  
+  // Create bottom base center and outer ring at y=-baseThickness
   const bottomVertexStart = vertices.length / 3;
   vertices.push(0, -baseThickness, 0);
   uvs.push(0.5, -0.1);
   const bottomCenter = bottomVertexStart;
   
+  // Outer ring at base level
+  const bottomOuterRingStart = vertices.length / 3;
   for (let j = 0; j <= halfSegments; j++) {
     const u = j / halfSegments;
     const thetaRaw = startAngle + u * Math.PI;
@@ -404,19 +418,82 @@ function generateBaseMoldHalf(
     uvs.push(u, -0.1);
   }
   
+  // Inner ring at base level (matches inner cavity bottom ring position but at y=-baseThickness)
+  const bottomInnerRingStart = vertices.length / 3;
+  for (let j = 0; j <= halfSegments; j++) {
+    const u = j / halfSegments;
+    const thetaRaw = startAngle + u * Math.PI;
+    const theta = thetaRaw + splitRotation;
+    
+    // Get the inner radius at the bottom (t=0)
+    const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+    let innerR = getBodyRadius(params, 0, thetaRaw, { 
+      scale: SCALE, 
+      objectType,
+      includeTwist: true 
+    });
+    innerR += offset + draftOffset * 0.5;
+    
+    const x = Math.cos(theta) * innerR;
+    const z = Math.sin(theta) * innerR;
+    vertices.push(x, -baseThickness, z);
+    uvs.push(u, -0.05);
+  }
+  
+  // Bottom face triangles: center to inner ring (at base level)
   for (let j = 0; j < halfSegments; j++) {
     const a = bottomCenter;
-    const b = bottomVertexStart + 1 + j;
-    const c = bottomVertexStart + 1 + j + 1;
+    const b = bottomInnerRingStart + j;
+    const c = bottomInnerRingStart + j + 1;
     indices.push(a, c, b);
   }
   
-  // Top face (rim)
-  const topVertexStart = vertices.length / 3;
-  vertices.push(0, height, 0);
-  uvs.push(0.5, 1.1);
-  const topCenter = topVertexStart;
+  // Bottom face quads: inner ring to outer ring (at base level)
+  for (let j = 0; j < halfSegments; j++) {
+    const innerA = bottomInnerRingStart + j;
+    const innerB = bottomInnerRingStart + j + 1;
+    const outerA = bottomOuterRingStart + j;
+    const outerB = bottomOuterRingStart + j + 1;
+    
+    indices.push(innerA, outerA, innerB);
+    indices.push(innerB, outerA, outerB);
+  }
   
+  // Connect inner cavity bottom (y=0) to bottom inner ring (y=-baseThickness)
+  // This creates the vertical inner wall of the base thickness
+  for (let j = 0; j < halfSegments; j++) {
+    const topA = innerBottomRing[j];
+    const topB = innerBottomRing[j + 1];
+    const bottomA = bottomInnerRingStart + j;
+    const bottomB = bottomInnerRingStart + j + 1;
+    
+    // Face inward (toward cavity)
+    indices.push(topA, topB, bottomA);
+    indices.push(topB, bottomB, bottomA);
+  }
+  
+  // Connect outer surface bottom (y=0) to outer base ring (y=-baseThickness)
+  for (let j = 0; j < halfSegments; j++) {
+    const topOuter = outerVertexStart + j;
+    const topOuterNext = outerVertexStart + j + 1;
+    const bottomOuter = bottomOuterRingStart + j;
+    const bottomOuterNext = bottomOuterRingStart + j + 1;
+    
+    indices.push(topOuter, bottomOuter, topOuterNext);
+    indices.push(topOuterNext, bottomOuter, bottomOuterNext);
+  }
+  
+  // ========== TOP FACE (RIM) - WATERTIGHT ==========
+  // The top connects outer rim to inner cavity opening
+  
+  // Get inner top ring vertex indices (last ring of inner surface at y=height)
+  const innerTopRing: number[] = [];
+  for (let j = 0; j <= halfSegments; j++) {
+    innerTopRing.push(innerVertexStart + rings * (halfSegments + 1) + j);
+  }
+  
+  // Outer top ring vertices (at outer radius, y=height)
+  const topVertexStart = vertices.length / 3;
   for (let j = 0; j <= halfSegments; j++) {
     const u = j / halfSegments;
     const thetaRaw = startAngle + u * Math.PI;
@@ -427,35 +504,65 @@ function generateBaseMoldHalf(
     uvs.push(u, 1.1);
   }
   
+  // Top rim: connect inner top ring to outer top ring
   for (let j = 0; j < halfSegments; j++) {
-    const a = topCenter;
-    const b = topVertexStart + 1 + j;
-    const c = topVertexStart + 1 + j + 1;
-    indices.push(a, b, c);
+    const innerA = innerTopRing[j];
+    const innerB = innerTopRing[j + 1];
+    const outerA = topVertexStart + j;
+    const outerB = topVertexStart + j + 1;
+    
+    // Face upward
+    indices.push(innerA, innerB, outerA);
+    indices.push(innerB, outerB, outerA);
   }
   
-  // Connect outer to bottom
+  // Connect outer surface top ring to the top rim outer vertices
+  const outerTopRing = outerVertexStart + rings * (halfSegments + 1);
   for (let j = 0; j < halfSegments; j++) {
-    const topOuter = outerVertexStart + j;
-    const bottomOuter = bottomVertexStart + 1 + j;
-    const topOuterNext = outerVertexStart + j + 1;
-    const bottomOuterNext = bottomVertexStart + 1 + j + 1;
+    const surfaceA = outerTopRing + j;
+    const surfaceB = outerTopRing + j + 1;
+    const rimA = topVertexStart + j;
+    const rimB = topVertexStart + j + 1;
     
-    indices.push(topOuter, bottomOuter, topOuterNext);
-    indices.push(topOuterNext, bottomOuter, bottomOuterNext);
+    indices.push(surfaceA, rimA, surfaceB);
+    indices.push(surfaceB, rimA, rimB);
   }
   
-  // Connect outer to top
-  const topRingOuter = outerVertexStart + rings * (halfSegments + 1);
-  for (let j = 0; j < halfSegments; j++) {
-    const bottomOuter = topRingOuter + j;
-    const topOuter = topVertexStart + 1 + j;
-    const bottomOuterNext = topRingOuter + j + 1;
-    const topOuterNext = topVertexStart + 1 + j + 1;
-    
-    indices.push(bottomOuter, topOuter, bottomOuterNext);
-    indices.push(bottomOuterNext, topOuter, topOuterNext);
-  }
+  // ========== SPLIT FACE CLOSURES ==========
+  // Close the split face corners at bottom (connecting inner, outer, and base)
+  
+  // Left split edge - bottom corner
+  const leftInnerBottom = innerBottomRing[0];
+  const leftOuterBottom = outerVertexStart;
+  const leftBaseInner = bottomInnerRingStart;
+  const leftBaseOuter = bottomOuterRingStart;
+  
+  // Triangle connecting left inner bottom to base
+  indices.push(leftInnerBottom, leftBaseInner, leftOuterBottom);
+  indices.push(leftBaseInner, leftBaseOuter, leftOuterBottom);
+  
+  // Right split edge - bottom corner
+  const rightInnerBottom = innerBottomRing[halfSegments];
+  const rightOuterBottom = outerVertexStart + halfSegments;
+  const rightBaseInner = bottomInnerRingStart + halfSegments;
+  const rightBaseOuter = bottomOuterRingStart + halfSegments;
+  
+  indices.push(rightInnerBottom, rightOuterBottom, rightBaseInner);
+  indices.push(rightBaseInner, rightOuterBottom, rightBaseOuter);
+  
+  // Left split edge - top corner
+  const leftInnerTop = innerTopRing[0];
+  const leftOuterTop = outerTopRing;
+  const leftRimOuter = topVertexStart;
+  
+  indices.push(leftInnerTop, leftOuterTop, leftRimOuter);
+  
+  // Right split edge - top corner
+  const rightInnerTop = innerTopRing[halfSegments];
+  const rightOuterTop = outerTopRing + halfSegments;
+  const rightRimOuter = topVertexStart + halfSegments;
+  
+  indices.push(rightInnerTop, rightRimOuter, rightOuterTop);
   
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
