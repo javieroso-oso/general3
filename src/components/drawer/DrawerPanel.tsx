@@ -9,6 +9,7 @@ import { exportDrawerItemsToZip, downloadBlob } from '@/lib/batch-export';
 import { toast } from 'sonner';
 import { useLicenseKey } from '@/hooks/useLicenseKey';
 import ExportPaymentDialog from '@/components/ExportPaymentDialog';
+import { calculateBatchPrice } from '@/config/export-pricing';
 
 interface DrawerPanelProps {
   items: DrawerItem[];
@@ -155,7 +156,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
             ) : (
               <Download className="w-3 h-3" />
             )}
-            {isExporting ? 'Exporting...' : `Export ZIP${!isUnlocked ? ' $2.99' : ''}`}
+            {isExporting ? 'Exporting...' : `Export ZIP${!isUnlocked ? ` ${calculateBatchPrice(selectedIds.size).display}` : ''}`}
           </Button>
         )}
       </div>
@@ -231,7 +232,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
         open={showPaymentDialog}
         onClose={() => setShowPaymentDialog(false)}
         onExport={doExport}
-        exportType="Batch ZIP"
+        exportType="batch"
         itemCount={selectedIds.size}
       />
     </div>

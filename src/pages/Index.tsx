@@ -24,6 +24,7 @@ import {
 } from '@/types/parametric';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode } from '@/lib/stl-export';
+import { ExportType, EXPORT_PRICES } from '@/config/export-pricing';
 import { downloadMoldSTL, downloadMultiPartMoldSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info } from 'lucide-react';
@@ -52,7 +53,7 @@ const Index = () => {
   
   // Export payment dialog state
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [pendingExportType, setPendingExportType] = useState<'stl' | 'gcode' | 'mold' | 'legs'>('stl');
+  const [pendingExportType, setPendingExportType] = useState<ExportType>('body');
   
   const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
     setObjectType(drawerType);
@@ -186,7 +187,7 @@ const Index = () => {
     if (isUnlocked) {
       doExportBody();
     } else {
-      setPendingExportType('stl');
+      setPendingExportType('body');
       setShowExportDialog(true);
     }
   }, [analysis.isValid, isUnlocked, doExportBody]);
@@ -200,7 +201,7 @@ const Index = () => {
     if (isUnlocked) {
       doExportLegsBase();
     } else {
-      setPendingExportType('legs');
+      setPendingExportType('bodyWithLegs');
       setShowExportDialog(true);
     }
   }, [analysis.isValid, isUnlocked, doExportLegsBase]);
@@ -218,7 +219,7 @@ const Index = () => {
         description: params.addLegs ? 'Body + Legs/Base' : 'Body only' 
       });
     } else {
-      setPendingExportType('stl');
+      setPendingExportType(params.addLegs ? 'bodyWithLegs' : 'body');
       setShowExportDialog(true);
     }
   }, [params, objectType, analysis.isValid, isUnlocked]);
@@ -240,10 +241,10 @@ const Index = () => {
   // Handle pending export after payment/unlock
   const handlePendingExport = useCallback(() => {
     switch (pendingExportType) {
-      case 'stl':
+      case 'body':
         doExportBody();
         break;
-      case 'legs':
+      case 'bodyWithLegs':
         doExportLegsBase();
         break;
       case 'gcode':
@@ -609,7 +610,7 @@ const Index = () => {
               className="gap-1.5 h-8 rounded-lg"
             >
               <Download className="w-3.5 h-3.5" />
-              STL{!isUnlocked && ' $2.99'}
+              STL{!isUnlocked && ` ${EXPORT_PRICES.body.displayPrice}`}
             </Button>
             {params.addLegs && (
               <Button 
@@ -620,7 +621,7 @@ const Index = () => {
                 className="gap-1.5 h-8 rounded-lg"
               >
                 <Download className="w-3.5 h-3.5" />
-                Base{!isUnlocked && ' $2.99'}
+                Base{!isUnlocked && ` ${EXPORT_PRICES.bodyWithLegs.displayPrice}`}
               </Button>
             )}
             <Button 
@@ -631,7 +632,7 @@ const Index = () => {
               className="gap-1.5 h-8 rounded-lg"
             >
               <FileCode className="w-3.5 h-3.5" />
-              G-code{!isUnlocked && ' $2.99'}
+              G-code{!isUnlocked && ` ${EXPORT_PRICES.gcode.displayPrice}`}
             </Button>
           </>
         )}
@@ -680,7 +681,7 @@ const Index = () => {
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
         onExport={handlePendingExport}
-        exportType={pendingExportType === 'gcode' ? 'G-code' : pendingExportType === 'legs' ? 'Base STL' : 'STL'}
+        exportType={pendingExportType}
       />
     </div>
   );
