@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const LICENSE_KEY_STORAGE = 'export-license-key';
-const VALID_LICENSE_KEY = 'PARAMETRIC-MAKER-FREE';
+const VALID_LICENSE_KEY = 'oso3d';
 
 export const useLicenseKey = () => {
   const [licenseKey, setLicenseKeyState] = useState<string | null>(null);
