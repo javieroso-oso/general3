@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { exportDrawerItemsToZip, downloadBlob } from '@/lib/batch-export';
 import { toast } from 'sonner';
+import { useLicenseKey } from '@/hooks/useLicenseKey';
+import ExportPaymentDialog from '@/components/ExportPaymentDialog';
 
 interface DrawerPanelProps {
   items: DrawerItem[];
@@ -20,6 +22,8 @@ interface DrawerPanelProps {
 const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }: DrawerPanelProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const { isUnlocked } = useLicenseKey();
 
   const getItemLabel = (item: DrawerItem): string => {
     if (isParametricItem(item)) {
@@ -63,7 +67,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
     setSelectedIds(new Set());
   };
 
-  const handleExportClick = async () => {
+  const doExport = async () => {
     const selectedItems = items.filter((item) => selectedIds.has(item.id));
     if (selectedItems.length === 0) {
       toast.error('Select items to export');
@@ -83,6 +87,22 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
       toast.error('Failed to export files');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportClick = () => {
+    const selectedItems = items.filter((item) => selectedIds.has(item.id));
+    if (selectedItems.length === 0) {
+      toast.error('Select items to export');
+      return;
+    }
+
+    // If unlocked, export directly
+    if (isUnlocked) {
+      doExport();
+    } else {
+      // Show payment dialog
+      setShowPaymentDialog(true);
     }
   };
 
@@ -135,7 +155,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
             ) : (
               <Download className="w-3 h-3" />
             )}
-            {isExporting ? 'Exporting...' : 'Export ZIP'}
+            {isExporting ? 'Exporting...' : `Export ZIP${!isUnlocked ? ' $2.99' : ''}`}
           </Button>
         )}
       </div>
@@ -205,6 +225,15 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
           })}
         </div>
       </ScrollArea>
+
+      {/* Payment Dialog */}
+      <ExportPaymentDialog
+        open={showPaymentDialog}
+        onClose={() => setShowPaymentDialog(false)}
+        onExport={doExport}
+        exportType="Batch ZIP"
+        itemCount={selectedIds.size}
+      />
     </div>
   );
 };

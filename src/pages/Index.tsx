@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Scene3D from '@/components/3d/Scene3D';
 import ParameterControls from '@/components/controls/ParameterControls';
@@ -10,7 +10,9 @@ import BatchGenerator from '@/components/controls/BatchGenerator';
 import DrawerPanel from '@/components/drawer/DrawerPanel';
 import KeepButton from '@/components/drawer/KeepButton';
 import Header from '@/components/layout/Header';
+import ExportPaymentDialog from '@/components/ExportPaymentDialog';
 import { useDrawer } from '@/hooks/useDrawer';
+import { useLicenseKey } from '@/hooks/useLicenseKey';
 import { 
   ParametricParams, 
   ObjectType, 
@@ -29,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Select,
   SelectContent,
@@ -45,6 +48,11 @@ const Index = () => {
   
   // Drawer for storing designs locally
   const drawer = useDrawer();
+  const { isUnlocked } = useLicenseKey();
+  
+  // Export payment dialog state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [pendingExportType, setPendingExportType] = useState<'stl' | 'gcode' | 'mold' | 'legs'>('stl');
   
   const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
     setObjectType(drawerType);
@@ -72,6 +80,42 @@ const Index = () => {
   const [legCustomColor, setLegCustomColor] = useState<string | undefined>(undefined);
   const [useLegPresetColor, setUseLegPresetColor] = useState(true);
   const [syncLegMaterial, setSyncLegMaterial] = useState(true);
+  
+  // Handle successful payment return
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const exportSuccess = urlParams.get('export_success');
+    const sessionId = urlParams.get('session_id');
+    
+    if (exportSuccess === 'true' && sessionId) {
+      // Verify payment and trigger download
+      const verifyAndDownload = async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke('verify-payment', {
+            body: { sessionId },
+          });
+          
+          if (error) throw error;
+          
+          if (data?.verified) {
+            toast.success('Payment verified! Your download will start shortly.');
+            // Clear URL params
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        } catch (err) {
+          console.error('Payment verification error:', err);
+          toast.error('Payment verification failed');
+        }
+      };
+      
+      verifyAndDownload();
+    }
+    
+    if (urlParams.get('export_canceled') === 'true') {
+      toast.info('Export canceled');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const handleTypeChange = (type: ObjectType) => {
     setObjectType(type);
@@ -113,16 +157,39 @@ const Index = () => {
 
   const totalLayers = Math.ceil(params.height / printSettings.layerHeight);
 
+  // Actual export functions (called after payment/unlock)
+  const doExportBody = useCallback(() => {
+    const filename = `${objectType}_body_${params.height}mm_${Date.now()}.stl`;
+    downloadBodySTL(params, objectType, filename);
+    toast.success('Body STL exported!', { description: filename });
+  }, [params, objectType]);
+
+  const doExportLegsBase = useCallback(() => {
+    const filename = `${objectType}_legs_base_${Date.now()}.stl`;
+    downloadLegsWithBaseSTL(params, filename);
+    toast.success('Legs + Base STL exported!', { description: filename });
+  }, [params, objectType]);
+
+  const doExportGCode = useCallback(() => {
+    const filename = `${objectType}_${params.height}mm_${printSettings.material}.gcode`;
+    downloadGCode(params, objectType, printSettings, filename);
+    toast.success('G-code exported!', { description: filename });
+  }, [params, objectType, printSettings]);
+
+  // Export click handlers that check for payment/license
   const handleExportBody = useCallback(() => {
     if (!analysis.isValid) {
       toast.error('Fix print issues before exporting');
       return;
     }
     
-    const filename = `${objectType}_body_${params.height}mm_${Date.now()}.stl`;
-    downloadBodySTL(params, objectType, filename);
-    toast.success('Body STL exported!', { description: filename });
-  }, [params, objectType, analysis.isValid]);
+    if (isUnlocked) {
+      doExportBody();
+    } else {
+      setPendingExportType('stl');
+      setShowExportDialog(true);
+    }
+  }, [analysis.isValid, isUnlocked, doExportBody]);
 
   const handleExportLegsBase = useCallback(() => {
     if (!analysis.isValid) {
@@ -130,10 +197,13 @@ const Index = () => {
       return;
     }
     
-    const filename = `${objectType}_legs_base_${Date.now()}.stl`;
-    downloadLegsWithBaseSTL(params, filename);
-    toast.success('Legs + Base STL exported!', { description: filename });
-  }, [params, analysis.isValid, objectType]);
+    if (isUnlocked) {
+      doExportLegsBase();
+    } else {
+      setPendingExportType('legs');
+      setShowExportDialog(true);
+    }
+  }, [analysis.isValid, isUnlocked, doExportLegsBase]);
 
   const handleExportAll = useCallback(() => {
     if (!analysis.isValid) {
@@ -141,12 +211,17 @@ const Index = () => {
       return;
     }
     
-    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    downloadAllParts(params, objectType, baseName);
-    toast.success('All parts exported!', { 
-      description: params.addLegs ? 'Body + Legs/Base' : 'Body only' 
-    });
-  }, [params, objectType, analysis.isValid]);
+    if (isUnlocked) {
+      const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+      downloadAllParts(params, objectType, baseName);
+      toast.success('All parts exported!', { 
+        description: params.addLegs ? 'Body + Legs/Base' : 'Body only' 
+      });
+    } else {
+      setPendingExportType('stl');
+      setShowExportDialog(true);
+    }
+  }, [params, objectType, analysis.isValid, isUnlocked]);
 
   const handleExportGCode = useCallback(() => {
     if (!analysis.isValid) {
@@ -154,10 +229,28 @@ const Index = () => {
       return;
     }
     
-    const filename = `${objectType}_${params.height}mm_${printSettings.material}.gcode`;
-    downloadGCode(params, objectType, printSettings, filename);
-    toast.success('G-code exported!', { description: filename });
-  }, [params, objectType, printSettings, analysis.isValid]);
+    if (isUnlocked) {
+      doExportGCode();
+    } else {
+      setPendingExportType('gcode');
+      setShowExportDialog(true);
+    }
+  }, [analysis.isValid, isUnlocked, doExportGCode]);
+
+  // Handle pending export after payment/unlock
+  const handlePendingExport = useCallback(() => {
+    switch (pendingExportType) {
+      case 'stl':
+        doExportBody();
+        break;
+      case 'legs':
+        doExportLegsBase();
+        break;
+      case 'gcode':
+        doExportGCode();
+        break;
+    }
+  }, [pendingExportType, doExportBody, doExportLegsBase, doExportGCode]);
 
   const handleExportMoldA = useCallback(() => {
     const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
@@ -516,7 +609,7 @@ const Index = () => {
               className="gap-1.5 h-8 rounded-lg"
             >
               <Download className="w-3.5 h-3.5" />
-              STL
+              STL{!isUnlocked && ' $2.99'}
             </Button>
             {params.addLegs && (
               <Button 
@@ -527,7 +620,7 @@ const Index = () => {
                 className="gap-1.5 h-8 rounded-lg"
               >
                 <Download className="w-3.5 h-3.5" />
-                Base
+                Base{!isUnlocked && ' $2.99'}
               </Button>
             )}
             <Button 
@@ -538,7 +631,7 @@ const Index = () => {
               className="gap-1.5 h-8 rounded-lg"
             >
               <FileCode className="w-3.5 h-3.5" />
-              G-code
+              G-code{!isUnlocked && ' $2.99'}
             </Button>
           </>
         )}
@@ -581,6 +674,14 @@ const Index = () => {
         </h2>
         <PrintAnalysisPanel analysis={analysis} settings={printSettings} />
       </motion.aside>
+
+      {/* Export Payment Dialog */}
+      <ExportPaymentDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExport={handlePendingExport}
+        exportType={pendingExportType === 'gcode' ? 'G-code' : pendingExportType === 'legs' ? 'Base STL' : 'STL'}
+      />
     </div>
   );
 };
