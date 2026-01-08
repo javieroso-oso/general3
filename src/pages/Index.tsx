@@ -610,7 +610,7 @@ const Index = () => {
               className="gap-1.5 h-8 rounded-lg"
             >
               <Download className="w-3.5 h-3.5" />
-              STL{!isUnlocked && ` ${EXPORT_PRICES.body.displayPrice}`}
+              STL
             </Button>
             {params.addLegs && (
               <Button 
@@ -621,7 +621,7 @@ const Index = () => {
                 className="gap-1.5 h-8 rounded-lg"
               >
                 <Download className="w-3.5 h-3.5" />
-                Base{!isUnlocked && ` ${EXPORT_PRICES.bodyWithLegs.displayPrice}`}
+                Base
               </Button>
             )}
             <Button 
@@ -632,7 +632,7 @@ const Index = () => {
               className="gap-1.5 h-8 rounded-lg"
             >
               <FileCode className="w-3.5 h-3.5" />
-              G-code{!isUnlocked && ` ${EXPORT_PRICES.gcode.displayPrice}`}
+              G-code
             </Button>
           </>
         )}
