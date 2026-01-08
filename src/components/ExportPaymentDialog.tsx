@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CreditCard, Key, Loader2, X } from 'lucide-react';
+import { CreditCard, Key, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,12 +12,13 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLicenseKey } from '@/hooks/useLicenseKey';
+import { ExportType, EXPORT_PRICES, calculateBatchPrice } from '@/config/export-pricing';
 
 interface ExportPaymentDialogProps {
   open: boolean;
   onClose: () => void;
   onExport: () => void;
-  exportType?: string;
+  exportType: ExportType;
   itemCount?: number;
 }
 
@@ -25,18 +26,24 @@ const ExportPaymentDialog = ({
   open,
   onClose,
   onExport,
-  exportType = 'STL',
+  exportType,
   itemCount = 1,
 }: ExportPaymentDialogProps) => {
   const [licenseInput, setLicenseInput] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const { isUnlocked, setLicenseKey } = useLicenseKey();
 
+  // Get pricing info based on export type
+  const pricing = EXPORT_PRICES[exportType];
+  const displayPrice = exportType === 'batch' 
+    ? calculateBatchPrice(itemCount).display 
+    : pricing.displayPrice;
+
   const handlePayment = async () => {
     setIsProcessingPayment(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-export-payment', {
-        body: { itemCount },
+        body: { exportType, itemCount },
       });
 
       if (error) throw error;
@@ -73,18 +80,28 @@ const ExportPaymentDialog = ({
     return null;
   }
 
+  const getTitle = () => {
+    switch (exportType) {
+      case 'body': return 'Export Body STL';
+      case 'bodyWithLegs': return 'Export Body + Legs';
+      case 'bodyWithMold': return 'Export Body + Mold';
+      case 'gcode': return 'Export G-code';
+      case 'batch': return `Export ${itemCount} Designs`;
+      default: return 'Export';
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
-            Export {exportType}
+            {getTitle()}
           </DialogTitle>
           <DialogDescription>
-            {itemCount > 1
-              ? `Export ${itemCount} designs as a ZIP file`
-              : 'Download your design as an STL file'}
+            {pricing.description}
+            {exportType === 'batch' && itemCount > 1 && ` (${itemCount} items)`}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,7 +109,7 @@ const ExportPaymentDialog = ({
           {/* Price display */}
           <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
             <span className="text-sm font-medium">Export Price</span>
-            <span className="text-lg font-bold text-primary">$2.99</span>
+            <span className="text-lg font-bold text-primary">{displayPrice}</span>
           </div>
 
           {/* Payment button */}

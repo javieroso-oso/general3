@@ -6,6 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Price IDs for each export type
+const PRICE_IDS: Record<string, string> = {
+  body: 'price_1SnRWsLz2WTfSJ3nfd7fWH7C',
+  bodyWithLegs: 'price_1SnRXILz2WTfSJ3nQQsQarCS',
+  bodyWithMold: 'price_1SnRYNLz2WTfSJ3noB73i3FF',
+  gcode: 'price_1SnRYWLz2WTfSJ3nzSJOaVbL',
+  batch: 'price_1SnRYgLz2WTfSJ3nh84DlpAx',
+};
+
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CREATE-EXPORT-PAYMENT] ${step}${detailsStr}`);
@@ -24,12 +33,17 @@ serve(async (req) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
 
-    const { itemCount, email } = await req.json();
-    logStep("Request parsed", { itemCount, email });
+    const { exportType, itemCount, email } = await req.json();
+    logStep("Request parsed", { exportType, itemCount, email });
 
-    if (!itemCount || itemCount < 1) {
-      throw new Error("Invalid item count");
+    // Validate export type
+    const priceId = PRICE_IDS[exportType];
+    if (!priceId) {
+      throw new Error(`Invalid export type: ${exportType}`);
     }
+
+    // For batch exports, quantity is the item count
+    const quantity = exportType === 'batch' ? (itemCount || 1) : 1;
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
@@ -49,19 +63,20 @@ serve(async (req) => {
       customer_email: customerId ? undefined : email,
       line_items: [
         {
-          price: "price_1SjaIqLz2WTfSJ3nkdA3FLhK",
-          quantity: 1,
+          price: priceId,
+          quantity,
         },
       ],
       mode: "payment",
       success_url: `${req.headers.get("origin")}/?export_success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/?export_canceled=true`,
       metadata: {
-        itemCount: itemCount.toString(),
+        exportType,
+        itemCount: itemCount?.toString() || '1',
       },
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Checkout session created", { sessionId: session.id, url: session.url, exportType, quantity });
 
     return new Response(JSON.stringify({ url: session.url, sessionId: session.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
