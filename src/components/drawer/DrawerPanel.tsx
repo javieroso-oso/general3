@@ -156,7 +156,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
             ) : (
               <Download className="w-3 h-3" />
             )}
-            {isExporting ? 'Exporting...' : `Export ZIP${!isUnlocked ? ` ${calculateBatchPrice(selectedIds.size).display}` : ''}`}
+            {isExporting ? 'Exporting...' : 'Export ZIP'}
           </Button>
         )}
       </div>

@@ -106,12 +106,6 @@ const ExportPaymentDialog = ({
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Price display */}
-          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-            <span className="text-sm font-medium">Export Price</span>
-            <span className="text-lg font-bold text-primary">{displayPrice}</span>
-          </div>
-
           {/* Payment button */}
           <Button
             onClick={handlePayment}
@@ -123,7 +117,7 @@ const ExportPaymentDialog = ({
             ) : (
               <CreditCard className="w-4 h-4" />
             )}
-            {isProcessingPayment ? 'Processing...' : 'Pay with Stripe'}
+            {isProcessingPayment ? 'Processing...' : 'Continue to Checkout'}
           </Button>
 
           <div className="relative">
