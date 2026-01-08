@@ -873,15 +873,13 @@ export function generateMultiPartMoldGeometry(
 }
 
 /**
- * Generate a single mold part for N-part molds
+ * Generate base geometry for a single mold part (without CSG features)
  */
-function generateMoldPart(
+function generateBaseMoldPart(
   params: ParametricParams,
   moldParams: MoldParams,
   startAngle: number,
   endAngle: number,
-  partIndex: number,
-  totalParts: number,
   objectType: ObjectType
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
@@ -1195,6 +1193,169 @@ function generateMoldPart(
 }
 
 /**
+ * Generate a single mold part with CSG features (registration keys, pour hole, etc.)
+ */
+function generateMoldPart(
+  params: ParametricParams,
+  moldParams: MoldParams,
+  startAngle: number,
+  endAngle: number,
+  partIndex: number,
+  totalParts: number,
+  objectType: ObjectType
+): THREE.BufferGeometry {
+  const height = params.height * SCALE;
+  const offset = moldParams.offset * SCALE;
+  const angleSpan = endAngle - startAngle;
+  const splitRotation = moldParams.splitAngle * Math.PI / 180;
+  const adjustedStartAngle = startAngle + splitRotation;
+  const adjustedEndAngle = endAngle + splitRotation;
+  
+  // Get max radius for key positioning
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const outerRadius = maxBodyRadius + moldParams.wallThickness * SCALE;
+  const innerRadius = maxBodyRadius + offset;
+  const keyDepth = moldParams.registrationKeySize * 1.5;
+  
+  // Generate base geometry
+  const baseGeometry = generateBaseMoldPart(params, moldParams, startAngle, endAngle, objectType);
+  
+  try {
+    const evaluator = new Evaluator();
+    let resultBrush = new Brush(baseGeometry);
+    resultBrush.updateMatrixWorld();
+    
+    // Calculate key positions along the height
+    const keyPositions = calculateKeyPositions(
+      params.height,
+      moldParams.registrationKeyCount,
+      moldParams.baseThickness
+    );
+    
+    // Position keys on split faces
+    const keyRadius = (innerRadius + outerRadius) / 2;
+    
+    for (const yPos of keyPositions) {
+      const y = yPos * SCALE;
+      
+      // Left edge: this part has pegs (protrusions)
+      const leftAngle = adjustedStartAngle;
+      const leftKeyPos = new THREE.Vector3(
+        Math.cos(leftAngle) * keyRadius,
+        y,
+        Math.sin(leftAngle) * keyRadius
+      );
+      
+      const leftKeyBrush = createRegistrationKeyBrush(
+        moldParams.registrationKeySize,
+        keyDepth,
+        leftKeyPos,
+        false // peg (protrusion)
+      );
+      resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
+      
+      // Right edge: this part has sockets (receives neighbor's pegs)
+      const rightAngle = adjustedEndAngle;
+      const rightKeyPos = new THREE.Vector3(
+        Math.cos(rightAngle) * keyRadius,
+        y,
+        Math.sin(rightAngle) * keyRadius
+      );
+      
+      const rightKeyBrush = createRegistrationKeyBrush(
+        moldParams.registrationKeySize,
+        keyDepth,
+        rightKeyPos,
+        true // socket (indentation)
+      );
+      resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
+    }
+    
+    // Add pour hole only on first part
+    if (partIndex === 0) {
+      const pourHoleDepth = moldParams.baseThickness + 5;
+      const pourHoleBrush = createPourHoleBrush(
+        moldParams.pourHoleDiameter,
+        pourHoleDepth,
+        height
+      );
+      resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
+      
+      // Add spare collar if enabled
+      if (moldParams.spareEnabled && moldParams.spareHeight > 0) {
+        const spareDiameter = moldParams.spareDiameter > 0 
+          ? moldParams.spareDiameter 
+          : moldParams.pourHoleDiameter * 1.5;
+        
+        const spareBrush = createSpareCollarBrush(
+          moldParams.pourHoleDiameter,
+          spareDiameter,
+          moldParams.spareHeight,
+          height
+        );
+        resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
+      }
+    }
+    
+    // Add vent holes if enabled (distributed across parts)
+    if (moldParams.ventHolesEnabled && moldParams.ventHoleCount > 0) {
+      const ventsPerPart = Math.ceil(moldParams.ventHoleCount / totalParts);
+      const ventY = height * moldParams.ventHolePosition;
+      const ventDepth = moldParams.wallThickness + 5;
+      
+      for (let i = 0; i < ventsPerPart; i++) {
+        const ventProgress = (i + 0.5) / ventsPerPart;
+        const ventAngle = adjustedStartAngle + angleSpan * ventProgress;
+        const ventRadius = outerRadius - moldParams.wallThickness * SCALE * 0.5;
+        
+        const ventPos = new THREE.Vector3(
+          Math.cos(ventAngle) * ventRadius,
+          ventY,
+          Math.sin(ventAngle) * ventRadius
+        );
+        
+        const ventBrush = createVentHoleBrush(
+          moldParams.ventHoleDiameter,
+          ventDepth,
+          ventPos,
+          -Math.PI / 6
+        );
+        resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
+      }
+    }
+    
+    // Add strap notches if enabled (distributed across parts)
+    if (moldParams.strapNotchesEnabled && moldParams.strapNotchCount > 0) {
+      const notchesPerPart = Math.ceil(moldParams.strapNotchCount / totalParts);
+      const notchY = height * 0.5;
+      const moldOuterRadius = (outerRadius / SCALE) + moldParams.wallThickness;
+      
+      for (let i = 0; i < notchesPerPart; i++) {
+        const notchProgress = (i + 0.5) / notchesPerPart;
+        const notchAngle = adjustedStartAngle + angleSpan * notchProgress;
+        
+        const notchBrush = createStrapNotchBrush(
+          moldParams.strapNotchWidth,
+          moldParams.strapNotchDepth,
+          moldOuterRadius,
+          notchY / SCALE,
+          notchAngle
+        );
+        resultBrush = evaluator.evaluate(resultBrush, notchBrush, SUBTRACTION);
+      }
+    }
+    
+    const finalGeometry = resultBrush.geometry;
+    finalGeometry.computeVertexNormals();
+    
+    return finalGeometry;
+  } catch (error) {
+    console.warn('CSG operations failed for mold part, using base geometry:', error);
+    return baseGeometry;
+  }
+}
+
+/**
  * Export a mold half to STL
  */
 export function exportMoldHalfToSTL(geometry: THREE.BufferGeometry): Blob {
@@ -1205,7 +1366,7 @@ export function exportMoldHalfToSTL(geometry: THREE.BufferGeometry): Blob {
 }
 
 /**
- * Download mold STL files
+ * Download mold STL files (2-part legacy)
  */
 export function downloadMoldSTL(
   params: ParametricParams,
@@ -1239,4 +1400,41 @@ export function downloadMoldSTL(
   // Dispose geometries
   halfA.dispose();
   halfB.dispose();
+}
+
+/**
+ * Download multi-part mold STL files
+ */
+export function downloadMultiPartMoldSTL(
+  params: ParametricParams,
+  objectType: ObjectType,
+  partIndex: number | 'all',
+  baseName: string
+): void {
+  const { parts } = generateMultiPartMoldGeometry(params, objectType);
+  const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  
+  if (partIndex === 'all') {
+    parts.forEach((geometry, index) => {
+      const blob = exportMoldHalfToSTL(geometry);
+      downloadBlob(blob, `${baseName}_mold_${partLabels[index]}.stl`);
+    });
+  } else if (partIndex >= 0 && partIndex < parts.length) {
+    const blob = exportMoldHalfToSTL(parts[partIndex]);
+    downloadBlob(blob, `${baseName}_mold_${partLabels[partIndex]}.stl`);
+  }
+  
+  // Dispose geometries
+  parts.forEach(geometry => geometry.dispose());
 }

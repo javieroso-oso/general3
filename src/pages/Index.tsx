@@ -22,7 +22,7 @@ import {
 } from '@/types/parametric';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode } from '@/lib/stl-export';
-import { downloadMoldSTL } from '@/lib/mold-generator';
+import { downloadMoldSTL, downloadMultiPartMoldSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -161,20 +161,43 @@ const Index = () => {
 
   const handleExportMoldA = useCallback(() => {
     const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    downloadMoldSTL(params, objectType, 'A', baseName);
-    toast.success('Mold Half A exported!');
+    if (params.moldPartCount > 2) {
+      downloadMultiPartMoldSTL(params, objectType, 0, baseName);
+      toast.success('Mold Part A exported!');
+    } else {
+      downloadMoldSTL(params, objectType, 'A', baseName);
+      toast.success('Mold Half A exported!');
+    }
   }, [params, objectType]);
 
   const handleExportMoldB = useCallback(() => {
     const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    downloadMoldSTL(params, objectType, 'B', baseName);
-    toast.success('Mold Half B exported!');
+    if (params.moldPartCount > 2) {
+      downloadMultiPartMoldSTL(params, objectType, 1, baseName);
+      toast.success('Mold Part B exported!');
+    } else {
+      downloadMoldSTL(params, objectType, 'B', baseName);
+      toast.success('Mold Half B exported!');
+    }
   }, [params, objectType]);
 
   const handleExportBothMolds = useCallback(() => {
     const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    downloadMoldSTL(params, objectType, 'both', baseName);
-    toast.success('Both mold halves exported!');
+    if (params.moldPartCount > 2) {
+      downloadMultiPartMoldSTL(params, objectType, 'all', baseName);
+      toast.success(`All ${params.moldPartCount} mold parts exported!`);
+    } else {
+      downloadMoldSTL(params, objectType, 'both', baseName);
+      toast.success('Both mold halves exported!');
+    }
+  }, [params, objectType]);
+
+  // Export additional mold parts (C, D, etc.) for multi-part molds
+  const handleExportMoldPart = useCallback((partIndex: number) => {
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    downloadMultiPartMoldSTL(params, objectType, partIndex, baseName);
+    toast.success(`Mold Part ${partLabels[partIndex]} exported!`);
   }, [params, objectType]);
 
   return (
