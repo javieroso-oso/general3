@@ -31,7 +31,8 @@ const ExportPaymentDialog = ({
 }: ExportPaymentDialogProps) => {
   const [licenseInput, setLicenseInput] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const { isUnlocked, setLicenseKey } = useLicenseKey();
+  const [isValidatingLicense, setIsValidatingLicense] = useState(false);
+  const { isUnlocked, setLicenseKey, isValidating } = useLicenseKey();
 
   // Get pricing info based on export type
   const pricing = EXPORT_PRICES[exportType];
@@ -40,6 +41,11 @@ const ExportPaymentDialog = ({
     : pricing.displayPrice;
 
   const handlePayment = async () => {
+    if (!supabase) {
+      toast.error('Payment service unavailable');
+      return;
+    }
+    
     setIsProcessingPayment(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-export-payment', {
@@ -62,14 +68,21 @@ const ExportPaymentDialog = ({
     }
   };
 
-  const handleUnlock = () => {
-    const isValid = setLicenseKey(licenseInput.trim());
-    if (isValid) {
-      toast.success('License key activated!');
-      onExport();
-      onClose();
-    } else {
-      toast.error('Invalid license key');
+  const handleUnlock = async () => {
+    setIsValidatingLicense(true);
+    try {
+      const isValid = await setLicenseKey(licenseInput.trim());
+      if (isValid) {
+        toast.success('License key activated!');
+        onExport();
+        onClose();
+      } else {
+        toast.error('Invalid license key');
+      }
+    } catch (error) {
+      toast.error('Failed to validate license key');
+    } finally {
+      setIsValidatingLicense(false);
     }
   };
 
@@ -145,9 +158,13 @@ const ExportPaymentDialog = ({
               <Button
                 onClick={handleUnlock}
                 variant="secondary"
-                disabled={!licenseInput.trim()}
+                disabled={!licenseInput.trim() || isValidatingLicense}
               >
-                Unlock
+                {isValidatingLicense ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Unlock'
+                )}
               </Button>
             </div>
           </div>

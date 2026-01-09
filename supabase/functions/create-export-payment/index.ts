@@ -1,10 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Valid export types
+const VALID_EXPORT_TYPES = ['body', 'bodyWithLegs', 'bodyWithMold', 'gcode', 'batch'] as const;
 
 // Price IDs for each export type
 const PRICE_IDS: Record<string, string> = {
@@ -15,9 +19,25 @@ const PRICE_IDS: Record<string, string> = {
   batch: 'price_1SnRYgLz2WTfSJ3nh84DlpAx',
 };
 
+// Input validation schema
+const RequestSchema = z.object({
+  exportType: z.enum(VALID_EXPORT_TYPES),
+  itemCount: z.number().int().min(1).max(100).optional().default(1),
+  email: z.string().email().max(254).optional(),
+  licenseKey: z.string().max(100).optional(),
+});
+
+// Server-side license key validation (stored securely in environment)
+const validateLicenseKey = (key: string | undefined): boolean => {
+  if (!key) return false;
+  const validKey = Deno.env.get("EXPORT_LICENSE_KEY");
+  return validKey ? key === validKey : false;
+};
+
 const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[CREATE-EXPORT-PAYMENT] ${step}${detailsStr}`);
+  // Only log non-sensitive information
+  const safeDetails = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[CREATE-EXPORT-PAYMENT] ${step}${safeDetails}`);
 };
 
 serve(async (req) => {
@@ -30,20 +50,58 @@ serve(async (req) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
-
-    const { exportType, itemCount, email } = await req.json();
-    logStep("Request parsed", { exportType, itemCount, email });
-
-    // Validate export type
-    const priceId = PRICE_IDS[exportType];
-    if (!priceId) {
-      throw new Error(`Invalid export type: ${exportType}`);
+    if (!stripeKey) {
+      console.error("[CREATE-EXPORT-PAYMENT] Stripe key not configured");
+      return new Response(
+        JSON.stringify({ error: "Payment service unavailable" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // For batch exports, quantity is the item count
-    const quantity = exportType === 'batch' ? (itemCount || 1) : 1;
+    // Parse and validate input
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate input with zod
+    const parseResult = RequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      logStep("Validation failed", { errors: parseResult.error.flatten().fieldErrors });
+      return new Response(
+        JSON.stringify({ error: "Invalid input parameters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { exportType, itemCount, email, licenseKey } = parseResult.data;
+    logStep("Request validated", { exportType, itemCount: itemCount || 1 });
+
+    // Check if license key is valid (server-side validation)
+    if (validateLicenseKey(licenseKey)) {
+      logStep("Valid license key provided");
+      return new Response(
+        JSON.stringify({ authorized: true, message: "License key valid" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get price ID
+    const priceId = PRICE_IDS[exportType];
+    if (!priceId) {
+      return new Response(
+        JSON.stringify({ error: "Invalid export type" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // For batch exports, quantity is the item count (already validated 1-100)
+    const quantity = exportType === 'batch' ? itemCount : 1;
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
@@ -76,18 +134,20 @@ serve(async (req) => {
       },
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url, exportType, quantity });
+    logStep("Checkout session created", { sessionId: session.id, exportType, quantity });
 
     return new Response(JSON.stringify({ url: session.url, sessionId: session.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    // Log detailed error server-side for debugging
+    console.error("[CREATE-EXPORT-PAYMENT] Error:", error);
+    
+    // Return generic error to client
+    return new Response(
+      JSON.stringify({ error: "Unable to create payment session. Please try again." }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
