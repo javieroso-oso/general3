@@ -1,14 +1,24 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Input validation schema - Stripe session IDs start with "cs_"
+const RequestSchema = z.object({
+  sessionId: z.string()
+    .min(10, "Session ID too short")
+    .max(200, "Session ID too long")
+    .regex(/^cs_/, "Invalid session ID format"),
+});
+
 const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[VERIFY-PAYMENT] ${step}${detailsStr}`);
+  // Only log non-sensitive information
+  const safeDetails = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[VERIFY-PAYMENT] ${step}${safeDetails}`);
 };
 
 serve(async (req) => {
@@ -20,14 +30,37 @@ serve(async (req) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-
-    const { sessionId } = await req.json();
-    logStep("Request parsed", { sessionId });
-
-    if (!sessionId) {
-      throw new Error("Session ID is required");
+    if (!stripeKey) {
+      console.error("[VERIFY-PAYMENT] Stripe key not configured");
+      return new Response(
+        JSON.stringify({ error: "Payment service unavailable", verified: false }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid request body", verified: false }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate input
+    const parseResult = RequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      logStep("Validation failed");
+      return new Response(
+        JSON.stringify({ error: "Invalid session ID", verified: false }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { sessionId } = parseResult.data;
+    logStep("Request validated");
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     
@@ -48,11 +81,13 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage, verified: false }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    // Log detailed error server-side for debugging
+    console.error("[VERIFY-PAYMENT] Error:", error);
+    
+    // Return generic error to client
+    return new Response(
+      JSON.stringify({ error: "Unable to verify payment. Please try again.", verified: false }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
