@@ -331,7 +331,7 @@ function generateBaseMoldHalf(
   
   const halfSegments = segments / 2;
   
-  // Inner surface indices (facing inward toward cavity)
+  // Inner surface indices (facing outward - into the mold solid, away from cavity)
   for (let i = 0; i < rings; i++) {
     for (let j = 0; j < halfSegments; j++) {
       const a = innerVertexStart + i * (halfSegments + 1) + j;
@@ -339,8 +339,9 @@ function generateBaseMoldHalf(
       const c = a + 1;
       const d = b + 1;
       
-      indices.push(a, b, c);
-      indices.push(c, b, d);
+      // Reversed winding for outward-facing normals
+      indices.push(a, c, b);
+      indices.push(c, d, b);
     }
   }
   
@@ -950,7 +951,7 @@ function generateBaseMoldPart(
     }
   }
   
-  // Inner surface indices
+  // Inner surface indices (facing outward - into the mold solid, away from cavity)
   for (let i = 0; i < rings; i++) {
     for (let j = 0; j < partSegments; j++) {
       const a = innerVertexStart + i * (partSegments + 1) + j;
@@ -958,8 +959,9 @@ function generateBaseMoldPart(
       const c = a + 1;
       const d = b + 1;
       
-      indices.push(a, b, c);
-      indices.push(c, b, d);
+      // Reversed winding for outward-facing normals
+      indices.push(a, c, b);
+      indices.push(c, d, b);
     }
   }
   
