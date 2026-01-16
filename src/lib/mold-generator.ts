@@ -154,11 +154,21 @@ function createPourHoleBrush(
  * Create vent hole brush for air escape during casting
  * Positioned at high points of the cavity to allow trapped air to escape
  */
+/**
+ * Create vent hole brush for air escape during casting
+ * Positioned at high points of the cavity to allow trapped air to escape
+ * @param diameter - vent hole diameter in mm
+ * @param depth - depth of the vent hole in mm
+ * @param position - 3D position of the vent
+ * @param tiltAngle - upward tilt angle (radians)
+ * @param radialAngle - angle around Y axis for radial direction (radians)
+ */
 function createVentHoleBrush(
   diameter: number,
   depth: number,
   position: THREE.Vector3,
-  angle: number
+  tiltAngle: number,
+  radialAngle: number
 ): Brush {
   const radius = (diameter / 2) * SCALE;
   const holeDepth = depth * SCALE;
@@ -170,13 +180,16 @@ function createVentHoleBrush(
     12
   );
   
-  // Angle the vent slightly upward (away from cavity)
-  geometry.rotateZ(angle);
+  // Rotate cylinder to point along X-axis (radial direction), then apply upward tilt
+  geometry.rotateZ(Math.PI / 2);  // Point along X (radial outward)
+  geometry.rotateY(tiltAngle);    // Tilt slightly upward
   
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
+  // Rotate around Y to point radially outward at the specific angle
+  brush.rotation.y = radialAngle;
   brush.updateMatrixWorld();
   
   return brush;
@@ -398,9 +411,9 @@ function generateBaseMoldHalf(
     indices.push(b, c, d);
   }
   
-  // ========== BOTTOM FACE (BASE) - WATERTIGHT ==========
-  // The bottom is an annulus (ring) from inner radius to outer radius
-  // Plus two straight edges along the split line to close the half-disc
+  // ========== BOTTOM FACE (BASE) - SOLID FLAT ==========
+  // The bottom should be a solid disk from center to outer ring
+  // The cavity stops at y=0, creating a solid flat base
   
   // Get inner bottom ring vertex indices (first ring of inner surface at y=0)
   const innerBottomRing: number[] = [];
@@ -420,74 +433,27 @@ function generateBaseMoldHalf(
     uvs.push(u, -0.1);
   }
   
-  // Inner ring at base level (matches inner cavity bottom ring position but at y=-baseThickness)
-  const bottomInnerRingStart = vertices.length / 3;
-  for (let j = 0; j <= halfSegments; j++) {
-    const u = j / halfSegments;
-    const thetaRaw = startAngle + u * Math.PI;
-    const theta = thetaRaw + splitRotation;
-    
-    // Get the inner radius at the bottom (t=0)
-    const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
-    let innerR = getBodyRadius(params, 0, thetaRaw, { 
-      scale: SCALE, 
-      objectType,
-      includeTwist: true 
-    });
-    innerR += offset + draftOffset * 0.5;
-    
-    const x = Math.cos(theta) * innerR;
-    const z = Math.sin(theta) * innerR;
-    vertices.push(x, -baseThickness, z);
-    uvs.push(u, -0.05);
-  }
-  
-  // Create vertices along the split line edges at base level (for closing the half-disc)
-  // Left split edge: from center to inner radius to outer radius
-  const leftSplitTheta = startAngle + splitRotation;
-  const rightSplitTheta = startAngle + Math.PI + splitRotation;
-  
-  // Get inner radii at split edges
-  const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
-  let leftInnerR = getBodyRadius(params, 0, startAngle, { scale: SCALE, objectType, includeTwist: true });
-  leftInnerR += offset + draftOffset * 0.5;
-  let rightInnerR = getBodyRadius(params, 0, startAngle + Math.PI, { scale: SCALE, objectType, includeTwist: true });
-  rightInnerR += offset + draftOffset * 0.5;
-  
-  // Center point at base level - positioned at origin on the split line
+  // Center point at base level - positioned at origin
   const baseCenterStart = vertices.length / 3;
   vertices.push(0, -baseThickness, 0);
   uvs.push(0.5, -0.1);
   
-  // Left split edge vertices at base level (inner and outer already exist in rings)
-  // Right split edge vertices at base level (inner and outer already exist in rings)
-  
-  // Bottom face: Create triangular fan from center to inner ring
+  // Bottom face: Create solid triangular fan from center DIRECTLY to outer ring
+  // This creates a completely solid flat base (no hollow area)
   for (let j = 0; j < halfSegments; j++) {
     const a = baseCenterStart;
-    const b = bottomInnerRingStart + j;
-    const c = bottomInnerRingStart + j + 1;
+    const b = bottomOuterRingStart + j;
+    const c = bottomOuterRingStart + j + 1;
     indices.push(a, c, b); // Face downward (normal pointing -Y)
   }
   
-  // Bottom face quads: inner ring to outer ring (at base level)
-  for (let j = 0; j < halfSegments; j++) {
-    const innerA = bottomInnerRingStart + j;
-    const innerB = bottomInnerRingStart + j + 1;
-    const outerA = bottomOuterRingStart + j;
-    const outerB = bottomOuterRingStart + j + 1;
-    
-    indices.push(innerA, outerA, innerB);
-    indices.push(innerB, outerA, outerB);
-  }
-  
-  // Connect inner cavity bottom (y=0) to bottom inner ring (y=-baseThickness)
-  // This creates the vertical inner wall of the base thickness
+  // Connect inner cavity bottom (y=0) to outer base ring (y=-baseThickness)
+  // This creates a sloped inner wall connecting cavity floor to base bottom
   for (let j = 0; j < halfSegments; j++) {
     const topA = innerBottomRing[j];
     const topB = innerBottomRing[j + 1];
-    const bottomA = bottomInnerRingStart + j;
-    const bottomB = bottomInnerRingStart + j + 1;
+    const bottomA = bottomOuterRingStart + j;
+    const bottomB = bottomOuterRingStart + j + 1;
     
     // Face inward (toward cavity)
     indices.push(topA, topB, bottomA);
@@ -552,11 +518,11 @@ function generateBaseMoldHalf(
   
   // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
   // These close the left and right edges of the half-mold from top to bottom
+  // With solid base, the split faces go from center -> innerBottom (y=0) -> outerBottom -> base outer
   
   // Left split edge indices
   const leftInnerBottom = innerBottomRing[0];
   const leftOuterBottom = outerVertexStart;
-  const leftBaseInner = bottomInnerRingStart;
   const leftBaseOuter = bottomOuterRingStart;
   const leftInnerTop = innerTopRing[0];
   const leftOuterTop = outerTopRing;
@@ -565,22 +531,20 @@ function generateBaseMoldHalf(
   // Right split edge indices
   const rightInnerBottom = innerBottomRing[halfSegments];
   const rightOuterBottom = outerVertexStart + halfSegments;
-  const rightBaseInner = bottomInnerRingStart + halfSegments;
   const rightBaseOuter = bottomOuterRingStart + halfSegments;
   const rightInnerTop = innerTopRing[halfSegments];
   const rightOuterTop = outerTopRing + halfSegments;
   const rightRimOuter = topVertexStart + halfSegments;
   
   // LEFT SPLIT FACE - Full vertical wall from base to rim
-  // Bottom section: center -> baseInner -> baseOuter (triangular fill at bottom)
-  indices.push(baseCenterStart, leftBaseOuter, leftBaseInner);
+  // Bottom section: center -> innerBottom (cavity at y=0) -> outerBottom (outer at y=0) -> baseOuter (at y=-baseThickness)
+  // Triangle from center to inner cavity bottom
+  indices.push(baseCenterStart, leftBaseOuter, leftInnerBottom);
   
-  // Base to cavity bottom: baseInner -> innerBottom, baseOuter -> outerBottom
-  indices.push(leftBaseInner, leftBaseOuter, leftInnerBottom);
+  // Quad from inner cavity (y=0) to outer wall (y=0)
   indices.push(leftInnerBottom, leftBaseOuter, leftOuterBottom);
   
   // Cavity bottom to cavity top: innerBottom -> innerTop, outerBottom -> outerTop (main wall)
-  // We need intermediate vertices - use the split face vertices from inner and outer surfaces
   for (let i = 0; i < rings; i++) {
     const innerA = innerVertexStart + i * (halfSegments + 1);
     const innerB = innerVertexStart + (i + 1) * (halfSegments + 1);
@@ -596,11 +560,10 @@ function generateBaseMoldHalf(
   indices.push(leftInnerTop, leftOuterTop, leftRimOuter);
   
   // RIGHT SPLIT FACE - Full vertical wall from base to rim (opposite winding)
-  // Bottom section: center -> baseInner -> baseOuter
-  indices.push(baseCenterStart, rightBaseInner, rightBaseOuter);
+  // Triangle from center to inner cavity bottom
+  indices.push(baseCenterStart, rightInnerBottom, rightBaseOuter);
   
-  // Base to cavity bottom
-  indices.push(rightBaseInner, rightInnerBottom, rightBaseOuter);
+  // Quad from inner cavity (y=0) to outer wall (y=0)
   indices.push(rightInnerBottom, rightOuterBottom, rightBaseOuter);
   
   // Cavity bottom to cavity top (main wall)
@@ -732,7 +695,8 @@ function generateMoldHalf(
           moldParams.ventHoleDiameter,
           ventDepth,
           ventPos,
-          -Math.PI / 6 // Angle slightly upward
+          -Math.PI / 6, // Upward tilt
+          ventAngle     // Radial direction
         );
         
         resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
@@ -1026,7 +990,10 @@ function generateBaseMoldPart(
     indices.push(b, c, d);
   }
   
-  // Bottom face
+  // ========== BOTTOM FACE (BASE) - SOLID FLAT ==========
+  // The bottom should be a solid disk from center to outer ring
+  // The cavity stops at y=0, creating a solid flat base
+  
   const innerBottomRing: number[] = [];
   for (let j = 0; j <= partSegments; j++) {
     innerBottomRing.push(innerVertexStart + j);
@@ -1043,57 +1010,27 @@ function generateBaseMoldPart(
     uvs.push(u, -0.1);
   }
   
-  // Inner ring at base level
-  const bottomInnerRingStart = vertices.length / 3;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    const thetaRaw = theta - splitRotation;
-    
-    const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
-    let innerR = getBodyRadius(params, 0, thetaRaw, { 
-      scale: SCALE, 
-      objectType,
-      includeTwist: true 
-    });
-    innerR += offset + draftOffset * 0.5;
-    
-    const x = Math.cos(theta) * innerR;
-    const z = Math.sin(theta) * innerR;
-    vertices.push(x, -baseThickness, z);
-    uvs.push(u, -0.05);
-  }
-  
   // Center point at base level
   const baseCenterStart = vertices.length / 3;
   vertices.push(0, -baseThickness, 0);
   uvs.push(0.5, -0.1);
   
-  // Bottom face triangular fan from center to inner ring
+  // Bottom face: Create solid triangular fan from center DIRECTLY to outer ring
+  // This creates a completely solid flat base (no hollow area)
   for (let j = 0; j < partSegments; j++) {
     const a = baseCenterStart;
-    const b = bottomInnerRingStart + j;
-    const c = bottomInnerRingStart + j + 1;
-    indices.push(a, c, b);
+    const b = bottomOuterRingStart + j;
+    const c = bottomOuterRingStart + j + 1;
+    indices.push(a, c, b); // Face downward (normal pointing -Y)
   }
   
-  // Bottom face quads: inner ring to outer ring
-  for (let j = 0; j < partSegments; j++) {
-    const innerA = bottomInnerRingStart + j;
-    const innerB = bottomInnerRingStart + j + 1;
-    const outerA = bottomOuterRingStart + j;
-    const outerB = bottomOuterRingStart + j + 1;
-    
-    indices.push(innerA, outerA, innerB);
-    indices.push(innerB, outerA, outerB);
-  }
-  
-  // Connect inner cavity bottom to bottom inner ring
+  // Connect inner cavity bottom (y=0) to outer base ring (y=-baseThickness)
+  // This creates a sloped inner wall connecting cavity floor to base bottom
   for (let j = 0; j < partSegments; j++) {
     const topA = innerBottomRing[j];
     const topB = innerBottomRing[j + 1];
-    const bottomA = bottomInnerRingStart + j;
-    const bottomB = bottomInnerRingStart + j + 1;
+    const bottomA = bottomOuterRingStart + j;
+    const bottomB = bottomOuterRingStart + j + 1;
     
     indices.push(topA, topB, bottomA);
     indices.push(topB, bottomB, bottomA);
@@ -1149,24 +1086,25 @@ function generateBaseMoldPart(
     indices.push(surfaceB, rimA, rimB);
   }
   
-  // Full split face closures
+  // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
+  // With solid base, split faces go from center -> innerBottom (y=0) -> outerBottom -> base outer
+  
   const leftInnerBottom = innerBottomRing[0];
   const leftOuterBottom = outerVertexStart;
-  const leftBaseInner = bottomInnerRingStart;
   const leftBaseOuter = bottomOuterRingStart;
   const leftInnerTop = innerTopRing[0];
   const leftRimOuter = topVertexStart;
   
   const rightInnerBottom = innerBottomRing[partSegments];
   const rightOuterBottom = outerVertexStart + partSegments;
-  const rightBaseInner = bottomInnerRingStart + partSegments;
   const rightBaseOuter = bottomOuterRingStart + partSegments;
   const rightInnerTop = innerTopRing[partSegments];
   const rightRimOuter = topVertexStart + partSegments;
   
   // Left split face closure
-  indices.push(baseCenterStart, leftBaseOuter, leftBaseInner);
-  indices.push(leftBaseInner, leftBaseOuter, leftInnerBottom);
+  // Triangle from center to inner cavity bottom
+  indices.push(baseCenterStart, leftBaseOuter, leftInnerBottom);
+  // Quad from inner cavity (y=0) to outer wall (y=0)
   indices.push(leftInnerBottom, leftBaseOuter, leftOuterBottom);
   
   for (let i = 0; i < rings; i++) {
@@ -1182,8 +1120,9 @@ function generateBaseMoldPart(
   indices.push(leftInnerTop, outerVertexStart + rings * (partSegments + 1), leftRimOuter);
   
   // Right split face closure
-  indices.push(baseCenterStart, rightBaseInner, rightBaseOuter);
-  indices.push(rightBaseInner, rightInnerBottom, rightBaseOuter);
+  // Triangle from center to inner cavity bottom
+  indices.push(baseCenterStart, rightInnerBottom, rightBaseOuter);
+  // Quad from inner cavity (y=0) to outer wall (y=0)
   indices.push(rightInnerBottom, rightOuterBottom, rightBaseOuter);
   
   for (let i = 0; i < rings; i++) {
@@ -1311,30 +1250,47 @@ function generateMoldPart(
       resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
     }
     
-    // Add vent holes if enabled (distributed across parts)
+    // Add vent holes if enabled (distributed across parts based on angle)
     if (moldParams.ventHolesEnabled && moldParams.ventHoleCount > 0) {
-      const ventsPerPart = Math.ceil(moldParams.ventHoleCount / totalParts);
       const ventY = height * moldParams.ventHolePosition;
       const ventDepth = moldParams.wallThickness + 5;
       
-      for (let i = 0; i < ventsPerPart; i++) {
-        const ventProgress = (i + 0.5) / ventsPerPart;
-        const ventAngle = adjustedStartAngle + angleSpan * ventProgress;
-        const ventRadius = outerRadius - moldParams.wallThickness * SCALE * 0.5;
+      // Distribute vents evenly around the full 360°
+      const ventAngleStep = (Math.PI * 2) / moldParams.ventHoleCount;
+      
+      for (let i = 0; i < moldParams.ventHoleCount; i++) {
+        // Calculate vent angle in world space (offset by 0.5 to center in each segment)
+        const ventWorldAngle = splitRotation + ventAngleStep * (i + 0.5);
         
-        const ventPos = new THREE.Vector3(
-          Math.cos(ventAngle) * ventRadius,
-          ventY,
-          Math.sin(ventAngle) * ventRadius
-        );
+        // Check if this vent falls within this part's angular range
+        const normalizedVentAngle = ((ventWorldAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const normalizedStart = ((adjustedStartAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const normalizedEnd = ((adjustedEndAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
         
-        const ventBrush = createVentHoleBrush(
-          moldParams.ventHoleDiameter,
-          ventDepth,
-          ventPos,
-          -Math.PI / 6
-        );
-        resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
+        // Handle wraparound case (e.g., part spans from 270° to 90°)
+        const inRange = normalizedEnd > normalizedStart
+          ? (normalizedVentAngle >= normalizedStart && normalizedVentAngle < normalizedEnd)
+          : (normalizedVentAngle >= normalizedStart || normalizedVentAngle < normalizedEnd);
+        
+        if (inRange) {
+          const ventRadius = outerRadius - moldParams.wallThickness * SCALE * 0.5;
+          
+          const ventPos = new THREE.Vector3(
+            Math.cos(ventWorldAngle) * ventRadius,
+            ventY,
+            Math.sin(ventWorldAngle) * ventRadius
+          );
+          
+          const ventBrush = createVentHoleBrush(
+            moldParams.ventHoleDiameter,
+            ventDepth,
+            ventPos,
+            -Math.PI / 6,   // Upward tilt
+            ventWorldAngle  // Radial direction (point outward)
+          );
+          
+          resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
+        }
       }
     }
     
