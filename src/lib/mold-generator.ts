@@ -1001,15 +1001,70 @@ function generateBaseMoldPart(
   }
   
   // ========== BOTTOM FACE (BASE) - SOLID FLAT ==========
-  // The bottom should be a solid disk from center to outer ring
-  // The cavity stops at y=0, creating a solid flat base
+  // The mold base should be completely solid with a flat cavity floor
   
+  // Calculate the maximum cavity radius at the bottom (t=0) for all angles in this part
+  // This ensures a flat floor that can contain the widest part of the base
+  let maxCavityRadiusAtBottom = 0;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const thetaRaw = theta - splitRotation;
+    const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+    let cavityRadius = getBodyRadius(params, 0, thetaRaw, { 
+      scale: SCALE, 
+      objectType,
+      includeTwist: true 
+    });
+    cavityRadius += offset + draftOffset * 0.5;
+    maxCavityRadiusAtBottom = Math.max(maxCavityRadiusAtBottom, cavityRadius);
+  }
+  
+  // Store the original inner bottom ring vertex indices (these follow the body profile)
   const innerBottomRing: number[] = [];
   for (let j = 0; j <= partSegments; j++) {
     innerBottomRing.push(innerVertexStart + j);
   }
   
-  // Outer ring at base level
+  // Create a flat cavity floor ring at y=0 with uniform radius (maxCavityRadiusAtBottom)
+  const flatFloorRingStart = vertices.length / 3;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const x = Math.cos(theta) * maxCavityRadiusAtBottom;
+    const z = Math.sin(theta) * maxCavityRadiusAtBottom;
+    vertices.push(x, 0, z);
+    uvs.push(u, 0);
+  }
+  
+  // Create center point at y=0 for the flat cavity floor
+  const floorCenterStart = vertices.length / 3;
+  vertices.push(0, 0, 0);
+  uvs.push(0.5, 0);
+  
+  // Flat cavity floor: fan from center to flat floor ring at y=0
+  // This creates a completely flat horizontal surface
+  for (let j = 0; j < partSegments; j++) {
+    const a = floorCenterStart;
+    const b = flatFloorRingStart + j;
+    const c = flatFloorRingStart + j + 1;
+    indices.push(a, b, c); // Face upward (normal pointing +Y) - looking into the cavity
+  }
+  
+  // Vertical cavity wall: connect the flat floor ring to the inner body profile at y=0
+  // This creates a small step where the flat floor meets the profiled cavity wall
+  for (let j = 0; j < partSegments; j++) {
+    const floorA = flatFloorRingStart + j;
+    const floorB = flatFloorRingStart + j + 1;
+    const profileA = innerBottomRing[j];
+    const profileB = innerBottomRing[j + 1];
+    
+    // Vertical/angled wall from flat floor to body profile
+    indices.push(floorA, profileA, floorB);
+    indices.push(floorB, profileA, profileB);
+  }
+  
+  // Outer ring at base bottom level (y = -baseThickness)
   const bottomOuterRingStart = vertices.length / 3;
   for (let j = 0; j <= partSegments; j++) {
     const u = j / partSegments;
@@ -1020,13 +1075,12 @@ function generateBaseMoldPart(
     uvs.push(u, -0.1);
   }
   
-  // Center point at base level
+  // Center point at base bottom level
   const baseCenterStart = vertices.length / 3;
   vertices.push(0, -baseThickness, 0);
   uvs.push(0.5, -0.1);
   
-  // Bottom face: Create solid triangular fan from center DIRECTLY to outer ring
-  // This creates a completely solid flat base (no hollow area)
+  // Solid base bottom: fan from center to outer ring at y=-baseThickness
   for (let j = 0; j < partSegments; j++) {
     const a = baseCenterStart;
     const b = bottomOuterRingStart + j;
@@ -1034,30 +1088,31 @@ function generateBaseMoldPart(
     indices.push(a, c, b); // Face downward (normal pointing -Y)
   }
   
-  // Create outer ring at floor level (y=0) for flat horizontal cavity floor
+  // Outer ring at floor level (y=0) for connecting outer wall
   const outerRingAtFloorStart = vertices.length / 3;
   for (let j = 0; j <= partSegments; j++) {
     const u = j / partSegments;
     const theta = adjustedStartAngle + u * angleSpan;
     const x = Math.cos(theta) * outerRadius;
     const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, 0, z);  // At y=0 (cavity floor level)
+    vertices.push(x, 0, z);
     uvs.push(u, 0);
   }
   
-  // Flat horizontal cavity floor: connect inner cavity bottom ring to outer ring at y=0
+  // Horizontal ring between cavity floor and outer wall at y=0
+  // This connects the flat floor ring to the outer ring
   for (let j = 0; j < partSegments; j++) {
-    const innerA = innerBottomRing[j];
-    const innerB = innerBottomRing[j + 1];
+    const innerA = flatFloorRingStart + j;
+    const innerB = flatFloorRingStart + j + 1;
     const outerA = outerRingAtFloorStart + j;
     const outerB = outerRingAtFloorStart + j + 1;
     
-    // Horizontal surface facing up (the floor of the cavity)
-    indices.push(innerA, innerB, outerA);
-    indices.push(innerB, outerB, outerA);
+    // Horizontal surface facing down (bottom of the mold solid, above the base)
+    indices.push(innerA, outerA, innerB);
+    indices.push(innerB, outerA, outerB);
   }
   
-  // Vertical inner wall from floor level (y=0) down to base bottom (y=-baseThickness)
+  // Vertical inner base wall from y=0 down to y=-baseThickness
   for (let j = 0; j < partSegments; j++) {
     const topA = outerRingAtFloorStart + j;
     const topB = outerRingAtFloorStart + j + 1;
