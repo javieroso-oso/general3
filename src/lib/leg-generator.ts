@@ -1099,3 +1099,98 @@ function mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeomet
   
   return merged;
 }
+
+/**
+ * Generate a standalone centering lip ring (for use when legs are disabled)
+ * This creates a ring that helps center the socket inside the body
+ */
+export function generateCenteringLip(
+  centeringLipHeight: number,
+  cordHoleDiameter: number,
+  socketType: 'E26' | 'E12' | 'E14' | 'GU10' = 'E26',
+  segments: number = 64
+): THREE.BufferGeometry {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  
+  // Socket inner diameters in mm
+  const socketDiameters: Record<string, number> = {
+    E26: 26,
+    E12: 12,
+    E14: 14,
+    GU10: 35,
+  };
+  
+  const socketInnerRadius = (socketDiameters[socketType] ?? 26) / 2;
+  const cordHoleRadius = cordHoleDiameter / 2;
+  
+  // The centering lip sits on top of the bottom surface (y=0)
+  const centeringLipOuterRadius = socketInnerRadius + 3; // 3mm wall thickness
+  const centeringLipInnerRadius = socketInnerRadius;
+  
+  // Only generate if it makes sense geometrically
+  if (centeringLipInnerRadius <= cordHoleRadius || centeringLipOuterRadius <= centeringLipInnerRadius) {
+    // Return empty geometry if dimensions don't work
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+    geo.setIndex([]);
+    return geo;
+  }
+  
+  const baseY = 0;
+  const lipTopY = baseY + centeringLipHeight;
+  
+  // Helper to add a ring of vertices
+  const addRing = (radius: number, y: number): number => {
+    const startIdx = vertices.length / 3;
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2;
+      vertices.push(
+        Math.cos(theta) * radius,
+        y,
+        Math.sin(theta) * radius
+      );
+    }
+    return startIdx;
+  };
+  
+  // Helper to connect two rings
+  const connectRings = (ring1Start: number, ring2Start: number, flipNormal: boolean = false) => {
+    for (let j = 0; j < segments; j++) {
+      const a = ring1Start + j;
+      const b = ring1Start + j + 1;
+      const c = ring2Start + j;
+      const d = ring2Start + j + 1;
+      if (flipNormal) {
+        indices.push(a, b, c);
+        indices.push(b, d, c);
+      } else {
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+  };
+  
+  // Create the four rings
+  const bottomOuter = addRing(centeringLipOuterRadius, baseY);
+  const bottomInner = addRing(centeringLipInnerRadius, baseY);
+  const topOuter = addRing(centeringLipOuterRadius, lipTopY);
+  const topInner = addRing(centeringLipInnerRadius, lipTopY);
+  
+  // Connect the rings to form the centering lip
+  // Outer wall (going up)
+  connectRings(bottomOuter, topOuter);
+  // Inner wall (going down from top to bottom)
+  connectRings(topInner, bottomInner, true);
+  // Top surface (from outer to inner)
+  connectRings(topOuter, topInner);
+  // Bottom surface (from inner to outer)
+  connectRings(bottomInner, bottomOuter);
+  
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  
+  return geometry;
+}
