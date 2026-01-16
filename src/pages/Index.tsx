@@ -54,6 +54,7 @@ const Index = () => {
   // Export payment dialog state
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [pendingExportType, setPendingExportType] = useState<ExportType>('body');
+  const [pendingMoldPart, setPendingMoldPart] = useState<'A' | 'B' | 'both' | number | null>(null);
   
   const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
     setObjectType(drawerType);
@@ -238,6 +239,35 @@ const Index = () => {
     }
   }, [analysis.isValid, isUnlocked, doExportGCode]);
 
+  // Actual mold export function (called after payment/unlock)
+  const doExportMold = useCallback((half: 'A' | 'B' | 'both' | number) => {
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    
+    if (typeof half === 'number') {
+      // Multi-part mold specific part
+      downloadMultiPartMoldSTL(params, objectType, half, baseName);
+      toast.success(`Mold Part ${partLabels[half]} exported!`);
+    } else if (half === 'both') {
+      if (params.moldPartCount > 2) {
+        downloadMultiPartMoldSTL(params, objectType, 'all', baseName);
+        toast.success(`All ${params.moldPartCount} mold parts exported!`);
+      } else {
+        downloadMoldSTL(params, objectType, 'both', baseName);
+        toast.success('Both mold halves exported!');
+      }
+    } else {
+      // Single half A or B
+      if (params.moldPartCount > 2) {
+        downloadMultiPartMoldSTL(params, objectType, half === 'A' ? 0 : 1, baseName);
+        toast.success(`Mold Part ${half} exported!`);
+      } else {
+        downloadMoldSTL(params, objectType, half, baseName);
+        toast.success(`Mold Half ${half} exported!`);
+      }
+    }
+  }, [params, objectType]);
+
   // Handle pending export after payment/unlock
   const handlePendingExport = useCallback(() => {
     switch (pendingExportType) {
@@ -250,49 +280,56 @@ const Index = () => {
       case 'gcode':
         doExportGCode();
         break;
+      case 'bodyWithMold':
+        if (pendingMoldPart !== null) {
+          doExportMold(pendingMoldPart);
+        }
+        break;
     }
-  }, [pendingExportType, doExportBody, doExportLegsBase, doExportGCode]);
+    setPendingMoldPart(null);
+  }, [pendingExportType, pendingMoldPart, doExportBody, doExportLegsBase, doExportGCode, doExportMold]);
 
+  // Gated mold export handlers
   const handleExportMoldA = useCallback(() => {
-    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    if (params.moldPartCount > 2) {
-      downloadMultiPartMoldSTL(params, objectType, 0, baseName);
-      toast.success('Mold Part A exported!');
+    if (isUnlocked) {
+      doExportMold('A');
     } else {
-      downloadMoldSTL(params, objectType, 'A', baseName);
-      toast.success('Mold Half A exported!');
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('A');
+      setShowExportDialog(true);
     }
-  }, [params, objectType]);
+  }, [isUnlocked, doExportMold]);
 
   const handleExportMoldB = useCallback(() => {
-    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    if (params.moldPartCount > 2) {
-      downloadMultiPartMoldSTL(params, objectType, 1, baseName);
-      toast.success('Mold Part B exported!');
+    if (isUnlocked) {
+      doExportMold('B');
     } else {
-      downloadMoldSTL(params, objectType, 'B', baseName);
-      toast.success('Mold Half B exported!');
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('B');
+      setShowExportDialog(true);
     }
-  }, [params, objectType]);
+  }, [isUnlocked, doExportMold]);
 
   const handleExportBothMolds = useCallback(() => {
-    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    if (params.moldPartCount > 2) {
-      downloadMultiPartMoldSTL(params, objectType, 'all', baseName);
-      toast.success(`All ${params.moldPartCount} mold parts exported!`);
+    if (isUnlocked) {
+      doExportMold('both');
     } else {
-      downloadMoldSTL(params, objectType, 'both', baseName);
-      toast.success('Both mold halves exported!');
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('both');
+      setShowExportDialog(true);
     }
-  }, [params, objectType]);
+  }, [isUnlocked, doExportMold]);
 
   // Export additional mold parts (C, D, etc.) for multi-part molds
   const handleExportMoldPart = useCallback((partIndex: number) => {
-    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
-    const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    downloadMultiPartMoldSTL(params, objectType, partIndex, baseName);
-    toast.success(`Mold Part ${partLabels[partIndex]} exported!`);
-  }, [params, objectType]);
+    if (isUnlocked) {
+      doExportMold(partIndex);
+    } else {
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart(partIndex);
+      setShowExportDialog(true);
+    }
+  }, [isUnlocked, doExportMold]);
 
   return (
     <div className="min-h-screen bg-background">
