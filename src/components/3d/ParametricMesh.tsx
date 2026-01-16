@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import earcut from 'earcut';
 import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
-import { generateLegsWithBase, generateBaseMountPlate } from '@/lib/leg-generator';
+import { generateLegsWithBase, generateBaseMountPlate, generateCenteringLip } from '@/lib/leg-generator';
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
 import { sampleSpine, generateModulatedCrossSection, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
@@ -233,7 +233,7 @@ const ParametricMesh = ({
     return { spineCurve, crossSectionRings, frameIndicators };
   }, [params]);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, centeringLipGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -1031,11 +1031,24 @@ const ParametricMesh = ({
       baseMountGeoMM.scale(SCALE, SCALE, SCALE);
       standGeo = baseMountGeoMM;
     }
+    
+    // Generate standalone centering lip when legs are disabled but centeringLip is enabled
+    let centeringLipGeo: THREE.BufferGeometry | null = null;
+    if (!addLegs && params.centeringLipEnabled && params.cordHoleEnabled) {
+      const lipGeoMM = generateCenteringLip(
+        params.centeringLipHeight,
+        params.cordHoleDiameter,
+        params.socketType
+      );
+      lipGeoMM.scale(SCALE, SCALE, SCALE);
+      centeringLipGeo = lipGeoMM;
+    }
 
     return { 
       bodyGeometry: bodyGeo, 
       wireframeGeo: wireGeo, 
       legGeometry: standGeo, 
+      centeringLipGeometry: centeringLipGeo,
       overhangColors: overhangColorArray,
       keyholeGeometries,
       cordHoleGeometry,
@@ -1064,6 +1077,24 @@ const ParametricMesh = ({
             thickness={legMaterialConfig.thickness ?? 0}
             ior={legMaterialConfig.ior ?? 1.5}
             envMapIntensity={legMaterialConfig.envMapIntensity ?? 1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      
+      {/* Centering lip - shown when legs are disabled but centering lip is enabled */}
+      {centeringLipGeometry && (
+        <mesh geometry={centeringLipGeometry} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            color={materialConfig.color}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            clearcoat={materialConfig.clearcoat ?? 0}
+            clearcoatRoughness={materialConfig.clearcoatRoughness ?? 0}
+            transmission={materialConfig.transmission ?? 0}
+            thickness={materialConfig.thickness ?? 0}
+            ior={materialConfig.ior ?? 1.5}
+            envMapIntensity={materialConfig.envMapIntensity ?? 1}
             side={THREE.DoubleSide}
           />
         </mesh>
