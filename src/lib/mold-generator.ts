@@ -655,7 +655,7 @@ function generateMoldHalf(
           keyDepth,
           keyPos,
           isSocket,
-          pos.angle + Math.PI / 2 // Perpendicular to split face
+          pos.angle // Keys point radially outward from split face
         );
         
         if (isHalfA) {
@@ -1264,13 +1264,13 @@ function generateMoldPart(
         Math.sin(leftAngle) * keyRadius
       );
       
-      // Keys point perpendicular to split face (add PI/2 to split angle)
+      // Keys point radially outward from split face
       const leftKeyBrush = createRegistrationKeyBrush(
         moldParams.registrationKeySize,
         keyDepth,
         leftKeyPos,
         false, // peg (protrusion)
-        leftAngle + Math.PI / 2 // Perpendicular to left split face
+        leftAngle // Keys point radially outward
       );
       resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
       
@@ -1287,7 +1287,7 @@ function generateMoldPart(
         keyDepth,
         rightKeyPos,
         true, // socket (indentation)
-        rightAngle + Math.PI / 2 // Perpendicular to right split face
+        rightAngle // Keys point radially outward
       );
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
