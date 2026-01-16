@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { DrawerItem, isParametricItem, isCustomItem } from '@/types/drawer';
 import { exportBodyToSTL, exportLegsWithBaseToSTL } from './stl-export';
 import { exportProfileToSTL } from './profile-to-mesh';
+import { exportMoldHalfToSTL, generateMoldGeometry, generateMultiPartMoldGeometry } from './mold-generator';
 
 export interface ExportProgress {
   current: number;
@@ -39,6 +40,30 @@ export async function exportDrawerItemsToZip(
       if (item.params.addLegs) {
         const legsBlob = exportLegsWithBaseToSTL(item.params);
         zip.file(`${baseName}_legs_base.stl`, legsBlob);
+      }
+      
+      // Generate mold STLs if mold is enabled
+      if (item.params.moldEnabled) {
+        const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        
+        if (item.params.moldPartCount > 2) {
+          // Multi-part mold
+          const moldGeometry = generateMultiPartMoldGeometry(item.params, item.objectType);
+          for (let p = 0; p < moldGeometry.parts.length; p++) {
+            const moldBlob = exportMoldHalfToSTL(moldGeometry.parts[p]);
+            zip.file(`${baseName}_mold_${partLabels[p]}.stl`, moldBlob);
+            moldGeometry.parts[p].dispose();
+          }
+        } else {
+          // Two-part mold
+          const moldGeometry = generateMoldGeometry(item.params, item.objectType);
+          const moldABlob = exportMoldHalfToSTL(moldGeometry.halfA);
+          const moldBBlob = exportMoldHalfToSTL(moldGeometry.halfB);
+          zip.file(`${baseName}_mold_A.stl`, moldABlob);
+          zip.file(`${baseName}_mold_B.stl`, moldBBlob);
+          moldGeometry.halfA.dispose();
+          moldGeometry.halfB.dispose();
+        }
       }
     } else if (isCustomItem(item)) {
       const baseName = `custom_${item.generationMode}_${i + 1}`;

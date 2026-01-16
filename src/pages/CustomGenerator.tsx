@@ -1,4 +1,4 @@
-import { useState, Suspense, useEffect } from 'react';
+import { useState, Suspense, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Grid } from '@react-three/drei';
 import { motion } from 'framer-motion';
@@ -15,11 +15,14 @@ import Layout from '@/components/layout/Layout';
 import ProfileCanvas from '@/components/drawing/ProfileCanvas';
 import ImageProcessor from '@/components/drawing/ImageProcessor';
 import ProfileMesh from '@/components/3d/ProfileMesh';
+import ExportPaymentDialog from '@/components/ExportPaymentDialog';
 import { ProfilePoint, ProfileSettings, defaultProfileSettings, validateProfile, GenerationMode, ExtrusionDirection, ExtrusionShapeMode } from '@/types/custom-profile';
 import { defaultPrintSettings, PrintSettings } from '@/types/parametric';
 import { downloadProfileSTL, downloadProfileGCode } from '@/lib/profile-to-mesh';
 import { useDrawer } from '@/hooks/useDrawer';
+import { useLicenseKey } from '@/hooks/useLicenseKey';
 import { captureCanvasThumbnail } from '@/lib/thumbnail-capture';
+import { ExportType } from '@/config/export-pricing';
 
 const CustomGenerator = () => {
   const [profile, setProfile] = useState<ProfilePoint[]>([]);
@@ -29,6 +32,11 @@ const CustomGenerator = () => {
   const [activeTab, setActiveTab] = useState<'draw' | 'image'>('draw');
   const [useSupports, setUseSupports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Payment/license state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [pendingExportType, setPendingExportType] = useState<ExportType>('body');
+  const { isUnlocked } = useLicenseKey();
 
   const { addCustomItem, count: drawerCount } = useDrawer();
   const validation = validateProfile(profile, settings);
@@ -40,23 +48,54 @@ const CustomGenerator = () => {
     }
   }, [validation.supportsRequired]);
 
-  const handleExportSTL = () => {
-    if (!validation.isValid || profile.length < 2) {
-      toast.error('Please create a valid profile first');
-      return;
-    }
+  // Actual export functions (called after payment/unlock)
+  const doExportSTL = useCallback(() => {
     downloadProfileSTL(profile, settings, 'custom-profile.stl');
     toast.success('STL exported successfully');
-  };
+  }, [profile, settings]);
 
-  const handleExportGCode = () => {
+  const doExportGCode = useCallback(() => {
+    downloadProfileGCode(profile, settings, printSettings, 'custom-profile.gcode');
+    toast.success('G-code exported successfully');
+  }, [profile, settings, printSettings]);
+
+  // Gated export handlers
+  const handleExportSTL = useCallback(() => {
     if (!validation.isValid || profile.length < 2) {
       toast.error('Please create a valid profile first');
       return;
     }
-    downloadProfileGCode(profile, settings, printSettings, 'custom-profile.gcode');
-    toast.success('G-code exported successfully');
-  };
+    
+    if (isUnlocked) {
+      doExportSTL();
+    } else {
+      setPendingExportType('body');
+      setShowExportDialog(true);
+    }
+  }, [validation.isValid, profile.length, isUnlocked, doExportSTL]);
+
+  const handleExportGCode = useCallback(() => {
+    if (!validation.isValid || profile.length < 2) {
+      toast.error('Please create a valid profile first');
+      return;
+    }
+    
+    if (isUnlocked) {
+      doExportGCode();
+    } else {
+      setPendingExportType('gcode');
+      setShowExportDialog(true);
+    }
+  }, [validation.isValid, profile.length, isUnlocked, doExportGCode]);
+
+  // Handle pending export after payment/unlock
+  const handlePendingExport = useCallback(() => {
+    if (pendingExportType === 'gcode') {
+      doExportGCode();
+    } else {
+      doExportSTL();
+    }
+  }, [pendingExportType, doExportSTL, doExportGCode]);
 
   const handleKeep = async () => {
     if (!validation.isValid || profile.length < 2) {
@@ -552,6 +591,14 @@ const CustomGenerator = () => {
           </motion.div>
         </div>
       </div>
+      
+      {/* Export Payment Dialog */}
+      <ExportPaymentDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExport={handlePendingExport}
+        exportType={pendingExportType}
+      />
     </Layout>
   );
 };
