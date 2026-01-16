@@ -24,7 +24,7 @@ import {
 } from '@/types/parametric';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode } from '@/lib/stl-export';
-import { ExportType, EXPORT_PRICES } from '@/config/export-pricing';
+import { ExportType } from '@/config/export-pricing';
 import { downloadMoldSTL, downloadMultiPartMoldSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info } from 'lucide-react';

@@ -634,7 +634,7 @@ function createBaseDisc(
   const lip = pedestalParams?.lip ?? 0;
   const edgeStyle = pedestalParams?.edgeStyle ?? 'flat';
   const lipEdgeStyle = pedestalParams?.lipEdgeStyle ?? 'flat';
-  const bottomRadius = radius * (1 - taper);
+  const _bottomRadius = radius * (1 - taper); // Used for taper calculations
   
   // Lip is a raised rim at the outer edge
   // Use explicit lipThickness if provided, otherwise calculate from lip height
@@ -1037,7 +1037,7 @@ function createBaseDisc(
 export function generateBaseMountPlate(
   radius: number,
   thickness: number,
-  holeCount: 2 | 3 | 4,
+  _holeCount: 2 | 3 | 4,
   organicParams?: OrganicParams,
   socketParams?: SocketParams,
   _attachmentParams?: unknown,

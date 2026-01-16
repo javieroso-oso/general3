@@ -6,7 +6,7 @@ import { ParametricParams, ObjectType, printConstraints } from '@/types/parametr
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate, generateCenteringLip } from '@/lib/leg-generator';
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
-import { sampleSpine, generateModulatedCrossSection, SpinePoint } from '@/lib/spine-generator';
+import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 
 interface ParametricMeshProps {
