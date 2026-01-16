@@ -3,6 +3,7 @@ import { STLExporter } from 'three-stdlib';
 import { Brush, Evaluator, SUBTRACTION, ADDITION } from 'three-bvh-csg';
 import { ParametricParams, ObjectType } from '@/types/parametric';
 import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
+import { calculateOptimalSplits } from '@/lib/mold-undercut-detector';
 
 // Scale factor: mm to scene units
 const SCALE = 0.01;
@@ -803,15 +804,44 @@ export function generateMoldGeometry(
 
 /**
  * Generate multi-part mold geometry (2, 3, or 4 parts)
+ * Supports both equal angular division and geometry-based automatic splitting
  */
 export function generateMultiPartMoldGeometry(
   params: ParametricParams,
   objectType: ObjectType
 ): MultiPartMoldGeometry {
   const partCount = params.moldPartCount || 2;
-  const anglePerPart = (Math.PI * 2) / partCount;
   const partAngles: number[] = [];
   const parts: THREE.BufferGeometry[] = [];
+  
+  // Determine split angles based on mode
+  let splitAngles: number[];
+  
+  if (params.moldAutoSplit) {
+    // Use geometry-based optimal splitting
+    const optimalSplits = calculateOptimalSplits(params, objectType, partCount);
+    splitAngles = optimalSplits.splitAngles;
+    
+    // Ensure we have the right number of splits
+    while (splitAngles.length < partCount) {
+      // Add equally-spaced angles where needed
+      const nextAngle = (splitAngles.length / partCount) * Math.PI * 2;
+      splitAngles.push(nextAngle);
+    }
+    splitAngles = splitAngles.slice(0, partCount);
+  } else if (params.moldSplitAngles && params.moldSplitAngles.length >= partCount) {
+    // Use manual override
+    splitAngles = params.moldSplitAngles.slice(0, partCount);
+  } else {
+    // Default to equal angular division
+    splitAngles = [];
+    for (let i = 0; i < partCount; i++) {
+      splitAngles.push((i / partCount) * Math.PI * 2);
+    }
+  }
+  
+  // Sort split angles
+  splitAngles.sort((a, b) => a - b);
   
   const moldParams: MoldParams = {
     wallThickness: params.moldWallThickness,
@@ -836,15 +866,24 @@ export function generateMultiPartMoldGeometry(
     strapNotchDepth: params.moldStrapNotchDepth ?? 4,
   };
   
+  // Generate each part with potentially variable angular spans
   for (let i = 0; i < partCount; i++) {
-    const startAngle = anglePerPart * i;
+    const startAngle = splitAngles[i];
+    const nextIndex = (i + 1) % partCount;
+    let endAngle = splitAngles[nextIndex];
+    
+    // Handle wrap-around for last part
+    if (endAngle <= startAngle) {
+      endAngle += Math.PI * 2;
+    }
+    
     partAngles.push(startAngle);
     
     const partGeometry = generateMoldPart(
       params,
       moldParams,
       startAngle,
-      startAngle + anglePerPart,
+      endAngle,
       i,
       partCount,
       objectType

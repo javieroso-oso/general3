@@ -168,6 +168,9 @@ export interface ParametricParams {
   
   // Multi-part mold
   moldPartCount: 2 | 3 | 4;          // Number of mold parts (2, 3, or 4)
+  moldAutoSplit: boolean;            // Use geometry-based automatic split detection
+  moldSplitAngles?: number[];        // Manual override for split positions (radians)
+  moldShowPartingLines: boolean;     // Show parting line visualization in preview
   
   // Mold colors for preview
   moldColors: string[];              // Hex colors for each mold part
@@ -413,6 +416,8 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   moldGap: 10,
   moldOffset: 0.5,
   moldPartCount: 2,
+  moldAutoSplit: false,
+  moldShowPartingLines: false,
   moldColors: ['#C97B5D', '#7B9E87', '#8B7EC7', '#CBA670'],
   moldVentHolesEnabled: false,
   moldVentHoleCount: 4,
