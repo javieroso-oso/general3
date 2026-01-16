@@ -7,7 +7,7 @@ import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 
 // Scale factor: mm to scene units
-const SCALE = 0.01;
+const _SCALE = 0.01; // Scale factor: mm to scene units (reserved for future use)
 
 // Deterministic noise
 const seededRandom = (x: number, y: number, z: number) => {
@@ -89,7 +89,7 @@ export function calculateDriftOffsets(
   
   // Angle rotation rate: how fast the drift direction rotates with height
   // At full height, the angle will have rotated ~2 full turns for nice S-curves
-  const angleRotationRate = Math.PI * 4;
+  const _angleRotationRate = Math.PI * 4; // Reserved for future drift direction rotation
   
   // Damping factor: each layer inherits this fraction of previous offset
   // Values < 1 cause drift to partially decay, creating S-curves
@@ -97,7 +97,7 @@ export function calculateDriftOffsets(
   
   // Secondary per-layer deviation: small offsets that don't align with main drift
   // These create "disagreement" between layers for an accumulated/built look
-  const deviationMagnitude = driftMagnitude * 0.1; // ~10% of main drift
+  const _deviationMagnitude = driftMagnitude * 0.1; // Reserved for per-layer deviation
   
   for (let i = 0; i <= layerCount; i++) {
     const t = i / layerCount;
@@ -907,7 +907,7 @@ function generateWallMountBody(
  * Creates a keyhole-shaped hole through the back wall
  * CORRECT KEYHOLE: Large circle at TOP, narrow slot going DOWN
  */
-function addKeyholeHole(
+function _addKeyholeHole(
   vertices: number[],
   indices: number[],
   cx: number,
