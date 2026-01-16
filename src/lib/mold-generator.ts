@@ -94,8 +94,8 @@ function createRegistrationKeyBrush(
   const bottomRadius = size * SCALE;
   const height = keyHeight * SCALE;
   
-  // Add tolerance for socket
-  const tolerance = isSocket ? 0.003 : 0; // 0.3mm tolerance for socket
+  // Add tolerance for socket - 0.5mm for 3D printed molds (needs room for cleanup)
+  const tolerance = isSocket ? 0.005 : 0; // 0.5mm tolerance for socket
   
   const geometry = new THREE.CylinderGeometry(
     topRadius + tolerance,
@@ -178,22 +178,28 @@ function createVentHoleBrush(
   const radius = (diameter / 2) * SCALE;
   const holeDepth = depth * SCALE;
   
+  // Create slightly tapered cylinder (narrower inside cavity for better release)
   const geometry = new THREE.CylinderGeometry(
-    radius,
-    radius * 0.8, // Slight taper for better mold release
+    radius * 0.8, // Inner end (toward cavity) - slightly narrower
+    radius,       // Outer end - full diameter
     holeDepth,
     12
   );
   
-  // Rotate cylinder to point along X-axis (radial direction), then apply upward tilt
-  geometry.rotateZ(Math.PI / 2);  // Point along X (radial outward)
-  geometry.rotateY(tiltAngle);    // Tilt slightly upward
+  // Default cylinder points along Y-axis
+  // We want it to point radially outward AND tilt upward
+  
+  // First, rotate to point along +X (radial direction)
+  geometry.rotateZ(-Math.PI / 2);
+  
+  // Then tilt upward around Z axis (after the first rotation, this tilts "up")
+  geometry.rotateZ(tiltAngle);
   
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
-  // Rotate around Y to point radially outward at the specific angle
+  // Finally rotate around Y to point radially outward at the correct world angle
   brush.rotation.y = radialAngle;
   brush.updateMatrixWorld();
   
@@ -306,8 +312,10 @@ function generateBaseMoldHalf(
     const t = i / rings;
     const y = t * height;
     
-    // Draft angle offset - increases towards bottom for easier demolding
-    const draftOffset = (1 - t) * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+    // Draft angle offset - cavity EXPANDS toward the TOP (opening) for easier demolding
+    // When lifting the cast piece upward, wider top allows release
+    // For slip casting: t=0 is bottom (closed), t=1 is top (open/pour hole)
+    const draftOffset = t * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
     
     for (let j = 0; j <= segments / 2; j++) {
       const u = j / (segments / 2);
@@ -932,7 +940,8 @@ function generateBaseMoldPart(
   for (let i = 0; i <= rings; i++) {
     const t = i / rings;
     const y = t * height;
-    const draftOffset = (1 - t) * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
+    // Draft angle offset - cavity EXPANDS toward the TOP (opening) for easier demolding
+    const draftOffset = t * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
     
     for (let j = 0; j <= partSegments; j++) {
       const u = j / partSegments;
@@ -1367,8 +1376,9 @@ function generateMoldPart(
       moldParams.baseThickness
     );
     
-    // Position keys on split faces
-    const keyRadius = (innerRadius + outerRadius) / 2;
+    // Position keys at the OUTER edge of the split face (industry standard)
+    // This keeps keys in the "waste" area and provides better leverage for alignment
+    const keyRadius = outerRadius - (moldParams.registrationKeySize * SCALE * 0.3);
     
     for (const yPos of keyPositions) {
       const y = yPos * SCALE;
@@ -1409,15 +1419,18 @@ function generateMoldPart(
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
     
-    // Add pour hole at top center - positioned at mold top (height + top wall thickness)
-    const pourHoleDepth = moldParams.wallThickness + 10;
-    const moldTopY = height + (moldParams.wallThickness * SCALE);
-    const pourHoleBrush = createPourHoleBrush(
-      moldParams.pourHoleDiameter,
-      pourHoleDepth,
-      moldTopY / SCALE // Convert back to mm for the brush function
-    );
-    resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
+    // Add pour hole at top center - only on FIRST part to avoid duplication
+    // For multi-part molds, the pour hole should be central and contained in one piece
+    if (partIndex === 0) {
+      const pourHoleDepth = moldParams.wallThickness + 10;
+      const moldTopY = height + (moldParams.wallThickness * SCALE);
+      const pourHoleBrush = createPourHoleBrush(
+        moldParams.pourHoleDiameter,
+        pourHoleDepth,
+        moldTopY / SCALE // Convert back to mm for the brush function
+      );
+      resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
+    }
     
     // Add spare collar only on first part to avoid duplication
     if (partIndex === 0 && moldParams.spareEnabled && moldParams.spareHeight > 0) {
@@ -1465,11 +1478,13 @@ function generateMoldPart(
             Math.sin(ventWorldAngle) * ventRadius
           );
           
+          // Vent holes should angle UPWARD from cavity toward outside
+          // This allows air to escape while preventing slip from leaking
           const ventBrush = createVentHoleBrush(
             moldParams.ventHoleDiameter,
             ventDepth,
             ventPos,
-            -Math.PI / 6,   // Upward tilt
+            Math.PI / 6,    // Upward tilt (positive = pointing up and out)
             ventWorldAngle  // Radial direction (point outward)
           );
           
