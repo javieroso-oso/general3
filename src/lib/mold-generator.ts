@@ -915,11 +915,16 @@ function generateBaseMoldPart(
     }
   }
   
-  // Generate outer surface
+  // Top wall thickness - extends mold above cavity to provide material for pour hole
+  const topWallThickness = wallThickness;
+  const moldTotalHeight = height + topWallThickness;
+  
+  // Generate outer surface - extends to moldTotalHeight (above cavity)
   const outerVertexStart = vertices.length / 3;
-  for (let i = 0; i <= rings; i++) {
-    const t = i / rings;
-    const y = t * height;
+  const outerRings = rings + Math.ceil(rings * (topWallThickness / height)); // Extra rings for top wall
+  for (let i = 0; i <= outerRings; i++) {
+    const t = i / outerRings;
+    const y = t * moldTotalHeight;
     
     for (let j = 0; j <= partSegments; j++) {
       const u = j / partSegments;
@@ -948,7 +953,7 @@ function generateBaseMoldPart(
   }
   
   // Outer surface indices
-  for (let i = 0; i < rings; i++) {
+  for (let i = 0; i < outerRings; i++) {
     for (let j = 0; j < partSegments; j++) {
       const a = outerVertexStart + i * (partSegments + 1) + j;
       const b = a + partSegments + 1;
@@ -1052,54 +1057,97 @@ function generateBaseMoldPart(
     indices.push(topOuterNext, bottomOuter, bottomOuterNext);
   }
   
-  // Top face (rim)
+  // Inner cavity top ring (at cavity height)
   const innerTopRing: number[] = [];
   for (let j = 0; j <= partSegments; j++) {
     innerTopRing.push(innerVertexStart + rings * (partSegments + 1) + j);
   }
   
-  const topVertexStart = vertices.length / 3;
+  // ========== TOP WALL GEOMETRY ==========
+  // Create inner vertical wall from cavity top (height) to mold top (moldTotalHeight)
+  const innerTopWallStart = vertices.length / 3;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    
+    // Get cavity radius at top
+    const thetaRaw = theta - splitRotation;
+    let cavityRadius = getBodyRadius(params, 1.0, thetaRaw, { 
+      scale: SCALE, 
+      objectType,
+      includeTwist: true 
+    });
+    cavityRadius += offset;
+    
+    // Bottom of top wall (at cavity height)
+    vertices.push(Math.cos(theta) * cavityRadius, height, Math.sin(theta) * cavityRadius);
+    uvs.push(u, 1.0);
+    
+    // Top of top wall (at mold total height) - same radius, creates vertical wall
+    vertices.push(Math.cos(theta) * cavityRadius, moldTotalHeight, Math.sin(theta) * cavityRadius);
+    uvs.push(u, 1.1);
+  }
+  
+  // Inner top wall surface (vertical wall around cavity opening)
+  for (let j = 0; j < partSegments; j++) {
+    const bottomA = innerTopWallStart + j * 2;
+    const topA = innerTopWallStart + j * 2 + 1;
+    const bottomB = innerTopWallStart + (j + 1) * 2;
+    const topB = innerTopWallStart + (j + 1) * 2 + 1;
+    
+    // Facing inward (into cavity)
+    indices.push(bottomA, topA, bottomB);
+    indices.push(topA, topB, bottomB);
+  }
+  
+  // ========== TOP SURFACE (SOLID CAP AT MOLD TOP) ==========
+  // Outer ring at mold top height
+  const topOuterRingStart = vertices.length / 3;
   for (let j = 0; j <= partSegments; j++) {
     const u = j / partSegments;
     const theta = adjustedStartAngle + u * angleSpan;
     const x = Math.cos(theta) * outerRadius;
     const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, height, z);
-    uvs.push(u, 1.1);
+    vertices.push(x, moldTotalHeight, z);
+    uvs.push(u, 1.2);
   }
   
-  // Top rim: connect inner top ring to outer top ring
+  // Inner ring at mold top (reuse the top vertices from top wall)
+  // Connect outer top ring to inner top ring (the top of the vertical wall)
   for (let j = 0; j < partSegments; j++) {
-    const innerA = innerTopRing[j];
-    const innerB = innerTopRing[j + 1];
-    const outerA = topVertexStart + j;
-    const outerB = topVertexStart + j + 1;
+    const outerA = topOuterRingStart + j;
+    const outerB = topOuterRingStart + j + 1;
+    const innerA = innerTopWallStart + j * 2 + 1; // Top vertex of inner wall
+    const innerB = innerTopWallStart + (j + 1) * 2 + 1;
     
-    indices.push(innerA, innerB, outerA);
-    indices.push(innerB, outerB, outerA);
-  }
-  
-  // Connect outer surface top to rim
-  const outerTopRing = outerVertexStart + rings * (partSegments + 1);
-  for (let j = 0; j < partSegments; j++) {
-    const surfaceA = outerTopRing + j;
-    const surfaceB = outerTopRing + j + 1;
-    const rimA = topVertexStart + j;
-    const rimB = topVertexStart + j + 1;
-    
-    indices.push(surfaceA, rimA, surfaceB);
-    indices.push(surfaceB, rimA, rimB);
+    // Top surface facing up
+    indices.push(outerA, innerA, outerB);
+    indices.push(outerB, innerA, innerB);
   }
   
   // ========== TOP CENTER CAP - Fills center for pour hole CSG ==========
-  // Add a solid cap from inner top ring to center so pour hole can be subtracted
+  // Add a solid cap from inner top ring to center at mold top height
   const topCenterStart = vertices.length / 3;
-  vertices.push(0, height, 0);
+  vertices.push(0, moldTotalHeight, 0);
   uvs.push(0.5, 1.0);
   
-  // Create triangular fan from center to inner top ring (facing up)
+  // Create triangular fan from center to inner top ring at mold top (facing up)
   for (let j = 0; j < partSegments; j++) {
-    indices.push(topCenterStart, innerTopRing[j], innerTopRing[j + 1]);
+    const innerA = innerTopWallStart + j * 2 + 1;
+    const innerB = innerTopWallStart + (j + 1) * 2 + 1;
+    indices.push(topCenterStart, innerA, innerB);
+  }
+  
+  // Connect outer surface top to top outer ring
+  const outerSurfaceTopRing = outerVertexStart + outerRings * (partSegments + 1);
+  for (let j = 0; j < partSegments; j++) {
+    const surfaceA = outerSurfaceTopRing + j;
+    const surfaceB = outerSurfaceTopRing + j + 1;
+    const topA = topOuterRingStart + j;
+    const topB = topOuterRingStart + j + 1;
+    
+    indices.push(surfaceA, topA, surfaceB);
+    indices.push(surfaceB, topA, topB);
   }
   
   // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
@@ -1109,13 +1157,13 @@ function generateBaseMoldPart(
   const leftOuterBottom = outerVertexStart;
   const leftBaseOuter = bottomOuterRingStart;
   const leftInnerTop = innerTopRing[0];
-  const leftRimOuter = topVertexStart;
+  const leftRimOuter = topOuterRingStart;
   
   const rightInnerBottom = innerBottomRing[partSegments];
   const rightOuterBottom = outerVertexStart + partSegments;
   const rightBaseOuter = bottomOuterRingStart + partSegments;
   const rightInnerTop = innerTopRing[partSegments];
-  const rightRimOuter = topVertexStart + partSegments;
+  const rightRimOuter = topOuterRingStart + partSegments;
   
   // Left split face closure
   // Triangle from center to inner cavity bottom
@@ -1244,13 +1292,13 @@ function generateMoldPart(
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
     
-    // Pour hole is at the center (0,0) - all parts meet at center, so subtract from all
-    // This ensures the pour hole is properly cut regardless of which part covers the center
+    // Add pour hole at top center - positioned at mold top (height + top wall thickness)
     const pourHoleDepth = moldParams.wallThickness + 10;
+    const moldTopY = height + (moldParams.wallThickness * SCALE);
     const pourHoleBrush = createPourHoleBrush(
       moldParams.pourHoleDiameter,
       pourHoleDepth,
-      height
+      moldTopY / SCALE // Convert back to mm for the brush function
     );
     resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
     
