@@ -1034,14 +1034,37 @@ function generateBaseMoldPart(
     indices.push(a, c, b); // Face downward (normal pointing -Y)
   }
   
-  // Connect inner cavity bottom (y=0) to outer base ring (y=-baseThickness)
-  // This creates a sloped inner wall connecting cavity floor to base bottom
+  // Create outer ring at floor level (y=0) for flat horizontal cavity floor
+  const outerRingAtFloorStart = vertices.length / 3;
+  for (let j = 0; j <= partSegments; j++) {
+    const u = j / partSegments;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const x = Math.cos(theta) * outerRadius;
+    const z = Math.sin(theta) * outerRadius;
+    vertices.push(x, 0, z);  // At y=0 (cavity floor level)
+    uvs.push(u, 0);
+  }
+  
+  // Flat horizontal cavity floor: connect inner cavity bottom ring to outer ring at y=0
   for (let j = 0; j < partSegments; j++) {
-    const topA = innerBottomRing[j];
-    const topB = innerBottomRing[j + 1];
+    const innerA = innerBottomRing[j];
+    const innerB = innerBottomRing[j + 1];
+    const outerA = outerRingAtFloorStart + j;
+    const outerB = outerRingAtFloorStart + j + 1;
+    
+    // Horizontal surface facing up (the floor of the cavity)
+    indices.push(innerA, innerB, outerA);
+    indices.push(innerB, outerB, outerA);
+  }
+  
+  // Vertical inner wall from floor level (y=0) down to base bottom (y=-baseThickness)
+  for (let j = 0; j < partSegments; j++) {
+    const topA = outerRingAtFloorStart + j;
+    const topB = outerRingAtFloorStart + j + 1;
     const bottomA = bottomOuterRingStart + j;
     const bottomB = bottomOuterRingStart + j + 1;
     
+    // Vertical wall facing inward
     indices.push(topA, topB, bottomA);
     indices.push(topB, bottomB, bottomA);
   }
