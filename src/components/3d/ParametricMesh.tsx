@@ -858,9 +858,10 @@ const ParametricMesh = ({
       
       if (params.cordHoleEnabled && !addLegs) {
         // Create annular base (ring) with cord hole
-        const bottomInnerOffset = vertices.length / 3;
+        // We need a flat floor from outer wall bottom -> inner wall bottom -> cord hole
+        const cordHoleOffset = vertices.length / 3;
         
-        // Add inner ring vertices at the cord hole radius
+        // Add cord hole ring vertices at the cord hole radius
         for (let j = 0; j <= segments; j++) {
           const theta = (j / segments) * Math.PI * 2;
           vertices.push(
@@ -870,34 +871,49 @@ const ParametricMesh = ({
           );
         }
         
-        // Connect outer ring to inner ring (bottom face)
+        // Step 1: Flat floor from outer wall bottom (row 0) to inner wall bottom (innerOffset row 0)
+        // Both are at y=0 but at different radii - this creates the outer ring of the floor
         for (let j = 0; j < segments; j++) {
           const outerCurr = j;
           const outerNext = j + 1;
-          const innerCurr = bottomInnerOffset + j;
-          const innerNext = bottomInnerOffset + j + 1;
+          const innerCurr = innerOffset + j;
+          const innerNext = innerOffset + j + 1;
+          // Face pointing down (for bottom view)
           indices.push(outerCurr, innerCurr, outerNext);
           indices.push(outerNext, innerCurr, innerNext);
         }
         
-        // Connect inner rings of outer and inner walls (cord hole wall)
+        // Step 2: Flat floor from inner wall bottom to cord hole ring
+        // This creates the inner ring of the floor with the hole in the center
         for (let j = 0; j < segments; j++) {
-          const topInner = innerOffset + j;
-          const topInnerNext = innerOffset + j + 1;
-          const bottomInner = bottomInnerOffset + j;
-          const bottomInnerNext = bottomInnerOffset + j + 1;
-          indices.push(topInner, topInnerNext, bottomInner);
-          indices.push(topInnerNext, bottomInnerNext, bottomInner);
+          const innerCurr = innerOffset + j;
+          const innerNext = innerOffset + j + 1;
+          const holeCurr = cordHoleOffset + j;
+          const holeNext = cordHoleOffset + j + 1;
+          // Face pointing down
+          indices.push(innerCurr, holeCurr, innerNext);
+          indices.push(innerNext, holeCurr, holeNext);
         }
       } else if (!addLegs) {
-        // Solid base (no cord hole)
+        // Solid base (no cord hole) - connect outer wall to inner wall, then inner wall to center
+        // Step 1: Flat floor from outer wall bottom to inner wall bottom
+        for (let j = 0; j < segments; j++) {
+          const outerCurr = j;
+          const outerNext = j + 1;
+          const innerCurr = innerOffset + j;
+          const innerNext = innerOffset + j + 1;
+          indices.push(outerCurr, innerCurr, outerNext);
+          indices.push(outerNext, innerCurr, innerNext);
+        }
+        
+        // Step 2: Fill center from inner wall to center point
         const bottomCenterIdx = vertices.length / 3;
         vertices.push(0, baseY, 0);
         
         for (let j = 0; j < segments; j++) {
-          const curr = j;
-          const next = j + 1;
-          indices.push(bottomCenterIdx, next, curr);
+          const innerCurr = innerOffset + j;
+          const innerNext = innerOffset + j + 1;
+          indices.push(bottomCenterIdx, innerNext, innerCurr);
         }
       }
     }
