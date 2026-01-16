@@ -179,11 +179,13 @@ const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
 
       {/* Pour hole indicator - 3D tapered cylinder showing actual hole */}
       {(() => {
+        const topWallThickness = params.moldWallThickness * SCALE;
+        const moldTopY = bodyHeight + topWallThickness;
         const pourHoleDepth = (params.moldWallThickness + 10) * SCALE;
         const topRadius = (params.moldPourHoleDiameter / 2) * SCALE * 1.3;
         const bottomRadius = (params.moldPourHoleDiameter / 2) * SCALE;
         return (
-          <mesh position={[0, bodyHeight - pourHoleDepth / 2 + 0.01, 0]}>
+          <mesh position={[0, moldTopY - pourHoleDepth / 2 + 0.01, 0]}>
             <cylinderGeometry args={[topRadius, bottomRadius, pourHoleDepth, 24]} />
             <meshBasicMaterial 
               color="#E67E22" 
