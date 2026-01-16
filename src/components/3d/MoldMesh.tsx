@@ -177,15 +177,24 @@ const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
         </group>
       )}
 
-      {/* Pour hole indicator ring at top */}
-      <mesh position={[0, bodyHeight + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[
-          (params.moldPourHoleDiameter / 2 - 2) * SCALE,
-          (params.moldPourHoleDiameter / 2) * SCALE,
-          24
-        ]} />
-        <meshBasicMaterial color="#E67E22" transparent opacity={0.6} side={THREE.DoubleSide} />
-      </mesh>
+      {/* Pour hole indicator - 3D tapered cylinder showing actual hole */}
+      {(() => {
+        const pourHoleDepth = (params.moldWallThickness + 10) * SCALE;
+        const topRadius = (params.moldPourHoleDiameter / 2) * SCALE * 1.3;
+        const bottomRadius = (params.moldPourHoleDiameter / 2) * SCALE;
+        return (
+          <mesh position={[0, bodyHeight - pourHoleDepth / 2 + 0.01, 0]}>
+            <cylinderGeometry args={[topRadius, bottomRadius, pourHoleDepth, 24]} />
+            <meshBasicMaterial 
+              color="#E67E22" 
+              transparent 
+              opacity={0.4} 
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        );
+      })()}
     </group>
   );
 };

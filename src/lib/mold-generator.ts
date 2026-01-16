@@ -116,6 +116,8 @@ function createRegistrationKeyBrush(
 
 /**
  * Generate pour hole brush at the top of the mold
+ * The hole is tapered - wider at the top (opening) for easy pouring,
+ * narrower at the bottom (into cavity)
  */
 function createPourHoleBrush(
   diameter: number,
@@ -125,13 +127,15 @@ function createPourHoleBrush(
   const radius = (diameter / 2) * SCALE;
   const holeDepth = depth * SCALE;
   
-  // Tapered pour hole - wider at top
-  const topRadius = radius * 1.3;
-  const bottomRadius = radius;
+  // Tapered pour hole - wider at top (opening), narrower into cavity
+  const topRadius = radius * 1.3;    // Wide opening at pour spout
+  const bottomRadius = radius;       // Standard size into cavity
   
+  // CylinderGeometry: (radiusTop, radiusBottom, height, segments)
+  // The "top" of the cylinder is at +Y, which is the top of our mold (the opening)
   const geometry = new THREE.CylinderGeometry(
-    bottomRadius,  // top of cylinder (bottom of hole)
-    topRadius,     // bottom of cylinder (top of hole opening)
+    topRadius,      // radiusTop - wide opening at pour spout (top of mold)
+    bottomRadius,   // radiusBottom - standard size into cavity
     holeDepth,
     24
   );
@@ -696,8 +700,9 @@ function generateMoldHalf(
       }
     }
     
-    // Add pour hole at the top
-    const pourHoleDepth = moldParams.baseThickness + 5; // Goes through top into cavity
+    // Add pour hole at the top - must go through wall into cavity
+    // Depth needs to penetrate wall thickness plus some margin into cavity space
+    const pourHoleDepth = moldParams.wallThickness + 10;
     const pourHoleBrush = createPourHoleBrush(
       moldParams.pourHoleDiameter,
       pourHoleDepth,
@@ -777,7 +782,15 @@ function generateMoldHalf(
     
     return finalGeometry;
   } catch (error) {
-    console.warn('CSG operations failed, using base geometry:', error);
+    console.error('CSG operations failed for mold half:', {
+      error,
+      params: {
+        height: params.height,
+        wallThickness: moldParams.wallThickness,
+        pourHoleDiameter: moldParams.pourHoleDiameter,
+        keyCount: moldParams.registrationKeyCount,
+      }
+    });
     // Return base geometry without CSG modifications
     return baseGeometry;
   }
@@ -1273,30 +1286,29 @@ function generateMoldPart(
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
     
-    // Add pour hole only on first part
-    if (partIndex === 0) {
-      const pourHoleDepth = moldParams.baseThickness + 5;
-      const pourHoleBrush = createPourHoleBrush(
+    // Pour hole is at the center (0,0) - all parts meet at center, so subtract from all
+    // This ensures the pour hole is properly cut regardless of which part covers the center
+    const pourHoleDepth = moldParams.wallThickness + 10;
+    const pourHoleBrush = createPourHoleBrush(
+      moldParams.pourHoleDiameter,
+      pourHoleDepth,
+      height
+    );
+    resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
+    
+    // Add spare collar only on first part to avoid duplication
+    if (partIndex === 0 && moldParams.spareEnabled && moldParams.spareHeight > 0) {
+      const spareDiameter = moldParams.spareDiameter > 0 
+        ? moldParams.spareDiameter 
+        : moldParams.pourHoleDiameter * 1.5;
+      
+      const spareBrush = createSpareCollarBrush(
         moldParams.pourHoleDiameter,
-        pourHoleDepth,
+        spareDiameter,
+        moldParams.spareHeight,
         height
       );
-      resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
-      
-      // Add spare collar if enabled
-      if (moldParams.spareEnabled && moldParams.spareHeight > 0) {
-        const spareDiameter = moldParams.spareDiameter > 0 
-          ? moldParams.spareDiameter 
-          : moldParams.pourHoleDiameter * 1.5;
-        
-        const spareBrush = createSpareCollarBrush(
-          moldParams.pourHoleDiameter,
-          spareDiameter,
-          moldParams.spareHeight,
-          height
-        );
-        resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
-      }
+      resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
     }
     
     // Add vent holes if enabled (distributed across parts)
@@ -1352,7 +1364,16 @@ function generateMoldPart(
     
     return finalGeometry;
   } catch (error) {
-    console.warn('CSG operations failed for mold part, using base geometry:', error);
+    console.error('CSG operations failed for mold part:', {
+      error,
+      partIndex,
+      totalParts,
+      params: {
+        height: params.height,
+        wallThickness: moldParams.wallThickness,
+        pourHoleDiameter: moldParams.pourHoleDiameter,
+      }
+    });
     return baseGeometry;
   }
 }
