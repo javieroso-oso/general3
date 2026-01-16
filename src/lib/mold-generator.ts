@@ -79,12 +79,14 @@ function calculateKeyPositions(
 
 /**
  * Generate a registration key geometry positioned at a specific location
+ * @param splitAngle - The angle of the split face in radians, used to orient the key perpendicular to the split
  */
 function createRegistrationKeyBrush(
   size: number,
   keyHeight: number,
   position: THREE.Vector3,
-  isSocket: boolean
+  isSocket: boolean,
+  splitAngle: number
 ): Brush {
   // Tapered cylinder for better alignment
   const topRadius = size * 0.7 * SCALE;
@@ -101,7 +103,7 @@ function createRegistrationKeyBrush(
     16
   );
   
-  // Rotate to point outward from split face (along X axis)
+  // Rotate to point outward from split face (along X axis initially)
   geometry.rotateZ(Math.PI / 2);
   
   // Ensure UV attribute exists
@@ -109,6 +111,8 @@ function createRegistrationKeyBrush(
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
+  // Rotate around Y axis to align perpendicular to the split face at this angle
+  brush.rotation.y = splitAngle;
   brush.updateMatrixWorld();
   
   return brush;
@@ -636,9 +640,9 @@ function generateMoldHalf(
       // Two keys per height - one on each split edge (left and right of the half)
       const keyPositionsXZ = [
         // Left edge of split
-        { x: Math.cos(splitRotation) * keyRadius, z: Math.sin(splitRotation) * keyRadius },
+        { x: Math.cos(splitRotation) * keyRadius, z: Math.sin(splitRotation) * keyRadius, angle: splitRotation },
         // Right edge of split  
-        { x: Math.cos(splitRotation + Math.PI) * keyRadius, z: Math.sin(splitRotation + Math.PI) * keyRadius },
+        { x: Math.cos(splitRotation + Math.PI) * keyRadius, z: Math.sin(splitRotation + Math.PI) * keyRadius, angle: splitRotation + Math.PI },
       ];
       
       for (const pos of keyPositionsXZ) {
@@ -650,7 +654,8 @@ function generateMoldHalf(
           moldParams.registrationKeySize,
           keyDepth,
           keyPos,
-          isSocket
+          isSocket,
+          pos.angle + Math.PI / 2 // Perpendicular to split face
         );
         
         if (isHalfA) {
@@ -1086,6 +1091,17 @@ function generateBaseMoldPart(
     indices.push(surfaceB, rimA, rimB);
   }
   
+  // ========== TOP CENTER CAP - Fills center for pour hole CSG ==========
+  // Add a solid cap from inner top ring to center so pour hole can be subtracted
+  const topCenterStart = vertices.length / 3;
+  vertices.push(0, height, 0);
+  uvs.push(0.5, 1.0);
+  
+  // Create triangular fan from center to inner top ring (facing up)
+  for (let j = 0; j < partSegments; j++) {
+    indices.push(topCenterStart, innerTopRing[j], innerTopRing[j + 1]);
+  }
+  
   // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
   // With solid base, split faces go from center -> innerBottom (y=0) -> outerBottom -> base outer
   
@@ -1200,11 +1216,13 @@ function generateMoldPart(
         Math.sin(leftAngle) * keyRadius
       );
       
+      // Keys point perpendicular to split face (add PI/2 to split angle)
       const leftKeyBrush = createRegistrationKeyBrush(
         moldParams.registrationKeySize,
         keyDepth,
         leftKeyPos,
-        false // peg (protrusion)
+        false, // peg (protrusion)
+        leftAngle + Math.PI / 2 // Perpendicular to left split face
       );
       resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
       
@@ -1220,7 +1238,8 @@ function generateMoldPart(
         moldParams.registrationKeySize,
         keyDepth,
         rightKeyPos,
-        true // socket (indentation)
+        true, // socket (indentation)
+        rightAngle + Math.PI / 2 // Perpendicular to right split face
       );
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
