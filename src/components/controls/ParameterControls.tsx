@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -9,7 +9,7 @@ import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle } from '@/types/parametric';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams } from '@/lib/random-generator';
-import { analyzeUndercuts, calculateMoldMaterialEstimate } from '@/lib/mold-undercut-detector';
+import { analyzeUndercuts, calculateMoldMaterialEstimate, calculateOptimalSplits } from '@/lib/mold-undercut-detector';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -81,6 +81,12 @@ interface MoldControlsProps {
 const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldControlsProps) => {
   const undercutAnalysis = useMemo(() => analyzeUndercuts(params, type), [params, type]);
   const materialEstimate = useMemo(() => calculateMoldMaterialEstimate(params, type), [params, type]);
+  
+  // Calculate optimal splits for preview info
+  const optimalSplits = useMemo(() => {
+    if (!params.moldAutoSplit) return null;
+    return calculateOptimalSplits(params, type, params.moldPartCount);
+  }, [params, type]);
 
   const handlePartCountChange = (count: 2 | 3 | 4) => {
     onParamsChange({ ...params, moldPartCount: count });
@@ -118,6 +124,53 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
             </Button>
           ))}
         </div>
+      </div>
+      
+      {/* Auto-Split Toggle */}
+      <div className="space-y-2 bg-background/50 p-2 rounded border border-border/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className={cn("w-3 h-3", params.moldAutoSplit ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="auto-split" className="text-xs font-medium">Geometry-Based Splitting</Label>
+          </div>
+          <Switch 
+            id="auto-split" 
+            checked={params.moldAutoSplit ?? false} 
+            onCheckedChange={(v) => onParamsChange({ ...params, moldAutoSplit: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Places splits at natural parting lines based on body shape to minimize undercuts
+        </div>
+        
+        {params.moldAutoSplit && optimalSplits && (
+          <div className="text-xs mt-2 p-1.5 rounded bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-1.5 text-primary">
+              <CheckCircle2 className="w-3 h-3" />
+              <span className="font-medium">
+                {Math.round(optimalSplits.confidence * 100)}% confidence
+              </span>
+            </div>
+            <div className="text-muted-foreground mt-1">
+              Split angles: {optimalSplits.splitAngles.map(a => 
+                `${Math.round(a * 180 / Math.PI)}°`
+              ).join(', ')}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Show Parting Lines Toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Maximize2 className={cn("w-3 h-3", params.moldShowPartingLines ? "text-primary" : "text-muted-foreground")} />
+          <Label htmlFor="show-parting-lines" className="text-xs">Show Parting Lines</Label>
+        </div>
+        <Switch 
+          id="show-parting-lines" 
+          checked={params.moldShowPartingLines ?? false} 
+          onCheckedChange={(v) => onParamsChange({ ...params, moldShowPartingLines: v })}
+        />
       </div>
       
       {/* Part Colors */}
