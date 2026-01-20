@@ -25,7 +25,7 @@ const Header = () => {
               <Box className="w-4 h-4 text-primary" />
             </div>
             <span className="font-medium text-sm hidden sm:block text-foreground tracking-tight">
-              P3D <span className="text-muted-foreground">Generator</span>
+              general3 <span className="text-muted-foreground">Generator</span>
             </span>
           </Link>
 
