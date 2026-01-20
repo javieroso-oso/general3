@@ -104,15 +104,18 @@ function createRegistrationKeyBrush(
     16
   );
   
-  // Rotate to point outward from split face (along X axis initially)
+  // Rotate cylinder to point horizontally (along X axis)
   geometry.rotateZ(Math.PI / 2);
+  // Rotate 90 degrees so key points TANGENT to the split face (perpendicular to radius)
+  // This makes the key protrude INTO the adjacent mold part, not outward from mold exterior
+  geometry.rotateY(Math.PI / 2);
   
   // Ensure UV attribute exists
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
-  // Rotate around Y axis to align perpendicular to the split face at this angle
+  // Rotate around Y axis to align with the split face angle
   brush.rotation.y = splitAngle;
   brush.updateMatrixWorld();
   
@@ -618,7 +621,8 @@ function generateMoldHalf(
   const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
   const outerRadius = maxBodyRadius + moldParams.wallThickness * SCALE;
   const innerRadius = maxBodyRadius + offset;
-  const keyDepth = moldParams.registrationKeySize * 1.5; // Key depth in mm
+  // Key depth should be proportional to wall thickness to stay within mold body
+  const keyDepth = Math.min(moldParams.registrationKeySize * 1.5, moldParams.wallThickness * 0.6);
   
   // Generate base mold geometry
   const baseGeometry = generateBaseMoldHalf(params, moldParams, isHalfA, objectType);
@@ -1359,7 +1363,8 @@ function generateMoldPart(
   const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
   const outerRadius = maxBodyRadius + moldParams.wallThickness * SCALE;
   const innerRadius = maxBodyRadius + offset;
-  const keyDepth = moldParams.registrationKeySize * 1.5;
+  // Key depth should be proportional to wall thickness to stay within mold body
+  const keyDepth = Math.min(moldParams.registrationKeySize * 1.5, moldParams.wallThickness * 0.6);
   
   // Generate base geometry
   const baseGeometry = generateBaseMoldPart(params, moldParams, startAngle, endAngle, objectType);
@@ -1376,9 +1381,9 @@ function generateMoldPart(
       moldParams.baseThickness
     );
     
-    // Position keys at the OUTER edge of the split face (industry standard)
-    // This keeps keys in the "waste" area and provides better leverage for alignment
-    const keyRadius = outerRadius - (moldParams.registrationKeySize * SCALE * 0.3);
+    // Position keys at the MIDPOINT of the mold wall for structural integrity
+    // This keeps keys fully contained within the mold body
+    const keyRadius = (innerRadius + outerRadius) / 2;
     
     for (const yPos of keyPositions) {
       const y = yPos * SCALE;
