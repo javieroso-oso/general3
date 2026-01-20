@@ -269,76 +269,8 @@ const Index = () => {
     }
   }, [params, objectType]);
 
-  // Handle pending export after payment/unlock
-  const handlePendingExport = useCallback(() => {
-    switch (pendingExportType) {
-      case 'body':
-        doExportBody();
-        break;
-      case 'bodyWithLegs':
-        doExportLegsBase();
-        break;
-      case 'gcode':
-        doExportGCode();
-        break;
-      case 'bodyWithMold':
-        if (pendingMoldPart !== null) {
-          doExportMold(pendingMoldPart);
-        }
-        break;
-    }
-    setPendingMoldPart(null);
-  }, [pendingExportType, pendingMoldPart, doExportBody, doExportLegsBase, doExportGCode, doExportMold]);
-
-  // Gated mold export handlers
-  const handleExportMoldA = useCallback(() => {
-    if (isUnlocked) {
-      doExportMold('A');
-    } else {
-      setPendingExportType('bodyWithMold');
-      setPendingMoldPart('A');
-      setShowExportDialog(true);
-    }
-  }, [isUnlocked, doExportMold]);
-
-  const handleExportMoldB = useCallback(() => {
-    if (isUnlocked) {
-      doExportMold('B');
-    } else {
-      setPendingExportType('bodyWithMold');
-      setPendingMoldPart('B');
-      setShowExportDialog(true);
-    }
-  }, [isUnlocked, doExportMold]);
-
-  const handleExportBothMolds = useCallback(() => {
-    if (isUnlocked) {
-      doExportMold('both');
-    } else {
-      setPendingExportType('bodyWithMold');
-      setPendingMoldPart('both');
-      setShowExportDialog(true);
-    }
-  }, [isUnlocked, doExportMold]);
-
-  // Export additional mold parts (C, D, etc.) for multi-part molds
-  const handleExportMoldPart = useCallback((partIndex: number) => {
-    if (isUnlocked) {
-      doExportMold(partIndex);
-    } else {
-      setPendingExportType('bodyWithMold');
-      setPendingMoldPart(partIndex);
-      setShowExportDialog(true);
-    }
-  }, [isUnlocked, doExportMold]);
-
-  // Export all molds + body as ZIP
-  const handleExportAllMoldsZip = useCallback(async () => {
-    if (!analysis.isValid) {
-      toast.error('Fix print issues before exporting');
-      return;
-    }
-
+  // Actual ZIP export function (called after payment/unlock)
+  const doExportAllMoldsZip = useCallback(async () => {
     const zip = new JSZip();
     const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
     const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -385,7 +317,91 @@ const Index = () => {
       console.error('Failed to export ZIP:', error);
       toast.error('Export failed');
     }
-  }, [params, objectType, analysis.isValid]);
+  }, [params, objectType]);
+
+  // Handle pending export after payment/unlock
+  const handlePendingExport = useCallback(() => {
+    switch (pendingExportType) {
+      case 'body':
+        doExportBody();
+        break;
+      case 'bodyWithLegs':
+        doExportLegsBase();
+        break;
+      case 'gcode':
+        doExportGCode();
+        break;
+      case 'bodyWithMold':
+        if (pendingMoldPart !== null) {
+          // 'both' triggers the ZIP export with body + all mold parts
+          if (pendingMoldPart === 'both') {
+            doExportAllMoldsZip();
+          } else {
+            doExportMold(pendingMoldPart);
+          }
+        }
+        break;
+    }
+    setPendingMoldPart(null);
+  }, [pendingExportType, pendingMoldPart, doExportBody, doExportLegsBase, doExportGCode, doExportMold, doExportAllMoldsZip]);
+
+  // Gated mold export handlers
+  const handleExportMoldA = useCallback(() => {
+    if (isUnlocked) {
+      doExportMold('A');
+    } else {
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('A');
+      setShowExportDialog(true);
+    }
+  }, [isUnlocked, doExportMold]);
+
+  const handleExportMoldB = useCallback(() => {
+    if (isUnlocked) {
+      doExportMold('B');
+    } else {
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('B');
+      setShowExportDialog(true);
+    }
+  }, [isUnlocked, doExportMold]);
+
+  const handleExportBothMolds = useCallback(() => {
+    if (isUnlocked) {
+      doExportMold('both');
+    } else {
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('both');
+      setShowExportDialog(true);
+    }
+  }, [isUnlocked, doExportMold]);
+
+  // Export additional mold parts (C, D, etc.) for multi-part molds
+  const handleExportMoldPart = useCallback((partIndex: number) => {
+    if (isUnlocked) {
+      doExportMold(partIndex);
+    } else {
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart(partIndex);
+      setShowExportDialog(true);
+    }
+  }, [isUnlocked, doExportMold]);
+
+  // Export all molds + body as ZIP (gated)
+  const handleExportAllMoldsZip = useCallback(async () => {
+    if (!analysis.isValid) {
+      toast.error('Fix print issues before exporting');
+      return;
+    }
+
+    if (isUnlocked) {
+      doExportAllMoldsZip();
+    } else {
+      setPendingExportType('bodyWithMold');
+      setPendingMoldPart('both');
+      setShowExportDialog(true);
+    }
+  }, [analysis.isValid, isUnlocked, doExportAllMoldsZip]);
 
   return (
     <div className="min-h-screen bg-background">
