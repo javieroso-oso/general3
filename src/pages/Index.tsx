@@ -27,13 +27,15 @@ import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCo
 import { ExportType } from '@/config/export-pricing';
 import { downloadMoldSTL, downloadMultiPartMoldSTL, generateMoldGeometry, generateMultiPartMoldGeometry, exportMoldHalfToSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info, PackageCheck } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info, PackageCheck, Share2 } from 'lucide-react';
 import JSZip from 'jszip';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useGallery } from '@/hooks/useGallery';
+import AddToGalleryDialog from '@/components/AddToGalleryDialog';
 import {
   Select,
   SelectContent,
@@ -56,6 +58,14 @@ const Index = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [pendingExportType, setPendingExportType] = useState<ExportType>('body');
   const [pendingMoldPart, setPendingMoldPart] = useState<'A' | 'B' | 'both' | number | null>(null);
+  
+  // Gallery integration
+  const gallery = useGallery();
+  const [showGalleryDialog, setShowGalleryDialog] = useState(false);
+  
+  const handleAddToGallery = useCallback(async (name: string, description?: string) => {
+    return gallery.addDesign(name, params, objectType, description);
+  }, [gallery, params, objectType]);
   
   const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
     setObjectType(drawerType);
@@ -84,7 +94,7 @@ const Index = () => {
   const [useLegPresetColor, setUseLegPresetColor] = useState(true);
   const [syncLegMaterial, setSyncLegMaterial] = useState(true);
   
-  // Handle successful payment return
+  // Handle successful payment return and load gallery params from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const exportSuccess = urlParams.get('export_success');
@@ -94,7 +104,7 @@ const Index = () => {
       // Verify payment and trigger download
       const verifyAndDownload = async () => {
         try {
-          const { data, error } = await supabase.functions.invoke('verify-payment', {
+          const { data, error } = await supabase?.functions.invoke('verify-payment', {
             body: { sessionId },
           });
           
@@ -117,6 +127,21 @@ const Index = () => {
     if (urlParams.get('export_canceled') === 'true') {
       toast.info('Export canceled');
       window.history.replaceState({}, '', window.location.pathname);
+    }
+    
+    // Load gallery design params from URL
+    const galleryParams = urlParams.get('params');
+    const galleryType = urlParams.get('type') as ObjectType | null;
+    if (galleryParams) {
+      try {
+        const parsedParams = JSON.parse(decodeURIComponent(galleryParams)) as ParametricParams;
+        if (galleryType) setObjectType(galleryType);
+        setParams(parsedParams);
+        toast.success('Gallery design loaded!');
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (e) {
+        console.error('Failed to parse gallery params:', e);
+      }
     }
   }, []);
 
@@ -699,6 +724,19 @@ const Index = () => {
           objectType={objectType}
           onKeep={handleKeepToDrawer}
         />
+        
+        {/* Add to Gallery button */}
+        <Button
+          onClick={() => setShowGalleryDialog(true)}
+          variant="outline"
+          size="sm"
+          className="gap-1.5 h-8 rounded-lg"
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          Share
+        </Button>
+
+        <div className="w-px h-6 bg-border/50" />
 
         {/* Export buttons */}
         {params.moldEnabled ? (
@@ -829,6 +867,14 @@ const Index = () => {
         onClose={() => setShowExportDialog(false)}
         onExport={handlePendingExport}
         exportType={pendingExportType}
+      />
+      
+      {/* Add to Gallery Dialog */}
+      <AddToGalleryDialog
+        open={showGalleryDialog}
+        onClose={() => setShowGalleryDialog(false)}
+        onSubmit={handleAddToGallery}
+        saving={gallery.saving}
       />
     </div>
   );
