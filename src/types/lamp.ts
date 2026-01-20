@@ -462,6 +462,7 @@ export const defaultLampParams: LampParams = {
   moldWallThickness: 25,
   moldBaseThickness: 15,
   moldPourHoleDiameter: 25,
+  moldPourHoleTaper: 15,
   moldRegistrationKeySize: 8,
   moldRegistrationKeyCount: 4,
   moldSplitAngle: 0,

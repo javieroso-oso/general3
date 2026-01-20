@@ -12,6 +12,7 @@ export interface MoldParams {
   wallThickness: number;        // mm
   baseThickness: number;        // mm
   pourHoleDiameter: number;     // mm
+  pourHoleTaper: number;        // degrees (5-30) - funnel taper angle
   registrationKeySize: number;  // mm
   registrationKeyCount: number; // count
   splitAngle: number;           // degrees
@@ -49,11 +50,10 @@ function ensureUVAttribute(geometry: THREE.BufferGeometry): void {
   if (!geometry.attributes.uv) {
     const positionCount = geometry.attributes.position.count;
     const uvs = new Float32Array(positionCount * 2);
-    // Simple planar UV mapping
     const positions = geometry.attributes.position.array;
     for (let i = 0; i < positionCount; i++) {
-      uvs[i * 2] = positions[i * 3] * 0.1;     // U based on X
-      uvs[i * 2 + 1] = positions[i * 3 + 1] * 0.1; // V based on Y
+      uvs[i * 2] = positions[i * 3] * 0.1;
+      uvs[i * 2 + 1] = positions[i * 3 + 1] * 0.1;
     }
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   }
@@ -79,8 +79,9 @@ function calculateKeyPositions(
 }
 
 /**
- * Generate a registration key geometry positioned at a specific location
- * @param splitAngle - The angle of the split face in radians, used to orient the key perpendicular to the split
+ * Create registration key geometry with TANGENTIAL orientation
+ * Keys point TANGENT to the split face, allowing parts to separate radially
+ * @param splitAngle - The angle of the split face in radians
  */
 function createRegistrationKeyBrush(
   size: number,
@@ -94,8 +95,8 @@ function createRegistrationKeyBrush(
   const bottomRadius = size * SCALE;
   const height = keyHeight * SCALE;
   
-  // Add tolerance for socket - 0.5mm for 3D printed molds (needs room for cleanup)
-  const tolerance = isSocket ? 0.005 : 0; // 0.5mm tolerance for socket
+  // Tolerance for socket (0.5mm clearance for 3D printed molds)
+  const tolerance = isSocket ? 0.005 : 0;
   
   const geometry = new THREE.CylinderGeometry(
     topRadius + tolerance,
@@ -105,18 +106,17 @@ function createRegistrationKeyBrush(
   );
   
   // Rotate cylinder to point horizontally (along X axis)
-  // After this, the cylinder points along positive X when at angle 0
   geometry.rotateZ(Math.PI / 2);
   
-  // NO additional Y rotation - we want keys to point RADIALLY (perpendicular to split face)
-  // This allows mold parts to separate by pulling apart radially
+  // Rotate 90° around Y to make key point TANGENTIALLY (perpendicular to radial direction)
+  // This allows mold parts to separate by pulling radially outward
+  geometry.rotateY(Math.PI / 2);
   
-  // Ensure UV attribute exists
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
-  // Rotate around Y axis - the splitAngle determines which radial direction the key points
+  // The splitAngle rotates the tangential key to align with the split face
   brush.rotation.y = splitAngle;
   brush.updateMatrixWorld();
   
@@ -124,32 +124,34 @@ function createRegistrationKeyBrush(
 }
 
 /**
- * Generate pour hole brush at the top of the mold
- * The hole is tapered - wider at the top (opening) for easy pouring,
- * narrower at the bottom (into cavity)
+ * Create funnel-shaped pour hole with configurable taper angle
+ * @param diameter - Base diameter of the pour hole (into cavity)
+ * @param depth - Total depth of the pour hole
+ * @param topY - Y position of the mold top
+ * @param taperAngle - Taper angle in degrees (5-30)
  */
 function createPourHoleBrush(
   diameter: number,
   depth: number,
-  topY: number
+  topY: number,
+  taperAngle: number = 15
 ): Brush {
-  const radius = (diameter / 2) * SCALE;
+  const bottomRadius = (diameter / 2) * SCALE;
   const holeDepth = depth * SCALE;
   
-  // Tapered pour hole - wider at top (opening), narrower into cavity
-  const topRadius = radius * 1.3;    // Wide opening at pour spout
-  const bottomRadius = radius;       // Standard size into cavity
+  // Calculate top radius from taper angle
+  // tan(angle) = (topRadius - bottomRadius) / depth
+  const taperRad = (taperAngle * Math.PI) / 180;
+  const topRadius = bottomRadius + Math.tan(taperRad) * holeDepth;
   
   // CylinderGeometry: (radiusTop, radiusBottom, height, segments)
-  // The "top" of the cylinder is at +Y, which is the top of our mold (the opening)
   const geometry = new THREE.CylinderGeometry(
-    topRadius,      // radiusTop - wide opening at pour spout (top of mold)
-    bottomRadius,   // radiusBottom - standard size into cavity
+    topRadius,      // Wide opening at top (funnel)
+    bottomRadius,   // Standard size into cavity
     holeDepth,
     24
   );
   
-  // Ensure UV attribute exists
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
@@ -161,16 +163,6 @@ function createPourHoleBrush(
 
 /**
  * Create vent hole brush for air escape during casting
- * Positioned at high points of the cavity to allow trapped air to escape
- */
-/**
- * Create vent hole brush for air escape during casting
- * Positioned at high points of the cavity to allow trapped air to escape
- * @param diameter - vent hole diameter in mm
- * @param depth - depth of the vent hole in mm
- * @param position - 3D position of the vent
- * @param tiltAngle - upward tilt angle (radians)
- * @param radialAngle - angle around Y axis for radial direction (radians)
  */
 function createVentHoleBrush(
   diameter: number,
@@ -182,28 +174,22 @@ function createVentHoleBrush(
   const radius = (diameter / 2) * SCALE;
   const holeDepth = depth * SCALE;
   
-  // Create slightly tapered cylinder (narrower inside cavity for better release)
   const geometry = new THREE.CylinderGeometry(
-    radius * 0.8, // Inner end (toward cavity) - slightly narrower
-    radius,       // Outer end - full diameter
+    radius * 0.8,
+    radius,
     holeDepth,
     12
   );
   
-  // Default cylinder points along Y-axis
-  // We want it to point radially outward AND tilt upward
-  
-  // First, rotate to point along +X (radial direction)
+  // Point along +X (radial direction)
   geometry.rotateZ(-Math.PI / 2);
-  
-  // Then tilt upward around Z axis (after the first rotation, this tilts "up")
+  // Tilt upward
   geometry.rotateZ(tiltAngle);
   
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
-  // Finally rotate around Y to point radially outward at the correct world angle
   brush.rotation.y = radialAngle;
   brush.updateMatrixWorld();
   
@@ -212,7 +198,6 @@ function createVentHoleBrush(
 
 /**
  * Create spare/reservoir collar brush
- * A raised collar around the pour hole that acts as a slip reservoir
  */
 function createSpareCollarBrush(
   innerDiameter: number,
@@ -224,7 +209,6 @@ function createSpareCollarBrush(
   const outerRadius = (outerDiameter / 2) * SCALE;
   const collarHeight = height * SCALE;
   
-  // Create ring shape using lathe geometry
   const points = [
     new THREE.Vector2(innerRadius, 0),
     new THREE.Vector2(outerRadius, 0),
@@ -245,8 +229,7 @@ function createSpareCollarBrush(
 }
 
 /**
- * Create strap notch brush for rubber bands/straps
- * Grooves cut around the mold perimeter
+ * Create strap notch brush
  */
 function createStrapNotchBrush(
   width: number,
@@ -259,7 +242,6 @@ function createStrapNotchBrush(
   const notchDepth = depth * SCALE;
   const radius = moldRadius * SCALE;
   
-  // Create a box that will be subtracted
   const geometry = new THREE.BoxGeometry(
     notchDepth * 2,
     notchWidth,
@@ -281,322 +263,345 @@ function createStrapNotchBrush(
 }
 
 /**
- * Generate base mold half geometry (without keys and pour hole)
- * Uses the actual body profile from the parametric generator
+ * Generate a TRUE WEDGE mold part geometry
+ * 
+ * This creates a proper radial wedge that:
+ * - Meets at the central Y-axis
+ * - Has planar split faces at startAngle and endAngle
+ * - Is watertight and manifold
+ * - Works correctly for any number of parts (2-8)
  */
-function generateBaseMoldHalf(
+function generateWedgeMoldPart(
   params: ParametricParams,
   moldParams: MoldParams,
-  isHalfA: boolean,
+  startAngle: number,
+  endAngle: number,
   objectType: ObjectType
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
   const wallThickness = moldParams.wallThickness * SCALE;
   const baseThickness = moldParams.baseThickness * SCALE;
   const offset = moldParams.offset * SCALE;
-  const segments = 48;
-  const rings = 64;
+  const topWallThickness = wallThickness;
+  const moldTotalHeight = height + topWallThickness;
+  
+  // Resolution
+  const radialSegments = 32; // Segments around the arc
+  const heightSegments = 48; // Segments along height
   
   const splitRotation = moldParams.splitAngle * Math.PI / 180;
+  const adjustedStartAngle = startAngle + splitRotation;
+  const adjustedEndAngle = endAngle + splitRotation;
+  const angleSpan = endAngle - startAngle;
+  
+  // Calculate number of segments for this wedge (proportional to angle)
+  const segmentsForWedge = Math.max(4, Math.floor(radialSegments * (angleSpan / (Math.PI * 2))));
+  
+  // Get max body radius for outer mold bounds
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const outerRadius = maxBodyRadius + wallThickness;
   
   const vertices: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
   
-  const startAngle = isHalfA ? 0 : Math.PI;
-  const endAngle = isHalfA ? Math.PI : Math.PI * 2;
+  // Helper to add vertex and return its index
+  const addVertex = (x: number, y: number, z: number, u: number, v: number): number => {
+    const idx = vertices.length / 3;
+    vertices.push(x, y, z);
+    uvs.push(u, v);
+    return idx;
+  };
   
-  // Calculate max body radius for outer mold bounds
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
-  const outerRadius = maxBodyRadius + wallThickness;
+  // ========== INNER SURFACE (CAVITY) ==========
+  // Generate the cavity surface following the body profile
+  const innerSurfaceStart = vertices.length / 3;
   
-  // Generate inner surface (cavity) using actual body profile + offset + draft
-  const innerVertexStart = vertices.length / 3;
-  for (let i = 0; i <= rings; i++) {
-    const t = i / rings;
+  for (let h = 0; h <= heightSegments; h++) {
+    const t = h / heightSegments;
     const y = t * height;
     
-    // Draft angle offset - cavity EXPANDS toward the TOP (opening) for easier demolding
-    // When lifting the cast piece upward, wider top allows release
-    // For slip casting: t=0 is bottom (closed), t=1 is top (open/pour hole)
+    // Draft angle offset - cavity expands toward top for demolding
     const draftOffset = t * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
     
-    for (let j = 0; j <= segments / 2; j++) {
-      const u = j / (segments / 2);
-      const thetaRaw = startAngle + u * Math.PI;
-      const theta = thetaRaw + splitRotation;
+    for (let s = 0; s <= segmentsForWedge; s++) {
+      const u = s / segmentsForWedge;
+      const theta = adjustedStartAngle + u * angleSpan;
+      const thetaRaw = theta - splitRotation;
       
-      // Get actual body radius at this point using the shared generator
-      let radius = getBodyRadius(params, t, theta - splitRotation, { 
+      // Get actual body radius at this point
+      let radius = getBodyRadius(params, t, thetaRaw, { 
         scale: SCALE, 
         objectType,
         includeTwist: true 
       });
-      
-      // Add offset (shrinkage clearance) and draft
       radius += offset + draftOffset * 0.5;
       
       const x = Math.cos(theta) * radius;
       const z = Math.sin(theta) * radius;
       
-      vertices.push(x, y, z);
-      uvs.push(u, t);
+      addVertex(x, y, z, u, t);
     }
   }
   
-  // Generate outer surface (simple cylinder/box)
-  const outerVertexStart = vertices.length / 3;
-  for (let i = 0; i <= rings; i++) {
-    const t = i / rings;
-    const y = t * height;
+  // Inner surface indices (normals point outward from cavity = into mold solid)
+  for (let h = 0; h < heightSegments; h++) {
+    for (let s = 0; s < segmentsForWedge; s++) {
+      const a = innerSurfaceStart + h * (segmentsForWedge + 1) + s;
+      const b = a + segmentsForWedge + 1;
+      const c = a + 1;
+      const d = b + 1;
+      
+      // Winding for outward-facing normals (into mold body)
+      indices.push(a, c, b);
+      indices.push(c, d, b);
+    }
+  }
+  
+  // ========== OUTER SURFACE (MOLD EXTERIOR) ==========
+  const outerSurfaceStart = vertices.length / 3;
+  
+  for (let h = 0; h <= heightSegments; h++) {
+    const t = h / heightSegments;
+    const y = -baseThickness + (t * (moldTotalHeight + baseThickness));
     
-    for (let j = 0; j <= segments / 2; j++) {
-      const u = j / (segments / 2);
-      const thetaRaw = startAngle + u * Math.PI;
-      const theta = thetaRaw + splitRotation;
+    for (let s = 0; s <= segmentsForWedge; s++) {
+      const u = s / segmentsForWedge;
+      const theta = adjustedStartAngle + u * angleSpan;
       
       const x = Math.cos(theta) * outerRadius;
       const z = Math.sin(theta) * outerRadius;
       
-      vertices.push(x, y, z);
-      uvs.push(u + 1, t); // Offset U for outer surface
+      addVertex(x, y, z, u + 1, t);
     }
   }
   
-  const halfSegments = segments / 2;
-  
-  // Inner surface indices (facing outward - into the mold solid, away from cavity)
-  for (let i = 0; i < rings; i++) {
-    for (let j = 0; j < halfSegments; j++) {
-      const a = innerVertexStart + i * (halfSegments + 1) + j;
-      const b = a + halfSegments + 1;
+  // Outer surface indices (normals point outward)
+  for (let h = 0; h < heightSegments; h++) {
+    for (let s = 0; s < segmentsForWedge; s++) {
+      const a = outerSurfaceStart + h * (segmentsForWedge + 1) + s;
+      const b = a + segmentsForWedge + 1;
       const c = a + 1;
       const d = b + 1;
       
-      // Reversed winding for outward-facing normals
-      indices.push(a, c, b);
-      indices.push(c, d, b);
+      // Winding for outward-facing normals
+      indices.push(a, b, c);
+      indices.push(c, b, d);
     }
   }
   
-  // Outer surface indices (facing outward)
-  for (let i = 0; i < rings; i++) {
-    for (let j = 0; j < halfSegments; j++) {
-      const a = outerVertexStart + i * (halfSegments + 1) + j;
-      const b = a + halfSegments + 1;
-      const c = a + 1;
-      const d = b + 1;
-      
-      indices.push(a, c, b);
-      indices.push(c, d, b);
-    }
+  // ========== LEFT SPLIT FACE (at startAngle) ==========
+  // This is a planar face from center axis to outer radius
+  const leftFaceStart = vertices.length / 3;
+  
+  // Add vertices along the center axis (radius = 0)
+  for (let h = 0; h <= heightSegments; h++) {
+    const t = h / heightSegments;
+    const y = -baseThickness + (t * (moldTotalHeight + baseThickness));
+    addVertex(0, y, 0, 0, t);
   }
   
-  // Split face - left edge (connects inner to outer)
-  const leftEdgeInner: number[] = [];
-  const leftEdgeOuter: number[] = [];
-  for (let i = 0; i <= rings; i++) {
-    leftEdgeInner.push(innerVertexStart + i * (halfSegments + 1));
-    leftEdgeOuter.push(outerVertexStart + i * (halfSegments + 1));
+  // Add vertices along the outer edge at startAngle
+  for (let h = 0; h <= heightSegments; h++) {
+    const t = h / heightSegments;
+    const y = -baseThickness + (t * (moldTotalHeight + baseThickness));
+    const x = Math.cos(adjustedStartAngle) * outerRadius;
+    const z = Math.sin(adjustedStartAngle) * outerRadius;
+    addVertex(x, y, z, 1, t);
   }
   
-  for (let i = 0; i < rings; i++) {
-    const a = leftEdgeInner[i];
-    const b = leftEdgeInner[i + 1];
-    const c = leftEdgeOuter[i];
-    const d = leftEdgeOuter[i + 1];
+  // Left split face indices (normal points "left" = into previous wedge space)
+  for (let h = 0; h < heightSegments; h++) {
+    const centerA = leftFaceStart + h;
+    const centerB = leftFaceStart + h + 1;
+    const edgeA = leftFaceStart + (heightSegments + 1) + h;
+    const edgeB = leftFaceStart + (heightSegments + 1) + h + 1;
     
-    indices.push(a, b, c);
-    indices.push(b, d, c);
+    // Winding: looking from the left (previous wedge), face normal points toward us
+    indices.push(centerA, edgeA, centerB);
+    indices.push(centerB, edgeA, edgeB);
   }
   
-  // Split face - right edge
-  const rightEdgeInner: number[] = [];
-  const rightEdgeOuter: number[] = [];
-  for (let i = 0; i <= rings; i++) {
-    rightEdgeInner.push(innerVertexStart + i * (halfSegments + 1) + halfSegments);
-    rightEdgeOuter.push(outerVertexStart + i * (halfSegments + 1) + halfSegments);
+  // ========== RIGHT SPLIT FACE (at endAngle) ==========
+  const rightFaceStart = vertices.length / 3;
+  
+  // Center axis vertices
+  for (let h = 0; h <= heightSegments; h++) {
+    const t = h / heightSegments;
+    const y = -baseThickness + (t * (moldTotalHeight + baseThickness));
+    addVertex(0, y, 0, 0, t);
   }
   
-  for (let i = 0; i < rings; i++) {
-    const a = rightEdgeInner[i];
-    const b = rightEdgeInner[i + 1];
-    const c = rightEdgeOuter[i];
-    const d = rightEdgeOuter[i + 1];
+  // Outer edge at endAngle
+  for (let h = 0; h <= heightSegments; h++) {
+    const t = h / heightSegments;
+    const y = -baseThickness + (t * (moldTotalHeight + baseThickness));
+    const x = Math.cos(adjustedEndAngle) * outerRadius;
+    const z = Math.sin(adjustedEndAngle) * outerRadius;
+    addVertex(x, y, z, 1, t);
+  }
+  
+  // Right split face indices (normal points "right" = into next wedge space)
+  for (let h = 0; h < heightSegments; h++) {
+    const centerA = rightFaceStart + h;
+    const centerB = rightFaceStart + h + 1;
+    const edgeA = rightFaceStart + (heightSegments + 1) + h;
+    const edgeB = rightFaceStart + (heightSegments + 1) + h + 1;
     
-    indices.push(a, c, b);
-    indices.push(b, c, d);
+    // Winding: opposite of left face
+    indices.push(centerA, centerB, edgeA);
+    indices.push(centerB, edgeB, edgeA);
   }
   
-  // ========== BOTTOM FACE (BASE) - SOLID FLAT ==========
-  // The bottom should be a solid disk from center to outer ring
-  // The cavity stops at y=0, creating a solid flat base
+  // ========== BOTTOM FACE (solid flat base) ==========
+  const bottomCenterIdx = addVertex(0, -baseThickness, 0, 0.5, 0);
   
-  // Get inner bottom ring vertex indices (first ring of inner surface at y=0)
-  const innerBottomRing: number[] = [];
-  for (let j = 0; j <= halfSegments; j++) {
-    innerBottomRing.push(innerVertexStart + j);
-  }
-  
-  // Outer ring at base level (y=-baseThickness)
-  const bottomOuterRingStart = vertices.length / 3;
-  for (let j = 0; j <= halfSegments; j++) {
-    const u = j / halfSegments;
-    const thetaRaw = startAngle + u * Math.PI;
-    const theta = thetaRaw + splitRotation;
+  // Bottom edge vertices (outer ring at y = -baseThickness)
+  const bottomRingStart = vertices.length / 3;
+  for (let s = 0; s <= segmentsForWedge; s++) {
+    const u = s / segmentsForWedge;
+    const theta = adjustedStartAngle + u * angleSpan;
     const x = Math.cos(theta) * outerRadius;
     const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, -baseThickness, z);
-    uvs.push(u, -0.1);
+    addVertex(x, -baseThickness, z, u, 0);
   }
   
-  // Center point at base level - positioned at origin
-  const baseCenterStart = vertices.length / 3;
-  vertices.push(0, -baseThickness, 0);
-  uvs.push(0.5, -0.1);
-  
-  // Bottom face: Create solid triangular fan from center DIRECTLY to outer ring
-  // This creates a completely solid flat base (no hollow area)
-  for (let j = 0; j < halfSegments; j++) {
-    const a = baseCenterStart;
-    const b = bottomOuterRingStart + j;
-    const c = bottomOuterRingStart + j + 1;
-    indices.push(a, c, b); // Face downward (normal pointing -Y)
+  // Bottom face: fan from center to outer ring (facing down)
+  for (let s = 0; s < segmentsForWedge; s++) {
+    const a = bottomCenterIdx;
+    const b = bottomRingStart + s;
+    const c = bottomRingStart + s + 1;
+    indices.push(a, c, b); // Normal pointing -Y (down)
   }
   
-  // Connect inner cavity bottom (y=0) to outer base ring (y=-baseThickness)
-  // This creates a sloped inner wall connecting cavity floor to base bottom
-  for (let j = 0; j < halfSegments; j++) {
-    const topA = innerBottomRing[j];
-    const topB = innerBottomRing[j + 1];
-    const bottomA = bottomOuterRingStart + j;
-    const bottomB = bottomOuterRingStart + j + 1;
-    
-    // Face inward (toward cavity)
-    indices.push(topA, topB, bottomA);
-    indices.push(topB, bottomB, bottomA);
-  }
+  // ========== TOP FACE (solid cap with pour hole cavity) ==========
+  const topCenterIdx = addVertex(0, moldTotalHeight, 0, 0.5, 1);
   
-  // Connect outer surface bottom (y=0) to outer base ring (y=-baseThickness)
-  for (let j = 0; j < halfSegments; j++) {
-    const topOuter = outerVertexStart + j;
-    const topOuterNext = outerVertexStart + j + 1;
-    const bottomOuter = bottomOuterRingStart + j;
-    const bottomOuterNext = bottomOuterRingStart + j + 1;
-    
-    indices.push(topOuter, bottomOuter, topOuterNext);
-    indices.push(topOuterNext, bottomOuter, bottomOuterNext);
-  }
-  
-  // ========== TOP FACE (RIM) - WATERTIGHT ==========
-  // The top connects outer rim to inner cavity opening
-  
-  // Get inner top ring vertex indices (last ring of inner surface at y=height)
-  const innerTopRing: number[] = [];
-  for (let j = 0; j <= halfSegments; j++) {
-    innerTopRing.push(innerVertexStart + rings * (halfSegments + 1) + j);
-  }
-  
-  // Outer top ring vertices (at outer radius, y=height)
-  const topVertexStart = vertices.length / 3;
-  for (let j = 0; j <= halfSegments; j++) {
-    const u = j / halfSegments;
-    const thetaRaw = startAngle + u * Math.PI;
-    const theta = thetaRaw + splitRotation;
+  // Top edge vertices (outer ring at y = moldTotalHeight)
+  const topRingStart = vertices.length / 3;
+  for (let s = 0; s <= segmentsForWedge; s++) {
+    const u = s / segmentsForWedge;
+    const theta = adjustedStartAngle + u * angleSpan;
     const x = Math.cos(theta) * outerRadius;
     const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, height, z);
-    uvs.push(u, 1.1);
+    addVertex(x, moldTotalHeight, z, u, 1);
   }
   
-  // Top rim: connect inner top ring to outer top ring
-  for (let j = 0; j < halfSegments; j++) {
-    const innerA = innerTopRing[j];
-    const innerB = innerTopRing[j + 1];
-    const outerA = topVertexStart + j;
-    const outerB = topVertexStart + j + 1;
-    
-    // Face upward
-    indices.push(innerA, innerB, outerA);
-    indices.push(innerB, outerB, outerA);
+  // Top face: fan from center to outer ring (facing up)
+  for (let s = 0; s < segmentsForWedge; s++) {
+    const a = topCenterIdx;
+    const b = topRingStart + s;
+    const c = topRingStart + s + 1;
+    indices.push(a, b, c); // Normal pointing +Y (up)
   }
   
-  // Connect outer surface top ring to the top rim outer vertices
-  const outerTopRing = outerVertexStart + rings * (halfSegments + 1);
-  for (let j = 0; j < halfSegments; j++) {
-    const surfaceA = outerTopRing + j;
-    const surfaceB = outerTopRing + j + 1;
-    const rimA = topVertexStart + j;
-    const rimB = topVertexStart + j + 1;
+  // ========== CAVITY FLOOR (at y = 0, inside the mold) ==========
+  // This closes the bottom of the cavity
+  const cavityFloorCenterIdx = addVertex(0, 0, 0, 0.5, 0);
+  
+  // Get inner surface bottom ring (first ring of inner surface)
+  const innerBottomRingStart = innerSurfaceStart; // First row of inner surface
+  
+  // Create floor ring at cavity floor level
+  const cavityFloorRingStart = vertices.length / 3;
+  for (let s = 0; s <= segmentsForWedge; s++) {
+    const u = s / segmentsForWedge;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const thetaRaw = theta - splitRotation;
     
-    indices.push(surfaceA, rimA, surfaceB);
-    indices.push(surfaceB, rimA, rimB);
+    // Get body radius at bottom
+    let radius = getBodyRadius(params, 0, thetaRaw, { 
+      scale: SCALE, 
+      objectType,
+      includeTwist: true 
+    });
+    radius += offset;
+    
+    const x = Math.cos(theta) * radius;
+    const z = Math.sin(theta) * radius;
+    addVertex(x, 0, z, u, 0);
   }
   
-  // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
-  // These close the left and right edges of the half-mold from top to bottom
-  // With solid base, the split faces go from center -> innerBottom (y=0) -> outerBottom -> base outer
+  // Cavity floor: fan from center to inner ring (facing up into cavity)
+  for (let s = 0; s < segmentsForWedge; s++) {
+    const a = cavityFloorCenterIdx;
+    const b = cavityFloorRingStart + s;
+    const c = cavityFloorRingStart + s + 1;
+    indices.push(a, b, c); // Normal pointing +Y (up into cavity)
+  }
   
-  // Left split edge indices
-  const leftInnerBottom = innerBottomRing[0];
-  const leftOuterBottom = outerVertexStart;
-  const leftBaseOuter = bottomOuterRingStart;
-  const leftInnerTop = innerTopRing[0];
-  const leftOuterTop = outerTopRing;
-  const leftRimOuter = topVertexStart;
+  // ========== TOP CAVITY OPENING (rim at top of cavity) ==========
+  // This creates the horizontal rim surface between cavity opening and mold outer surface
   
-  // Right split edge indices
-  const rightInnerBottom = innerBottomRing[halfSegments];
-  const rightOuterBottom = outerVertexStart + halfSegments;
-  const rightBaseOuter = bottomOuterRingStart + halfSegments;
-  const rightInnerTop = innerTopRing[halfSegments];
-  const rightOuterTop = outerTopRing + halfSegments;
-  const rightRimOuter = topVertexStart + halfSegments;
+  // Get inner surface top ring (last row of inner surface)
+  const innerTopRingOffset = heightSegments * (segmentsForWedge + 1);
   
-  // LEFT SPLIT FACE - Full vertical wall from base to rim
-  // Bottom section: center -> innerBottom (cavity at y=0) -> outerBottom (outer at y=0) -> baseOuter (at y=-baseThickness)
-  // Triangle from center to inner cavity bottom
-  indices.push(baseCenterStart, leftBaseOuter, leftInnerBottom);
+  // Create rim ring at top (y = height)
+  const rimInnerStart = vertices.length / 3;
+  for (let s = 0; s <= segmentsForWedge; s++) {
+    const innerIdx = innerSurfaceStart + innerTopRingOffset + s;
+    const x = vertices[innerIdx * 3];
+    const z = vertices[innerIdx * 3 + 2];
+    addVertex(x, height, z, s / segmentsForWedge, 0.9);
+  }
   
-  // Quad from inner cavity (y=0) to outer wall (y=0)
-  indices.push(leftInnerBottom, leftBaseOuter, leftOuterBottom);
+  // Outer rim at cavity height
+  const rimOuterStart = vertices.length / 3;
+  for (let s = 0; s <= segmentsForWedge; s++) {
+    const u = s / segmentsForWedge;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const x = Math.cos(theta) * outerRadius;
+    const z = Math.sin(theta) * outerRadius;
+    addVertex(x, height, z, u, 1);
+  }
   
-  // Cavity bottom to cavity top: innerBottom -> innerTop, outerBottom -> outerTop (main wall)
-  for (let i = 0; i < rings; i++) {
-    const innerA = innerVertexStart + i * (halfSegments + 1);
-    const innerB = innerVertexStart + (i + 1) * (halfSegments + 1);
-    const outerA = outerVertexStart + i * (halfSegments + 1);
-    const outerB = outerVertexStart + (i + 1) * (halfSegments + 1);
+  // Rim surface (horizontal, facing up, between cavity and outer wall)
+  // We need a vertical wall from cavity top to mold top, not a horizontal rim
+  // Actually, the cavity extends to height, and mold extends to moldTotalHeight
+  // The area between needs to be filled
+  
+  // Inner vertical wall from cavity top (height) to mold top (moldTotalHeight)
+  const innerTopWallBottomStart = vertices.length / 3;
+  for (let s = 0; s <= segmentsForWedge; s++) {
+    const u = s / segmentsForWedge;
+    const theta = adjustedStartAngle + u * angleSpan;
+    const thetaRaw = theta - splitRotation;
     
-    // Quad from inner edge to outer edge
+    let radius = getBodyRadius(params, 1.0, thetaRaw, { 
+      scale: SCALE, 
+      objectType,
+      includeTwist: true 
+    });
+    radius += offset;
+    
+    addVertex(Math.cos(theta) * radius, height, Math.sin(theta) * radius, u, 0);
+    addVertex(Math.cos(theta) * radius, moldTotalHeight, Math.sin(theta) * radius, u, 1);
+  }
+  
+  // Inner top wall surface (vertical wall around cavity opening)
+  for (let s = 0; s < segmentsForWedge; s++) {
+    const bottomA = innerTopWallBottomStart + s * 2;
+    const topA = innerTopWallBottomStart + s * 2 + 1;
+    const bottomB = innerTopWallBottomStart + (s + 1) * 2;
+    const topB = innerTopWallBottomStart + (s + 1) * 2 + 1;
+    
+    // Facing inward (into cavity) - reversed winding
+    indices.push(bottomA, bottomB, topA);
+    indices.push(topA, bottomB, topB);
+  }
+  
+  // Top surface: connect inner top wall top to outer top ring
+  for (let s = 0; s < segmentsForWedge; s++) {
+    const innerA = innerTopWallBottomStart + s * 2 + 1;
+    const innerB = innerTopWallBottomStart + (s + 1) * 2 + 1;
+    const outerA = topRingStart + s;
+    const outerB = topRingStart + s + 1;
+    
     indices.push(innerA, outerA, innerB);
     indices.push(innerB, outerA, outerB);
   }
   
-  // Top section: innerTop -> outerTop -> rimOuter
-  indices.push(leftInnerTop, leftOuterTop, leftRimOuter);
-  
-  // RIGHT SPLIT FACE - Full vertical wall from base to rim (opposite winding)
-  // Triangle from center to inner cavity bottom
-  indices.push(baseCenterStart, rightInnerBottom, rightBaseOuter);
-  
-  // Quad from inner cavity (y=0) to outer wall (y=0)
-  indices.push(rightInnerBottom, rightOuterBottom, rightBaseOuter);
-  
-  // Cavity bottom to cavity top (main wall)
-  for (let i = 0; i < rings; i++) {
-    const innerA = innerVertexStart + i * (halfSegments + 1) + halfSegments;
-    const innerB = innerVertexStart + (i + 1) * (halfSegments + 1) + halfSegments;
-    const outerA = outerVertexStart + i * (halfSegments + 1) + halfSegments;
-    const outerB = outerVertexStart + (i + 1) * (halfSegments + 1) + halfSegments;
-    
-    // Quad from inner edge to outer edge (opposite winding)
-    indices.push(innerA, innerB, outerA);
-    indices.push(innerB, outerB, outerA);
-  }
-  
-  // Top section
-  indices.push(rightInnerTop, rightRimOuter, rightOuterTop);
+  // Build geometry
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
@@ -607,106 +612,106 @@ function generateBaseMoldHalf(
 }
 
 /**
- * Generate a single mold half with registration keys and pour hole
+ * Add CSG features (keys, pour hole, vents) to a wedge mold part
  */
-function generateMoldHalf(
+function addMoldPartFeatures(
+  baseGeometry: THREE.BufferGeometry,
   params: ParametricParams,
   moldParams: MoldParams,
-  isHalfA: boolean,
+  startAngle: number,
+  endAngle: number,
+  partIndex: number,
+  totalParts: number,
   objectType: ObjectType
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
+  const wallThickness = moldParams.wallThickness * SCALE;
   const offset = moldParams.offset * SCALE;
+  const moldTotalHeight = height + wallThickness;
+  const splitRotation = moldParams.splitAngle * Math.PI / 180;
+  const adjustedStartAngle = startAngle + splitRotation;
+  const adjustedEndAngle = endAngle + splitRotation;
   
-  // Get max radius using shared generator
   const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
-  const outerRadius = maxBodyRadius + moldParams.wallThickness * SCALE;
-  const innerRadius = maxBodyRadius + offset;
-  // Key depth should be proportional to wall thickness to stay within mold body
+  const outerRadius = maxBodyRadius + wallThickness;
+  
+  // Key positioning: midpoint of wall for structural integrity
+  const keyRadius = (maxBodyRadius + offset + outerRadius) / 2;
   const keyDepth = Math.min(moldParams.registrationKeySize * 1.5, moldParams.wallThickness * 0.6);
   
-  // Generate base mold geometry
-  const baseGeometry = generateBaseMoldHalf(params, moldParams, isHalfA, objectType);
-  
-  // Try CSG operations, fall back to base geometry if they fail
   try {
     const evaluator = new Evaluator();
     let resultBrush = new Brush(baseGeometry);
     resultBrush.updateMatrixWorld();
     
-    // Calculate key positions along the height
+    // Calculate key positions
     const keyPositions = calculateKeyPositions(
       params.height,
       moldParams.registrationKeyCount,
       moldParams.baseThickness
     );
     
-    // Position keys on the split face (where the two halves meet)
-    const splitRotation = moldParams.splitAngle * Math.PI / 180;
-    
-    // For each key position, add or subtract key geometry
+    // Add registration keys
     for (const yPos of keyPositions) {
       const y = yPos * SCALE;
       
-      // Keys are positioned at the midpoint between inner and outer radius on split face
-      const keyRadius = (innerRadius + outerRadius) / 2;
+      // Left edge: this part has PEGS
+      // Keys are tangential - they point along the split face, not radially
+      const leftKeyPos = new THREE.Vector3(
+        Math.cos(adjustedStartAngle) * keyRadius,
+        y,
+        Math.sin(adjustedStartAngle) * keyRadius
+      );
       
-      // Two keys per height - one on each split edge (left and right of the half)
-      const keyPositionsXZ = [
-        // Left edge of split
-        { x: Math.cos(splitRotation) * keyRadius, z: Math.sin(splitRotation) * keyRadius, angle: splitRotation },
-        // Right edge of split  
-        { x: Math.cos(splitRotation + Math.PI) * keyRadius, z: Math.sin(splitRotation + Math.PI) * keyRadius, angle: splitRotation + Math.PI },
-      ];
+      const leftKeyBrush = createRegistrationKeyBrush(
+        moldParams.registrationKeySize,
+        keyDepth,
+        leftKeyPos,
+        false, // peg (protrusion)
+        adjustedStartAngle // Tangential orientation at this angle
+      );
+      resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
       
-      for (const pos of keyPositionsXZ) {
-        const keyPos = new THREE.Vector3(pos.x, y, pos.z);
-        
-        // Half A gets pegs (protrusions), Half B gets sockets (indentations)
-        const isSocket = !isHalfA;
-        // Pegs point INTO the other half (add PI to flip direction)
-        // Sockets point outward to receive the other half's pegs
-        const keyAngle = isHalfA ? pos.angle + Math.PI : pos.angle;
-        
-        const keyBrush = createRegistrationKeyBrush(
-          moldParams.registrationKeySize,
-          keyDepth,
-          keyPos,
-          isSocket,
-          keyAngle
-        );
-        
-        if (isHalfA) {
-          // Add pegs to half A
-          resultBrush = evaluator.evaluate(resultBrush, keyBrush, ADDITION);
-        } else {
-          // Subtract sockets from half B
-          resultBrush = evaluator.evaluate(resultBrush, keyBrush, SUBTRACTION);
-        }
-      }
+      // Right edge: this part has SOCKETS
+      const rightKeyPos = new THREE.Vector3(
+        Math.cos(adjustedEndAngle) * keyRadius,
+        y,
+        Math.sin(adjustedEndAngle) * keyRadius
+      );
+      
+      const rightKeyBrush = createRegistrationKeyBrush(
+        moldParams.registrationKeySize,
+        keyDepth,
+        rightKeyPos,
+        true, // socket (indentation)
+        adjustedEndAngle
+      );
+      resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
     
-    // Add pour hole at the top - must go through wall into cavity
-    // Depth needs to penetrate wall thickness plus some margin into cavity space
-    const pourHoleDepth = moldParams.wallThickness + 10;
-    const pourHoleBrush = createPourHoleBrush(
-      moldParams.pourHoleDiameter,
-      pourHoleDepth,
-      height
-    );
+    // Pour hole - only on first part (or whichever contains the center)
+    if (partIndex === 0) {
+      const pourHoleDepth = moldParams.wallThickness + 10;
+      const pourHoleBrush = createPourHoleBrush(
+        moldParams.pourHoleDiameter,
+        pourHoleDepth,
+        moldTotalHeight / SCALE,
+        moldParams.pourHoleTaper || 15
+      );
+      resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
+    }
     
-    resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
-    
-    // Add vent holes if enabled
+    // Vent holes if enabled
     if (moldParams.ventHolesEnabled && moldParams.ventHoleCount > 0) {
       const ventY = height * moldParams.ventHolePosition;
       const ventDepth = moldParams.wallThickness + 5;
-      const ventAngleStep = Math.PI / moldParams.ventHoleCount;
+      const angleSpan = endAngle - startAngle;
+      const ventsPerPart = Math.ceil(moldParams.ventHoleCount / totalParts);
+      const ventAngleStep = angleSpan / (ventsPerPart + 1);
       
-      for (let i = 0; i < moldParams.ventHoleCount; i++) {
-        // Position vents on the back side of each half (opposite pour hole)
-        const ventAngle = splitRotation + Math.PI / 2 + ventAngleStep * i - (Math.PI / 4);
-        const ventRadius = outerRadius - moldParams.wallThickness * SCALE * 0.5;
+      for (let i = 1; i <= ventsPerPart; i++) {
+        const ventAngle = adjustedStartAngle + ventAngleStep * i;
+        const ventRadius = outerRadius - wallThickness * 0.5;
         
         const ventPos = new THREE.Vector3(
           Math.cos(ventAngle) * ventRadius,
@@ -719,733 +724,14 @@ function generateMoldHalf(
           ventDepth,
           ventPos,
           -Math.PI / 6, // Upward tilt
-          ventAngle     // Radial direction
+          ventAngle
         );
         
         resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
       }
     }
     
-    // Add spare collar if enabled
-    if (moldParams.spareEnabled && moldParams.spareHeight > 0) {
-      const spareDiameter = moldParams.spareDiameter > 0 
-        ? moldParams.spareDiameter 
-        : moldParams.pourHoleDiameter * 1.5;
-      
-      const spareBrush = createSpareCollarBrush(
-        moldParams.pourHoleDiameter,
-        spareDiameter,
-        moldParams.spareHeight,
-        height
-      );
-      
-      resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
-    }
-    
-    // Add strap notches if enabled
-    if (moldParams.strapNotchesEnabled && moldParams.strapNotchCount > 0) {
-      const notchY = height * 0.5; // Center of mold
-      const moldOuterRadius = (outerRadius / SCALE) + moldParams.wallThickness;
-      const notchAngleStep = Math.PI / moldParams.strapNotchCount;
-      
-      for (let i = 0; i < moldParams.strapNotchCount; i++) {
-        const notchAngle = splitRotation + Math.PI / 2 + notchAngleStep * i;
-        
-        const notchBrush = createStrapNotchBrush(
-          moldParams.strapNotchWidth,
-          moldParams.strapNotchDepth,
-          moldOuterRadius,
-          notchY / SCALE,
-          notchAngle
-        );
-        
-        resultBrush = evaluator.evaluate(resultBrush, notchBrush, SUBTRACTION);
-      }
-    }
-    
-    // Get the final geometry
-    const finalGeometry = resultBrush.geometry;
-    finalGeometry.computeVertexNormals();
-    
-    return finalGeometry;
-  } catch (error) {
-    console.error('CSG operations failed for mold half:', {
-      error,
-      params: {
-        height: params.height,
-        wallThickness: moldParams.wallThickness,
-        pourHoleDiameter: moldParams.pourHoleDiameter,
-        keyCount: moldParams.registrationKeyCount,
-      }
-    });
-    // Return base geometry without CSG modifications
-    return baseGeometry;
-  }
-}
-
-/**
- * Generate both mold halves (legacy 2-part function)
- */
-export function generateMoldGeometry(
-  params: ParametricParams,
-  objectType: ObjectType
-): MoldGeometry {
-  const moldParams: MoldParams = {
-    wallThickness: params.moldWallThickness,
-    baseThickness: params.moldBaseThickness,
-    pourHoleDiameter: params.moldPourHoleDiameter,
-    registrationKeySize: params.moldRegistrationKeySize,
-    registrationKeyCount: params.moldRegistrationKeyCount,
-    splitAngle: params.moldSplitAngle,
-    draftAngle: params.moldDraftAngle,
-    gap: params.moldGap,
-    offset: params.moldOffset ?? 0.5,
-    ventHolesEnabled: params.moldVentHolesEnabled ?? false,
-    ventHoleCount: params.moldVentHoleCount ?? 4,
-    ventHoleDiameter: params.moldVentHoleDiameter ?? 3,
-    ventHolePosition: params.moldVentHolePosition ?? 0.8,
-    spareEnabled: params.moldSpareEnabled ?? false,
-    spareHeight: params.moldSpareHeight ?? 20,
-    spareDiameter: params.moldSpareDiameter ?? 0,
-    strapNotchesEnabled: params.moldStrapNotchesEnabled ?? false,
-    strapNotchCount: params.moldStrapNotchCount ?? 2,
-    strapNotchWidth: params.moldStrapNotchWidth ?? 12,
-    strapNotchDepth: params.moldStrapNotchDepth ?? 4,
-  };
-  
-  const halfA = generateMoldHalf(params, moldParams, true, objectType);
-  const halfB = generateMoldHalf(params, moldParams, false, objectType);
-  
-  return { halfA, halfB };
-}
-
-/**
- * Generate multi-part mold geometry (2, 3, or 4 parts)
- * Supports both equal angular division and geometry-based automatic splitting
- */
-export function generateMultiPartMoldGeometry(
-  params: ParametricParams,
-  objectType: ObjectType
-): MultiPartMoldGeometry {
-  const partCount = params.moldPartCount || 2;
-  const partAngles: number[] = [];
-  const parts: THREE.BufferGeometry[] = [];
-  
-  // Determine split angles based on mode
-  let splitAngles: number[];
-  
-  if (params.moldAutoSplit) {
-    // Use geometry-based optimal splitting
-    const optimalSplits = calculateOptimalSplits(params, objectType, partCount);
-    splitAngles = optimalSplits.splitAngles;
-    
-    // Ensure we have the right number of splits
-    while (splitAngles.length < partCount) {
-      // Add equally-spaced angles where needed
-      const nextAngle = (splitAngles.length / partCount) * Math.PI * 2;
-      splitAngles.push(nextAngle);
-    }
-    splitAngles = splitAngles.slice(0, partCount);
-  } else if (params.moldSplitAngles && params.moldSplitAngles.length >= partCount) {
-    // Use manual override
-    splitAngles = params.moldSplitAngles.slice(0, partCount);
-  } else {
-    // Default to equal angular division
-    splitAngles = [];
-    for (let i = 0; i < partCount; i++) {
-      splitAngles.push((i / partCount) * Math.PI * 2);
-    }
-  }
-  
-  // Sort split angles
-  splitAngles.sort((a, b) => a - b);
-  
-  const moldParams: MoldParams = {
-    wallThickness: params.moldWallThickness,
-    baseThickness: params.moldBaseThickness,
-    pourHoleDiameter: params.moldPourHoleDiameter,
-    registrationKeySize: params.moldRegistrationKeySize,
-    registrationKeyCount: params.moldRegistrationKeyCount,
-    splitAngle: params.moldSplitAngle,
-    draftAngle: params.moldDraftAngle,
-    gap: params.moldGap,
-    offset: params.moldOffset ?? 0.5,
-    ventHolesEnabled: params.moldVentHolesEnabled ?? false,
-    ventHoleCount: params.moldVentHoleCount ?? 4,
-    ventHoleDiameter: params.moldVentHoleDiameter ?? 3,
-    ventHolePosition: params.moldVentHolePosition ?? 0.8,
-    spareEnabled: params.moldSpareEnabled ?? false,
-    spareHeight: params.moldSpareHeight ?? 20,
-    spareDiameter: params.moldSpareDiameter ?? 0,
-    strapNotchesEnabled: params.moldStrapNotchesEnabled ?? false,
-    strapNotchCount: params.moldStrapNotchCount ?? 2,
-    strapNotchWidth: params.moldStrapNotchWidth ?? 12,
-    strapNotchDepth: params.moldStrapNotchDepth ?? 4,
-  };
-  
-  // Generate each part with potentially variable angular spans
-  for (let i = 0; i < partCount; i++) {
-    const startAngle = splitAngles[i];
-    const nextIndex = (i + 1) % partCount;
-    let endAngle = splitAngles[nextIndex];
-    
-    // Handle wrap-around for last part
-    if (endAngle <= startAngle) {
-      endAngle += Math.PI * 2;
-    }
-    
-    partAngles.push(startAngle);
-    
-    const partGeometry = generateMoldPart(
-      params,
-      moldParams,
-      startAngle,
-      endAngle,
-      i,
-      partCount,
-      objectType
-    );
-    parts.push(partGeometry);
-  }
-  
-  return { parts, partAngles };
-}
-
-/**
- * Generate base geometry for a single mold part (without CSG features)
- */
-function generateBaseMoldPart(
-  params: ParametricParams,
-  moldParams: MoldParams,
-  startAngle: number,
-  endAngle: number,
-  objectType: ObjectType
-): THREE.BufferGeometry {
-  const height = params.height * SCALE;
-  const wallThickness = moldParams.wallThickness * SCALE;
-  const baseThickness = moldParams.baseThickness * SCALE;
-  const offset = moldParams.offset * SCALE;
-  const segments = 48;
-  const rings = 64;
-  
-  const splitRotation = moldParams.splitAngle * Math.PI / 180;
-  const adjustedStartAngle = startAngle + splitRotation;
-  const adjustedEndAngle = endAngle + splitRotation;
-  const angleSpan = endAngle - startAngle;
-  
-  const vertices: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  
-  // Calculate segments for this part (proportional to angle)
-  const partSegments = Math.floor(segments * (angleSpan / (Math.PI * 2)));
-  
-  // Calculate max body radius for outer mold bounds
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
-  const outerRadius = maxBodyRadius + wallThickness;
-  
-  // Generate inner surface (cavity)
-  const innerVertexStart = vertices.length / 3;
-  for (let i = 0; i <= rings; i++) {
-    const t = i / rings;
-    const y = t * height;
-    // Draft angle offset - cavity EXPANDS toward the TOP (opening) for easier demolding
-    const draftOffset = t * Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
-    
-    for (let j = 0; j <= partSegments; j++) {
-      const u = j / partSegments;
-      const theta = adjustedStartAngle + u * angleSpan;
-      const thetaRaw = theta - splitRotation;
-      
-      let radius = getBodyRadius(params, t, thetaRaw, { 
-        scale: SCALE, 
-        objectType,
-        includeTwist: true 
-      });
-      radius += offset + draftOffset * 0.5;
-      
-      const x = Math.cos(theta) * radius;
-      const z = Math.sin(theta) * radius;
-      
-      vertices.push(x, y, z);
-      uvs.push(u, t);
-    }
-  }
-  
-  // Top wall thickness - extends mold above cavity to provide material for pour hole
-  const topWallThickness = wallThickness;
-  const moldTotalHeight = height + topWallThickness;
-  
-  // Generate outer surface - extends to moldTotalHeight (above cavity)
-  const outerVertexStart = vertices.length / 3;
-  const outerRings = rings + Math.ceil(rings * (topWallThickness / height)); // Extra rings for top wall
-  for (let i = 0; i <= outerRings; i++) {
-    const t = i / outerRings;
-    const y = t * moldTotalHeight;
-    
-    for (let j = 0; j <= partSegments; j++) {
-      const u = j / partSegments;
-      const theta = adjustedStartAngle + u * angleSpan;
-      
-      const x = Math.cos(theta) * outerRadius;
-      const z = Math.sin(theta) * outerRadius;
-      
-      vertices.push(x, y, z);
-      uvs.push(u + 1, t);
-    }
-  }
-  
-  // Inner surface indices (facing outward - into the mold solid, away from cavity)
-  for (let i = 0; i < rings; i++) {
-    for (let j = 0; j < partSegments; j++) {
-      const a = innerVertexStart + i * (partSegments + 1) + j;
-      const b = a + partSegments + 1;
-      const c = a + 1;
-      const d = b + 1;
-      
-      // Reversed winding for outward-facing normals
-      indices.push(a, c, b);
-      indices.push(c, d, b);
-    }
-  }
-  
-  // Outer surface indices
-  for (let i = 0; i < outerRings; i++) {
-    for (let j = 0; j < partSegments; j++) {
-      const a = outerVertexStart + i * (partSegments + 1) + j;
-      const b = a + partSegments + 1;
-      const c = a + 1;
-      const d = b + 1;
-      
-      indices.push(a, c, b);
-      indices.push(c, d, b);
-    }
-  }
-  
-  // Split faces (left and right edges)
-  const leftEdgeInner: number[] = [];
-  const leftEdgeOuter: number[] = [];
-  const rightEdgeInner: number[] = [];
-  const rightEdgeOuter: number[] = [];
-  
-  for (let i = 0; i <= rings; i++) {
-    leftEdgeInner.push(innerVertexStart + i * (partSegments + 1));
-    leftEdgeOuter.push(outerVertexStart + i * (partSegments + 1));
-    rightEdgeInner.push(innerVertexStart + i * (partSegments + 1) + partSegments);
-    rightEdgeOuter.push(outerVertexStart + i * (partSegments + 1) + partSegments);
-  }
-  
-  // Left split face
-  for (let i = 0; i < rings; i++) {
-    const a = leftEdgeInner[i];
-    const b = leftEdgeInner[i + 1];
-    const c = leftEdgeOuter[i];
-    const d = leftEdgeOuter[i + 1];
-    
-    indices.push(a, b, c);
-    indices.push(b, d, c);
-  }
-  
-  // Right split face
-  for (let i = 0; i < rings; i++) {
-    const a = rightEdgeInner[i];
-    const b = rightEdgeInner[i + 1];
-    const c = rightEdgeOuter[i];
-    const d = rightEdgeOuter[i + 1];
-    
-    indices.push(a, c, b);
-    indices.push(b, c, d);
-  }
-  
-  // ========== BOTTOM FACE (BASE) - SOLID FLAT ==========
-  // The mold base should be completely solid with a flat cavity floor
-  
-  // Calculate the maximum cavity radius at the bottom (t=0) for all angles in this part
-  // This ensures a flat floor that can contain the widest part of the base
-  let maxCavityRadiusAtBottom = 0;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    const thetaRaw = theta - splitRotation;
-    const draftOffset = Math.tan(moldParams.draftAngle * Math.PI / 180) * height;
-    let cavityRadius = getBodyRadius(params, 0, thetaRaw, { 
-      scale: SCALE, 
-      objectType,
-      includeTwist: true 
-    });
-    cavityRadius += offset + draftOffset * 0.5;
-    maxCavityRadiusAtBottom = Math.max(maxCavityRadiusAtBottom, cavityRadius);
-  }
-  
-  // Store the original inner bottom ring vertex indices (these follow the body profile)
-  const innerBottomRing: number[] = [];
-  for (let j = 0; j <= partSegments; j++) {
-    innerBottomRing.push(innerVertexStart + j);
-  }
-  
-  // Create a flat cavity floor ring at y=0 with uniform radius (maxCavityRadiusAtBottom)
-  const flatFloorRingStart = vertices.length / 3;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    const x = Math.cos(theta) * maxCavityRadiusAtBottom;
-    const z = Math.sin(theta) * maxCavityRadiusAtBottom;
-    vertices.push(x, 0, z);
-    uvs.push(u, 0);
-  }
-  
-  // Create center point at y=0 for the flat cavity floor
-  const floorCenterStart = vertices.length / 3;
-  vertices.push(0, 0, 0);
-  uvs.push(0.5, 0);
-  
-  // Flat cavity floor: fan from center to flat floor ring at y=0
-  // This creates a completely flat horizontal surface
-  for (let j = 0; j < partSegments; j++) {
-    const a = floorCenterStart;
-    const b = flatFloorRingStart + j;
-    const c = flatFloorRingStart + j + 1;
-    indices.push(a, b, c); // Face upward (normal pointing +Y) - looking into the cavity
-  }
-  
-  // Vertical cavity wall: connect the flat floor ring to the inner body profile at y=0
-  // This creates a small step where the flat floor meets the profiled cavity wall
-  for (let j = 0; j < partSegments; j++) {
-    const floorA = flatFloorRingStart + j;
-    const floorB = flatFloorRingStart + j + 1;
-    const profileA = innerBottomRing[j];
-    const profileB = innerBottomRing[j + 1];
-    
-    // Vertical/angled wall from flat floor to body profile
-    indices.push(floorA, profileA, floorB);
-    indices.push(floorB, profileA, profileB);
-  }
-  
-  // Outer ring at base bottom level (y = -baseThickness)
-  const bottomOuterRingStart = vertices.length / 3;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    const x = Math.cos(theta) * outerRadius;
-    const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, -baseThickness, z);
-    uvs.push(u, -0.1);
-  }
-  
-  // Center point at base bottom level
-  const baseCenterStart = vertices.length / 3;
-  vertices.push(0, -baseThickness, 0);
-  uvs.push(0.5, -0.1);
-  
-  // Solid base bottom: fan from center to outer ring at y=-baseThickness
-  for (let j = 0; j < partSegments; j++) {
-    const a = baseCenterStart;
-    const b = bottomOuterRingStart + j;
-    const c = bottomOuterRingStart + j + 1;
-    indices.push(a, c, b); // Face downward (normal pointing -Y)
-  }
-  
-  // Outer ring at floor level (y=0) for connecting outer wall
-  const outerRingAtFloorStart = vertices.length / 3;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    const x = Math.cos(theta) * outerRadius;
-    const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, 0, z);
-    uvs.push(u, 0);
-  }
-  
-  // Horizontal ring between cavity floor and outer wall at y=0
-  // This connects the flat floor ring to the outer ring
-  for (let j = 0; j < partSegments; j++) {
-    const innerA = flatFloorRingStart + j;
-    const innerB = flatFloorRingStart + j + 1;
-    const outerA = outerRingAtFloorStart + j;
-    const outerB = outerRingAtFloorStart + j + 1;
-    
-    // Horizontal surface facing down (bottom of the mold solid, above the base)
-    indices.push(innerA, outerA, innerB);
-    indices.push(innerB, outerA, outerB);
-  }
-  
-  // Vertical inner base wall from y=0 down to y=-baseThickness
-  for (let j = 0; j < partSegments; j++) {
-    const topA = outerRingAtFloorStart + j;
-    const topB = outerRingAtFloorStart + j + 1;
-    const bottomA = bottomOuterRingStart + j;
-    const bottomB = bottomOuterRingStart + j + 1;
-    
-    // Vertical wall facing inward
-    indices.push(topA, topB, bottomA);
-    indices.push(topB, bottomB, bottomA);
-  }
-  
-  // Connect outer surface bottom to outer base ring
-  for (let j = 0; j < partSegments; j++) {
-    const topOuter = outerVertexStart + j;
-    const topOuterNext = outerVertexStart + j + 1;
-    const bottomOuter = bottomOuterRingStart + j;
-    const bottomOuterNext = bottomOuterRingStart + j + 1;
-    
-    indices.push(topOuter, bottomOuter, topOuterNext);
-    indices.push(topOuterNext, bottomOuter, bottomOuterNext);
-  }
-  
-  // Inner cavity top ring (at cavity height)
-  const innerTopRing: number[] = [];
-  for (let j = 0; j <= partSegments; j++) {
-    innerTopRing.push(innerVertexStart + rings * (partSegments + 1) + j);
-  }
-  
-  // ========== TOP WALL GEOMETRY ==========
-  // Create inner vertical wall from cavity top (height) to mold top (moldTotalHeight)
-  const innerTopWallStart = vertices.length / 3;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    
-    // Get cavity radius at top
-    const thetaRaw = theta - splitRotation;
-    let cavityRadius = getBodyRadius(params, 1.0, thetaRaw, { 
-      scale: SCALE, 
-      objectType,
-      includeTwist: true 
-    });
-    cavityRadius += offset;
-    
-    // Bottom of top wall (at cavity height)
-    vertices.push(Math.cos(theta) * cavityRadius, height, Math.sin(theta) * cavityRadius);
-    uvs.push(u, 1.0);
-    
-    // Top of top wall (at mold total height) - same radius, creates vertical wall
-    vertices.push(Math.cos(theta) * cavityRadius, moldTotalHeight, Math.sin(theta) * cavityRadius);
-    uvs.push(u, 1.1);
-  }
-  
-  // Inner top wall surface (vertical wall around cavity opening)
-  for (let j = 0; j < partSegments; j++) {
-    const bottomA = innerTopWallStart + j * 2;
-    const topA = innerTopWallStart + j * 2 + 1;
-    const bottomB = innerTopWallStart + (j + 1) * 2;
-    const topB = innerTopWallStart + (j + 1) * 2 + 1;
-    
-    // Facing inward (into cavity)
-    indices.push(bottomA, topA, bottomB);
-    indices.push(topA, topB, bottomB);
-  }
-  
-  // ========== TOP SURFACE (SOLID CAP AT MOLD TOP) ==========
-  // Outer ring at mold top height
-  const topOuterRingStart = vertices.length / 3;
-  for (let j = 0; j <= partSegments; j++) {
-    const u = j / partSegments;
-    const theta = adjustedStartAngle + u * angleSpan;
-    const x = Math.cos(theta) * outerRadius;
-    const z = Math.sin(theta) * outerRadius;
-    vertices.push(x, moldTotalHeight, z);
-    uvs.push(u, 1.2);
-  }
-  
-  // Inner ring at mold top (reuse the top vertices from top wall)
-  // Connect outer top ring to inner top ring (the top of the vertical wall)
-  for (let j = 0; j < partSegments; j++) {
-    const outerA = topOuterRingStart + j;
-    const outerB = topOuterRingStart + j + 1;
-    const innerA = innerTopWallStart + j * 2 + 1; // Top vertex of inner wall
-    const innerB = innerTopWallStart + (j + 1) * 2 + 1;
-    
-    // Top surface facing up
-    indices.push(outerA, innerA, outerB);
-    indices.push(outerB, innerA, innerB);
-  }
-  
-  // ========== TOP CENTER CAP - Fills center for pour hole CSG ==========
-  // Add a solid cap from inner top ring to center at mold top height
-  const topCenterStart = vertices.length / 3;
-  vertices.push(0, moldTotalHeight, 0);
-  uvs.push(0.5, 1.0);
-  
-  // Create triangular fan from center to inner top ring at mold top (facing up)
-  for (let j = 0; j < partSegments; j++) {
-    const innerA = innerTopWallStart + j * 2 + 1;
-    const innerB = innerTopWallStart + (j + 1) * 2 + 1;
-    indices.push(topCenterStart, innerA, innerB);
-  }
-  
-  // Connect outer surface top to top outer ring
-  const outerSurfaceTopRing = outerVertexStart + outerRings * (partSegments + 1);
-  for (let j = 0; j < partSegments; j++) {
-    const surfaceA = outerSurfaceTopRing + j;
-    const surfaceB = outerSurfaceTopRing + j + 1;
-    const topA = topOuterRingStart + j;
-    const topB = topOuterRingStart + j + 1;
-    
-    indices.push(surfaceA, topA, surfaceB);
-    indices.push(surfaceB, topA, topB);
-  }
-  
-  // ========== SPLIT FACE CLOSURES - FULL VERTICAL WALLS ==========
-  // With solid base, split faces go from center -> innerBottom (y=0) -> outerBottom -> base outer
-  
-  const leftInnerBottom = innerBottomRing[0];
-  const leftOuterBottom = outerVertexStart;
-  const leftBaseOuter = bottomOuterRingStart;
-  const leftInnerTop = innerTopRing[0];
-  const leftRimOuter = topOuterRingStart;
-  
-  const rightInnerBottom = innerBottomRing[partSegments];
-  const rightOuterBottom = outerVertexStart + partSegments;
-  const rightBaseOuter = bottomOuterRingStart + partSegments;
-  const rightInnerTop = innerTopRing[partSegments];
-  const rightRimOuter = topOuterRingStart + partSegments;
-  
-  // Left split face closure
-  // Triangle from center to inner cavity bottom
-  indices.push(baseCenterStart, leftBaseOuter, leftInnerBottom);
-  // Quad from inner cavity (y=0) to outer wall (y=0)
-  indices.push(leftInnerBottom, leftBaseOuter, leftOuterBottom);
-  
-  for (let i = 0; i < rings; i++) {
-    const innerA = innerVertexStart + i * (partSegments + 1);
-    const innerB = innerVertexStart + (i + 1) * (partSegments + 1);
-    const outerA = outerVertexStart + i * (partSegments + 1);
-    const outerB = outerVertexStart + (i + 1) * (partSegments + 1);
-    
-    indices.push(innerA, outerA, innerB);
-    indices.push(innerB, outerA, outerB);
-  }
-  
-  indices.push(leftInnerTop, outerVertexStart + rings * (partSegments + 1), leftRimOuter);
-  
-  // Right split face closure
-  // Triangle from center to inner cavity bottom
-  indices.push(baseCenterStart, rightInnerBottom, rightBaseOuter);
-  // Quad from inner cavity (y=0) to outer wall (y=0)
-  indices.push(rightInnerBottom, rightOuterBottom, rightBaseOuter);
-  
-  for (let i = 0; i < rings; i++) {
-    const innerA = innerVertexStart + i * (partSegments + 1) + partSegments;
-    const innerB = innerVertexStart + (i + 1) * (partSegments + 1) + partSegments;
-    const outerA = outerVertexStart + i * (partSegments + 1) + partSegments;
-    const outerB = outerVertexStart + (i + 1) * (partSegments + 1) + partSegments;
-    
-    indices.push(innerA, innerB, outerA);
-    indices.push(innerB, outerB, outerA);
-  }
-  
-  indices.push(rightInnerTop, rightRimOuter, outerVertexStart + rings * (partSegments + 1) + partSegments);
-  
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  
-  return geometry;
-}
-
-/**
- * Generate a single mold part with CSG features (registration keys, pour hole, etc.)
- */
-function generateMoldPart(
-  params: ParametricParams,
-  moldParams: MoldParams,
-  startAngle: number,
-  endAngle: number,
-  partIndex: number,
-  totalParts: number,
-  objectType: ObjectType
-): THREE.BufferGeometry {
-  const height = params.height * SCALE;
-  const offset = moldParams.offset * SCALE;
-  const angleSpan = endAngle - startAngle;
-  const splitRotation = moldParams.splitAngle * Math.PI / 180;
-  const adjustedStartAngle = startAngle + splitRotation;
-  const adjustedEndAngle = endAngle + splitRotation;
-  
-  // Get max radius for key positioning
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
-  const outerRadius = maxBodyRadius + moldParams.wallThickness * SCALE;
-  const innerRadius = maxBodyRadius + offset;
-  // Key depth should be proportional to wall thickness to stay within mold body
-  const keyDepth = Math.min(moldParams.registrationKeySize * 1.5, moldParams.wallThickness * 0.6);
-  
-  // Generate base geometry
-  const baseGeometry = generateBaseMoldPart(params, moldParams, startAngle, endAngle, objectType);
-  
-  try {
-    const evaluator = new Evaluator();
-    let resultBrush = new Brush(baseGeometry);
-    resultBrush.updateMatrixWorld();
-    
-    // Calculate key positions along the height
-    const keyPositions = calculateKeyPositions(
-      params.height,
-      moldParams.registrationKeyCount,
-      moldParams.baseThickness
-    );
-    
-    // Position keys at the MIDPOINT of the mold wall for structural integrity
-    // This keeps keys fully contained within the mold body
-    const keyRadius = (innerRadius + outerRadius) / 2;
-    
-    for (const yPos of keyPositions) {
-      const y = yPos * SCALE;
-      
-      // Left edge: this part has pegs pointing INTO the previous part
-      // The peg needs to point in the OPPOSITE radial direction (inward toward previous part)
-      const leftAngle = adjustedStartAngle;
-      const leftKeyPos = new THREE.Vector3(
-        Math.cos(leftAngle) * keyRadius,
-        y,
-        Math.sin(leftAngle) * keyRadius
-      );
-      
-      // Peg points INTO adjacent part: add PI to flip direction (point toward previous part)
-      const leftKeyBrush = createRegistrationKeyBrush(
-        moldParams.registrationKeySize,
-        keyDepth,
-        leftKeyPos,
-        false, // peg (protrusion)
-        leftAngle + Math.PI // Point inward (into previous part)
-      );
-      resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
-      
-      // Right edge: this part has sockets to receive the NEXT part's pegs
-      // Socket faces outward to receive the next part's inward-pointing peg
-      const rightAngle = adjustedEndAngle;
-      const rightKeyPos = new THREE.Vector3(
-        Math.cos(rightAngle) * keyRadius,
-        y,
-        Math.sin(rightAngle) * keyRadius
-      );
-      
-      // Socket points outward to receive adjacent part's inward-pointing peg
-      const rightKeyBrush = createRegistrationKeyBrush(
-        moldParams.registrationKeySize,
-        keyDepth,
-        rightKeyPos,
-        true, // socket (indentation)
-        rightAngle // Point outward (to receive next part's peg)
-      );
-      resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
-    }
-    
-    // Add pour hole at top center - only on FIRST part to avoid duplication
-    // For multi-part molds, the pour hole should be central and contained in one piece
-    if (partIndex === 0) {
-      const pourHoleDepth = moldParams.wallThickness + 10;
-      const moldTopY = height + (moldParams.wallThickness * SCALE);
-      const pourHoleBrush = createPourHoleBrush(
-        moldParams.pourHoleDiameter,
-        pourHoleDepth,
-        moldTopY / SCALE // Convert back to mm for the brush function
-      );
-      resultBrush = evaluator.evaluate(resultBrush, pourHoleBrush, SUBTRACTION);
-    }
-    
-    // Add spare collar only on first part to avoid duplication
+    // Spare collar only on first part
     if (partIndex === 0 && moldParams.spareEnabled && moldParams.spareHeight > 0) {
       const spareDiameter = moldParams.spareDiameter > 0 
         ? moldParams.spareDiameter 
@@ -1455,66 +741,22 @@ function generateMoldPart(
         moldParams.pourHoleDiameter,
         spareDiameter,
         moldParams.spareHeight,
-        height
+        moldTotalHeight / SCALE
       );
+      
       resultBrush = evaluator.evaluate(resultBrush, spareBrush, ADDITION);
     }
     
-    // Add vent holes if enabled (distributed across parts based on angle)
-    if (moldParams.ventHolesEnabled && moldParams.ventHoleCount > 0) {
-      const ventY = height * moldParams.ventHolePosition;
-      const ventDepth = moldParams.wallThickness + 5;
-      
-      // Distribute vents evenly around the full 360°
-      const ventAngleStep = (Math.PI * 2) / moldParams.ventHoleCount;
-      
-      for (let i = 0; i < moldParams.ventHoleCount; i++) {
-        // Calculate vent angle in world space (offset by 0.5 to center in each segment)
-        const ventWorldAngle = splitRotation + ventAngleStep * (i + 0.5);
-        
-        // Check if this vent falls within this part's angular range
-        const normalizedVentAngle = ((ventWorldAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        const normalizedStart = ((adjustedStartAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        const normalizedEnd = ((adjustedEndAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        
-        // Handle wraparound case (e.g., part spans from 270° to 90°)
-        const inRange = normalizedEnd > normalizedStart
-          ? (normalizedVentAngle >= normalizedStart && normalizedVentAngle < normalizedEnd)
-          : (normalizedVentAngle >= normalizedStart || normalizedVentAngle < normalizedEnd);
-        
-        if (inRange) {
-          const ventRadius = outerRadius - moldParams.wallThickness * SCALE * 0.5;
-          
-          const ventPos = new THREE.Vector3(
-            Math.cos(ventWorldAngle) * ventRadius,
-            ventY,
-            Math.sin(ventWorldAngle) * ventRadius
-          );
-          
-          // Vent holes should angle UPWARD from cavity toward outside
-          // This allows air to escape while preventing slip from leaking
-          const ventBrush = createVentHoleBrush(
-            moldParams.ventHoleDiameter,
-            ventDepth,
-            ventPos,
-            Math.PI / 6,    // Upward tilt (positive = pointing up and out)
-            ventWorldAngle  // Radial direction (point outward)
-          );
-          
-          resultBrush = evaluator.evaluate(resultBrush, ventBrush, SUBTRACTION);
-        }
-      }
-    }
-    
-    // Add strap notches if enabled (distributed across parts)
+    // Strap notches
     if (moldParams.strapNotchesEnabled && moldParams.strapNotchCount > 0) {
-      const notchesPerPart = Math.ceil(moldParams.strapNotchCount / totalParts);
       const notchY = height * 0.5;
-      const moldOuterRadius = (outerRadius / SCALE) + moldParams.wallThickness;
+      const moldOuterRadius = outerRadius / SCALE + moldParams.wallThickness;
+      const angleSpan = endAngle - startAngle;
+      const notchesPerPart = Math.ceil(moldParams.strapNotchCount / totalParts);
+      const notchAngleStep = angleSpan / (notchesPerPart + 1);
       
-      for (let i = 0; i < notchesPerPart; i++) {
-        const notchProgress = (i + 0.5) / notchesPerPart;
-        const notchAngle = adjustedStartAngle + angleSpan * notchProgress;
+      for (let i = 1; i <= notchesPerPart; i++) {
+        const notchAngle = adjustedStartAngle + notchAngleStep * i;
         
         const notchBrush = createStrapNotchBrush(
           moldParams.strapNotchWidth,
@@ -1523,109 +765,207 @@ function generateMoldPart(
           notchY / SCALE,
           notchAngle
         );
+        
         resultBrush = evaluator.evaluate(resultBrush, notchBrush, SUBTRACTION);
       }
     }
     
     const finalGeometry = resultBrush.geometry;
     finalGeometry.computeVertexNormals();
-    
     return finalGeometry;
+    
   } catch (error) {
-    console.error('CSG operations failed for mold part:', {
-      error,
-      partIndex,
-      totalParts,
-      params: {
-        height: params.height,
-        wallThickness: moldParams.wallThickness,
-        pourHoleDiameter: moldParams.pourHoleDiameter,
-      }
-    });
+    console.error('CSG operations failed for mold part:', error);
     return baseGeometry;
   }
 }
 
 /**
- * Export a mold half to STL
+ * Generate multi-part mold geometry (2-8 parts)
+ * Uses true wedge geometry that meets at the central axis
  */
-export function exportMoldHalfToSTL(geometry: THREE.BufferGeometry): Blob {
-  const mesh = new THREE.Mesh(geometry);
-  const exporter = new STLExporter();
-  const stlString = exporter.parse(mesh, { binary: false });
-  return new Blob([stlString], { type: 'application/sla' });
+export function generateMultiPartMoldGeometry(
+  params: ParametricParams,
+  objectType: ObjectType
+): MultiPartMoldGeometry {
+  const partCount = params.moldPartCount || 2;
+  const partAngles: number[] = [];
+  const parts: THREE.BufferGeometry[] = [];
+  
+  // Determine split angles
+  let splitAngles: number[];
+  
+  if (params.moldAutoSplit) {
+    const optimalSplits = calculateOptimalSplits(params, objectType, partCount);
+    splitAngles = optimalSplits.splitAngles;
+    
+    while (splitAngles.length < partCount) {
+      const nextAngle = (splitAngles.length / partCount) * Math.PI * 2;
+      splitAngles.push(nextAngle);
+    }
+    splitAngles = splitAngles.slice(0, partCount);
+  } else if (params.moldSplitAngles && params.moldSplitAngles.length >= partCount) {
+    splitAngles = params.moldSplitAngles.slice(0, partCount);
+  } else {
+    // Default: equal angular division
+    splitAngles = [];
+    for (let i = 0; i < partCount; i++) {
+      splitAngles.push((i / partCount) * Math.PI * 2);
+    }
+  }
+  
+  splitAngles.sort((a, b) => a - b);
+  
+  const moldParams: MoldParams = {
+    wallThickness: params.moldWallThickness,
+    baseThickness: params.moldBaseThickness,
+    pourHoleDiameter: params.moldPourHoleDiameter,
+    pourHoleTaper: (params as any).moldPourHoleTaper ?? 15,
+    registrationKeySize: params.moldRegistrationKeySize,
+    registrationKeyCount: params.moldRegistrationKeyCount,
+    splitAngle: params.moldSplitAngle,
+    draftAngle: params.moldDraftAngle,
+    gap: params.moldGap,
+    offset: params.moldOffset ?? 0.5,
+    ventHolesEnabled: params.moldVentHolesEnabled ?? false,
+    ventHoleCount: params.moldVentHoleCount ?? 4,
+    ventHoleDiameter: params.moldVentHoleDiameter ?? 3,
+    ventHolePosition: params.moldVentHolePosition ?? 0.8,
+    spareEnabled: params.moldSpareEnabled ?? false,
+    spareHeight: params.moldSpareHeight ?? 20,
+    spareDiameter: params.moldSpareDiameter ?? 0,
+    strapNotchesEnabled: params.moldStrapNotchesEnabled ?? false,
+    strapNotchCount: params.moldStrapNotchCount ?? 2,
+    strapNotchWidth: params.moldStrapNotchWidth ?? 12,
+    strapNotchDepth: params.moldStrapNotchDepth ?? 4,
+  };
+  
+  // Generate each wedge part
+  for (let i = 0; i < partCount; i++) {
+    const startAngle = splitAngles[i];
+    const nextIndex = (i + 1) % partCount;
+    let endAngle = splitAngles[nextIndex];
+    
+    if (endAngle <= startAngle) {
+      endAngle += Math.PI * 2;
+    }
+    
+    partAngles.push(startAngle);
+    
+    // Generate base wedge geometry
+    const baseGeometry = generateWedgeMoldPart(
+      params,
+      moldParams,
+      startAngle,
+      endAngle,
+      objectType
+    );
+    
+    // Add CSG features (keys, pour hole, vents)
+    const partGeometry = addMoldPartFeatures(
+      baseGeometry,
+      params,
+      moldParams,
+      startAngle,
+      endAngle,
+      i,
+      partCount,
+      objectType
+    );
+    
+    parts.push(partGeometry);
+  }
+  
+  return { parts, partAngles };
 }
 
 /**
- * Download mold STL files (2-part legacy)
+ * Generate two-part mold geometry (legacy function for compatibility)
+ */
+export function generateMoldGeometry(
+  params: ParametricParams,
+  objectType: ObjectType
+): MoldGeometry {
+  // Use multi-part with count = 2
+  const paramsWithTwoParts = { ...params, moldPartCount: 2 as const };
+  const multiPart = generateMultiPartMoldGeometry(paramsWithTwoParts, objectType);
+  
+  return {
+    halfA: multiPart.parts[0],
+    halfB: multiPart.parts[1]
+  };
+}
+
+/**
+ * Export a single mold geometry to STL blob
+ */
+export function exportMoldHalfToSTL(geometry: THREE.BufferGeometry): Blob {
+  const exporter = new STLExporter();
+  const mesh = new THREE.Mesh(geometry);
+  
+  // Scale up from scene units to mm
+  mesh.scale.set(100, 100, 100);
+  mesh.updateMatrixWorld();
+  
+  const stlString = exporter.parse(mesh, { binary: false });
+  return new Blob([stlString], { type: 'application/octet-stream' });
+}
+
+/**
+ * Download two-part mold STL files
+ * @param half - 'A', 'B', or 'both'
  */
 export function downloadMoldSTL(
   params: ParametricParams,
   objectType: ObjectType,
-  half: 'A' | 'B' | 'both',
-  baseName: string
+  half: 'A' | 'B' | 'both' = 'both',
+  filename: string = 'mold'
 ): void {
   const { halfA, halfB } = generateMoldGeometry(params, objectType);
   
-  const downloadBlob = (blob: Blob, filename: string) => {
+  const downloadPart = (geometry: THREE.BufferGeometry, suffix: string) => {
+    const blob = exportMoldHalfToSTL(geometry);
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}_half_${suffix}.stl`;
+    link.click();
     URL.revokeObjectURL(url);
   };
   
   if (half === 'A' || half === 'both') {
-    const blobA = exportMoldHalfToSTL(halfA);
-    downloadBlob(blobA, `${baseName}_mold_A.stl`);
+    downloadPart(halfA, 'A');
   }
-  
   if (half === 'B' || half === 'both') {
-    const blobB = exportMoldHalfToSTL(halfB);
-    downloadBlob(blobB, `${baseName}_mold_B.stl`);
+    downloadPart(halfB, 'B');
   }
-  
-  // Dispose geometries
-  halfA.dispose();
-  halfB.dispose();
 }
 
 /**
  * Download multi-part mold STL files
+ * @param partIndex - specific part index, or 'all' for all parts
  */
 export function downloadMultiPartMoldSTL(
   params: ParametricParams,
   objectType: ObjectType,
-  partIndex: number | 'all',
-  baseName: string
+  partIndex: number | 'all' = 'all',
+  filename: string = 'mold'
 ): void {
   const { parts } = generateMultiPartMoldGeometry(params, objectType);
-  const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   
-  const downloadBlob = (blob: Blob, filename: string) => {
+  const downloadPart = (geometry: THREE.BufferGeometry, index: number) => {
+    const blob = exportMoldHalfToSTL(geometry);
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}_part_${String.fromCharCode(65 + index)}.stl`;
+    link.click();
     URL.revokeObjectURL(url);
   };
   
   if (partIndex === 'all') {
-    parts.forEach((geometry, index) => {
-      const blob = exportMoldHalfToSTL(geometry);
-      downloadBlob(blob, `${baseName}_mold_${partLabels[index]}.stl`);
-    });
-  } else if (partIndex >= 0 && partIndex < parts.length) {
-    const blob = exportMoldHalfToSTL(parts[partIndex]);
-    downloadBlob(blob, `${baseName}_mold_${partLabels[partIndex]}.stl`);
+    parts.forEach((geometry, index) => downloadPart(geometry, index));
+  } else if (typeof partIndex === 'number' && partIndex >= 0 && partIndex < parts.length) {
+    downloadPart(parts[partIndex], partIndex);
   }
-  
-  // Dispose geometries
-  parts.forEach(geometry => geometry.dispose());
 }

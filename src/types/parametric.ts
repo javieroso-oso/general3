@@ -159,6 +159,7 @@ export interface ParametricParams {
   moldWallThickness: number;         // mm - thickness of mold walls (15-50mm)
   moldBaseThickness: number;         // mm - thickness of mold base (10-30mm)
   moldPourHoleDiameter: number;      // mm - pour hole diameter (15-40mm)
+  moldPourHoleTaper: number;         // degrees - funnel taper angle (5-30)
   moldRegistrationKeySize: number;   // mm - size of registration keys (5-15mm)
   moldRegistrationKeyCount: number;  // number of keys per seam (2-6)
   moldSplitAngle: number;            // degrees - rotation of split plane (0-180)
@@ -410,6 +411,7 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     moldWallThickness: 25,
     moldBaseThickness: 15,
     moldPourHoleDiameter: 25,
+    moldPourHoleTaper: 15,
     moldRegistrationKeySize: 8,
     moldRegistrationKeyCount: 4,
     moldSplitAngle: 0,
