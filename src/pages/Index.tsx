@@ -23,11 +23,12 @@ import {
   PrintAnalysis,
 } from '@/types/parametric';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
-import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode } from '@/lib/stl-export';
+import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode, exportBodyToSTL } from '@/lib/stl-export';
 import { ExportType } from '@/config/export-pricing';
-import { downloadMoldSTL, downloadMultiPartMoldSTL } from '@/lib/mold-generator';
+import { downloadMoldSTL, downloadMultiPartMoldSTL, generateMoldGeometry, generateMultiPartMoldGeometry, exportMoldHalfToSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info, PackageCheck } from 'lucide-react';
+import JSZip from 'jszip';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -331,6 +332,61 @@ const Index = () => {
     }
   }, [isUnlocked, doExportMold]);
 
+  // Export all molds + body as ZIP
+  const handleExportAllMoldsZip = useCallback(async () => {
+    if (!analysis.isValid) {
+      toast.error('Fix print issues before exporting');
+      return;
+    }
+
+    const zip = new JSZip();
+    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+    try {
+      toast.info('Generating export package...');
+
+      // Add body STL
+      const bodyBlob = await exportBodyToSTL(params, objectType);
+      zip.file(`${baseName}_body.stl`, bodyBlob);
+
+      // Add mold parts
+      if (params.moldPartCount > 2) {
+        const { parts } = generateMultiPartMoldGeometry(params, objectType);
+        parts.forEach((geo, i) => {
+          const stlBlob = exportMoldHalfToSTL(geo);
+          zip.file(`${baseName}_mold_${partLabels[i]}.stl`, stlBlob);
+          geo.dispose();
+        });
+      } else {
+        const { halfA, halfB } = generateMoldGeometry(params, objectType);
+        zip.file(`${baseName}_mold_A.stl`, exportMoldHalfToSTL(halfA));
+        zip.file(`${baseName}_mold_B.stl`, exportMoldHalfToSTL(halfB));
+        halfA.dispose();
+        halfB.dispose();
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      
+      // Download the blob
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}_complete.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Complete package exported!', { 
+        description: `Body + ${params.moldPartCount > 2 ? params.moldPartCount : 2} mold parts` 
+      });
+    } catch (error) {
+      console.error('Failed to export ZIP:', error);
+      toast.error('Export failed');
+    }
+  }, [params, objectType, analysis.isValid]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -621,9 +677,26 @@ const Index = () => {
 
         <div className="w-px h-6 bg-border/50" />
 
+        {/* Keep button - always visible */}
+        <KeepButton
+          params={params}
+          objectType={objectType}
+          onKeep={handleKeepToDrawer}
+        />
+
         {/* Export buttons */}
         {params.moldEnabled ? (
           <>
+            <Button 
+              onClick={handleExportBody} 
+              disabled={!analysis.isValid}
+              variant="secondary"
+              size="sm" 
+              className="gap-1.5 h-8 rounded-lg"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Body
+            </Button>
             <Button onClick={handleExportMoldA} size="sm" className="gap-1.5 h-8 rounded-lg">
               <FlaskConical className="w-3.5 h-3.5" />
               Mold A
@@ -632,14 +705,35 @@ const Index = () => {
               <FlaskConical className="w-3.5 h-3.5" />
               Mold B
             </Button>
+            {/* Dynamic multi-part mold buttons (C, D, E...) */}
+            {params.moldPartCount > 2 && (
+              <>
+                {Array.from({ length: params.moldPartCount - 2 }, (_, i) => (
+                  <Button 
+                    key={i + 2}
+                    onClick={() => handleExportMoldPart(i + 2)} 
+                    variant="secondary" 
+                    size="sm"
+                    className="gap-1.5 h-8 rounded-lg"
+                  >
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    Mold {String.fromCharCode(67 + i)}
+                  </Button>
+                ))}
+              </>
+            )}
+            <Button 
+              onClick={handleExportAllMoldsZip} 
+              variant="default"
+              size="sm"
+              className="gap-1.5 h-8 rounded-lg"
+            >
+              <PackageCheck className="w-3.5 h-3.5" />
+              All ZIP
+            </Button>
           </>
         ) : (
           <>
-            <KeepButton
-              params={params}
-              objectType={objectType}
-              onKeep={handleKeepToDrawer}
-            />
             <Button 
               onClick={handleExportBody} 
               disabled={!analysis.isValid}
