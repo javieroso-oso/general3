@@ -79,16 +79,28 @@ function calculateKeyPositions(
 }
 
 /**
- * Create registration key geometry with TANGENTIAL orientation
- * Keys point TANGENT to the split face, allowing parts to separate radially
+ * Create registration key geometry that points RADIALLY
+ * 
+ * Keys point RADIALLY (toward or away from center) so that:
+ * - Pegs on left edge point INTO the previous part (counter-clockwise neighbor)
+ * - Sockets on right edge RECEIVE pegs from next part (clockwise neighbor)
+ * 
+ * When mold parts separate radially outward, the keys slide apart cleanly.
+ * 
+ * @param size - Key diameter in mm
+ * @param keyHeight - Key length in mm
+ * @param position - Position on the split face
+ * @param isSocket - If true, creates a socket (hole); if false, creates a peg
  * @param splitAngle - The angle of the split face in radians
+ * @param isLeftEdge - If true, key is on left/start edge; if false, on right/end edge
  */
 function createRegistrationKeyBrush(
   size: number,
   keyHeight: number,
   position: THREE.Vector3,
   isSocket: boolean,
-  splitAngle: number
+  splitAngle: number,
+  isLeftEdge: boolean
 ): Brush {
   // Tapered cylinder for better alignment
   const topRadius = size * 0.7 * SCALE;
@@ -105,19 +117,30 @@ function createRegistrationKeyBrush(
     16
   );
   
-  // Rotate cylinder to point horizontally (along X axis)
+  // Cylinder is created along Y axis. We need it to point radially.
+  // First, rotate so it points along +X (horizontal, radially outward)
   geometry.rotateZ(Math.PI / 2);
-  
-  // Rotate 90° around Y to make key point TANGENTIALLY (perpendicular to radial direction)
-  // This allows mold parts to separate by pulling radially outward
-  geometry.rotateY(Math.PI / 2);
   
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
-  // The splitAngle rotates the tangential key to align with the split face
-  brush.rotation.y = splitAngle;
+  
+  // For left edge pegs: point perpendicular to split face toward the previous part
+  // For right edge sockets: oriented to receive pegs from the next part
+  // The key should be perpendicular to the split face.
+  // splitAngle is the angle OF the split face.
+  // To point perpendicular INTO the neighbor: 
+  //   Left edge (peg): rotate to (splitAngle - PI/2) to point counter-clockwise
+  //   Right edge (socket): rotate to (splitAngle + PI/2) to receive from clockwise
+  if (isLeftEdge) {
+    // Peg on left edge points into the counter-clockwise neighbor
+    brush.rotation.y = splitAngle - Math.PI / 2;
+  } else {
+    // Socket on right edge receives peg from clockwise neighbor
+    brush.rotation.y = splitAngle + Math.PI / 2;
+  }
+  
   brush.updateMatrixWorld();
   
   return brush;
@@ -655,8 +678,7 @@ function addMoldPartFeatures(
     for (const yPos of keyPositions) {
       const y = yPos * SCALE;
       
-      // Left edge: this part has PEGS
-      // Keys are tangential - they point along the split face, not radially
+      // Left edge: this part has PEGS that point into the counter-clockwise neighbor
       const leftKeyPos = new THREE.Vector3(
         Math.cos(adjustedStartAngle) * keyRadius,
         y,
@@ -668,11 +690,12 @@ function addMoldPartFeatures(
         keyDepth,
         leftKeyPos,
         false, // peg (protrusion)
-        adjustedStartAngle // Tangential orientation at this angle
+        adjustedStartAngle,
+        true // isLeftEdge = true
       );
       resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
       
-      // Right edge: this part has SOCKETS
+      // Right edge: this part has SOCKETS that receive pegs from the clockwise neighbor
       const rightKeyPos = new THREE.Vector3(
         Math.cos(adjustedEndAngle) * keyRadius,
         y,
@@ -684,7 +707,8 @@ function addMoldPartFeatures(
         keyDepth,
         rightKeyPos,
         true, // socket (indentation)
-        adjustedEndAngle
+        adjustedEndAngle,
+        false // isLeftEdge = false
       );
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
