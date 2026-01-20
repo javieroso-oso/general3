@@ -731,9 +731,10 @@ const Index = () => {
           variant="outline"
           size="sm"
           className="gap-1.5 h-8 rounded-lg"
+          title="Showcase your design in the community gallery"
         >
           <Share2 className="w-3.5 h-3.5" />
-          Share
+          Showcase
         </Button>
 
         <div className="w-px h-6 bg-border/50" />
