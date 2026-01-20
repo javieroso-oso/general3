@@ -105,17 +105,18 @@ function createRegistrationKeyBrush(
   );
   
   // Rotate cylinder to point horizontally (along X axis)
+  // After this, the cylinder points along positive X when at angle 0
   geometry.rotateZ(Math.PI / 2);
-  // Rotate 90 degrees so key points TANGENT to the split face (perpendicular to radius)
-  // This makes the key protrude INTO the adjacent mold part, not outward from mold exterior
-  geometry.rotateY(Math.PI / 2);
+  
+  // NO additional Y rotation - we want keys to point RADIALLY (perpendicular to split face)
+  // This allows mold parts to separate by pulling apart radially
   
   // Ensure UV attribute exists
   ensureUVAttribute(geometry);
   
   const brush = new Brush(geometry);
   brush.position.copy(position);
-  // Rotate around Y axis to align with the split face angle
+  // Rotate around Y axis - the splitAngle determines which radial direction the key points
   brush.rotation.y = splitAngle;
   brush.updateMatrixWorld();
   
@@ -663,12 +664,16 @@ function generateMoldHalf(
         
         // Half A gets pegs (protrusions), Half B gets sockets (indentations)
         const isSocket = !isHalfA;
+        // Pegs point INTO the other half (add PI to flip direction)
+        // Sockets point outward to receive the other half's pegs
+        const keyAngle = isHalfA ? pos.angle + Math.PI : pos.angle;
+        
         const keyBrush = createRegistrationKeyBrush(
           moldParams.registrationKeySize,
           keyDepth,
           keyPos,
           isSocket,
-          pos.angle // Keys point radially outward from split face
+          keyAngle
         );
         
         if (isHalfA) {
@@ -1388,7 +1393,8 @@ function generateMoldPart(
     for (const yPos of keyPositions) {
       const y = yPos * SCALE;
       
-      // Left edge: this part has pegs (protrusions)
+      // Left edge: this part has pegs pointing INTO the previous part
+      // The peg needs to point in the OPPOSITE radial direction (inward toward previous part)
       const leftAngle = adjustedStartAngle;
       const leftKeyPos = new THREE.Vector3(
         Math.cos(leftAngle) * keyRadius,
@@ -1396,17 +1402,18 @@ function generateMoldPart(
         Math.sin(leftAngle) * keyRadius
       );
       
-      // Keys point radially outward from split face
+      // Peg points INTO adjacent part: add PI to flip direction (point toward previous part)
       const leftKeyBrush = createRegistrationKeyBrush(
         moldParams.registrationKeySize,
         keyDepth,
         leftKeyPos,
         false, // peg (protrusion)
-        leftAngle // Keys point radially outward
+        leftAngle + Math.PI // Point inward (into previous part)
       );
       resultBrush = evaluator.evaluate(resultBrush, leftKeyBrush, ADDITION);
       
-      // Right edge: this part has sockets (receives neighbor's pegs)
+      // Right edge: this part has sockets to receive the NEXT part's pegs
+      // Socket faces outward to receive the next part's inward-pointing peg
       const rightAngle = adjustedEndAngle;
       const rightKeyPos = new THREE.Vector3(
         Math.cos(rightAngle) * keyRadius,
@@ -1414,12 +1421,13 @@ function generateMoldPart(
         Math.sin(rightAngle) * keyRadius
       );
       
+      // Socket points outward to receive adjacent part's inward-pointing peg
       const rightKeyBrush = createRegistrationKeyBrush(
         moldParams.registrationKeySize,
         keyDepth,
         rightKeyPos,
         true, // socket (indentation)
-        rightAngle // Keys point radially outward
+        rightAngle // Point outward (to receive next part's peg)
       );
       resultBrush = evaluator.evaluate(resultBrush, rightKeyBrush, SUBTRACTION);
     }
