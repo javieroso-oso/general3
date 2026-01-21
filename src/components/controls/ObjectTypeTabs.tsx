@@ -11,6 +11,7 @@ const tabs: { type: ObjectType; label: string }[] = [
   { type: 'vase', label: 'Vase' },
   { type: 'lamp', label: 'Lamp' },
   { type: 'sculpture', label: 'Sculpture' },
+  { type: 'plotter', label: 'Plotter' },
 ];
 
 const ObjectTypeTabs = ({ activeType, onTypeChange }: ObjectTypeTabsProps) => {
