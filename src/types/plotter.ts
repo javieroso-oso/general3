@@ -1,0 +1,268 @@
+// Paper size presets (dimensions in mm)
+export interface PaperSize {
+  name: string;
+  width: number;
+  height: number;
+}
+
+export const PAPER_SIZES: Record<string, PaperSize> = {
+  a4: { name: 'A4', width: 210, height: 297 },
+  a3: { name: 'A3', width: 297, height: 420 },
+  a5: { name: 'A5', width: 148, height: 210 },
+  letter: { name: 'Letter', width: 216, height: 279 },
+  tabloid: { name: 'Tabloid', width: 279, height: 432 },
+  square_8: { name: '8" Square', width: 203, height: 203 },
+  square_12: { name: '12" Square', width: 305, height: 305 },
+};
+
+// Plotter modes
+export type PlotterMode = 'generative' | 'image' | 'projection';
+
+// Generative pattern types
+export type GenerativePattern = 
+  | 'flowField' 
+  | 'particles' 
+  | 'spiral' 
+  | 'lissajous' 
+  | 'waveFunctions'
+  | 'concentricCircles'
+  | 'voronoi';
+
+// Hatching styles for image conversion
+export type HatchStyle = 'parallel' | 'crosshatch' | 'stipple' | 'contour';
+
+// Projection types for 3D to 2D
+export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack';
+
+// A single path segment with pen state
+export interface PlotterPath {
+  points: Array<{ x: number; y: number }>;
+  penDown: boolean;
+  layer?: number;
+  color?: string;
+}
+
+// Complete plotter drawing
+export interface PlotterDrawing {
+  paths: PlotterPath[];
+  width: number;
+  height: number;
+  units: 'mm' | 'px';
+}
+
+// Flow field parameters
+export interface FlowFieldParams {
+  noiseScale: number;        // 0.001 - 0.05
+  noiseOctaves: number;      // 1 - 4
+  particleCount: number;     // 50 - 500
+  lineLength: number;        // 10 - 200
+  stepSize: number;          // 1 - 10
+  curvature: number;         // 0.5 - 2
+  seed: number;
+}
+
+// Particle system parameters
+export interface ParticleParams {
+  particleCount: number;
+  lifespan: number;
+  trailLength: number;
+  gravity: { x: number; y: number };
+  attractors: Array<{ x: number; y: number; strength: number }>;
+  seed: number;
+}
+
+// Spiral parameters
+export interface SpiralParams {
+  turns: number;
+  spacing: number;
+  startRadius: number;
+  variation: number;
+  seed: number;
+}
+
+// Lissajous parameters
+export interface LissajousParams {
+  freqX: number;
+  freqY: number;
+  phaseX: number;
+  phaseY: number;
+  amplitude: number;
+  points: number;
+}
+
+// Wave function parameters
+export interface WaveParams {
+  frequency: number;
+  amplitude: number;
+  waveCount: number;
+  phaseOffset: number;
+  decay: number;
+}
+
+// Image processing parameters
+export interface ImageToPathParams {
+  style: HatchStyle;
+  lineSpacing: number;      // mm between lines
+  angle: number;            // degrees for hatching
+  densityResponse: number;  // 0.5 - 2 (gamma curve)
+  contourLevels: number;    // for contour mode
+  stippleDots: number;      // for stipple mode
+  minBrightness: number;    // threshold
+  maxBrightness: number;
+}
+
+// 3D projection parameters
+export interface ProjectionParams {
+  type: ProjectionType;
+  sliceCount: number;
+  sliceSpacing: number;
+  viewAngle: { x: number; y: number };
+  scale: number;
+  showHiddenLines: boolean;
+}
+
+// Machine presets for G-code
+export interface PlotterMachine {
+  name: string;
+  penUpZ: number;
+  penDownZ: number;
+  travelSpeed: number;
+  drawSpeed: number;
+  acceleration?: number;
+}
+
+export const PLOTTER_MACHINES: Record<string, PlotterMachine> = {
+  axidraw: {
+    name: 'AxiDraw',
+    penUpZ: 60,
+    penDownZ: 40,
+    travelSpeed: 3000,
+    drawSpeed: 1000,
+  },
+  generic: {
+    name: 'Generic CNC',
+    penUpZ: 5,
+    penDownZ: 0,
+    travelSpeed: 2000,
+    drawSpeed: 800,
+  },
+  custom: {
+    name: 'Custom',
+    penUpZ: 5,
+    penDownZ: 0,
+    travelSpeed: 2000,
+    drawSpeed: 1000,
+  },
+};
+
+// Complete plotter parameters
+export interface PlotterParams {
+  // Paper settings
+  paperSize: string;
+  orientation: 'portrait' | 'landscape';
+  marginMm: number;
+  
+  // Mode selection
+  mode: PlotterMode;
+  
+  // Generative settings
+  pattern: GenerativePattern;
+  flowField: FlowFieldParams;
+  particles: ParticleParams;
+  spiral: SpiralParams;
+  lissajous: LissajousParams;
+  wave: WaveParams;
+  
+  // Image settings
+  imagePath: ImageToPathParams;
+  imageData?: string; // base64 encoded image
+  
+  // Projection settings
+  projection: ProjectionParams;
+  
+  // Export settings
+  machinePreset: string;
+  optimizePaths: boolean;
+}
+
+// Default parameters
+export const defaultFlowFieldParams: FlowFieldParams = {
+  noiseScale: 0.008,
+  noiseOctaves: 2,
+  particleCount: 150,
+  lineLength: 80,
+  stepSize: 2,
+  curvature: 1,
+  seed: Math.floor(Math.random() * 10000),
+};
+
+export const defaultParticleParams: ParticleParams = {
+  particleCount: 100,
+  lifespan: 200,
+  trailLength: 50,
+  gravity: { x: 0, y: 0.1 },
+  attractors: [],
+  seed: Math.floor(Math.random() * 10000),
+};
+
+export const defaultSpiralParams: SpiralParams = {
+  turns: 10,
+  spacing: 5,
+  startRadius: 5,
+  variation: 0,
+  seed: Math.floor(Math.random() * 10000),
+};
+
+export const defaultLissajousParams: LissajousParams = {
+  freqX: 3,
+  freqY: 2,
+  phaseX: 0,
+  phaseY: Math.PI / 2,
+  amplitude: 80,
+  points: 1000,
+};
+
+export const defaultWaveParams: WaveParams = {
+  frequency: 0.05,
+  amplitude: 20,
+  waveCount: 20,
+  phaseOffset: 0.2,
+  decay: 0.02,
+};
+
+export const defaultImageToPathParams: ImageToPathParams = {
+  style: 'parallel',
+  lineSpacing: 2,
+  angle: 45,
+  densityResponse: 1,
+  contourLevels: 8,
+  stippleDots: 5000,
+  minBrightness: 0,
+  maxBrightness: 255,
+};
+
+export const defaultProjectionParams: ProjectionParams = {
+  type: 'crossSection',
+  sliceCount: 20,
+  sliceSpacing: 5,
+  viewAngle: { x: 0, y: 0 },
+  scale: 1,
+  showHiddenLines: false,
+};
+
+export const defaultPlotterParams: PlotterParams = {
+  paperSize: 'a4',
+  orientation: 'portrait',
+  marginMm: 10,
+  mode: 'generative',
+  pattern: 'flowField',
+  flowField: defaultFlowFieldParams,
+  particles: defaultParticleParams,
+  spiral: defaultSpiralParams,
+  lissajous: defaultLissajousParams,
+  wave: defaultWaveParams,
+  imagePath: defaultImageToPathParams,
+  projection: defaultProjectionParams,
+  machinePreset: 'axidraw',
+  optimizePaths: true,
+};

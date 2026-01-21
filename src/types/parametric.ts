@@ -1,4 +1,7 @@
-export type ObjectType = 'vase' | 'lamp' | 'sculpture';
+export type ObjectType = 'vase' | 'lamp' | 'sculpture' | 'plotter';
+
+// Alias for backward compatibility - 3D object types only
+export type ObjectType3D = Exclude<ObjectType, 'plotter'>;
 
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
@@ -481,6 +484,7 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountCordHoleEnabled: false,
     cordHoleEnabled: false,
   }),
+  plotter: createDefaultParams(), // Plotter uses PlotterParams instead, this is a fallback
 };
 
 export const presets: Preset[] = [

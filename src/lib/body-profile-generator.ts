@@ -57,7 +57,7 @@ export interface BodyProfileOptions {
   /** Include twist in theta calculation */
   includeTwist?: boolean;
   /** Object type for type-specific curves */
-  objectType?: 'vase' | 'lamp' | 'sculpture';
+  objectType?: 'vase' | 'lamp' | 'sculpture' | 'plotter';
 }
 
 /**
