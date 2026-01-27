@@ -5,11 +5,13 @@
  * - Cross-section slices (horizontal cuts)
  * - Silhouette extraction (outer boundary from view angle)
  * - Contour stacks (offset slices for layered effect)
+ * - Line field (parallel/radial lines distorted by shape)
  */
 
-import { PlotterDrawing, PlotterPath, ProjectionParams, PAPER_SIZES } from '@/types/plotter';
+import { PlotterDrawing, PlotterPath, ProjectionParams, PAPER_SIZES, LineFieldGeometry } from '@/types/plotter';
 import { ParametricParams, ObjectType3D } from '@/types/parametric';
 import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
+import { noise2D, seedNoise } from './noise';
 
 interface ProjectionOptions {
   params: ProjectionParams;
@@ -389,7 +391,8 @@ export function generateContourStack(options: ProjectionOptions): PlotterDrawing
 
 /**
  * Generate line field with shape distortion.
- * Lines fill the page and bend around the silhouette of the 3D shape.
+ * Enhanced with: multi-angle overlay, organic wobble, variable density,
+ * line breaks, wave modulation, shape fill, and radial mode.
  */
 export function generateLineField(options: ProjectionOptions): PlotterDrawing {
   const { params, meshParams, objectType, width, height, margin } = options;
@@ -403,7 +406,22 @@ export function generateLineField(options: ProjectionOptions): PlotterDrawing {
     lineFieldMode,
     lineFieldExtend,
     simplifyTolerance,
+    // Enhanced settings
+    lineFieldGeometry = 'parallel',
+    lineFieldWobble = 0,
+    lineFieldWobbleScale = 0.03,
+    lineFieldDensityVar = false,
+    lineFieldBreakInside = false,
+    lineFieldWaveAmp = 0,
+    lineFieldWaveFreq = 3,
+    lineFieldOverlayCount = 1,
+    lineFieldOverlayOffset = 45,
+    lineFieldFillInside = false,
+    lineFieldFillDensity = 2,
   } = params;
+  
+  // Seed noise for consistent wobble
+  seedNoise(42);
   
   const paths: PlotterPath[] = [];
   const objectHeight = meshParams.height;
@@ -507,36 +525,368 @@ export function generateLineField(options: ProjectionOptions): PlotterDrawing {
     )
   );
   
-  // Generate lines
-  const angleRad = (lineFieldAngle * Math.PI) / 180;
+  // Generate lines for each overlay layer
+  for (let layer = 0; layer < lineFieldOverlayCount; layer++) {
+    const layerAngle = lineFieldAngle + layer * lineFieldOverlayOffset;
+    const angleRad = (layerAngle * Math.PI) / 180;
+    
+    if (lineFieldGeometry === 'radial') {
+      // Radial mode: lines emanate from shape center
+      generateRadialLines({
+        paths,
+        shapeCenter,
+        shapeRadius,
+        transformedBoundary,
+        lineFieldCount,
+        lineFieldStrength,
+        lineFieldFalloff,
+        lineFieldMode,
+        lineFieldExtend,
+        lineFieldWobble,
+        lineFieldWobbleScale,
+        lineFieldWaveAmp,
+        lineFieldWaveFreq,
+        lineFieldBreakInside,
+        simplifyTolerance,
+        width,
+        height,
+        margin,
+        layer,
+      });
+    } else {
+      // Parallel mode
+      generateParallelLines({
+        paths,
+        angleRad,
+        shapeCenter,
+        shapeRadius,
+        transformedBoundary,
+        lineFieldCount,
+        lineFieldStrength,
+        lineFieldFalloff,
+        lineFieldMode,
+        lineFieldExtend,
+        lineFieldWobble,
+        lineFieldWobbleScale,
+        lineFieldDensityVar,
+        lineFieldWaveAmp,
+        lineFieldWaveFreq,
+        lineFieldBreakInside,
+        simplifyTolerance,
+        width,
+        height,
+        margin,
+        layer,
+      });
+    }
+  }
+  
+  // Add shape fill pattern if enabled
+  if (lineFieldFillInside) {
+    generateShapeFill({
+      paths,
+      transformedBoundary,
+      shapeCenter,
+      lineFieldFillDensity,
+      lineFieldAngle,
+      simplifyTolerance,
+      margin,
+      width,
+      height,
+    });
+  }
+  
+  return {
+    paths,
+    width,
+    height,
+    units: 'mm',
+  };
+}
+
+// Helper: Generate parallel lines with distortion
+function generateParallelLines(opts: {
+  paths: PlotterPath[];
+  angleRad: number;
+  shapeCenter: { x: number; y: number };
+  shapeRadius: number;
+  transformedBoundary: { x: number; y: number }[];
+  lineFieldCount: number;
+  lineFieldStrength: number;
+  lineFieldFalloff: number;
+  lineFieldMode: string;
+  lineFieldExtend: boolean;
+  lineFieldWobble: number;
+  lineFieldWobbleScale: number;
+  lineFieldDensityVar: boolean;
+  lineFieldWaveAmp: number;
+  lineFieldWaveFreq: number;
+  lineFieldBreakInside: boolean;
+  simplifyTolerance: number;
+  width: number;
+  height: number;
+  margin: number;
+  layer: number;
+}) {
+  const {
+    paths,
+    angleRad,
+    shapeCenter,
+    shapeRadius,
+    transformedBoundary,
+    lineFieldCount,
+    lineFieldStrength,
+    lineFieldFalloff,
+    lineFieldMode,
+    lineFieldExtend,
+    lineFieldWobble,
+    lineFieldWobbleScale,
+    lineFieldDensityVar,
+    lineFieldWaveAmp,
+    lineFieldWaveFreq,
+    lineFieldBreakInside,
+    simplifyTolerance,
+    width,
+    height,
+    margin,
+    layer,
+  } = opts;
+  
   const lineDir = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
   const perpDir = { x: -Math.sin(angleRad), y: Math.cos(angleRad) };
   
   // Calculate line spacing
-  const lineSpacing = (Math.max(width, height)) / (lineFieldCount - 1);
+  const baseSpacing = (Math.max(width, height)) / (lineFieldCount - 1);
   
   // Extend beyond page for cleaner edges
-  const extension = lineFieldExtend ? lineSpacing * 2 : 0;
+  const extension = lineFieldExtend ? baseSpacing * 2 : 0;
   const startOffset = -Math.max(width, height) - extension;
   const endOffset = Math.max(width, height) * 2 + extension;
   
   // Generate each line
   for (let i = 0; i < lineFieldCount; i++) {
-    const perpOffset = (i - (lineFieldCount - 1) / 2) * lineSpacing;
-    const lineStart = {
-      x: width / 2 + perpDir.x * perpOffset + lineDir.x * startOffset,
-      y: height / 2 + perpDir.y * perpOffset + lineDir.y * startOffset,
-    };
+    // Variable density: add extra lines near shape
+    const densityLines = lineFieldDensityVar ? getDensityExtraLines(i, lineFieldCount, shapeCenter, shapeRadius, baseSpacing, perpDir, width, height) : [0];
     
-    const linePoints: { x: number; y: number }[] = [];
-    const steps = 200; // Number of sample points per line
+    for (const densityOffset of densityLines) {
+      const perpOffset = (i - (lineFieldCount - 1) / 2) * baseSpacing + densityOffset;
+      const lineStart = {
+        x: width / 2 + perpDir.x * perpOffset + lineDir.x * startOffset,
+        y: height / 2 + perpDir.y * perpOffset + lineDir.y * startOffset,
+      };
+      
+      const lineSegments: { x: number; y: number }[][] = [[]];
+      let currentSegment = 0;
+      const steps = 300; // Number of sample points per line
+      
+      for (let step = 0; step <= steps; step++) {
+        const t = step / steps;
+        let baseX = lineStart.x + lineDir.x * (endOffset - startOffset) * t;
+        let baseY = lineStart.y + lineDir.y * (endOffset - startOffset) * t;
+        
+        // Add wave modulation
+        if (lineFieldWaveAmp > 0) {
+          const wavePhase = t * Math.PI * 2 * lineFieldWaveFreq + i * 0.3;
+          baseX += perpDir.x * Math.sin(wavePhase) * lineFieldWaveAmp;
+          baseY += perpDir.y * Math.sin(wavePhase) * lineFieldWaveAmp;
+        }
+        
+        // Add organic wobble
+        if (lineFieldWobble > 0) {
+          const noiseVal = noise2D(baseX * lineFieldWobbleScale, baseY * lineFieldWobbleScale);
+          baseX += perpDir.x * noiseVal * lineFieldWobble * 15;
+          baseY += perpDir.y * noiseVal * lineFieldWobble * 15;
+        }
+        
+        // Find nearest boundary point and distance
+        let minDist = Infinity;
+        let nearestIdx = 0;
+        
+        for (let bi = 0; bi < transformedBoundary.length; bi++) {
+          const bp = transformedBoundary[bi];
+          const dist = Math.sqrt((baseX - bp.x) ** 2 + (baseY - bp.y) ** 2);
+          if (dist < minDist) {
+            minDist = dist;
+            nearestIdx = bi;
+          }
+        }
+        
+        // Check if point is inside the shape
+        const isInside = isPointInsidePolygon({ x: baseX, y: baseY }, transformedBoundary);
+        
+        // Handle line breaks inside shape
+        if (lineFieldBreakInside && isInside) {
+          // Start a new segment
+          if (lineSegments[currentSegment].length > 0) {
+            currentSegment++;
+            lineSegments[currentSegment] = [];
+          }
+          continue;
+        }
+        
+        // Calculate distortion based on mode
+        let distortedX = baseX;
+        let distortedY = baseY;
+        
+        const normalizedDist = minDist / (shapeRadius * lineFieldFalloff);
+        const distortionFactor = Math.exp(-normalizedDist * normalizedDist) * lineFieldStrength;
+        
+        if (lineFieldMode === 'around') {
+          // Lines flow around the shape - push points away from center
+          if (minDist < shapeRadius * lineFieldFalloff * 2) {
+            const pushDir = {
+              x: baseX - shapeCenter.x,
+              y: baseY - shapeCenter.y,
+            };
+            const pushLen = Math.sqrt(pushDir.x ** 2 + pushDir.y ** 2) || 1;
+            
+            const pushAmount = distortionFactor * shapeRadius * 0.5;
+            if (isInside) {
+              distortedX += (pushDir.x / pushLen) * pushAmount * 2;
+              distortedY += (pushDir.y / pushLen) * pushAmount * 2;
+            } else {
+              distortedX += (pushDir.x / pushLen) * pushAmount;
+              distortedY += (pushDir.y / pushLen) * pushAmount;
+            }
+          }
+        } else if (lineFieldMode === 'through') {
+          // Lines pass through but compress/distort - lens effect
+          if (minDist < shapeRadius * lineFieldFalloff * 2) {
+            const toCenter = {
+              x: shapeCenter.x - baseX,
+              y: shapeCenter.y - baseY,
+            };
+            const toCenterLen = Math.sqrt(toCenter.x ** 2 + toCenter.y ** 2) || 1;
+            
+            const compression = distortionFactor * shapeRadius * 0.3;
+            distortedX += (toCenter.x / toCenterLen) * compression;
+            distortedY += (toCenter.y / toCenterLen) * compression;
+          }
+        } else if (lineFieldMode === 'outline') {
+          // Lines trace the edge when they hit the boundary
+          if (isInside) {
+            const nearest = transformedBoundary[nearestIdx];
+            const blendFactor = Math.min(1, distortionFactor * 2);
+            distortedX = baseX + (nearest.x - baseX) * blendFactor;
+            distortedY = baseY + (nearest.y - baseY) * blendFactor;
+          } else if (minDist < shapeRadius * 0.3) {
+            const nearest = transformedBoundary[nearestIdx];
+            const pullFactor = distortionFactor * 0.3;
+            distortedX = baseX + (nearest.x - baseX) * pullFactor;
+            distortedY = baseY + (nearest.y - baseY) * pullFactor;
+          }
+        }
+        
+        lineSegments[currentSegment].push({ x: distortedX, y: distortedY });
+      }
+      
+      // Process each segment
+      for (const segment of lineSegments) {
+        if (segment.length < 2) continue;
+        
+        // Apply simplification if needed
+        let finalPoints = segment;
+        if (simplifyTolerance > 0) {
+          finalPoints = simplifyPath(segment, simplifyTolerance);
+        }
+        
+        // Clip to page bounds
+        const clippedPoints = finalPoints.filter(p => 
+          p.x >= margin && p.x <= width - margin &&
+          p.y >= margin && p.y <= height - margin
+        );
+        
+        if (clippedPoints.length >= 2) {
+          paths.push({
+            points: clippedPoints,
+            penDown: true,
+            layer,
+          });
+        }
+      }
+    }
+  }
+}
+
+// Helper: Generate radial lines emanating from center
+function generateRadialLines(opts: {
+  paths: PlotterPath[];
+  shapeCenter: { x: number; y: number };
+  shapeRadius: number;
+  transformedBoundary: { x: number; y: number }[];
+  lineFieldCount: number;
+  lineFieldStrength: number;
+  lineFieldFalloff: number;
+  lineFieldMode: string;
+  lineFieldExtend: boolean;
+  lineFieldWobble: number;
+  lineFieldWobbleScale: number;
+  lineFieldWaveAmp: number;
+  lineFieldWaveFreq: number;
+  lineFieldBreakInside: boolean;
+  simplifyTolerance: number;
+  width: number;
+  height: number;
+  margin: number;
+  layer: number;
+}) {
+  const {
+    paths,
+    shapeCenter,
+    shapeRadius,
+    transformedBoundary,
+    lineFieldCount,
+    lineFieldStrength,
+    lineFieldFalloff,
+    lineFieldMode,
+    lineFieldExtend,
+    lineFieldWobble,
+    lineFieldWobbleScale,
+    lineFieldWaveAmp,
+    lineFieldWaveFreq,
+    lineFieldBreakInside,
+    simplifyTolerance,
+    width,
+    height,
+    margin,
+    layer,
+  } = opts;
+  
+  const maxExtent = lineFieldExtend 
+    ? Math.sqrt(width * width + height * height) 
+    : Math.max(width, height) / 2;
+  
+  for (let i = 0; i < lineFieldCount; i++) {
+    const angle = (i / lineFieldCount) * Math.PI * 2;
+    const lineDir = { x: Math.cos(angle), y: Math.sin(angle) };
+    const perpDir = { x: -Math.sin(angle), y: Math.cos(angle) };
+    
+    const lineSegments: { x: number; y: number }[][] = [[]];
+    let currentSegment = 0;
+    const steps = 200;
     
     for (let step = 0; step <= steps; step++) {
       const t = step / steps;
-      const baseX = lineStart.x + lineDir.x * (endOffset - startOffset) * t;
-      const baseY = lineStart.y + lineDir.y * (endOffset - startOffset) * t;
+      const radius = t * maxExtent;
       
-      // Find nearest boundary point and distance
+      let baseX = shapeCenter.x + lineDir.x * radius;
+      let baseY = shapeCenter.y + lineDir.y * radius;
+      
+      // Add wave modulation
+      if (lineFieldWaveAmp > 0) {
+        const wavePhase = t * Math.PI * 2 * lineFieldWaveFreq;
+        baseX += perpDir.x * Math.sin(wavePhase) * lineFieldWaveAmp;
+        baseY += perpDir.y * Math.sin(wavePhase) * lineFieldWaveAmp;
+      }
+      
+      // Add organic wobble
+      if (lineFieldWobble > 0) {
+        const noiseVal = noise2D(baseX * lineFieldWobbleScale, baseY * lineFieldWobbleScale);
+        baseX += perpDir.x * noiseVal * lineFieldWobble * 15;
+        baseY += perpDir.y * noiseVal * lineFieldWobble * 15;
+      }
+      
+      // Find nearest boundary point
       let minDist = Infinity;
       let nearestIdx = 0;
       
@@ -549,98 +899,183 @@ export function generateLineField(options: ProjectionOptions): PlotterDrawing {
         }
       }
       
-      // Check if point is inside the shape
       const isInside = isPointInsidePolygon({ x: baseX, y: baseY }, transformedBoundary);
       
-      // Calculate distortion based on mode
+      // Handle line breaks
+      if (lineFieldBreakInside && isInside) {
+        if (lineSegments[currentSegment].length > 0) {
+          currentSegment++;
+          lineSegments[currentSegment] = [];
+        }
+        continue;
+      }
+      
+      // Calculate distortion
       let distortedX = baseX;
       let distortedY = baseY;
       
-      const distanceFromCenter = Math.sqrt((baseX - shapeCenter.x) ** 2 + (baseY - shapeCenter.y) ** 2);
       const normalizedDist = minDist / (shapeRadius * lineFieldFalloff);
       const distortionFactor = Math.exp(-normalizedDist * normalizedDist) * lineFieldStrength;
       
-      if (lineFieldMode === 'around') {
-        // Lines flow around the shape - push points away from center
-        if (minDist < shapeRadius * lineFieldFalloff * 2) {
-          const pushDir = {
-            x: baseX - shapeCenter.x,
-            y: baseY - shapeCenter.y,
-          };
-          const pushLen = Math.sqrt(pushDir.x ** 2 + pushDir.y ** 2) || 1;
-          
-          // Push perpendicular to line direction for smoother flow
-          const pushAmount = distortionFactor * shapeRadius * 0.5;
-          if (isInside) {
-            // If inside, push more strongly
-            distortedX += (pushDir.x / pushLen) * pushAmount * 2;
-            distortedY += (pushDir.y / pushLen) * pushAmount * 2;
-          } else {
-            distortedX += (pushDir.x / pushLen) * pushAmount;
-            distortedY += (pushDir.y / pushLen) * pushAmount;
-          }
-        }
-      } else if (lineFieldMode === 'through') {
-        // Lines pass through but compress/distort - lens effect
-        if (minDist < shapeRadius * lineFieldFalloff * 2) {
-          // Compress toward center of shape
-          const toCenter = {
-            x: shapeCenter.x - baseX,
-            y: shapeCenter.y - baseY,
-          };
-          const toCenterLen = Math.sqrt(toCenter.x ** 2 + toCenter.y ** 2) || 1;
-          
-          const compression = distortionFactor * shapeRadius * 0.3;
-          distortedX += (toCenter.x / toCenterLen) * compression;
-          distortedY += (toCenter.y / toCenterLen) * compression;
-        }
-      } else if (lineFieldMode === 'outline') {
-        // Lines trace the edge when they hit the boundary
-        if (isInside) {
-          // Snap to nearest boundary point
-          const nearest = transformedBoundary[nearestIdx];
-          const blendFactor = Math.min(1, distortionFactor * 2);
-          distortedX = baseX + (nearest.x - baseX) * blendFactor;
-          distortedY = baseY + (nearest.y - baseY) * blendFactor;
-        } else if (minDist < shapeRadius * 0.3) {
-          // Slight pull toward boundary when close
-          const nearest = transformedBoundary[nearestIdx];
-          const pullFactor = distortionFactor * 0.3;
-          distortedX = baseX + (nearest.x - baseX) * pullFactor;
-          distortedY = baseY + (nearest.y - baseY) * pullFactor;
-        }
+      if (lineFieldMode === 'around' && minDist < shapeRadius * lineFieldFalloff * 2) {
+        // Push tangent to shape
+        const tangentDir = { x: perpDir.x, y: perpDir.y };
+        const pushAmount = distortionFactor * shapeRadius * 0.3;
+        distortedX += tangentDir.x * pushAmount * (isInside ? 2 : 1);
+        distortedY += tangentDir.y * pushAmount * (isInside ? 2 : 1);
+      } else if (lineFieldMode === 'through' && minDist < shapeRadius * lineFieldFalloff * 2) {
+        // Subtle radial compression
+        const compression = distortionFactor * shapeRadius * 0.2;
+        distortedX = shapeCenter.x + lineDir.x * (radius - compression);
+        distortedY = shapeCenter.y + lineDir.y * (radius - compression);
+      } else if (lineFieldMode === 'outline' && isInside) {
+        const nearest = transformedBoundary[nearestIdx];
+        const blendFactor = Math.min(1, distortionFactor * 2);
+        distortedX = baseX + (nearest.x - baseX) * blendFactor;
+        distortedY = baseY + (nearest.y - baseY) * blendFactor;
       }
       
-      linePoints.push({ x: distortedX, y: distortedY });
+      lineSegments[currentSegment].push({ x: distortedX, y: distortedY });
     }
     
-    // Apply simplification if needed
-    let finalPoints = linePoints;
-    if (simplifyTolerance > 0) {
-      finalPoints = simplifyPath(linePoints, simplifyTolerance);
-    }
-    
-    // Clip to page bounds
-    const clippedPoints = finalPoints.filter(p => 
-      p.x >= margin && p.x <= width - margin &&
-      p.y >= margin && p.y <= height - margin
-    );
-    
-    if (clippedPoints.length >= 2) {
-      paths.push({
-        points: clippedPoints,
-        penDown: true,
-        layer: i,
-      });
+    // Process segments
+    for (const segment of lineSegments) {
+      if (segment.length < 2) continue;
+      
+      let finalPoints = segment;
+      if (simplifyTolerance > 0) {
+        finalPoints = simplifyPath(segment, simplifyTolerance);
+      }
+      
+      const clippedPoints = finalPoints.filter(p => 
+        p.x >= margin && p.x <= width - margin &&
+        p.y >= margin && p.y <= height - margin
+      );
+      
+      if (clippedPoints.length >= 2) {
+        paths.push({
+          points: clippedPoints,
+          penDown: true,
+          layer,
+        });
+      }
     }
   }
-  
-  return {
+}
+
+// Helper: Generate fill pattern inside shape
+function generateShapeFill(opts: {
+  paths: PlotterPath[];
+  transformedBoundary: { x: number; y: number }[];
+  shapeCenter: { x: number; y: number };
+  lineFieldFillDensity: number;
+  lineFieldAngle: number;
+  simplifyTolerance: number;
+  margin: number;
+  width: number;
+  height: number;
+}) {
+  const {
     paths,
+    transformedBoundary,
+    shapeCenter,
+    lineFieldFillDensity,
+    lineFieldAngle,
+    simplifyTolerance,
+    margin,
     width,
     height,
-    units: 'mm',
-  };
+  } = opts;
+  
+  const bounds = getBounds(transformedBoundary);
+  const fillAngle = (lineFieldAngle + 90) * Math.PI / 180; // Perpendicular to main lines
+  const lineDir = { x: Math.cos(fillAngle), y: Math.sin(fillAngle) };
+  const perpDir = { x: -Math.sin(fillAngle), y: Math.cos(fillAngle) };
+  
+  const fillSpacing = 3 / lineFieldFillDensity; // mm between fill lines
+  const fillWidth = Math.sqrt(
+    (bounds.maxX - bounds.minX) ** 2 + (bounds.maxY - bounds.minY) ** 2
+  );
+  const fillCount = Math.ceil(fillWidth / fillSpacing);
+  
+  for (let i = 0; i < fillCount; i++) {
+    const perpOffset = (i - fillCount / 2) * fillSpacing;
+    const lineCenter = {
+      x: shapeCenter.x + perpDir.x * perpOffset,
+      y: shapeCenter.y + perpDir.y * perpOffset,
+    };
+    
+    // Trace line and collect points inside shape
+    const insidePoints: { x: number; y: number }[] = [];
+    const steps = 100;
+    const lineExtent = fillWidth;
+    
+    for (let step = 0; step <= steps; step++) {
+      const t = (step / steps - 0.5) * 2; // -1 to 1
+      const x = lineCenter.x + lineDir.x * t * lineExtent;
+      const y = lineCenter.y + lineDir.y * t * lineExtent;
+      
+      if (isPointInsidePolygon({ x, y }, transformedBoundary)) {
+        insidePoints.push({ x, y });
+      }
+    }
+    
+    if (insidePoints.length >= 2) {
+      let finalPoints = insidePoints;
+      if (simplifyTolerance > 0) {
+        finalPoints = simplifyPath(insidePoints, simplifyTolerance);
+      }
+      
+      const clippedPoints = finalPoints.filter(p => 
+        p.x >= margin && p.x <= width - margin &&
+        p.y >= margin && p.y <= height - margin
+      );
+      
+      if (clippedPoints.length >= 2) {
+        paths.push({
+          points: clippedPoints,
+          penDown: true,
+          layer: 99, // Top layer for fill
+          color: 'hsl(var(--primary) / 0.7)',
+        });
+      }
+    }
+  }
+}
+
+// Helper: Get extra lines for variable density near shape
+function getDensityExtraLines(
+  lineIndex: number,
+  totalLines: number,
+  shapeCenter: { x: number; y: number },
+  shapeRadius: number,
+  baseSpacing: number,
+  perpDir: { x: number; y: number },
+  width: number,
+  height: number
+): number[] {
+  const perpOffset = (lineIndex - (totalLines - 1) / 2) * baseSpacing;
+  const lineY = height / 2 + perpDir.y * perpOffset;
+  const lineX = width / 2 + perpDir.x * perpOffset;
+  
+  // Distance from line to shape center
+  const distToCenter = Math.sqrt(
+    (lineX - shapeCenter.x) ** 2 + (lineY - shapeCenter.y) ** 2
+  );
+  
+  // Add extra lines if close to shape
+  if (distToCenter < shapeRadius * 1.5) {
+    const density = 1 - (distToCenter / (shapeRadius * 1.5));
+    const extraLines = Math.floor(density * 3);
+    const offsets: number[] = [0];
+    for (let e = 1; e <= extraLines; e++) {
+      offsets.push(baseSpacing * e * 0.25);
+      offsets.push(-baseSpacing * e * 0.25);
+    }
+    return offsets;
+  }
+  
+  return [0];
 }
 
 // Helper: Check if a point is inside a polygon (ray casting)
