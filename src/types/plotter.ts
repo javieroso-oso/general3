@@ -119,6 +119,12 @@ export interface ProjectionParams {
   viewAngle: { x: number; y: number };
   scale: number;
   showHiddenLines: boolean;
+  // New settings
+  lineDetail: number;        // Angular segments (32-128) - higher = smoother curves
+  strokeWeight: number;      // Suggested stroke weight in mm (0.1-1.0)
+  perspective: number;       // Perspective amount for contour stack (0-1)
+  centerOffset: { x: number; y: number }; // Offset from center in mm
+  simplifyTolerance: number; // Path simplification (0=none, higher=more)
 }
 
 // Machine presets for G-code
@@ -263,6 +269,11 @@ export const defaultProjectionParams: ProjectionParams = {
   viewAngle: { x: 0, y: 0 },
   scale: 1,
   showHiddenLines: false,
+  lineDetail: 64,
+  strokeWeight: 0.3,
+  perspective: 0.3,
+  centerOffset: { x: 0, y: 0 },
+  simplifyTolerance: 0,
 };
 
 export const defaultPlotterParams: PlotterParams = {

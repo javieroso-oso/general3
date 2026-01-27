@@ -55,8 +55,12 @@ const Index = () => {
   const [params, setParams] = useState<ParametricParams>(defaultShapeParams.vase);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
   
-  // Plotter drawing (computed from plotter params)
-  const plotterDrawing = usePlotterDrawing(plotterParams);
+  // Plotter drawing (computed from plotter params + live mesh params)
+  const plotterDrawing = usePlotterDrawing({
+    params: plotterParams,
+    currentMeshParams: params,
+    currentShapeStyle: params.shapeStyle,
+  });
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(false);
   
