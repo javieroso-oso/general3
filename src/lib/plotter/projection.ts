@@ -20,13 +20,64 @@ interface ProjectionOptions {
   margin: number;
 }
 
+// Ramer-Douglas-Peucker path simplification algorithm
+function simplifyPath(points: { x: number; y: number }[], tolerance: number): { x: number; y: number }[] {
+  if (points.length <= 2) return points;
+  
+  // Find point with max distance from line between first and last
+  let maxDist = 0;
+  let maxIndex = 0;
+  const first = points[0];
+  const last = points[points.length - 1];
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const dist = perpendicularDistance(points[i], first, last);
+    if (dist > maxDist) {
+      maxDist = dist;
+      maxIndex = i;
+    }
+  }
+  
+  // If max distance exceeds tolerance, recursively simplify
+  if (maxDist > tolerance) {
+    const left = simplifyPath(points.slice(0, maxIndex + 1), tolerance);
+    const right = simplifyPath(points.slice(maxIndex), tolerance);
+    return [...left.slice(0, -1), ...right];
+  }
+  
+  return [first, last];
+}
+
+function perpendicularDistance(
+  point: { x: number; y: number },
+  lineStart: { x: number; y: number },
+  lineEnd: { x: number; y: number }
+): number {
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+  const lineLenSq = dx * dx + dy * dy;
+  
+  if (lineLenSq === 0) {
+    return Math.sqrt((point.x - lineStart.x) ** 2 + (point.y - lineStart.y) ** 2);
+  }
+  
+  const area = Math.abs(
+    (lineEnd.y - lineStart.y) * point.x -
+    (lineEnd.x - lineStart.x) * point.y +
+    lineEnd.x * lineStart.y -
+    lineEnd.y * lineStart.x
+  );
+  
+  return area / Math.sqrt(lineLenSq);
+}
+
 /**
  * Generate cross-section slices at multiple heights.
  * Each slice samples the body radius at many angles to create a closed contour.
  */
 export function generateCrossSectionSlices(options: ProjectionOptions): PlotterDrawing {
   const { params, meshParams, objectType, width, height, margin } = options;
-  const { sliceCount, viewAngle, scale } = params;
+  const { sliceCount, viewAngle, scale, lineDetail, centerOffset, simplifyTolerance } = params;
   
   const paths: PlotterPath[] = [];
   const objectHeight = meshParams.height;
@@ -39,7 +90,7 @@ export function generateCrossSectionSlices(options: ProjectionOptions): PlotterD
   
   // Sample all slices first to find bounds
   const sliceData: { t: number; points: { x: number; y: number }[] }[] = [];
-  const angleSegments = params.sliceCount > 30 ? 64 : 96; // More detail for fewer slices
+  const angleSegments = lineDetail; // Use lineDetail setting
   
   for (let i = 0; i <= sliceCount; i++) {
     const t = i / sliceCount;
@@ -90,16 +141,21 @@ export function generateCrossSectionSlices(options: ProjectionOptions): PlotterD
     paperHeight / boundsHeight
   ) * scale * 0.9; // 90% to leave some breathing room
   
-  // Calculate offset to center on paper
-  const offsetX = width / 2 - (bounds.minX + boundsWidth / 2) * fitScale;
-  const offsetY = height / 2 - (bounds.minY + boundsHeight / 2) * fitScale;
+  // Calculate offset to center on paper with user offset
+  const offsetX = width / 2 - (bounds.minX + boundsWidth / 2) * fitScale + centerOffset.x;
+  const offsetY = height / 2 - (bounds.minY + boundsHeight / 2) * fitScale + centerOffset.y;
   
   // Create paths for each slice
   for (const slice of sliceData) {
-    const transformedPoints = slice.points.map(p => ({
+    let transformedPoints = slice.points.map(p => ({
       x: p.x * fitScale + offsetX,
       y: p.y * fitScale + offsetY,
     }));
+    
+    // Apply path simplification if tolerance > 0
+    if (simplifyTolerance > 0) {
+      transformedPoints = simplifyPath(transformedPoints, simplifyTolerance);
+    }
     
     // Close the path by connecting back to start
     if (transformedPoints.length > 2) {
@@ -128,12 +184,12 @@ export function generateCrossSectionSlices(options: ProjectionOptions): PlotterD
  */
 export function generateSilhouette(options: ProjectionOptions): PlotterDrawing {
   const { params, meshParams, objectType, width, height, margin } = options;
-  const { viewAngle, scale } = params;
+  const { viewAngle, scale, lineDetail, centerOffset, simplifyTolerance } = params;
   
   const paths: PlotterPath[] = [];
   const objectHeight = meshParams.height;
-  const heightSegments = 64;
-  const angleSegments = 128;
+  const heightSegments = lineDetail;
+  const angleSegments = lineDetail * 2;
   
   // Sample all surface points and project to 2D
   const allPoints: { x: number; y: number; z3d: number }[] = [];
@@ -210,13 +266,18 @@ export function generateSilhouette(options: ProjectionOptions): PlotterDrawing {
     paperHeight / boundsHeight
   ) * scale * 0.9;
   
-  const offsetX = width / 2 - (bounds.minX + boundsWidth / 2) * fitScale;
-  const offsetY = height / 2 - (bounds.minY + boundsHeight / 2) * fitScale;
+  const offsetX = width / 2 - (bounds.minX + boundsWidth / 2) * fitScale + centerOffset.x;
+  const offsetY = height / 2 - (bounds.minY + boundsHeight / 2) * fitScale + centerOffset.y;
   
-  const transformedPoints = outlinePoints.map(p => ({
+  let transformedPoints = outlinePoints.map(p => ({
     x: p.x * fitScale + offsetX,
     y: p.y * fitScale + offsetY,
   }));
+  
+  // Apply simplification if tolerance > 0
+  if (simplifyTolerance > 0) {
+    transformedPoints = simplifyPath(transformedPoints, simplifyTolerance);
+  }
   
   // Close the path
   transformedPoints.push({ ...transformedPoints[0] });
@@ -241,11 +302,11 @@ export function generateSilhouette(options: ProjectionOptions): PlotterDrawing {
  */
 export function generateContourStack(options: ProjectionOptions): PlotterDrawing {
   const { params, meshParams, objectType, width, height, margin } = options;
-  const { sliceCount, sliceSpacing, viewAngle, scale, showHiddenLines } = params;
+  const { sliceCount, sliceSpacing, viewAngle, scale, showHiddenLines, lineDetail, perspective, centerOffset, simplifyTolerance } = params;
   
   const paths: PlotterPath[] = [];
   const objectHeight = meshParams.height;
-  const angleSegments = 64;
+  const angleSegments = lineDetail;
   
   // Calculate max dimensions for scaling
   const maxRadius = getMaxBodyRadius(meshParams, { objectType, scale: 1 });
@@ -263,14 +324,14 @@ export function generateContourStack(options: ProjectionOptions): PlotterDrawing
     paperHeight / totalStackHeight
   ) * scale * 0.85;
   
-  // Center offset
-  const centerX = width / 2;
-  const startY = margin + (paperHeight - totalStackHeight * fitScale) / 2;
+  // Center offset with user adjustment
+  const centerX = width / 2 + centerOffset.x;
+  const startY = margin + (paperHeight - totalStackHeight * fitScale) / 2 + centerOffset.y;
   
   // Generate slices from bottom to top
   for (let i = 0; i <= sliceCount; i++) {
     const t = i / sliceCount;
-    const slicePoints: { x: number; y: number }[] = [];
+    let slicePoints: { x: number; y: number }[] = [];
     
     // Visual Y position includes stacking offset
     const visualY = startY + (t * objectHeight + i * sliceSpacing) * fitScale;
@@ -295,8 +356,13 @@ export function generateContourStack(options: ProjectionOptions): PlotterDrawing
       
       slicePoints.push({
         x: centerX + rotatedPoint.x * fitScale,
-        y: visualY + rotatedPoint.z * fitScale * 0.3, // Slight perspective
+        y: visualY + rotatedPoint.z * fitScale * perspective, // Use perspective setting
       });
+    }
+    
+    // Apply simplification if tolerance > 0
+    if (simplifyTolerance > 0) {
+      slicePoints = simplifyPath(slicePoints, simplifyTolerance);
     }
     
     // Close the path

@@ -684,6 +684,93 @@ const PlotterControls = ({
                   />
                 </div>
 
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Line Detail: {params.projection.lineDetail} segments
+                  </Label>
+                  <Slider
+                    value={[params.projection.lineDetail]}
+                    min={32}
+                    max={128}
+                    step={8}
+                    onValueChange={([v]) => updateProjection('lineDetail', v)}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Stroke Weight: {params.projection.strokeWeight.toFixed(2)}mm
+                  </Label>
+                  <Slider
+                    value={[params.projection.strokeWeight * 100]}
+                    min={10}
+                    max={100}
+                    step={5}
+                    onValueChange={([v]) => updateProjection('strokeWeight', v / 100)}
+                  />
+                </div>
+
+                {params.projection.type === 'contourStack' && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Perspective: {(params.projection.perspective * 100).toFixed(0)}%
+                    </Label>
+                    <Slider
+                      value={[params.projection.perspective * 100]}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onValueChange={([v]) => updateProjection('perspective', v / 100)}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Simplify: {params.projection.simplifyTolerance.toFixed(1)}
+                  </Label>
+                  <Slider
+                    value={[params.projection.simplifyTolerance * 10]}
+                    min={0}
+                    max={30}
+                    step={1}
+                    onValueChange={([v]) => updateProjection('simplifyTolerance', v / 10)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Offset X: {params.projection.centerOffset.x.toFixed(0)}mm
+                    </Label>
+                    <Slider
+                      value={[params.projection.centerOffset.x]}
+                      min={-50}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => updateProjection('centerOffset', {
+                        ...params.projection.centerOffset,
+                        x: v
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Offset Y: {params.projection.centerOffset.y.toFixed(0)}mm
+                    </Label>
+                    <Slider
+                      value={[params.projection.centerOffset.y]}
+                      min={-50}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => updateProjection('centerOffset', {
+                        ...params.projection.centerOffset,
+                        y: v
+                      })}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">Show Hidden Lines</Label>
                   <Switch

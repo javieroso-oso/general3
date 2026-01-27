@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { PlotterParams, PlotterDrawing, PAPER_SIZES } from '@/types/plotter';
-import { ParametricParams, ObjectType3D } from '@/types/parametric';
+import { ParametricParams, ShapeStyle } from '@/types/parametric';
 import { 
   generateFlowField, 
   generateSpiral, 
@@ -11,7 +11,13 @@ import {
 import { generateProjection } from '@/lib/plotter/projection';
 import { optimizePaths, clipToBounds } from '@/lib/plotter/path-utils';
 
-export function usePlotterDrawing(params: PlotterParams): PlotterDrawing | null {
+interface UsePlotterDrawingOptions {
+  params: PlotterParams;
+  currentMeshParams?: ParametricParams;
+  currentShapeStyle?: ShapeStyle;
+}
+
+export function usePlotterDrawing({ params, currentMeshParams, currentShapeStyle }: UsePlotterDrawingOptions): PlotterDrawing | null {
   return useMemo(() => {
     const paper = PAPER_SIZES[params.paperSize] || PAPER_SIZES.a4;
     const width = params.orientation === 'landscape' ? paper.height : paper.width;
@@ -20,10 +26,21 @@ export function usePlotterDrawing(params: PlotterParams): PlotterDrawing | null 
 
     let drawing: PlotterDrawing;
 
-    // Handle projection mode
-    if (params.mode === 'projection' && params.capturedMesh) {
-      const meshParams = params.capturedMesh.params as unknown as ParametricParams;
-      const objectType = params.capturedMesh.objectType as ObjectType3D;
+    // Handle projection mode - use live mesh params if available, fallback to captured
+    if (params.mode === 'projection') {
+      // Prefer live mesh params, fall back to captured
+      const meshParams = currentMeshParams || (params.capturedMesh?.params as unknown as ParametricParams);
+      const objectType = currentShapeStyle || params.capturedMesh?.objectType || 'vase';
+      
+      if (!meshParams) {
+        // No mesh params available - return empty drawing
+        return {
+          paths: [],
+          width,
+          height,
+          units: 'mm',
+        };
+      }
       
       drawing = generateProjection({
         params: params.projection,
