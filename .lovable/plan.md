@@ -1,243 +1,145 @@
-# Plan: Implement Dynamic Pricing Based on Export Type
 
-## Current Situation
 
-### What Exists Now
-- **Single Stripe Price**: `price_1SjaIqLz2WTfSJ3nkdA3FLhK` = $2.99 (one-time)
-- **Single Product**: `prod_TgyFLCAEaflU1o` = "STL Batch Export"
-- **Fixed display price**: Hardcoded `$2.99` in `ExportPaymentDialog.tsx` (line 95)
-- **Edge function**: Uses hardcoded price ID in `create-export-payment/index.ts` (line 52)
+## Enhanced Plotter Generator with 3D-to-2D Projection
 
-### Export Types Available
-| Export Type | Description | Current Price |
-|-------------|-------------|---------------|
-| Body STL | Single body mesh | $2.99 |
-| Legs/Base STL | Legs and base mesh | $2.99 |
-| All Parts | Body + Legs combined | $2.99 |
-| G-code | Print-ready file | $2.99 |
-| Mold (ceramic) | Mold for slip casting | $2.99 |
-| Batch (drawer) | Multiple designs as ZIP | $2.99 |
+### What We're Building
+Transform your 3D lamp designs into beautiful 2D plotter art by adding a **3D Projection mode** that creates cross-section contours, silhouettes, and stacked slice drawings from your parametric objects.
+
+### Current Situation
+The plotter currently only generates abstract patterns (flow fields, spirals, waves). There's no way to connect it to your existing 3D designs.
+
+### Solution Overview
+
+**Add three input modes to the plotter:**
+1. **Generative** (existing) - Abstract patterns like flow fields, spirals
+2. **3D Projection** (new) - Convert your lamps/vases/sculptures to 2D line art
+3. **Image** (future) - Convert photos to hatched/stippled drawings
 
 ---
 
-## Implementation Plan: Dynamic Pricing System
+### Mode 1: 3D Projection Types
 
-### Part 1: Create Multiple Stripe Prices
+**Cross-Section Slices**
+- Slice your 3D object horizontally at multiple heights
+- Each slice becomes a closed contour path
+- Stacked slices create a topographic-style drawing
+- Great for visualizing organic deformations
 
-You'll need to create different prices in Stripe for each export tier. I can create these for you:
+**Silhouette Outline**
+- Extract the outer edge of your object from a specific view angle
+- Single continuous path showing the profile
+- Adjustable rotation to capture different angles
 
-| Export Type | Suggested Price | Product Name |
-|-------------|-----------------|--------------|
-| Single Body STL | $0.99 | Single Body Export |
-| Body + Legs | $1.99 | Body with Legs Export |
-| Body + Ceramic Mold | $2.99 | Body with Mold Export |
-| G-code | $1.49 | G-code Export |
-| Batch Export (per item) | $0.50/item | Batch Export |
-
-### Part 2: Create Pricing Configuration File
-
-#### New file: `src/config/export-pricing.ts`
-
-```typescript
-export interface ExportPricing {
-  priceId: string;
-  displayPrice: string;
-  description: string;
-}
-
-export const EXPORT_PRICES: Record<string, ExportPricing> = {
-  body: {
-    priceId: 'price_BODY_ID',
-    displayPrice: '$0.99',
-    description: 'Single body STL file',
-  },
-  bodyWithLegs: {
-    priceId: 'price_BODY_LEGS_ID',
-    displayPrice: '$1.99',
-    description: 'Body + Legs/Base STL files',
-  },
-  bodyWithMold: {
-    priceId: 'price_MOLD_ID',
-    displayPrice: '$2.99',
-    description: 'Body + Ceramic mold STL files',
-  },
-  gcode: {
-    priceId: 'price_GCODE_ID',
-    displayPrice: '$1.49',
-    description: 'Print-ready G-code file',
-  },
-  batch: {
-    priceId: 'price_BATCH_ID',
-    displayPrice: '$0.50/item',
-    description: 'Batch export (price per design)',
-  },
-};
-
-// Helper to calculate batch price
-export const calculateBatchPrice = (itemCount: number): number => {
-  return itemCount * 0.50;
-};
-```
-
-### Part 3: Update Edge Function for Dynamic Pricing
-
-#### Modify: `supabase/functions/create-export-payment/index.ts`
-
-Changes needed:
-1. Accept `exportType` in request body (not just `itemCount`)
-2. Use `price_data` for dynamic batch pricing OR select correct price ID
-3. Support quantity-based pricing for batch exports
-
-```typescript
-// Updated request parsing
-const { itemCount, email, exportType } = await req.json();
-
-// Price selection logic
-let priceId: string;
-let quantity = 1;
-
-switch (exportType) {
-  case 'body':
-    priceId = 'price_BODY_ID';
-    break;
-  case 'bodyWithLegs':
-    priceId = 'price_BODY_LEGS_ID';
-    break;
-  case 'bodyWithMold':
-    priceId = 'price_MOLD_ID';
-    break;
-  case 'gcode':
-    priceId = 'price_GCODE_ID';
-    break;
-  case 'batch':
-    priceId = 'price_BATCH_ID';
-    quantity = itemCount;
-    break;
-  default:
-    priceId = 'price_DEFAULT_ID';
-}
-
-// Create session with dynamic price
-const session = await stripe.checkout.sessions.create({
-  // ... existing config
-  line_items: [{ price: priceId, quantity }],
-});
-```
-
-### Part 4: Update ExportPaymentDialog Component
-
-#### Modify: `src/components/ExportPaymentDialog.tsx`
-
-Changes needed:
-1. Accept `exportType` prop with more specific values
-2. Import and use pricing config
-3. Display dynamic price based on export type
-4. Pass `exportType` to edge function
-
-```typescript
-interface ExportPaymentDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onExport: () => void;
-  exportType: 'body' | 'bodyWithLegs' | 'bodyWithMold' | 'gcode' | 'batch';
-  itemCount?: number;
-}
-
-// Inside component
-const pricing = EXPORT_PRICES[exportType];
-const displayPrice = exportType === 'batch' 
-  ? `$${calculateBatchPrice(itemCount).toFixed(2)}` 
-  : pricing.displayPrice;
-
-// Update payment call
-const { data, error } = await supabase.functions.invoke('create-export-payment', {
-  body: { itemCount, exportType },
-});
-```
-
-### Part 5: Update Index.tsx Export Handlers
-
-#### Modify: `src/pages/Index.tsx`
-
-Changes needed:
-1. Update `pendingExportType` to use more specific values
-2. Pass correct export type to dialog based on what user is exporting
-
-```typescript
-// Determine export type based on params
-const getExportType = useCallback(() => {
-  if (params.addLegs) return 'bodyWithLegs';
-  if (params.generateMold) return 'bodyWithMold';
-  return 'body';
-}, [params.addLegs, params.generateMold]);
-
-// In handleExportBody
-setPendingExportType(getExportType());
-```
+**Contour Stack**
+- Similar to cross-sections but rendered with visual offset
+- Creates a 3D layered effect on paper
+- Spacing and overlap controls
 
 ---
 
-## How to Change Prices
+### New UI Controls
 
-### Option A: Change Price in Stripe Dashboard (Recommended)
+**Mode Selection**
+- Tabs at top: Generative | 3D Projection
+- Clear visual separation between modes
 
-1. Go to [Stripe Dashboard > Products](https://dashboard.stripe.com/products)
-2. Find the product you want to modify
-3. Click "Add price" to create a new price, or archive old price
-4. Update the price ID in `src/config/export-pricing.ts`
-5. Update the display price in the same file
+**3D Projection Settings**
+- **Source Design**: Shows current parametric params preview
+- **Projection Type**: Cross-Section / Silhouette / Contour Stack
+- **Slice Count**: 5-50 horizontal slices
+- **View Rotation**: Rotate the 3D object before projection
+- **Scale**: Fit to paper size
+- **Line Density**: How detailed the contours are
 
-### Option B: Use Stripe API (via Lovable tools)
-
-I can create new products/prices for you using Stripe tools. Just tell me:
-- What export types you want
-- What price for each
-
-### Option C: Dynamic Pricing with price_data
-
-For fully dynamic pricing (e.g., batch per-item), use `price_data` instead of a price ID:
-
-```typescript
-line_items: [{
-  price_data: {
-    currency: 'usd',
-    product: 'prod_TgyFLCAEaflU1o',
-    unit_amount: 50, // $0.50 in cents
-  },
-  quantity: itemCount,
-}],
-```
+**Design Sync**
+- Button to "Capture Current Design" from your 3D editor
+- The plotter remembers the 3D params you were working on
+- Switch between Plotter and Vase/Lamp tabs while keeping your design
 
 ---
 
-## Quick Reference: Where to Edit
+### Technical Implementation
 
-| What to Change | File | Line(s) |
-|----------------|------|---------|
-| Display prices | `src/config/export-pricing.ts` | All prices defined here |
-| Stripe price IDs | `src/config/export-pricing.ts` | `priceId` fields |
-| Batch pricing formula | `src/config/export-pricing.ts` | `calculateBatchPrice()` |
-| Edge function price logic | `supabase/functions/create-export-payment/index.ts` | Switch statement |
-| UI dialog | `src/components/ExportPaymentDialog.tsx` | Uses config file |
+**New File: `src/lib/plotter/projection.ts`**
+- `generateCrossSectionSlices()` - Use existing `getBodyRadius()` to sample contours at each height
+- `generateSilhouette()` - Project 3D points to 2D from a view angle
+- `generateContourStack()` - Cross-sections with visual offset
+
+**Update: `src/hooks/usePlotterDrawing.ts`**
+- Add projection mode detection
+- Call projection generators when mode is 'projection'
+- Pass through parametric params from the 3D editor
+
+**Update: `src/components/plotter/PlotterControls.tsx`**
+- Add mode tabs (Generative | 3D Projection)
+- Add projection-specific sliders and controls
+- Add "Capture Design" button
+
+**Update: `src/pages/Index.tsx`**
+- Pass current 3D params to plotter controls
+- Allow syncing between 3D design and plotter projection
 
 ---
 
-## Files to Create/Modify
+### User Experience Flow
+
+1. Design a lamp in the Lamp tab with your preferred shape
+2. Switch to Plotter tab
+3. Click "Capture Current Design" or it auto-syncs
+4. Select "3D Projection" mode
+5. Choose "Cross-Section Slices" projection type
+6. Adjust slice count, view angle, scale
+7. See 2D preview update in real-time
+8. Export to SVG or G-code for your plotter
+
+---
+
+### Visual Preview
+
+The plotter preview will show:
+- Paper bounds with margins
+- All contour paths from the sliced 3D object
+- Optional layer numbers or colors per slice
+- Path statistics (total distance, estimated plot time)
+
+---
+
+### Files to Create/Modify
 
 | File | Action |
 |------|--------|
-| `src/config/export-pricing.ts` | **CREATE** - Centralized pricing configuration |
-| `supabase/functions/create-export-payment/index.ts` | **MODIFY** - Accept exportType, select correct price |
-| `src/components/ExportPaymentDialog.tsx` | **MODIFY** - Show dynamic prices from config |
-| `src/pages/Index.tsx` | **MODIFY** - Pass correct export type based on params |
+| `src/lib/plotter/projection.ts` | Create - Core 3D-to-2D algorithms |
+| `src/hooks/usePlotterDrawing.ts` | Modify - Add projection mode |
+| `src/components/plotter/PlotterControls.tsx` | Modify - Add mode tabs and projection controls |
+| `src/pages/Index.tsx` | Modify - Sync 3D params to plotter |
+| `src/types/plotter.ts` | Modify - Add captured 3D params to PlotterParams |
 
 ---
 
-## Recommended Next Steps
+### Technical Details
 
-1. **Decide on pricing tiers**: What should each export type cost?
-2. **Create Stripe prices**: I can create these for you via tools
-3. **Implement the changes**: Create config file and update components
-4. **Test the flow**: Verify each export type shows correct price
+**Cross-Section Algorithm**
+```text
+For each slice height (0 to object height):
+  1. Sample getBodyRadius() at 64+ angles around the circumference
+  2. Convert polar coordinates (radius, angle) to cartesian (x, y)
+  3. Center on paper and apply scale
+  4. Create closed path from the sampled points
+  5. Add to drawing paths array
+```
 
-Would you like me to create specific Stripe prices for your export types before implementing?
+**Silhouette Algorithm**
+```text
+1. Apply rotation matrix based on view angle
+2. Project all mesh vertices to 2D
+3. Find convex hull or edge detection
+4. Trace the outer boundary as a single path
+```
+
+**Scale Fitting**
+```text
+1. Calculate bounding box of all projected points
+2. Compute scale factor to fit within paper margins
+3. Apply uniform scale to preserve proportions
+```
+
