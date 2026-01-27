@@ -797,32 +797,10 @@ const PlotterControls = ({
                 {params.projection.type === 'lineField' && (
                   <>
                     <div className="border-t border-border pt-3 mt-3">
-                      <Label className="text-xs font-medium text-foreground mb-2 block">Line Field Settings</Label>
+                      <Label className="text-xs font-medium text-foreground mb-2 block">Line Field</Label>
                     </div>
                     
-                    {/* Geometry Mode */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Line Geometry</Label>
-                      <Select
-                        value={params.projection.lineFieldGeometry ?? 'parallel'}
-                        onValueChange={(v) => updateProjection('lineFieldGeometry', v as LineFieldGeometry)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(LINE_FIELD_GEOMETRY_LABELS).map(([key, { label, description }]) => (
-                            <SelectItem key={key} value={key} className="text-xs">
-                              <div className="flex flex-col">
-                                <span>{label}</span>
-                                <span className="text-muted-foreground text-[10px]">{description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
+                    {/* Core Controls */}
                     <div>
                       <Label className="text-xs text-muted-foreground">
                         Line Count: {params.projection.lineFieldCount ?? 40}
@@ -851,32 +829,33 @@ const PlotterControls = ({
 
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Distortion: {(params.projection.lineFieldStrength ?? 1).toFixed(2)}
+                        Distortion: {((params.projection.lineFieldStrength ?? 1) * 100).toFixed(0)}%
                       </Label>
                       <Slider
                         value={[(params.projection.lineFieldStrength ?? 1) * 100]}
                         min={0}
-                        max={200}
-                        step={5}
+                        max={300}
+                        step={10}
                         onValueChange={([v]) => updateProjection('lineFieldStrength', v / 100)}
                       />
                     </div>
 
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Falloff: {(params.projection.lineFieldFalloff ?? 1.5).toFixed(2)}
+                        Influence Range: {((params.projection.lineFieldFalloff ?? 1.5) * 100).toFixed(0)}%
                       </Label>
                       <Slider
                         value={[(params.projection.lineFieldFalloff ?? 1.5) * 100]}
                         min={50}
-                        max={300}
+                        max={400}
                         step={10}
                         onValueChange={([v]) => updateProjection('lineFieldFalloff', v / 100)}
                       />
                     </div>
 
+                    {/* Mode Selection */}
                     <div>
-                      <Label className="text-xs text-muted-foreground">Wrap Mode</Label>
+                      <Label className="text-xs text-muted-foreground">Distortion Mode</Label>
                       <Select
                         value={params.projection.lineFieldMode ?? 'around'}
                         onValueChange={(v) => updateProjection('lineFieldMode', v as LineFieldMode)}
@@ -897,12 +876,34 @@ const PlotterControls = ({
                       </Select>
                     </div>
 
-                    {/* Enhanced Effects */}
-                    <div className="border-t border-border pt-3 mt-3">
-                      <Label className="text-xs font-medium text-foreground mb-2 block">Effects</Label>
+                    {/* Geometry Mode */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Geometry</Label>
+                      <Select
+                        value={params.projection.lineFieldGeometry ?? 'parallel'}
+                        onValueChange={(v) => updateProjection('lineFieldGeometry', v as LineFieldGeometry)}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(LINE_FIELD_GEOMETRY_LABELS).map(([key, { label, description }]) => (
+                            <SelectItem key={key} value={key} className="text-xs">
+                              <div className="flex flex-col">
+                                <span>{label}</span>
+                                <span className="text-muted-foreground text-[10px]">{description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    {/* Multi-angle overlay */}
+                    {/* Layer Effects */}
+                    <div className="border-t border-border pt-3 mt-2">
+                      <Label className="text-xs font-medium text-foreground mb-2 block">Layer Effects</Label>
+                    </div>
+
                     <div>
                       <Label className="text-xs text-muted-foreground">
                         Overlay Layers: {params.projection.lineFieldOverlayCount ?? 1}
@@ -931,10 +932,10 @@ const PlotterControls = ({
                       </div>
                     )}
 
-                    {/* Organic wobble */}
+                    {/* Organic Effects */}
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Organic Wobble: {((params.projection.lineFieldWobble ?? 0) * 100).toFixed(0)}%
+                        Hand-drawn Wobble: {((params.projection.lineFieldWobble ?? 0) * 100).toFixed(0)}%
                       </Label>
                       <Slider
                         value={[(params.projection.lineFieldWobble ?? 0) * 100]}
@@ -974,54 +975,13 @@ const PlotterControls = ({
                       </div>
                     )}
 
-                    {/* Toggles */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs text-muted-foreground">Variable Density</Label>
-                        <Switch
-                          checked={params.projection.lineFieldDensityVar ?? false}
-                          onCheckedChange={(v) => updateProjection('lineFieldDensityVar', v)}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs text-muted-foreground">Break Lines Inside</Label>
-                        <Switch
-                          checked={params.projection.lineFieldBreakInside ?? false}
-                          onCheckedChange={(v) => updateProjection('lineFieldBreakInside', v)}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs text-muted-foreground">Fill Shape Inside</Label>
-                        <Switch
-                          checked={params.projection.lineFieldFillInside ?? false}
-                          onCheckedChange={(v) => updateProjection('lineFieldFillInside', v)}
-                        />
-                      </div>
-
-                      {(params.projection.lineFieldFillInside ?? false) && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground">
-                            Fill Density: {(params.projection.lineFieldFillDensity ?? 2).toFixed(1)}x
-                          </Label>
-                          <Slider
-                            value={[(params.projection.lineFieldFillDensity ?? 2) * 10]}
-                            min={10}
-                            max={30}
-                            step={1}
-                            onValueChange={([v]) => updateProjection('lineFieldFillDensity', v / 10)}
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs text-muted-foreground">Extend Lines Past Edges</Label>
-                        <Switch
-                          checked={params.projection.lineFieldExtend ?? true}
-                          onCheckedChange={(v) => updateProjection('lineFieldExtend', v)}
-                        />
-                      </div>
+                    {/* Negative Space Option */}
+                    <div className="flex items-center justify-between pt-2">
+                      <Label className="text-xs text-muted-foreground">Break Lines Inside Shape</Label>
+                      <Switch
+                        checked={params.projection.lineFieldBreakInside ?? false}
+                        onCheckedChange={(v) => updateProjection('lineFieldBreakInside', v)}
+                      />
                     </div>
                   </>
                 )}

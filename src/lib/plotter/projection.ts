@@ -604,7 +604,88 @@ export function generateLineField(options: ProjectionOptions): PlotterDrawing {
   };
 }
 
-// Helper: Generate parallel lines with distortion
+// Helper: Calculate signed distance to polygon boundary and normal direction
+function getSignedDistanceAndNormal(
+  point: { x: number; y: number },
+  boundary: { x: number; y: number }[]
+): { distance: number; normal: { x: number; y: number }; isInside: boolean } {
+  let minDist = Infinity;
+  let closestNormal = { x: 0, y: -1 };
+  
+  for (let i = 0; i < boundary.length; i++) {
+    const a = boundary[i];
+    const b = boundary[(i + 1) % boundary.length];
+    
+    // Project point onto line segment
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+    
+    const t = Math.max(0, Math.min(1, 
+      ((point.x - a.x) * dx + (point.y - a.y) * dy) / (len * len)
+    ));
+    
+    const closestX = a.x + t * dx;
+    const closestY = a.y + t * dy;
+    const dist = Math.sqrt((point.x - closestX) ** 2 + (point.y - closestY) ** 2);
+    
+    if (dist < minDist) {
+      minDist = dist;
+      // Normal points outward from segment
+      closestNormal = { x: -dy / len, y: dx / len };
+      
+      // Check if normal should point toward or away from point
+      const toPoint = { x: point.x - closestX, y: point.y - closestY };
+      if (toPoint.x * closestNormal.x + toPoint.y * closestNormal.y < 0) {
+        closestNormal = { x: -closestNormal.x, y: -closestNormal.y };
+      }
+    }
+  }
+  
+  const isInside = isPointInsidePolygon(point, boundary);
+  return { 
+    distance: isInside ? -minDist : minDist, 
+    normal: closestNormal,
+    isInside 
+  };
+}
+
+// Helper: Get tangent vector along boundary at closest point
+function getTangentAtClosestPoint(
+  point: { x: number; y: number },
+  boundary: { x: number; y: number }[]
+): { x: number; y: number } {
+  let minDist = Infinity;
+  let tangent = { x: 1, y: 0 };
+  
+  for (let i = 0; i < boundary.length; i++) {
+    const a = boundary[i];
+    const b = boundary[(i + 1) % boundary.length];
+    
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+    
+    const t = Math.max(0, Math.min(1, 
+      ((point.x - a.x) * dx + (point.y - a.y) * dy) / (len * len)
+    ));
+    
+    const closestX = a.x + t * dx;
+    const closestY = a.y + t * dy;
+    const dist = Math.sqrt((point.x - closestX) ** 2 + (point.y - closestY) ** 2);
+    
+    if (dist < minDist) {
+      minDist = dist;
+      tangent = { x: dx / len, y: dy / len };
+    }
+  }
+  
+  return tangent;
+}
+
+// Helper: Generate parallel lines with flow-field distortion
 function generateParallelLines(opts: {
   paths: PlotterPath[];
   angleRad: number;
@@ -631,7 +712,6 @@ function generateParallelLines(opts: {
   const {
     paths,
     angleRad,
-    shapeCenter,
     shapeRadius,
     transformedBoundary,
     lineFieldCount,
@@ -650,6 +730,7 @@ function generateParallelLines(opts: {
     height,
     margin,
     layer,
+    shapeCenter,
   } = opts;
   
   const lineDir = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
@@ -659,14 +740,19 @@ function generateParallelLines(opts: {
   const baseSpacing = (Math.max(width, height)) / (lineFieldCount - 1);
   
   // Extend beyond page for cleaner edges
-  const extension = lineFieldExtend ? baseSpacing * 2 : 0;
-  const startOffset = -Math.max(width, height) - extension;
-  const endOffset = Math.max(width, height) * 2 + extension;
+  const extension = lineFieldExtend ? baseSpacing * 3 : 0;
+  const startOffset = -Math.max(width, height) / 2 - extension;
+  const endOffset = Math.max(width, height) * 1.5 + extension;
+  
+  // Influence radius for distortion
+  const influenceRadius = shapeRadius * lineFieldFalloff * 2.5;
   
   // Generate each line
   for (let i = 0; i < lineFieldCount; i++) {
     // Variable density: add extra lines near shape
-    const densityLines = lineFieldDensityVar ? getDensityExtraLines(i, lineFieldCount, shapeCenter, shapeRadius, baseSpacing, perpDir, width, height) : [0];
+    const densityLines = lineFieldDensityVar 
+      ? getDensityExtraLines(i, lineFieldCount, shapeCenter, shapeRadius, baseSpacing, perpDir, width, height) 
+      : [0];
     
     for (const densityOffset of densityLines) {
       const perpOffset = (i - (lineFieldCount - 1) / 2) * baseSpacing + densityOffset;
@@ -677,107 +763,114 @@ function generateParallelLines(opts: {
       
       const lineSegments: { x: number; y: number }[][] = [[]];
       let currentSegment = 0;
-      const steps = 300; // Number of sample points per line
+      const steps = 400; // More steps for smoother curves
+      
+      // Track accumulated perpendicular offset from distortion
+      let accumulatedOffset = 0;
       
       for (let step = 0; step <= steps; step++) {
         const t = step / steps;
-        let baseX = lineStart.x + lineDir.x * (endOffset - startOffset) * t;
-        let baseY = lineStart.y + lineDir.y * (endOffset - startOffset) * t;
+        
+        // Base position along the undistorted line
+        const baseX = lineStart.x + lineDir.x * (endOffset - startOffset) * t;
+        const baseY = lineStart.y + lineDir.y * (endOffset - startOffset) * t;
+        
+        // Get signed distance to shape boundary
+        const { distance: signedDist, normal, isInside } = getSignedDistanceAndNormal(
+          { x: baseX, y: baseY },
+          transformedBoundary
+        );
+        
+        const absDist = Math.abs(signedDist);
+        
+        // Handle line breaks inside shape
+        if (lineFieldBreakInside && isInside) {
+          if (lineSegments[currentSegment].length > 0) {
+            currentSegment++;
+            lineSegments[currentSegment] = [];
+          }
+          accumulatedOffset = 0;
+          continue;
+        }
+        
+        // Calculate distortion based on mode
+        let offsetX = 0;
+        let offsetY = 0;
+        
+        // Smooth falloff function
+        const falloffFactor = absDist < influenceRadius 
+          ? Math.pow(1 - absDist / influenceRadius, 2) 
+          : 0;
+        
+        if (lineFieldMode === 'around' && falloffFactor > 0) {
+          // Flow around: deflect perpendicular to the boundary, following tangent
+          const tangent = getTangentAtClosestPoint({ x: baseX, y: baseY }, transformedBoundary);
+          
+          // Determine which way to flow based on line direction
+          const flowSign = (lineDir.x * tangent.x + lineDir.y * tangent.y) > 0 ? 1 : -1;
+          
+          // Push away from boundary along normal, more strongly when closer
+          const pushStrength = falloffFactor * lineFieldStrength * shapeRadius * 0.8;
+          
+          if (isInside) {
+            // Inside: push hard outward
+            offsetX = normal.x * pushStrength * 2;
+            offsetY = normal.y * pushStrength * 2;
+          } else {
+            // Outside: gentle curve following tangent
+            const tangentInfluence = falloffFactor * lineFieldStrength * shapeRadius * 0.4;
+            offsetX = tangent.x * tangentInfluence * flowSign + normal.x * pushStrength * 0.5;
+            offsetY = tangent.y * tangentInfluence * flowSign + normal.y * pushStrength * 0.5;
+          }
+          
+          // Smooth accumulation for continuous curves
+          const blend = 0.15;
+          accumulatedOffset = accumulatedOffset * (1 - blend) + (offsetX * perpDir.x + offsetY * perpDir.y) * blend;
+          
+        } else if (lineFieldMode === 'through' && falloffFactor > 0) {
+          // Lens effect: compress toward center when passing through
+          const toCenter = {
+            x: shapeCenter.x - baseX,
+            y: shapeCenter.y - baseY,
+          };
+          const toCenterLen = Math.sqrt(toCenter.x ** 2 + toCenter.y ** 2) || 1;
+          
+          // Pull toward center with smooth falloff
+          const pullStrength = falloffFactor * lineFieldStrength * shapeRadius * 0.5;
+          offsetX = (toCenter.x / toCenterLen) * pullStrength;
+          offsetY = (toCenter.y / toCenterLen) * pullStrength;
+          
+        } else if (lineFieldMode === 'outline' && falloffFactor > 0) {
+          // Trace the edge: attract toward boundary
+          if (isInside) {
+            // Push to boundary
+            offsetX = normal.x * absDist * falloffFactor * lineFieldStrength;
+            offsetY = normal.y * absDist * falloffFactor * lineFieldStrength;
+          } else if (absDist < shapeRadius * 0.5) {
+            // Pull toward boundary gently
+            offsetX = -normal.x * absDist * falloffFactor * lineFieldStrength * 0.5;
+            offsetY = -normal.y * absDist * falloffFactor * lineFieldStrength * 0.5;
+          }
+        }
+        
+        let finalX = baseX + offsetX;
+        let finalY = baseY + offsetY;
         
         // Add wave modulation
         if (lineFieldWaveAmp > 0) {
-          const wavePhase = t * Math.PI * 2 * lineFieldWaveFreq + i * 0.3;
-          baseX += perpDir.x * Math.sin(wavePhase) * lineFieldWaveAmp;
-          baseY += perpDir.y * Math.sin(wavePhase) * lineFieldWaveAmp;
+          const wavePhase = t * Math.PI * 2 * lineFieldWaveFreq + i * 0.5;
+          finalX += perpDir.x * Math.sin(wavePhase) * lineFieldWaveAmp;
+          finalY += perpDir.y * Math.sin(wavePhase) * lineFieldWaveAmp;
         }
         
         // Add organic wobble
         if (lineFieldWobble > 0) {
           const noiseVal = noise2D(baseX * lineFieldWobbleScale, baseY * lineFieldWobbleScale);
-          baseX += perpDir.x * noiseVal * lineFieldWobble * 15;
-          baseY += perpDir.y * noiseVal * lineFieldWobble * 15;
+          finalX += perpDir.x * noiseVal * lineFieldWobble * 20;
+          finalY += perpDir.y * noiseVal * lineFieldWobble * 20;
         }
         
-        // Find nearest boundary point and distance
-        let minDist = Infinity;
-        let nearestIdx = 0;
-        
-        for (let bi = 0; bi < transformedBoundary.length; bi++) {
-          const bp = transformedBoundary[bi];
-          const dist = Math.sqrt((baseX - bp.x) ** 2 + (baseY - bp.y) ** 2);
-          if (dist < minDist) {
-            minDist = dist;
-            nearestIdx = bi;
-          }
-        }
-        
-        // Check if point is inside the shape
-        const isInside = isPointInsidePolygon({ x: baseX, y: baseY }, transformedBoundary);
-        
-        // Handle line breaks inside shape
-        if (lineFieldBreakInside && isInside) {
-          // Start a new segment
-          if (lineSegments[currentSegment].length > 0) {
-            currentSegment++;
-            lineSegments[currentSegment] = [];
-          }
-          continue;
-        }
-        
-        // Calculate distortion based on mode
-        let distortedX = baseX;
-        let distortedY = baseY;
-        
-        const normalizedDist = minDist / (shapeRadius * lineFieldFalloff);
-        const distortionFactor = Math.exp(-normalizedDist * normalizedDist) * lineFieldStrength;
-        
-        if (lineFieldMode === 'around') {
-          // Lines flow around the shape - push points away from center
-          if (minDist < shapeRadius * lineFieldFalloff * 2) {
-            const pushDir = {
-              x: baseX - shapeCenter.x,
-              y: baseY - shapeCenter.y,
-            };
-            const pushLen = Math.sqrt(pushDir.x ** 2 + pushDir.y ** 2) || 1;
-            
-            const pushAmount = distortionFactor * shapeRadius * 0.5;
-            if (isInside) {
-              distortedX += (pushDir.x / pushLen) * pushAmount * 2;
-              distortedY += (pushDir.y / pushLen) * pushAmount * 2;
-            } else {
-              distortedX += (pushDir.x / pushLen) * pushAmount;
-              distortedY += (pushDir.y / pushLen) * pushAmount;
-            }
-          }
-        } else if (lineFieldMode === 'through') {
-          // Lines pass through but compress/distort - lens effect
-          if (minDist < shapeRadius * lineFieldFalloff * 2) {
-            const toCenter = {
-              x: shapeCenter.x - baseX,
-              y: shapeCenter.y - baseY,
-            };
-            const toCenterLen = Math.sqrt(toCenter.x ** 2 + toCenter.y ** 2) || 1;
-            
-            const compression = distortionFactor * shapeRadius * 0.3;
-            distortedX += (toCenter.x / toCenterLen) * compression;
-            distortedY += (toCenter.y / toCenterLen) * compression;
-          }
-        } else if (lineFieldMode === 'outline') {
-          // Lines trace the edge when they hit the boundary
-          if (isInside) {
-            const nearest = transformedBoundary[nearestIdx];
-            const blendFactor = Math.min(1, distortionFactor * 2);
-            distortedX = baseX + (nearest.x - baseX) * blendFactor;
-            distortedY = baseY + (nearest.y - baseY) * blendFactor;
-          } else if (minDist < shapeRadius * 0.3) {
-            const nearest = transformedBoundary[nearestIdx];
-            const pullFactor = distortionFactor * 0.3;
-            distortedX = baseX + (nearest.x - baseX) * pullFactor;
-            distortedY = baseY + (nearest.y - baseY) * pullFactor;
-          }
-        }
-        
-        lineSegments[currentSegment].push({ x: distortedX, y: distortedY });
+        lineSegments[currentSegment].push({ x: finalX, y: finalY });
       }
       
       // Process each segment
@@ -808,7 +901,7 @@ function generateParallelLines(opts: {
   }
 }
 
-// Helper: Generate radial lines emanating from center
+// Helper: Generate radial lines emanating from center with improved distortion
 function generateRadialLines(opts: {
   paths: PlotterPath[];
   shapeCenter: { x: number; y: number };
@@ -856,6 +949,8 @@ function generateRadialLines(opts: {
     ? Math.sqrt(width * width + height * height) 
     : Math.max(width, height) / 2;
   
+  const influenceRadius = shapeRadius * lineFieldFalloff * 2.5;
+  
   for (let i = 0; i < lineFieldCount; i++) {
     const angle = (i / lineFieldCount) * Math.PI * 2;
     const lineDir = { x: Math.cos(angle), y: Math.sin(angle) };
@@ -863,43 +958,22 @@ function generateRadialLines(opts: {
     
     const lineSegments: { x: number; y: number }[][] = [[]];
     let currentSegment = 0;
-    const steps = 200;
+    const steps = 300;
     
     for (let step = 0; step <= steps; step++) {
       const t = step / steps;
       const radius = t * maxExtent;
       
-      let baseX = shapeCenter.x + lineDir.x * radius;
-      let baseY = shapeCenter.y + lineDir.y * radius;
+      const baseX = shapeCenter.x + lineDir.x * radius;
+      const baseY = shapeCenter.y + lineDir.y * radius;
       
-      // Add wave modulation
-      if (lineFieldWaveAmp > 0) {
-        const wavePhase = t * Math.PI * 2 * lineFieldWaveFreq;
-        baseX += perpDir.x * Math.sin(wavePhase) * lineFieldWaveAmp;
-        baseY += perpDir.y * Math.sin(wavePhase) * lineFieldWaveAmp;
-      }
+      // Get signed distance to shape boundary
+      const { distance: signedDist, normal, isInside } = getSignedDistanceAndNormal(
+        { x: baseX, y: baseY },
+        transformedBoundary
+      );
       
-      // Add organic wobble
-      if (lineFieldWobble > 0) {
-        const noiseVal = noise2D(baseX * lineFieldWobbleScale, baseY * lineFieldWobbleScale);
-        baseX += perpDir.x * noiseVal * lineFieldWobble * 15;
-        baseY += perpDir.y * noiseVal * lineFieldWobble * 15;
-      }
-      
-      // Find nearest boundary point
-      let minDist = Infinity;
-      let nearestIdx = 0;
-      
-      for (let bi = 0; bi < transformedBoundary.length; bi++) {
-        const bp = transformedBoundary[bi];
-        const dist = Math.sqrt((baseX - bp.x) ** 2 + (baseY - bp.y) ** 2);
-        if (dist < minDist) {
-          minDist = dist;
-          nearestIdx = bi;
-        }
-      }
-      
-      const isInside = isPointInsidePolygon({ x: baseX, y: baseY }, transformedBoundary);
+      const absDist = Math.abs(signedDist);
       
       // Handle line breaks
       if (lineFieldBreakInside && isInside) {
@@ -911,31 +985,57 @@ function generateRadialLines(opts: {
       }
       
       // Calculate distortion
-      let distortedX = baseX;
-      let distortedY = baseY;
+      let offsetX = 0;
+      let offsetY = 0;
       
-      const normalizedDist = minDist / (shapeRadius * lineFieldFalloff);
-      const distortionFactor = Math.exp(-normalizedDist * normalizedDist) * lineFieldStrength;
+      const falloffFactor = absDist < influenceRadius 
+        ? Math.pow(1 - absDist / influenceRadius, 2) 
+        : 0;
       
-      if (lineFieldMode === 'around' && minDist < shapeRadius * lineFieldFalloff * 2) {
-        // Push tangent to shape
-        const tangentDir = { x: perpDir.x, y: perpDir.y };
-        const pushAmount = distortionFactor * shapeRadius * 0.3;
-        distortedX += tangentDir.x * pushAmount * (isInside ? 2 : 1);
-        distortedY += tangentDir.y * pushAmount * (isInside ? 2 : 1);
-      } else if (lineFieldMode === 'through' && minDist < shapeRadius * lineFieldFalloff * 2) {
-        // Subtle radial compression
-        const compression = distortionFactor * shapeRadius * 0.2;
-        distortedX = shapeCenter.x + lineDir.x * (radius - compression);
-        distortedY = shapeCenter.y + lineDir.y * (radius - compression);
-      } else if (lineFieldMode === 'outline' && isInside) {
-        const nearest = transformedBoundary[nearestIdx];
-        const blendFactor = Math.min(1, distortionFactor * 2);
-        distortedX = baseX + (nearest.x - baseX) * blendFactor;
-        distortedY = baseY + (nearest.y - baseY) * blendFactor;
+      if (lineFieldMode === 'around' && falloffFactor > 0) {
+        // Spiral outward effect for radial
+        const tangent = getTangentAtClosestPoint({ x: baseX, y: baseY }, transformedBoundary);
+        const pushStrength = falloffFactor * lineFieldStrength * shapeRadius * 0.6;
+        
+        if (isInside) {
+          offsetX = normal.x * pushStrength * 2;
+          offsetY = normal.y * pushStrength * 2;
+        } else {
+          offsetX = tangent.x * pushStrength * 0.5 + normal.x * pushStrength * 0.3;
+          offsetY = tangent.y * pushStrength * 0.5 + normal.y * pushStrength * 0.3;
+        }
+        
+      } else if (lineFieldMode === 'through' && falloffFactor > 0) {
+        // Compression when passing through
+        const compression = falloffFactor * lineFieldStrength * shapeRadius * 0.4;
+        const compressedRadius = Math.max(0, radius - compression);
+        offsetX = lineDir.x * (compressedRadius - radius);
+        offsetY = lineDir.y * (compressedRadius - radius);
+        
+      } else if (lineFieldMode === 'outline' && falloffFactor > 0 && isInside) {
+        // Pull to boundary
+        offsetX = normal.x * absDist * falloffFactor * lineFieldStrength;
+        offsetY = normal.y * absDist * falloffFactor * lineFieldStrength;
       }
       
-      lineSegments[currentSegment].push({ x: distortedX, y: distortedY });
+      let finalX = baseX + offsetX;
+      let finalY = baseY + offsetY;
+      
+      // Add wave modulation
+      if (lineFieldWaveAmp > 0) {
+        const wavePhase = t * Math.PI * 2 * lineFieldWaveFreq;
+        finalX += perpDir.x * Math.sin(wavePhase) * lineFieldWaveAmp;
+        finalY += perpDir.y * Math.sin(wavePhase) * lineFieldWaveAmp;
+      }
+      
+      // Add organic wobble
+      if (lineFieldWobble > 0) {
+        const noiseVal = noise2D(baseX * lineFieldWobbleScale, baseY * lineFieldWobbleScale);
+        finalX += perpDir.x * noiseVal * lineFieldWobble * 20;
+        finalY += perpDir.y * noiseVal * lineFieldWobble * 20;
+      }
+      
+      lineSegments[currentSegment].push({ x: finalX, y: finalY });
     }
     
     // Process segments
