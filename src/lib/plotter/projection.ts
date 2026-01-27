@@ -1200,6 +1200,266 @@ function isPointInsidePolygon(
 }
 
 /**
+ * Generate contour lines - horizontal lines that fill the page and trace
+ * the shape's cross-section contours where they intersect.
+ * Like ruled paper where the shape becomes part of the lines.
+ */
+export function generateContourLines(options: ProjectionOptions): PlotterDrawing {
+  const { params, meshParams, objectType, width, height, margin } = options;
+  const { viewAngle, scale, lineFieldCount, centerOffset, simplifyTolerance, lineDetail } = params;
+  
+  const paths: PlotterPath[] = [];
+  const objectHeight = meshParams.height;
+  const lineCount = lineFieldCount || 40;
+  const angleSegments = lineDetail || 64;
+  
+  // First, compute the shape's projection to find its bounds
+  const maxRadius = getMaxBodyRadius(meshParams, { objectType, scale: 1 });
+  
+  // Pre-compute cross-sections at various heights
+  // Each cross-section is a slice of the 3D shape projected to 2D
+  const crossSections: { t: number; leftX: number; rightX: number; yCenter: number }[] = [];
+  const heightSamples = 100; // Fine sampling for smooth interpolation
+  
+  let minShapeX = Infinity, maxShapeX = -Infinity;
+  let minShapeY = Infinity, maxShapeY = -Infinity;
+  
+  for (let i = 0; i <= heightSamples; i++) {
+    const t = i / heightSamples;
+    let minX = Infinity, maxX = -Infinity;
+    let avgY = 0;
+    
+    for (let j = 0; j <= angleSegments; j++) {
+      const theta = (j / angleSegments) * Math.PI * 2;
+      const radius = getBodyRadius(meshParams, t, theta, { 
+        objectType, 
+        scale: 1,
+        includeTwist: true 
+      });
+      
+      const point3D = {
+        x: Math.cos(theta) * radius,
+        y: t * objectHeight,
+        z: Math.sin(theta) * radius,
+      };
+      
+      const rotatedPoint = rotatePoint3D(point3D, viewAngle.x, viewAngle.y);
+      
+      if (rotatedPoint.x < minX) minX = rotatedPoint.x;
+      if (rotatedPoint.x > maxX) maxX = rotatedPoint.x;
+      avgY = rotatedPoint.y;
+    }
+    
+    crossSections.push({ t, leftX: minX, rightX: maxX, yCenter: avgY });
+    
+    if (minX < minShapeX) minShapeX = minX;
+    if (maxX > maxShapeX) maxShapeX = maxX;
+    if (avgY < minShapeY) minShapeY = avgY;
+    if (avgY > maxShapeY) maxShapeY = avgY;
+  }
+  
+  // Calculate scale to fit shape on paper
+  const paperWidth = width - margin * 2;
+  const paperHeight = height - margin * 2;
+  const shapeWidth = maxShapeX - minShapeX;
+  const shapeHeight = maxShapeY - minShapeY;
+  
+  const fitScale = Math.min(
+    paperWidth / shapeWidth,
+    paperHeight / shapeHeight
+  ) * scale * 0.7; // 70% to leave room for lines outside shape
+  
+  const offsetX = width / 2 - (minShapeX + shapeWidth / 2) * fitScale + centerOffset.x;
+  const offsetY = height / 2 - (minShapeY + shapeHeight / 2) * fitScale + centerOffset.y;
+  
+  // Transform cross-sections to paper coordinates
+  const transformedSections = crossSections.map(cs => ({
+    t: cs.t,
+    leftX: cs.leftX * fitScale + offsetX,
+    rightX: cs.rightX * fitScale + offsetX,
+    y: cs.yCenter * fitScale + offsetY,
+  }));
+  
+  // Find the Y range of the transformed shape
+  const shapeYMin = Math.min(...transformedSections.map(s => s.y));
+  const shapeYMax = Math.max(...transformedSections.map(s => s.y));
+  
+  // Generate horizontal lines across the full page
+  const lineSpacing = (height - margin * 2) / (lineCount - 1);
+  
+  for (let i = 0; i < lineCount; i++) {
+    const lineY = margin + i * lineSpacing;
+    const linePoints: { x: number; y: number }[] = [];
+    
+    // Check if this line intersects the shape
+    if (lineY >= shapeYMin && lineY <= shapeYMax) {
+      // Find the cross-section at this Y level
+      // Interpolate between the nearest cross-sections
+      let leftX = margin;
+      let rightX = width - margin;
+      let foundIntersection = false;
+      
+      for (let j = 0; j < transformedSections.length - 1; j++) {
+        const s1 = transformedSections[j];
+        const s2 = transformedSections[j + 1];
+        
+        // Check if lineY is between these two sections
+        if ((lineY >= s1.y && lineY <= s2.y) || (lineY <= s1.y && lineY >= s2.y)) {
+          // Interpolate
+          const progress = Math.abs(s2.y - s1.y) > 0.001 
+            ? (lineY - s1.y) / (s2.y - s1.y) 
+            : 0;
+          
+          leftX = s1.leftX + (s2.leftX - s1.leftX) * progress;
+          rightX = s1.rightX + (s2.rightX - s1.rightX) * progress;
+          foundIntersection = true;
+          break;
+        }
+      }
+      
+      if (foundIntersection && rightX > leftX) {
+        // Line goes: left edge → shape left → trace along shape (bulge out) → shape right → right edge
+        
+        // Start from left margin
+        linePoints.push({ x: margin, y: lineY });
+        
+        // Go to where shape begins
+        linePoints.push({ x: leftX, y: lineY });
+        
+        // Now trace the contour - find the actual contour points at this height
+        const contourPoints = getContourAtHeight(
+          meshParams, objectType, lineY, 
+          shapeYMin, shapeYMax, 
+          fitScale, offsetX, offsetY, 
+          viewAngle, angleSegments
+        );
+        
+        // Add contour points (the bulging shape)
+        for (const cp of contourPoints) {
+          linePoints.push(cp);
+        }
+        
+        // Continue to right edge
+        linePoints.push({ x: rightX, y: lineY });
+        linePoints.push({ x: width - margin, y: lineY });
+      } else {
+        // No valid intersection, draw straight line
+        linePoints.push({ x: margin, y: lineY });
+        linePoints.push({ x: width - margin, y: lineY });
+      }
+    } else {
+      // Line doesn't intersect shape - draw straight
+      linePoints.push({ x: margin, y: lineY });
+      linePoints.push({ x: width - margin, y: lineY });
+    }
+    
+    // Apply simplification if needed
+    let finalPoints = linePoints;
+    if (simplifyTolerance > 0 && linePoints.length > 2) {
+      finalPoints = simplifyPath(linePoints, simplifyTolerance);
+    }
+    
+    if (finalPoints.length >= 2) {
+      paths.push({
+        points: finalPoints,
+        penDown: true,
+        layer: i,
+      });
+    }
+  }
+  
+  return {
+    paths,
+    width,
+    height,
+    units: 'mm',
+  };
+}
+
+// Helper: Get the visible contour points at a specific Y height in paper coordinates
+function getContourAtHeight(
+  meshParams: ParametricParams,
+  objectType: ObjectType3D,
+  targetY: number,
+  shapeYMin: number,
+  shapeYMax: number,
+  fitScale: number,
+  offsetX: number,
+  offsetY: number,
+  viewAngle: { x: number; y: number },
+  angleSegments: number
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = [];
+  const objectHeight = meshParams.height;
+  
+  // Convert paper Y back to normalized t
+  // We need to find which t value corresponds to this Y
+  // This requires searching through the height range
+  
+  const heightSamples = 50;
+  let bestT = 0;
+  let bestDist = Infinity;
+  
+  for (let i = 0; i <= heightSamples; i++) {
+    const t = i / heightSamples;
+    const point3D = {
+      x: 0,
+      y: t * objectHeight,
+      z: 0,
+    };
+    const rotated = rotatePoint3D(point3D, viewAngle.x, viewAngle.y);
+    const paperY = rotated.y * fitScale + offsetY;
+    
+    const dist = Math.abs(paperY - targetY);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestT = t;
+    }
+  }
+  
+  // Now sample the cross-section at this t value
+  // We want the visible front half of the contour (bulging toward viewer)
+  const contourRaw: { x: number; y: number; z: number }[] = [];
+  
+  for (let j = 0; j <= angleSegments; j++) {
+    const theta = (j / angleSegments) * Math.PI * 2;
+    const radius = getBodyRadius(meshParams, bestT, theta, { 
+      objectType, 
+      scale: 1,
+      includeTwist: true 
+    });
+    
+    const point3D = {
+      x: Math.cos(theta) * radius,
+      y: bestT * objectHeight,
+      z: Math.sin(theta) * radius,
+    };
+    
+    const rotated = rotatePoint3D(point3D, viewAngle.x, viewAngle.y);
+    contourRaw.push(rotated);
+  }
+  
+  // Find the front-facing part (positive Z after rotation = toward viewer)
+  // Sort by X and take the points with highest Z for each X region
+  const frontContour: { x: number; y: number }[] = [];
+  
+  // Take just the front half - where z > 0 (facing viewer)
+  for (const p of contourRaw) {
+    if (p.z >= 0) {
+      frontContour.push({
+        x: p.x * fitScale + offsetX,
+        y: targetY + p.z * fitScale * 0.3, // Bulge the line upward based on Z depth
+      });
+    }
+  }
+  
+  // Sort by X for proper path order
+  frontContour.sort((a, b) => a.x - b.x);
+  
+  return frontContour;
+}
+
+/**
  * Main projection generator - dispatches to specific type.
  */
 export function generateProjection(options: ProjectionOptions): PlotterDrawing {
@@ -1212,6 +1472,8 @@ export function generateProjection(options: ProjectionOptions): PlotterDrawing {
       return generateContourStack(options);
     case 'lineField':
       return generateLineField(options);
+    case 'contourLines':
+      return generateContourLines(options);
     default:
       return generateCrossSectionSlices(options);
   }

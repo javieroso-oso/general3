@@ -56,7 +56,8 @@ const PROJECTION_TYPE_LABELS: Record<ProjectionType, string> = {
   crossSection: 'Cross-Section Slices',
   silhouette: 'Silhouette Outline',
   contourStack: 'Contour Stack',
-  lineField: 'Line Field',
+  lineField: 'Distortion Field',
+  contourLines: 'Contour Lines',
 };
 
 const LINE_FIELD_MODE_LABELS: Record<LineFieldMode, { label: string; description: string }> = {
