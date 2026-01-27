@@ -796,10 +796,10 @@ const PlotterControls = ({
                     
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Line Count: {params.projection.lineFieldCount}
+                        Line Count: {params.projection.lineFieldCount ?? 40}
                       </Label>
                       <Slider
-                        value={[params.projection.lineFieldCount]}
+                        value={[params.projection.lineFieldCount ?? 40]}
                         min={10}
                         max={100}
                         step={1}
@@ -809,10 +809,10 @@ const PlotterControls = ({
 
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Line Angle: {params.projection.lineFieldAngle}°
+                        Line Angle: {params.projection.lineFieldAngle ?? 0}°
                       </Label>
                       <Slider
-                        value={[params.projection.lineFieldAngle]}
+                        value={[params.projection.lineFieldAngle ?? 0]}
                         min={0}
                         max={180}
                         step={5}
@@ -822,10 +822,10 @@ const PlotterControls = ({
 
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Distortion: {params.projection.lineFieldStrength.toFixed(2)}
+                        Distortion: {(params.projection.lineFieldStrength ?? 1).toFixed(2)}
                       </Label>
                       <Slider
-                        value={[params.projection.lineFieldStrength * 100]}
+                        value={[(params.projection.lineFieldStrength ?? 1) * 100]}
                         min={0}
                         max={200}
                         step={5}
@@ -835,10 +835,10 @@ const PlotterControls = ({
 
                     <div>
                       <Label className="text-xs text-muted-foreground">
-                        Falloff: {params.projection.lineFieldFalloff.toFixed(2)}
+                        Falloff: {(params.projection.lineFieldFalloff ?? 1.5).toFixed(2)}
                       </Label>
                       <Slider
-                        value={[params.projection.lineFieldFalloff * 100]}
+                        value={[(params.projection.lineFieldFalloff ?? 1.5) * 100]}
                         min={50}
                         max={300}
                         step={10}
@@ -849,7 +849,7 @@ const PlotterControls = ({
                     <div>
                       <Label className="text-xs text-muted-foreground">Wrap Mode</Label>
                       <Select
-                        value={params.projection.lineFieldMode}
+                        value={params.projection.lineFieldMode ?? 'around'}
                         onValueChange={(v) => updateProjection('lineFieldMode', v as LineFieldMode)}
                       >
                         <SelectTrigger className="h-8 text-xs">
@@ -871,7 +871,7 @@ const PlotterControls = ({
                     <div className="flex items-center justify-between">
                       <Label className="text-xs text-muted-foreground">Extend Lines Past Edges</Label>
                       <Switch
-                        checked={params.projection.lineFieldExtend}
+                        checked={params.projection.lineFieldExtend ?? true}
                         onCheckedChange={(v) => updateProjection('lineFieldExtend', v)}
                       />
                     </div>
