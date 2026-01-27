@@ -37,6 +37,9 @@ export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'l
 // Line field wrap modes
 export type LineFieldMode = 'around' | 'through' | 'outline';
 
+// Line field geometry modes
+export type LineFieldGeometry = 'parallel' | 'radial';
+
 // A single path segment with pen state
 export interface PlotterPath {
   points: Array<{ x: number; y: number }>;
@@ -128,13 +131,26 @@ export interface ProjectionParams {
   perspective: number;       // Perspective amount for contour stack (0-1)
   centerOffset: { x: number; y: number }; // Offset from center in mm
   simplifyTolerance: number; // Path simplification (0=none, higher=more)
-  // Line field settings
+  // Line field settings - Core
   lineFieldCount: number;        // 10-100 - how many lines fill the page
   lineFieldAngle: number;        // 0-180 degrees - direction of lines
   lineFieldStrength: number;     // 0-2 distortion multiplier
   lineFieldFalloff: number;      // 0.5-3 distance falloff
   lineFieldMode: LineFieldMode;  // How lines interact with shape
   lineFieldExtend: boolean;      // Extend lines beyond paper edges
+  
+  // Line field settings - Enhanced
+  lineFieldGeometry: LineFieldGeometry; // parallel or radial lines
+  lineFieldWobble: number;       // 0-1 organic noise amount
+  lineFieldWobbleScale: number;  // 0.01-0.1 noise frequency
+  lineFieldDensityVar: boolean;  // Variable density near shape
+  lineFieldBreakInside: boolean; // Break lines inside shape (negative space)
+  lineFieldWaveAmp: number;      // 0-20 wave modulation amplitude
+  lineFieldWaveFreq: number;     // 1-10 wave frequency
+  lineFieldOverlayCount: number; // 1-4 number of angle layers
+  lineFieldOverlayOffset: number;// 15-90 degrees between layers
+  lineFieldFillInside: boolean;  // Fill shape with different pattern
+  lineFieldFillDensity: number;  // 1-3 fill pattern density multiplier
 }
 
 // Machine presets for G-code
@@ -284,13 +300,26 @@ export const defaultProjectionParams: ProjectionParams = {
   perspective: 0.3,
   centerOffset: { x: 0, y: 0 },
   simplifyTolerance: 0,
-  // Line field defaults
+  // Line field defaults - Core
   lineFieldCount: 40,
   lineFieldAngle: 0,
   lineFieldStrength: 1,
   lineFieldFalloff: 1.5,
   lineFieldMode: 'around',
   lineFieldExtend: true,
+  
+  // Line field defaults - Enhanced
+  lineFieldGeometry: 'parallel',
+  lineFieldWobble: 0,
+  lineFieldWobbleScale: 0.03,
+  lineFieldDensityVar: false,
+  lineFieldBreakInside: false,
+  lineFieldWaveAmp: 0,
+  lineFieldWaveFreq: 3,
+  lineFieldOverlayCount: 1,
+  lineFieldOverlayOffset: 45,
+  lineFieldFillInside: false,
+  lineFieldFillDensity: 2,
 };
 
 export const defaultPlotterParams: PlotterParams = {
