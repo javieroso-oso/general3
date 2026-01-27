@@ -25,6 +25,7 @@ import {
   PLOTTER_MACHINES,
   PlotterMode,
   ProjectionType,
+  LineFieldMode,
   CapturedMeshParams,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
@@ -54,6 +55,13 @@ const PROJECTION_TYPE_LABELS: Record<ProjectionType, string> = {
   crossSection: 'Cross-Section Slices',
   silhouette: 'Silhouette Outline',
   contourStack: 'Contour Stack',
+  lineField: 'Line Field',
+};
+
+const LINE_FIELD_MODE_LABELS: Record<LineFieldMode, { label: string; description: string }> = {
+  around: { label: 'Around', description: 'Lines flow around the shape' },
+  through: { label: 'Through', description: 'Lines distort through center' },
+  outline: { label: 'Outline', description: 'Lines trace the edge' },
 };
 
 const PlotterControls = ({ 
@@ -778,6 +786,97 @@ const PlotterControls = ({
                     onCheckedChange={(v) => updateProjection('showHiddenLines', v)}
                   />
                 </div>
+
+                {/* Line Field Settings */}
+                {params.projection.type === 'lineField' && (
+                  <>
+                    <div className="border-t border-border pt-3 mt-3">
+                      <Label className="text-xs font-medium text-foreground mb-2 block">Line Field Settings</Label>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Line Count: {params.projection.lineFieldCount}
+                      </Label>
+                      <Slider
+                        value={[params.projection.lineFieldCount]}
+                        min={10}
+                        max={100}
+                        step={1}
+                        onValueChange={([v]) => updateProjection('lineFieldCount', v)}
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Line Angle: {params.projection.lineFieldAngle}°
+                      </Label>
+                      <Slider
+                        value={[params.projection.lineFieldAngle]}
+                        min={0}
+                        max={180}
+                        step={5}
+                        onValueChange={([v]) => updateProjection('lineFieldAngle', v)}
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Distortion: {params.projection.lineFieldStrength.toFixed(2)}
+                      </Label>
+                      <Slider
+                        value={[params.projection.lineFieldStrength * 100]}
+                        min={0}
+                        max={200}
+                        step={5}
+                        onValueChange={([v]) => updateProjection('lineFieldStrength', v / 100)}
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Falloff: {params.projection.lineFieldFalloff.toFixed(2)}
+                      </Label>
+                      <Slider
+                        value={[params.projection.lineFieldFalloff * 100]}
+                        min={50}
+                        max={300}
+                        step={10}
+                        onValueChange={([v]) => updateProjection('lineFieldFalloff', v / 100)}
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Wrap Mode</Label>
+                      <Select
+                        value={params.projection.lineFieldMode}
+                        onValueChange={(v) => updateProjection('lineFieldMode', v as LineFieldMode)}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(LINE_FIELD_MODE_LABELS).map(([key, { label, description }]) => (
+                            <SelectItem key={key} value={key} className="text-xs">
+                              <div className="flex flex-col">
+                                <span>{label}</span>
+                                <span className="text-muted-foreground text-[10px]">{description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Extend Lines Past Edges</Label>
+                      <Switch
+                        checked={params.projection.lineFieldExtend}
+                        onCheckedChange={(v) => updateProjection('lineFieldExtend', v)}
+                      />
+                    </div>
+                  </>
+                )}
               </AccordionContent>
             </AccordionItem>
           </Accordion>

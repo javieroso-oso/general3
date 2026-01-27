@@ -388,6 +388,283 @@ export function generateContourStack(options: ProjectionOptions): PlotterDrawing
 }
 
 /**
+ * Generate line field with shape distortion.
+ * Lines fill the page and bend around the silhouette of the 3D shape.
+ */
+export function generateLineField(options: ProjectionOptions): PlotterDrawing {
+  const { params, meshParams, objectType, width, height, margin } = options;
+  const { 
+    viewAngle, 
+    scale, 
+    lineFieldCount,
+    lineFieldAngle,
+    lineFieldStrength,
+    lineFieldFalloff,
+    lineFieldMode,
+    lineFieldExtend,
+    simplifyTolerance,
+  } = params;
+  
+  const paths: PlotterPath[] = [];
+  const objectHeight = meshParams.height;
+  const heightSegments = 64;
+  const angleSegments = 128;
+  
+  // First, generate the silhouette boundary points
+  const allPoints: { x: number; y: number; z3d: number }[] = [];
+  
+  for (let i = 0; i <= heightSegments; i++) {
+    const t = i / heightSegments;
+    
+    for (let j = 0; j < angleSegments; j++) {
+      const theta = (j / angleSegments) * Math.PI * 2;
+      const radius = getBodyRadius(meshParams, t, theta, { 
+        objectType, 
+        scale: 1,
+        includeTwist: true 
+      });
+      
+      const point3D = {
+        x: Math.cos(theta) * radius,
+        y: t * objectHeight,
+        z: Math.sin(theta) * radius,
+      };
+      
+      const rotatedPoint = rotatePoint3D(point3D, viewAngle.x, viewAngle.y);
+      
+      allPoints.push({
+        x: rotatedPoint.x,
+        y: rotatedPoint.y,
+        z3d: rotatedPoint.z,
+      });
+    }
+  }
+  
+  // Find the outline by tracing the left and right edges at each height
+  const leftEdge: { x: number; y: number }[] = [];
+  const rightEdge: { x: number; y: number }[] = [];
+  
+  for (let i = 0; i <= heightSegments; i++) {
+    const startIdx = i * angleSegments;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minXY = 0;
+    let maxXY = 0;
+    
+    for (let j = 0; j < angleSegments; j++) {
+      const point = allPoints[startIdx + j];
+      if (point.x < minX) {
+        minX = point.x;
+        minXY = point.y;
+      }
+      if (point.x > maxX) {
+        maxX = point.x;
+        maxXY = point.y;
+      }
+    }
+    
+    leftEdge.push({ x: minX, y: minXY });
+    rightEdge.push({ x: maxX, y: maxXY });
+  }
+  
+  // Combine into boundary points
+  const boundaryPoints = [
+    ...leftEdge,
+    ...rightEdge.reverse(),
+  ];
+  
+  // Calculate bounds and scale
+  const bounds = getBounds(boundaryPoints);
+  const paperWidth = width - margin * 2;
+  const paperHeight = height - margin * 2;
+  const boundsWidth = bounds.maxX - bounds.minX;
+  const boundsHeight = bounds.maxY - bounds.minY;
+  
+  const fitScale = Math.min(
+    paperWidth / boundsWidth,
+    paperHeight / boundsHeight
+  ) * scale * 0.7; // 70% to leave room for distortion
+  
+  const offsetX = width / 2 - (bounds.minX + boundsWidth / 2) * fitScale;
+  const offsetY = height / 2 - (bounds.minY + boundsHeight / 2) * fitScale;
+  
+  // Transform boundary to paper coordinates
+  const transformedBoundary = boundaryPoints.map(p => ({
+    x: p.x * fitScale + offsetX,
+    y: p.y * fitScale + offsetY,
+  }));
+  
+  // Calculate the center of the shape
+  const shapeCenter = {
+    x: transformedBoundary.reduce((sum, p) => sum + p.x, 0) / transformedBoundary.length,
+    y: transformedBoundary.reduce((sum, p) => sum + p.y, 0) / transformedBoundary.length,
+  };
+  
+  // Calculate approximate shape radius
+  const shapeRadius = Math.max(
+    ...transformedBoundary.map(p => 
+      Math.sqrt((p.x - shapeCenter.x) ** 2 + (p.y - shapeCenter.y) ** 2)
+    )
+  );
+  
+  // Generate lines
+  const angleRad = (lineFieldAngle * Math.PI) / 180;
+  const lineDir = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
+  const perpDir = { x: -Math.sin(angleRad), y: Math.cos(angleRad) };
+  
+  // Calculate line spacing
+  const lineSpacing = (Math.max(width, height)) / (lineFieldCount - 1);
+  
+  // Extend beyond page for cleaner edges
+  const extension = lineFieldExtend ? lineSpacing * 2 : 0;
+  const startOffset = -Math.max(width, height) - extension;
+  const endOffset = Math.max(width, height) * 2 + extension;
+  
+  // Generate each line
+  for (let i = 0; i < lineFieldCount; i++) {
+    const perpOffset = (i - (lineFieldCount - 1) / 2) * lineSpacing;
+    const lineStart = {
+      x: width / 2 + perpDir.x * perpOffset + lineDir.x * startOffset,
+      y: height / 2 + perpDir.y * perpOffset + lineDir.y * startOffset,
+    };
+    
+    const linePoints: { x: number; y: number }[] = [];
+    const steps = 200; // Number of sample points per line
+    
+    for (let step = 0; step <= steps; step++) {
+      const t = step / steps;
+      const baseX = lineStart.x + lineDir.x * (endOffset - startOffset) * t;
+      const baseY = lineStart.y + lineDir.y * (endOffset - startOffset) * t;
+      
+      // Find nearest boundary point and distance
+      let minDist = Infinity;
+      let nearestIdx = 0;
+      
+      for (let bi = 0; bi < transformedBoundary.length; bi++) {
+        const bp = transformedBoundary[bi];
+        const dist = Math.sqrt((baseX - bp.x) ** 2 + (baseY - bp.y) ** 2);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestIdx = bi;
+        }
+      }
+      
+      // Check if point is inside the shape
+      const isInside = isPointInsidePolygon({ x: baseX, y: baseY }, transformedBoundary);
+      
+      // Calculate distortion based on mode
+      let distortedX = baseX;
+      let distortedY = baseY;
+      
+      const distanceFromCenter = Math.sqrt((baseX - shapeCenter.x) ** 2 + (baseY - shapeCenter.y) ** 2);
+      const normalizedDist = minDist / (shapeRadius * lineFieldFalloff);
+      const distortionFactor = Math.exp(-normalizedDist * normalizedDist) * lineFieldStrength;
+      
+      if (lineFieldMode === 'around') {
+        // Lines flow around the shape - push points away from center
+        if (minDist < shapeRadius * lineFieldFalloff * 2) {
+          const pushDir = {
+            x: baseX - shapeCenter.x,
+            y: baseY - shapeCenter.y,
+          };
+          const pushLen = Math.sqrt(pushDir.x ** 2 + pushDir.y ** 2) || 1;
+          
+          // Push perpendicular to line direction for smoother flow
+          const pushAmount = distortionFactor * shapeRadius * 0.5;
+          if (isInside) {
+            // If inside, push more strongly
+            distortedX += (pushDir.x / pushLen) * pushAmount * 2;
+            distortedY += (pushDir.y / pushLen) * pushAmount * 2;
+          } else {
+            distortedX += (pushDir.x / pushLen) * pushAmount;
+            distortedY += (pushDir.y / pushLen) * pushAmount;
+          }
+        }
+      } else if (lineFieldMode === 'through') {
+        // Lines pass through but compress/distort - lens effect
+        if (minDist < shapeRadius * lineFieldFalloff * 2) {
+          // Compress toward center of shape
+          const toCenter = {
+            x: shapeCenter.x - baseX,
+            y: shapeCenter.y - baseY,
+          };
+          const toCenterLen = Math.sqrt(toCenter.x ** 2 + toCenter.y ** 2) || 1;
+          
+          const compression = distortionFactor * shapeRadius * 0.3;
+          distortedX += (toCenter.x / toCenterLen) * compression;
+          distortedY += (toCenter.y / toCenterLen) * compression;
+        }
+      } else if (lineFieldMode === 'outline') {
+        // Lines trace the edge when they hit the boundary
+        if (isInside) {
+          // Snap to nearest boundary point
+          const nearest = transformedBoundary[nearestIdx];
+          const blendFactor = Math.min(1, distortionFactor * 2);
+          distortedX = baseX + (nearest.x - baseX) * blendFactor;
+          distortedY = baseY + (nearest.y - baseY) * blendFactor;
+        } else if (minDist < shapeRadius * 0.3) {
+          // Slight pull toward boundary when close
+          const nearest = transformedBoundary[nearestIdx];
+          const pullFactor = distortionFactor * 0.3;
+          distortedX = baseX + (nearest.x - baseX) * pullFactor;
+          distortedY = baseY + (nearest.y - baseY) * pullFactor;
+        }
+      }
+      
+      linePoints.push({ x: distortedX, y: distortedY });
+    }
+    
+    // Apply simplification if needed
+    let finalPoints = linePoints;
+    if (simplifyTolerance > 0) {
+      finalPoints = simplifyPath(linePoints, simplifyTolerance);
+    }
+    
+    // Clip to page bounds
+    const clippedPoints = finalPoints.filter(p => 
+      p.x >= margin && p.x <= width - margin &&
+      p.y >= margin && p.y <= height - margin
+    );
+    
+    if (clippedPoints.length >= 2) {
+      paths.push({
+        points: clippedPoints,
+        penDown: true,
+        layer: i,
+      });
+    }
+  }
+  
+  return {
+    paths,
+    width,
+    height,
+    units: 'mm',
+  };
+}
+
+// Helper: Check if a point is inside a polygon (ray casting)
+function isPointInsidePolygon(
+  point: { x: number; y: number },
+  polygon: { x: number; y: number }[]
+): boolean {
+  let inside = false;
+  const n = polygon.length;
+  
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    
+    if (((yi > point.y) !== (yj > point.y)) &&
+        (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  
+  return inside;
+}
+
+/**
  * Main projection generator - dispatches to specific type.
  */
 export function generateProjection(options: ProjectionOptions): PlotterDrawing {
@@ -398,6 +675,8 @@ export function generateProjection(options: ProjectionOptions): PlotterDrawing {
       return generateSilhouette(options);
     case 'contourStack':
       return generateContourStack(options);
+    case 'lineField':
+      return generateLineField(options);
     default:
       return generateCrossSectionSlices(options);
   }
