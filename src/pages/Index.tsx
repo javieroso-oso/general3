@@ -53,6 +53,10 @@ const Index = () => {
   const [params, setParams] = useState<ParametricParams>(defaultParams.vase);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
   
+  // Store last 3D object type and params for plotter projection
+  const [last3DObjectType, setLast3DObjectType] = useState<Exclude<ObjectType, 'plotter'>>('vase');
+  const [last3DParams, setLast3DParams] = useState<ParametricParams>(defaultParams.vase);
+  
   // Plotter drawing (computed from plotter params)
   const plotterDrawing = usePlotterDrawing(plotterParams);
   const [showLeftPanel, setShowLeftPanel] = useState(true);
@@ -154,6 +158,12 @@ const Index = () => {
   }, []);
 
   const handleTypeChange = (type: ObjectType) => {
+    // Before switching away from 3D, save the current 3D state
+    if (objectType !== 'plotter') {
+      setLast3DObjectType(objectType);
+      setLast3DParams(params);
+    }
+    
     setObjectType(type);
     // Only set params for 3D types
     if (type !== 'plotter') {
@@ -496,6 +506,8 @@ const Index = () => {
               params={plotterParams}
               drawing={plotterDrawing}
               onParamsChange={setPlotterParams}
+              currentMeshParams={last3DParams}
+              currentObjectType={last3DObjectType}
             />
           </div>
         ) : (

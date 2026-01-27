@@ -155,6 +155,13 @@ export const PLOTTER_MACHINES: Record<string, PlotterMachine> = {
   },
 };
 
+// Captured 3D mesh parameters for projection mode
+export interface CapturedMeshParams {
+  params: Record<string, unknown>; // ParametricParams - stored as generic to avoid circular dep
+  objectType: 'vase' | 'lamp' | 'sculpture';
+  capturedAt: number; // timestamp
+}
+
 // Complete plotter parameters
 export interface PlotterParams {
   // Paper settings
@@ -179,6 +186,7 @@ export interface PlotterParams {
   
   // Projection settings
   projection: ProjectionParams;
+  capturedMesh?: CapturedMeshParams; // Captured 3D design for projection
   
   // Export settings
   machinePreset: string;

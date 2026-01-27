@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -15,24 +16,28 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Download, Shuffle, FileCode, FileImage } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Download, Shuffle, FileCode, FileImage, Camera, RotateCcw } from 'lucide-react';
 import { 
   PlotterParams, 
   PAPER_SIZES, 
   GenerativePattern, 
   PLOTTER_MACHINES,
-  defaultFlowFieldParams,
-  defaultSpiralParams,
-  defaultLissajousParams,
-  defaultWaveParams,
+  PlotterMode,
+  ProjectionType,
+  CapturedMeshParams,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
+import { ParametricParams, ObjectType } from '@/types/parametric';
 import { downloadSVG, downloadPlotterGCode, downloadHPGL } from '@/lib/plotter/export';
 
 interface PlotterControlsProps {
   params: PlotterParams;
   drawing: PlotterDrawing | null;
   onParamsChange: (params: PlotterParams) => void;
+  // For 3D projection mode
+  currentMeshParams?: ParametricParams;
+  currentObjectType?: ObjectType;
 }
 
 const PATTERN_LABELS: Record<GenerativePattern, string> = {
@@ -45,7 +50,19 @@ const PATTERN_LABELS: Record<GenerativePattern, string> = {
   voronoi: 'Voronoi',
 };
 
-const PlotterControls = ({ params, drawing, onParamsChange }: PlotterControlsProps) => {
+const PROJECTION_TYPE_LABELS: Record<ProjectionType, string> = {
+  crossSection: 'Cross-Section Slices',
+  silhouette: 'Silhouette Outline',
+  contourStack: 'Contour Stack',
+};
+
+const PlotterControls = ({ 
+  params, 
+  drawing, 
+  onParamsChange,
+  currentMeshParams,
+  currentObjectType,
+}: PlotterControlsProps) => {
   const updateParams = useCallback(<K extends keyof PlotterParams>(
     key: K, 
     value: PlotterParams[K]
@@ -93,6 +110,16 @@ const PlotterControls = ({ params, drawing, onParamsChange }: PlotterControlsPro
     });
   }, [params, onParamsChange]);
 
+  const updateProjection = useCallback(<K extends keyof typeof params.projection>(
+    key: K,
+    value: typeof params.projection[K]
+  ) => {
+    onParamsChange({
+      ...params,
+      projection: { ...params.projection, [key]: value },
+    });
+  }, [params, onParamsChange]);
+
   const randomizeSeed = useCallback(() => {
     const newSeed = Math.floor(Math.random() * 10000);
     onParamsChange({
@@ -103,26 +130,79 @@ const PlotterControls = ({ params, drawing, onParamsChange }: PlotterControlsPro
     });
   }, [params, onParamsChange]);
 
+  const captureCurrentDesign = useCallback(() => {
+    if (!currentMeshParams || !currentObjectType || currentObjectType === 'plotter') {
+      return;
+    }
+    
+    const captured: CapturedMeshParams = {
+      params: currentMeshParams as unknown as Record<string, unknown>,
+      objectType: currentObjectType as 'vase' | 'lamp' | 'sculpture',
+      capturedAt: Date.now(),
+    };
+    
+    onParamsChange({
+      ...params,
+      capturedMesh: captured,
+      mode: 'projection',
+    });
+  }, [params, onParamsChange, currentMeshParams, currentObjectType]);
+
+  const handleModeChange = useCallback((mode: PlotterMode) => {
+    // When switching to projection mode, auto-capture if no design captured
+    if (mode === 'projection' && !params.capturedMesh && currentMeshParams && currentObjectType !== 'plotter') {
+      const captured: CapturedMeshParams = {
+        params: currentMeshParams as unknown as Record<string, unknown>,
+        objectType: currentObjectType as 'vase' | 'lamp' | 'sculpture',
+        capturedAt: Date.now(),
+      };
+      onParamsChange({
+        ...params,
+        mode,
+        capturedMesh: captured,
+      });
+    } else {
+      updateParams('mode', mode);
+    }
+  }, [params, onParamsChange, updateParams, currentMeshParams, currentObjectType]);
+
   const handleExportSVG = useCallback(() => {
     if (!drawing) return;
-    const filename = `plotter_${params.pattern}_${Date.now()}.svg`;
+    const modeLabel = params.mode === 'projection' ? 'projection' : params.pattern;
+    const filename = `plotter_${modeLabel}_${Date.now()}.svg`;
     downloadSVG(drawing, filename);
-  }, [drawing, params.pattern]);
+  }, [drawing, params.mode, params.pattern]);
 
   const handleExportGCode = useCallback(() => {
     if (!drawing) return;
-    const filename = `plotter_${params.pattern}_${Date.now()}.gcode`;
+    const modeLabel = params.mode === 'projection' ? 'projection' : params.pattern;
+    const filename = `plotter_${modeLabel}_${Date.now()}.gcode`;
     downloadPlotterGCode(drawing, params.machinePreset, filename);
-  }, [drawing, params.pattern, params.machinePreset]);
+  }, [drawing, params.mode, params.pattern, params.machinePreset]);
 
   const handleExportHPGL = useCallback(() => {
     if (!drawing) return;
-    const filename = `plotter_${params.pattern}_${Date.now()}.hpgl`;
+    const modeLabel = params.mode === 'projection' ? 'projection' : params.pattern;
+    const filename = `plotter_${modeLabel}_${Date.now()}.hpgl`;
     downloadHPGL(drawing, filename);
-  }, [drawing, params.pattern]);
+  }, [drawing, params.mode, params.pattern]);
+
+  const hasCapturedDesign = !!params.capturedMesh;
+  const capturedType = params.capturedMesh?.objectType;
 
   return (
     <div className="space-y-4">
+      {/* Mode Selection */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Mode</Label>
+        <Tabs value={params.mode} onValueChange={(v) => handleModeChange(v as PlotterMode)}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="generative" className="text-xs">Generative</TabsTrigger>
+            <TabsTrigger value="projection" className="text-xs">3D Projection</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
       {/* Paper Settings */}
       <Accordion type="single" collapsible defaultValue="paper">
         <AccordionItem value="paper" className="border-none">
@@ -182,305 +262,439 @@ const PlotterControls = ({ params, drawing, onParamsChange }: PlotterControlsPro
         </AccordionItem>
       </Accordion>
 
-      {/* Pattern Selection */}
-      <Accordion type="single" collapsible defaultValue="pattern">
-        <AccordionItem value="pattern" className="border-none">
-          <AccordionTrigger className="py-2 text-sm font-medium">
-            Pattern
-          </AccordionTrigger>
-          <AccordionContent className="space-y-3 pt-2">
-            <div className="grid grid-cols-3 gap-1">
-              {(['flowField', 'spiral', 'lissajous', 'waveFunctions', 'concentricCircles'] as GenerativePattern[]).map((pattern) => (
+      {/* Generative Mode Controls */}
+      {params.mode === 'generative' && (
+        <>
+          {/* Pattern Selection */}
+          <Accordion type="single" collapsible defaultValue="pattern">
+            <AccordionItem value="pattern" className="border-none">
+              <AccordionTrigger className="py-2 text-sm font-medium">
+                Pattern
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
+                <div className="grid grid-cols-3 gap-1">
+                  {(['flowField', 'spiral', 'lissajous', 'waveFunctions', 'concentricCircles'] as GenerativePattern[]).map((pattern) => (
+                    <Button
+                      key={pattern}
+                      variant={params.pattern === pattern ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => updateParams('pattern', pattern)}
+                      className="text-xs h-8"
+                    >
+                      {PATTERN_LABELS[pattern]}
+                    </Button>
+                  ))}
+                </div>
+
                 <Button
-                  key={pattern}
-                  variant={params.pattern === pattern ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
-                  onClick={() => updateParams('pattern', pattern)}
-                  className="text-xs h-8"
+                  onClick={randomizeSeed}
+                  className="w-full gap-2"
                 >
-                  {PATTERN_LABELS[pattern]}
+                  <Shuffle className="w-3.5 h-3.5" />
+                  Randomize
                 </Button>
-              ))}
-            </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={randomizeSeed}
-              className="w-full gap-2"
-            >
-              <Shuffle className="w-3.5 h-3.5" />
-              Randomize
-            </Button>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          {/* Pattern-specific controls */}
+          {params.pattern === 'flowField' && (
+            <Accordion type="single" collapsible defaultValue="flowField">
+              <AccordionItem value="flowField" className="border-none">
+                <AccordionTrigger className="py-2 text-sm font-medium">
+                  Flow Field Settings
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pt-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Noise Scale: {params.flowField.noiseScale.toFixed(3)}
+                    </Label>
+                    <Slider
+                      value={[params.flowField.noiseScale * 1000]}
+                      min={1}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => updateFlowField('noiseScale', v / 1000)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Line Count: {params.flowField.particleCount}
+                    </Label>
+                    <Slider
+                      value={[params.flowField.particleCount]}
+                      min={20}
+                      max={500}
+                      step={10}
+                      onValueChange={([v]) => updateFlowField('particleCount', v)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Line Length: {params.flowField.lineLength}
+                    </Label>
+                    <Slider
+                      value={[params.flowField.lineLength]}
+                      min={10}
+                      max={300}
+                      step={5}
+                      onValueChange={([v]) => updateFlowField('lineLength', v)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Curvature: {params.flowField.curvature.toFixed(1)}
+                    </Label>
+                    <Slider
+                      value={[params.flowField.curvature * 10]}
+                      min={1}
+                      max={30}
+                      step={1}
+                      onValueChange={([v]) => updateFlowField('curvature', v / 10)}
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
 
-      {/* Pattern-specific controls */}
-      {params.pattern === 'flowField' && (
-        <Accordion type="single" collapsible defaultValue="flowField">
-          <AccordionItem value="flowField" className="border-none">
-            <AccordionTrigger className="py-2 text-sm font-medium">
-              Flow Field Settings
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-2">
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Noise Scale: {params.flowField.noiseScale.toFixed(3)}
-                </Label>
-                <Slider
-                  value={[params.flowField.noiseScale * 1000]}
-                  min={1}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => updateFlowField('noiseScale', v / 1000)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Line Count: {params.flowField.particleCount}
-                </Label>
-                <Slider
-                  value={[params.flowField.particleCount]}
-                  min={20}
-                  max={500}
-                  step={10}
-                  onValueChange={([v]) => updateFlowField('particleCount', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Line Length: {params.flowField.lineLength}
-                </Label>
-                <Slider
-                  value={[params.flowField.lineLength]}
-                  min={10}
-                  max={300}
-                  step={5}
-                  onValueChange={([v]) => updateFlowField('lineLength', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Curvature: {params.flowField.curvature.toFixed(1)}
-                </Label>
-                <Slider
-                  value={[params.flowField.curvature * 10]}
-                  min={1}
-                  max={30}
-                  step={1}
-                  onValueChange={([v]) => updateFlowField('curvature', v / 10)}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+          {(params.pattern === 'spiral' || params.pattern === 'concentricCircles') && (
+            <Accordion type="single" collapsible defaultValue="spiral">
+              <AccordionItem value="spiral" className="border-none">
+                <AccordionTrigger className="py-2 text-sm font-medium">
+                  {params.pattern === 'concentricCircles' ? 'Circle Settings' : 'Spiral Settings'}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pt-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      {params.pattern === 'concentricCircles' ? 'Ring Count' : 'Turns'}: {params.spiral.turns}
+                    </Label>
+                    <Slider
+                      value={[params.spiral.turns]}
+                      min={3}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => updateSpiral('turns', v)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Spacing: {params.spiral.spacing}mm
+                    </Label>
+                    <Slider
+                      value={[params.spiral.spacing]}
+                      min={1}
+                      max={20}
+                      step={0.5}
+                      onValueChange={([v]) => updateSpiral('spacing', v)}
+                    />
+                  </div>
+                  {params.pattern === 'spiral' && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Variation: {(params.spiral.variation * 100).toFixed(0)}%
+                      </Label>
+                      <Slider
+                        value={[params.spiral.variation * 100]}
+                        min={0}
+                        max={50}
+                        step={1}
+                        onValueChange={([v]) => updateSpiral('variation', v / 100)}
+                      />
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+
+          {params.pattern === 'lissajous' && (
+            <Accordion type="single" collapsible defaultValue="lissajous">
+              <AccordionItem value="lissajous" className="border-none">
+                <AccordionTrigger className="py-2 text-sm font-medium">
+                  Lissajous Settings
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pt-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Freq X: {params.lissajous.freqX}
+                      </Label>
+                      <Slider
+                        value={[params.lissajous.freqX]}
+                        min={1}
+                        max={10}
+                        step={1}
+                        onValueChange={([v]) => updateLissajous('freqX', v)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Freq Y: {params.lissajous.freqY}
+                      </Label>
+                      <Slider
+                        value={[params.lissajous.freqY]}
+                        min={1}
+                        max={10}
+                        step={1}
+                        onValueChange={([v]) => updateLissajous('freqY', v)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Phase: {(params.lissajous.phaseY * 180 / Math.PI).toFixed(0)}°
+                    </Label>
+                    <Slider
+                      value={[params.lissajous.phaseY * 180 / Math.PI]}
+                      min={0}
+                      max={360}
+                      step={5}
+                      onValueChange={([v]) => updateLissajous('phaseY', v * Math.PI / 180)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Points: {params.lissajous.points}
+                    </Label>
+                    <Slider
+                      value={[params.lissajous.points]}
+                      min={100}
+                      max={5000}
+                      step={100}
+                      onValueChange={([v]) => updateLissajous('points', v)}
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+
+          {params.pattern === 'waveFunctions' && (
+            <Accordion type="single" collapsible defaultValue="wave">
+              <AccordionItem value="wave" className="border-none">
+                <AccordionTrigger className="py-2 text-sm font-medium">
+                  Wave Settings
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pt-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Wave Count: {params.wave.waveCount}
+                    </Label>
+                    <Slider
+                      value={[params.wave.waveCount]}
+                      min={5}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => updateWave('waveCount', v)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Frequency: {params.wave.frequency.toFixed(2)}
+                    </Label>
+                    <Slider
+                      value={[params.wave.frequency * 100]}
+                      min={1}
+                      max={20}
+                      step={1}
+                      onValueChange={([v]) => updateWave('frequency', v / 100)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Amplitude: {params.wave.amplitude}
+                    </Label>
+                    <Slider
+                      value={[params.wave.amplitude]}
+                      min={5}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => updateWave('amplitude', v)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Phase Offset: {params.wave.phaseOffset.toFixed(2)}
+                    </Label>
+                    <Slider
+                      value={[params.wave.phaseOffset * 100]}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onValueChange={([v]) => updateWave('phaseOffset', v / 100)}
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+        </>
       )}
 
-      {params.pattern === 'spiral' && (
-        <Accordion type="single" collapsible defaultValue="spiral">
-          <AccordionItem value="spiral" className="border-none">
-            <AccordionTrigger className="py-2 text-sm font-medium">
-              Spiral Settings
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-2">
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Turns: {params.spiral.turns}
-                </Label>
-                <Slider
-                  value={[params.spiral.turns]}
-                  min={3}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => updateSpiral('turns', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Spacing: {params.spiral.spacing}mm
-                </Label>
-                <Slider
-                  value={[params.spiral.spacing]}
-                  min={1}
-                  max={20}
-                  step={0.5}
-                  onValueChange={([v]) => updateSpiral('spacing', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Variation: {(params.spiral.variation * 100).toFixed(0)}%
-                </Label>
-                <Slider
-                  value={[params.spiral.variation * 100]}
-                  min={0}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => updateSpiral('variation', v / 100)}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
+      {/* 3D Projection Mode Controls */}
+      {params.mode === 'projection' && (
+        <>
+          {/* Design Capture */}
+          <Accordion type="single" collapsible defaultValue="capture">
+            <AccordionItem value="capture" className="border-none">
+              <AccordionTrigger className="py-2 text-sm font-medium">
+                Source Design
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
+                {hasCapturedDesign ? (
+                  <div className="rounded-lg bg-muted/50 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium capitalize">{capturedType} Design</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(params.capturedMesh!.capturedAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={captureCurrentDesign}
+                      disabled={!currentMeshParams || currentObjectType === 'plotter'}
+                      className="w-full gap-2"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Recapture Current Design
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      No design captured. Switch to Vase, Lamp, or Sculpture tab to design your object, then capture it here.
+                    </p>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={captureCurrentDesign}
+                      disabled={!currentMeshParams || currentObjectType === 'plotter'}
+                      className="w-full gap-2"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      Capture Current Design
+                    </Button>
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
-      {(params.pattern === 'spiral' || params.pattern === 'concentricCircles') && (
-        <Accordion type="single" collapsible defaultValue="spiral">
-          <AccordionItem value="spiral" className="border-none">
-            <AccordionTrigger className="py-2 text-sm font-medium">
-              {params.pattern === 'concentricCircles' ? 'Circle Settings' : 'Spiral Settings'}
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-2">
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  {params.pattern === 'concentricCircles' ? 'Ring Count' : 'Turns'}: {params.spiral.turns}
-                </Label>
-                <Slider
-                  value={[params.spiral.turns]}
-                  min={3}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => updateSpiral('turns', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Spacing: {params.spiral.spacing}mm
-                </Label>
-                <Slider
-                  value={[params.spiral.spacing]}
-                  min={1}
-                  max={20}
-                  step={0.5}
-                  onValueChange={([v]) => updateSpiral('spacing', v)}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
+          {/* Projection Settings */}
+          <Accordion type="single" collapsible defaultValue="projection">
+            <AccordionItem value="projection" className="border-none">
+              <AccordionTrigger className="py-2 text-sm font-medium">
+                Projection Settings
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Projection Type</Label>
+                  <Select
+                    value={params.projection.type}
+                    onValueChange={(v) => updateProjection('type', v as ProjectionType)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(PROJECTION_TYPE_LABELS).map(([key, label]) => (
+                        <SelectItem key={key} value={key} className="text-xs">
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-      {params.pattern === 'lissajous' && (
-        <Accordion type="single" collapsible defaultValue="lissajous">
-          <AccordionItem value="lissajous" className="border-none">
-            <AccordionTrigger className="py-2 text-sm font-medium">
-              Lissajous Settings
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs text-muted-foreground">
-                    Freq X: {params.lissajous.freqX}
+                    Slice Count: {params.projection.sliceCount}
                   </Label>
                   <Slider
-                    value={[params.lissajous.freqX]}
-                    min={1}
-                    max={10}
+                    value={[params.projection.sliceCount]}
+                    min={5}
+                    max={50}
                     step={1}
-                    onValueChange={([v]) => updateLissajous('freqX', v)}
+                    onValueChange={([v]) => updateProjection('sliceCount', v)}
                   />
                 </div>
+
+                {params.projection.type === 'contourStack' && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Slice Spacing: {params.projection.sliceSpacing}mm
+                    </Label>
+                    <Slider
+                      value={[params.projection.sliceSpacing]}
+                      min={0}
+                      max={20}
+                      step={0.5}
+                      onValueChange={([v]) => updateProjection('sliceSpacing', v)}
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Rotate X: {(params.projection.viewAngle.x * 180 / Math.PI).toFixed(0)}°
+                    </Label>
+                    <Slider
+                      value={[params.projection.viewAngle.x * 180 / Math.PI]}
+                      min={-90}
+                      max={90}
+                      step={5}
+                      onValueChange={([v]) => updateProjection('viewAngle', { 
+                        ...params.projection.viewAngle, 
+                        x: v * Math.PI / 180 
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Rotate Y: {(params.projection.viewAngle.y * 180 / Math.PI).toFixed(0)}°
+                    </Label>
+                    <Slider
+                      value={[params.projection.viewAngle.y * 180 / Math.PI]}
+                      min={-180}
+                      max={180}
+                      step={5}
+                      onValueChange={([v]) => updateProjection('viewAngle', { 
+                        ...params.projection.viewAngle, 
+                        y: v * Math.PI / 180 
+                      })}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <Label className="text-xs text-muted-foreground">
-                    Freq Y: {params.lissajous.freqY}
+                    Scale: {(params.projection.scale * 100).toFixed(0)}%
                   </Label>
                   <Slider
-                    value={[params.lissajous.freqY]}
-                    min={1}
-                    max={10}
-                    step={1}
-                    onValueChange={([v]) => updateLissajous('freqY', v)}
+                    value={[params.projection.scale * 100]}
+                    min={25}
+                    max={150}
+                    step={5}
+                    onValueChange={([v]) => updateProjection('scale', v / 100)}
                   />
                 </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Phase: {(params.lissajous.phaseY * 180 / Math.PI).toFixed(0)}°
-                </Label>
-                <Slider
-                  value={[params.lissajous.phaseY * 180 / Math.PI]}
-                  min={0}
-                  max={360}
-                  step={5}
-                  onValueChange={([v]) => updateLissajous('phaseY', v * Math.PI / 180)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Points: {params.lissajous.points}
-                </Label>
-                <Slider
-                  value={[params.lissajous.points]}
-                  min={100}
-                  max={5000}
-                  step={100}
-                  onValueChange={([v]) => updateLissajous('points', v)}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
 
-      {params.pattern === 'waveFunctions' && (
-        <Accordion type="single" collapsible defaultValue="wave">
-          <AccordionItem value="wave" className="border-none">
-            <AccordionTrigger className="py-2 text-sm font-medium">
-              Wave Settings
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-2">
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Wave Count: {params.wave.waveCount}
-                </Label>
-                <Slider
-                  value={[params.wave.waveCount]}
-                  min={5}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => updateWave('waveCount', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Frequency: {params.wave.frequency.toFixed(2)}
-                </Label>
-                <Slider
-                  value={[params.wave.frequency * 100]}
-                  min={1}
-                  max={20}
-                  step={1}
-                  onValueChange={([v]) => updateWave('frequency', v / 100)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Amplitude: {params.wave.amplitude}
-                </Label>
-                <Slider
-                  value={[params.wave.amplitude]}
-                  min={5}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => updateWave('amplitude', v)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  Phase Offset: {params.wave.phaseOffset.toFixed(2)}
-                </Label>
-                <Slider
-                  value={[params.wave.phaseOffset * 100]}
-                  min={0}
-                  max={100}
-                  step={5}
-                  onValueChange={([v]) => updateWave('phaseOffset', v / 100)}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Show Hidden Lines</Label>
+                  <Switch
+                    checked={params.projection.showHiddenLines}
+                    onCheckedChange={(v) => updateProjection('showHiddenLines', v)}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </>
       )}
 
       {/* Export Settings */}
