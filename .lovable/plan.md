@@ -1,176 +1,174 @@
 
 
-## Plotter Workflow Simplification Plan
+# Shape-Influenced Line Fill Mode
 
-### Current Problems
+## What You Want
+Fill the entire page with lines (horizontal, vertical, or at an angle) that **curve and bend** as they pass through or near your 3D shape - like the object is distorting a field of parallel lines around it.
 
-1. **Confusing design capture flow**: Users must design in Vase/Lamp/Sculpture tab, then switch to Plotter, then switch to "3D Projection" mode, then optionally click "Capture Design". Too many steps.
-
-2. **Redundant object types for plotter use**: Vase, Lamp, and Sculpture share 95% of the same parametric controls. For 2D plotting, there's no functional difference between them.
-
-3. **Invisible plotter tab**: The inactive tab text color (`text-text-secondary`) has poor contrast against the light background.
-
----
-
-### Proposed Solution
-
-#### Option A: Streamlined Dual-Mode Interface (Recommended)
-
-Simplify to two main tabs:
-- **Shape** - Design your 3D parametric form (combines Vase/Lamp/Sculpture)
-- **Plotter** - Convert shape to 2D art OR use generative patterns
-
-The plotter automatically uses the current shape parameters in real-time when in projection mode. No "capture" step needed.
-
-#### Option B: Keep Current Tabs, Fix UX
-
-Keep Vase/Lamp/Sculpture/Plotter but:
-- Auto-sync the 3D design to plotter projection (no capture button)
-- Live preview of projection updates as you switch tabs
-- Fix visibility issues
-
----
-
-### Recommended Implementation: Option A
-
-#### 1. Merge Object Types
-
-Combine Vase, Lamp, and Sculpture into a single "Shape" type with a sub-selector for specialized features:
+## Visual Concept
 
 ```text
-[Shape]  [Plotter]
-    |
-    v
-Shape Mode: [Vase] [Lamp] [Sculpture]
-(Only affects 3D-specific features like sockets/stands)
+Normal parallel lines:     Shape-distorted lines:
+─────────────────          ────────╭────────
+─────────────────          ───────╭ ╮───────
+─────────────────          ──────(   )──────
+─────────────────          ───────╰ ╯───────
+─────────────────          ────────╰────────
 ```
 
-#### 2. Live Projection Sync
-
-Remove the "Capture Design" mechanism. Instead:
-- Plotter projection always uses current `params`
-- When user edits shape parameters, projection updates immediately
-- Shape params are passed directly to plotter components
-
-#### 3. Fix Tab Visibility
-
-Update `ObjectTypeTabs.tsx` to use higher contrast colors:
-
-```css
-/* Change from text-text-secondary to text-muted-foreground */
-activeType !== tab.type ? 'text-muted-foreground hover:text-foreground'
-```
+The lines wrap around the silhouette of your lamp/vase, creating a beautiful interplay between geometric order and organic form.
 
 ---
 
-### File Changes
+## New Projection Type: "Line Field"
+
+Add a fourth projection type alongside the existing three:
+
+| Type | Description |
+|------|-------------|
+| Cross-Section | Slices at multiple heights |
+| Silhouette | Outer boundary outline |
+| Contour Stack | Layered slices with offset |
+| **Line Field** *(new)* | Full-page lines distorted by shape |
+
+---
+
+## Line Field Settings
+
+| Setting | Description | Range |
+|---------|-------------|-------|
+| **Line Count** | How many lines fill the page | 10-100 |
+| **Line Angle** | Direction of lines (0°=horizontal, 90°=vertical) | 0-180° |
+| **Distortion Strength** | How much the shape bends the lines | 0-2 |
+| **Distortion Falloff** | How far the distortion reaches | 0.5-3 |
+| **Wrap Mode** | How lines interact with shape: `around` (flow around), `through` (distort through center), `outline` (trace the edge) | selection |
+| **Line Extension** | Extend lines beyond paper edges for cleaner edge treatment | toggle |
+
+---
+
+## How It Works
+
+### Algorithm: Shape Field Distortion
+
+1. **Project the 3D shape to 2D** (same as silhouette mode - uses view angle)
+2. **Sample the shape boundary** to create a distance field
+3. **Generate base lines** spanning the page at the chosen angle and spacing
+4. **For each point on each line:**
+   - Calculate distance to nearest point on shape boundary
+   - Calculate the direction to push the point (perpendicular to shape surface)
+   - Apply distortion based on distance and strength settings
+5. **Output curved paths** that flow around the shape
+
+### Distortion Modes
+
+**Around Mode:**
+Lines curve to flow around the outside of the shape, never crossing inside. Creates a "force field" effect.
+
+**Through Mode:**
+Lines pass through the shape but distort/compress as they do. Creates a "lens" or "gravity well" effect.
+
+**Outline Mode:**
+Lines trace the edge when they hit the shape boundary, then continue on the other side. Creates a "contour emphasis" effect.
+
+---
+
+## Implementation
+
+### Type Changes (`src/types/plotter.ts`)
+
+```typescript
+// Add new projection type
+export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField';
+
+// Add line field parameters to ProjectionParams
+export interface ProjectionParams {
+  // ... existing fields ...
+  
+  // Line field settings
+  lineFieldCount: number;        // 10-100
+  lineFieldAngle: number;        // 0-180 degrees
+  lineFieldStrength: number;     // 0-2 distortion multiplier
+  lineFieldFalloff: number;      // 0.5-3 distance falloff
+  lineFieldMode: 'around' | 'through' | 'outline';
+  lineFieldExtend: boolean;      // extend lines past paper edges
+}
+```
+
+### Generator Function (`src/lib/plotter/projection.ts`)
+
+New function: `generateLineField(options: ProjectionOptions): PlotterDrawing`
+
+**Algorithm outline:**
+1. Generate silhouette boundary points (reuse existing code)
+2. Create distance field by sampling boundary
+3. For each line from edge to edge:
+   - Start at left/top edge (based on angle)
+   - Step along the line direction
+   - At each step, calculate distortion from shape proximity
+   - Offset the point perpendicular to line direction
+   - Collect all points into a path
+4. Return all line paths
+
+### UI Controls (`src/components/plotter/PlotterControls.tsx`)
+
+Add new controls when `lineField` projection type is selected:
+- Line Count slider
+- Line Angle slider with visual indicator
+- Distortion Strength slider
+- Falloff Distance slider
+- Wrap Mode selector (Around / Through / Outline)
+- Extend Lines toggle
+
+---
+
+## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/types/parametric.ts` | Add `shapeStyle: 'vase' | 'lamp' | 'sculpture'` to `ParametricParams`. Simplify `ObjectType` to `'shape' | 'plotter'` |
-| `src/components/controls/ObjectTypeTabs.tsx` | Reduce to 2 tabs: Shape, Plotter. Fix text contrast. |
-| `src/pages/Index.tsx` | Remove `last3DParams`/`last3DObjectType` capture logic. Pass live `params` to plotter. Add shape style selector in left panel. |
-| `src/components/plotter/PlotterControls.tsx` | Remove capture button. Simplify props since live params always available. |
-| `src/hooks/usePlotterDrawing.ts` | Update to use live params directly instead of captured mesh. |
-| `src/lib/plotter/projection.ts` | No changes needed - already uses `ParametricParams`. |
+| `src/types/plotter.ts` | Add `'lineField'` to `ProjectionType`, add line field params to `ProjectionParams` and defaults |
+| `src/lib/plotter/projection.ts` | Add `generateLineField()` function, update `generateProjection()` dispatcher |
+| `src/components/plotter/PlotterControls.tsx` | Add Line Field option to projection type selector, add line field controls |
 
 ---
 
-### New User Flow
+## User Flow
 
-1. Open app → **Shape** tab is active
-2. Design your form using all parametric controls
-3. Optional: Select shape style (Vase/Lamp/Sculpture) for specialized 3D features
-4. Click **Plotter** tab
-5. Choose mode: Generative OR 3D Projection
-6. In projection mode, see your shape sliced immediately
-7. Adjust projection settings (slice count, view angle, projection type)
-8. Export SVG/G-code
+1. Design your shape in the Shape tab
+2. Switch to Plotter tab
+3. Select "3D Projection" mode
+4. Choose "Line Field" projection type
+5. Adjust line count, angle, and distortion settings
+6. See the full-page lines curve around your design
+7. Export to SVG or G-code
 
 ---
 
-### Visual Changes
+## Visual Examples
 
-**Tab Bar**
+**Horizontal lines around a vase:**
 ```text
-Before: [Vase] [Lamp] [Sculpture] [Plotter]
-After:  [Shape] [Plotter]
+─────────────────────────────
+────────────╭─────╮──────────
+───────────╱       ╲─────────
+──────────╱         ╲────────
+──────────│         │────────
+──────────│         │────────
+──────────╲         ╱────────
+───────────╲       ╱─────────
+────────────╰─────╯──────────
+─────────────────────────────
 ```
 
-**Plotter Panel (Projection Mode)**
+**Diagonal lines through shape (lens effect):**
 ```text
-Before:
-  [Capture Current Design] button
-  "Captured: vase" label
-  (stale data until re-captured)
-
-After:
-  Live preview synced to current shape
-  Direct projection controls
-  No capture step needed
+╲   ╲   ╲   ╲   ╲   ╲   ╲   ╲
+ ╲   ╲   ╲   ╲   ╲   ╲   ╲   ╲
+  ╲   ╲   ╲╲ ╱╱   ╲   ╲   ╲
+   ╲   ╲ ╲  │  ╱ ╱   ╲   ╲
+    ╲   ╲   │   ╱   ╱   ╲
+     ╲   ╱  │  ╲   ╱   ╲
+      ╲╱╱   │   ╲╲╱   ╲
+       ╲    │    ╱   ╲
+        ╲   │   ╱   ╲
 ```
-
----
-
-### Technical Details
-
-**Simplified Type Structure**
-
-```typescript
-// parametric.ts
-export type ObjectType = 'shape' | 'plotter';
-
-export interface ParametricParams {
-  // Existing shape params...
-  height: number;
-  baseRadius: number;
-  // etc...
-  
-  // New: which 3D style to apply
-  shapeStyle: 'vase' | 'lamp' | 'sculpture';
-}
-```
-
-**Live Projection in Index.tsx**
-
-```typescript
-// No more capture state
-// const [last3DObjectType, setLast3DObjectType] = useState(...)
-// const [last3DParams, setLast3DParams] = useState(...)
-
-// Just pass current params to plotter
-<PlotterControls
-  params={plotterParams}
-  drawing={plotterDrawing}
-  onParamsChange={setPlotterParams}
-  meshParams={params}  // Live, always current
-  shapeStyle={params.shapeStyle}  // For projection
-/>
-```
-
-**PlotterControls Changes**
-
-```typescript
-// Remove capture functionality
-// const captureCurrentDesign = useCallback(() => {...}, []);
-
-// Direct access to live params
-interface PlotterControlsProps {
-  params: PlotterParams;
-  drawing: PlotterDrawing | null;
-  onParamsChange: (params: PlotterParams) => void;
-  meshParams: ParametricParams;  // Always live
-  shapeStyle: 'vase' | 'lamp' | 'sculpture';
-}
-```
-
----
-
-### Benefits
-
-1. **Clearer mental model**: Shape = what you're making, Plotter = how to draw it
-2. **Fewer clicks**: No capture step, instant projection preview
-3. **Live updates**: Edit shape → see projection change in real-time (when switching back to plotter)
-4. **Better discoverability**: "Plotter" tab is more prominent with only 2 tabs
-5. **Future-proof**: Easy to add more shape styles without cluttering the tab bar
 
