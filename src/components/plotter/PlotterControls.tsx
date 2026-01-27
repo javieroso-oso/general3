@@ -28,16 +28,16 @@ import {
   CapturedMeshParams,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
-import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ParametricParams, ShapeStyle } from '@/types/parametric';
 import { downloadSVG, downloadPlotterGCode, downloadHPGL } from '@/lib/plotter/export';
 
 interface PlotterControlsProps {
   params: PlotterParams;
   drawing: PlotterDrawing | null;
   onParamsChange: (params: PlotterParams) => void;
-  // For 3D projection mode
+  // For 3D projection mode - live params (always synced)
   currentMeshParams?: ParametricParams;
-  currentObjectType?: ObjectType;
+  currentShapeStyle?: ShapeStyle;
 }
 
 const PATTERN_LABELS: Record<GenerativePattern, string> = {
@@ -61,7 +61,7 @@ const PlotterControls = ({
   drawing, 
   onParamsChange,
   currentMeshParams,
-  currentObjectType,
+  currentShapeStyle,
 }: PlotterControlsProps) => {
   const updateParams = useCallback(<K extends keyof PlotterParams>(
     key: K, 
@@ -131,13 +131,13 @@ const PlotterControls = ({
   }, [params, onParamsChange]);
 
   const captureCurrentDesign = useCallback(() => {
-    if (!currentMeshParams || !currentObjectType || currentObjectType === 'plotter') {
+    if (!currentMeshParams || !currentShapeStyle) {
       return;
     }
     
     const captured: CapturedMeshParams = {
       params: currentMeshParams as unknown as Record<string, unknown>,
-      objectType: currentObjectType as 'vase' | 'lamp' | 'sculpture',
+      objectType: currentShapeStyle,
       capturedAt: Date.now(),
     };
     
@@ -146,14 +146,14 @@ const PlotterControls = ({
       capturedMesh: captured,
       mode: 'projection',
     });
-  }, [params, onParamsChange, currentMeshParams, currentObjectType]);
+  }, [params, onParamsChange, currentMeshParams, currentShapeStyle]);
 
   const handleModeChange = useCallback((mode: PlotterMode) => {
     // When switching to projection mode, auto-capture if no design captured
-    if (mode === 'projection' && !params.capturedMesh && currentMeshParams && currentObjectType !== 'plotter') {
+    if (mode === 'projection' && !params.capturedMesh && currentMeshParams && currentShapeStyle) {
       const captured: CapturedMeshParams = {
         params: currentMeshParams as unknown as Record<string, unknown>,
-        objectType: currentObjectType as 'vase' | 'lamp' | 'sculpture',
+        objectType: currentShapeStyle,
         capturedAt: Date.now(),
       };
       onParamsChange({
@@ -164,7 +164,7 @@ const PlotterControls = ({
     } else {
       updateParams('mode', mode);
     }
-  }, [params, onParamsChange, updateParams, currentMeshParams, currentObjectType]);
+  }, [params, onParamsChange, updateParams, currentMeshParams, currentShapeStyle]);
 
   const handleExportSVG = useCallback(() => {
     if (!drawing) return;
@@ -556,7 +556,7 @@ const PlotterControls = ({
                       variant="outline"
                       size="sm"
                       onClick={captureCurrentDesign}
-                      disabled={!currentMeshParams || currentObjectType === 'plotter'}
+                      disabled={!currentMeshParams || !currentShapeStyle}
                       className="w-full gap-2"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -566,13 +566,13 @@ const PlotterControls = ({
                 ) : (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
-                      No design captured. Switch to Vase, Lamp, or Sculpture tab to design your object, then capture it here.
+                      No design captured. Design your shape first, then switch to Plotter mode - it will auto-capture.
                     </p>
                     <Button
                       variant="default"
                       size="sm"
                       onClick={captureCurrentDesign}
-                      disabled={!currentMeshParams || currentObjectType === 'plotter'}
+                      disabled={!currentMeshParams || !currentShapeStyle}
                       className="w-full gap-2"
                     >
                       <Camera className="w-3.5 h-3.5" />

@@ -48,7 +48,7 @@ export async function exportDrawerItemsToZip(
         
         if (item.params.moldPartCount > 2) {
           // Multi-part mold
-          const moldGeometry = generateMultiPartMoldGeometry(item.params, item.objectType);
+          const moldGeometry = generateMultiPartMoldGeometry(item.params);
           for (let p = 0; p < moldGeometry.parts.length; p++) {
             const moldBlob = exportMoldHalfToSTL(moldGeometry.parts[p]);
             zip.file(`${baseName}_mold_${partLabels[p]}.stl`, moldBlob);
@@ -56,7 +56,7 @@ export async function exportDrawerItemsToZip(
           }
         } else {
           // Two-part mold
-          const moldGeometry = generateMoldGeometry(item.params, item.objectType);
+          const moldGeometry = generateMoldGeometry(item.params);
           const moldABlob = exportMoldHalfToSTL(moldGeometry.halfA);
           const moldBBlob = exportMoldHalfToSTL(moldGeometry.halfB);
           zip.file(`${baseName}_mold_A.stl`, moldABlob);

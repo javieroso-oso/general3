@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import earcut from 'earcut';
-import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, ShapeStyle, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 
@@ -238,18 +238,20 @@ function getRadiusAtHeight(
       // Wavy profile with 2 oscillations
       radius = baseRadius + radiusDiff * t + Math.sin(t * Math.PI * 4) * baseRadius * 0.08;
       break;
-    case 'linear':
-    default:
-      // Apply object-type specific curves on top of linear base
-      if (type === 'lamp') {
-        radius = baseRadius + (topRadius - baseRadius) * Math.pow(t, 0.6);
-      } else if (type === 'sculpture') {
-        const curve = Math.sin(t * Math.PI);
-        radius = baseRadius * (1 - t * 0.3) + topRadius * t * 0.7 + curve * baseRadius * 0.2;
-      } else {
-        const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
-        radius = baseRadius * (1 - t * 0.4) + topRadius * t * 0.6 + curve * baseRadius * 0.12;
-      }
+      case 'linear':
+      default:
+        // Apply shape-style specific curves on top of linear base
+        // Use params.shapeStyle instead of type for shape-specific behavior
+        const shapeStyle = params.shapeStyle;
+        if (shapeStyle === 'lamp') {
+          radius = baseRadius + (topRadius - baseRadius) * Math.pow(t, 0.6);
+        } else if (shapeStyle === 'sculpture') {
+          const curve = Math.sin(t * Math.PI);
+          radius = baseRadius * (1 - t * 0.3) + topRadius * t * 0.7 + curve * baseRadius * 0.2;
+        } else {
+          const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
+          radius = baseRadius * (1 - t * 0.4) + topRadius * t * 0.6 + curve * baseRadius * 0.12;
+        }
       break;
   }
 
