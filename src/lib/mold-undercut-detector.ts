@@ -1,4 +1,4 @@
-import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ParametricParams, ObjectType, ShapeStyle } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 
 export interface UndercutAnalysis {
@@ -36,8 +36,8 @@ const SCALE = 0.01;
  */
 export function findRadiusMaximaAtHeight(
   params: ParametricParams,
-  objectType: ObjectType,
-  heightT: number,
+  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
+  heightT: number = 0.5,
   angleSamples: number = 72
 ): RadiusMaxima[] {
   const maxima: RadiusMaxima[] = [];
@@ -51,7 +51,7 @@ export function findRadiusMaximaAtHeight(
     
     const radius = getBodyRadius(params, heightT, theta, {
       scale: SCALE,
-      objectType,
+      objectType: params.shapeStyle,
       includeTwist: true
     }) / SCALE; // Convert back to mm for comparison
     
@@ -86,7 +86,7 @@ export function findRadiusMaximaAtHeight(
  */
 export function findGlobalPartingLines(
   params: ParametricParams,
-  objectType: ObjectType,
+  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
   heightSamples: number = 16
 ): { angles: number[]; strength: number[] } {
   const allMaxima: RadiusMaxima[] = [];
@@ -94,7 +94,7 @@ export function findGlobalPartingLines(
   // Sample at multiple heights (skip very bottom and top which can be irregular)
   for (let i = 1; i < heightSamples - 1; i++) {
     const t = i / heightSamples;
-    const maxima = findRadiusMaximaAtHeight(params, objectType, t);
+    const maxima = findRadiusMaximaAtHeight(params, params.shapeStyle, t);
     allMaxima.push(...maxima);
   }
   
@@ -172,10 +172,10 @@ export function findGlobalPartingLines(
  */
 export function calculateOptimalSplits(
   params: ParametricParams,
-  objectType: ObjectType,
+  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
   requestedPartCount?: number
 ): PartingLineResult {
-  const { angles: partingAngles, strength } = findGlobalPartingLines(params, objectType);
+  const { angles: partingAngles, strength } = findGlobalPartingLines(params, params.shapeStyle);
   
   // If no clear geometry features, return equal division
   if (partingAngles.length < 2 || strength[0] < 0.3) {
@@ -189,7 +189,7 @@ export function calculateOptimalSplits(
       splitAngles: equalSplits,
       partCount,
       confidence: 0, // Low confidence - using fallback
-      undercuts: analyzeUndercuts(params, objectType)
+      undercuts: analyzeUndercuts(params, params.shapeStyle)
     };
   }
   
@@ -235,7 +235,7 @@ export function calculateOptimalSplits(
     splitAngles: selectedAngles,
     partCount: optimalPartCount,
     confidence,
-    undercuts: analyzeUndercuts(params, objectType)
+    undercuts: analyzeUndercuts(params, params.shapeStyle)
   };
 }
 
@@ -316,7 +316,7 @@ function selectDistributedAngles(
  */
 export function analyzeUndercuts(
   params: ParametricParams,
-  objectType: ObjectType
+  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
 ): UndercutAnalysis {
   const samples = 64;
   const angleSamples = 48;
@@ -346,13 +346,13 @@ export function analyzeUndercuts(
       // Get radius at current and previous height
       const currentRadius = getBodyRadius(params, t, theta, {
         scale: SCALE,
-        objectType,
+        objectType: params.shapeStyle,
         includeTwist: true
       }) / SCALE;
       
       const prevRadius = getBodyRadius(params, prevT, theta, {
         scale: SCALE,
-        objectType,
+        objectType: params.shapeStyle,
         includeTwist: true
       }) / SCALE;
       

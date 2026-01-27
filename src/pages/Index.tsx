@@ -18,7 +18,9 @@ import { useLicenseKey } from '@/hooks/useLicenseKey';
 import { usePlotterDrawing } from '@/hooks/usePlotterDrawing';
 import { 
   ParametricParams, 
-  ObjectType, 
+  ObjectType,
+  ShapeStyle,
+  defaultShapeParams,
   defaultParams, 
   PrintSettings, 
   defaultPrintSettings,
@@ -49,13 +51,9 @@ import {
 } from '@/components/ui/select';
 
 const Index = () => {
-  const [objectType, setObjectType] = useState<ObjectType>('vase');
-  const [params, setParams] = useState<ParametricParams>(defaultParams.vase);
+  const [objectType, setObjectType] = useState<ObjectType>('shape');
+  const [params, setParams] = useState<ParametricParams>(defaultShapeParams.vase);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
-  
-  // Store last 3D object type and params for plotter projection
-  const [last3DObjectType, setLast3DObjectType] = useState<Exclude<ObjectType, 'plotter'>>('vase');
-  const [last3DParams, setLast3DParams] = useState<ParametricParams>(defaultParams.vase);
   
   // Plotter drawing (computed from plotter params)
   const plotterDrawing = usePlotterDrawing(plotterParams);
@@ -158,17 +156,8 @@ const Index = () => {
   }, []);
 
   const handleTypeChange = (type: ObjectType) => {
-    // Before switching away from 3D, save the current 3D state
-    if (objectType !== 'plotter') {
-      setLast3DObjectType(objectType);
-      setLast3DParams(params);
-    }
-    
     setObjectType(type);
-    // Only set params for 3D types
-    if (type !== 'plotter') {
-      setParams(defaultParams[type]);
-    }
+    // No need to reset params when switching - we keep the current shape
   };
 
   const analysis = useMemo((): PrintAnalysis => {
@@ -288,32 +277,32 @@ const Index = () => {
 
   // Actual mold export function (called after payment/unlock)
   const doExportMold = useCallback((half: 'A' | 'B' | 'both' | number) => {
-    const baseName = `${objectType}_${params.height}mm_${Date.now()}`;
+    const baseName = `${params.shapeStyle}_${params.height}mm_${Date.now()}`;
     const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
     if (typeof half === 'number') {
       // Multi-part mold specific part
-      downloadMultiPartMoldSTL(params, objectType, half, baseName);
+      downloadMultiPartMoldSTL(params, params.shapeStyle, half, baseName);
       toast.success(`Mold Part ${partLabels[half]} exported!`);
     } else if (half === 'both') {
       if (params.moldPartCount > 2) {
-        downloadMultiPartMoldSTL(params, objectType, 'all', baseName);
+        downloadMultiPartMoldSTL(params, params.shapeStyle, 'all', baseName);
         toast.success(`All ${params.moldPartCount} mold parts exported!`);
       } else {
-        downloadMoldSTL(params, objectType, 'both', baseName);
+        downloadMoldSTL(params, params.shapeStyle, 'both', baseName);
         toast.success('Both mold halves exported!');
       }
     } else {
       // Single half A or B
       if (params.moldPartCount > 2) {
-        downloadMultiPartMoldSTL(params, objectType, half === 'A' ? 0 : 1, baseName);
+        downloadMultiPartMoldSTL(params, params.shapeStyle, half === 'A' ? 0 : 1, baseName);
         toast.success(`Mold Part ${half} exported!`);
       } else {
-        downloadMoldSTL(params, objectType, half, baseName);
+        downloadMoldSTL(params, params.shapeStyle, half, baseName);
         toast.success(`Mold Half ${half} exported!`);
       }
     }
-  }, [params, objectType]);
+  }, [params]);
 
   // Actual ZIP export function (called after payment/unlock)
   const doExportAllMoldsZip = useCallback(async () => {
@@ -330,14 +319,14 @@ const Index = () => {
 
       // Add mold parts
       if (params.moldPartCount > 2) {
-        const { parts } = generateMultiPartMoldGeometry(params, objectType);
+        const { parts } = generateMultiPartMoldGeometry(params);
         parts.forEach((geo, i) => {
           const stlBlob = exportMoldHalfToSTL(geo);
           zip.file(`${baseName}_mold_${partLabels[i]}.stl`, stlBlob);
           geo.dispose();
         });
       } else {
-        const { halfA, halfB } = generateMoldGeometry(params, objectType);
+        const { halfA, halfB } = generateMoldGeometry(params);
         zip.file(`${baseName}_mold_A.stl`, exportMoldHalfToSTL(halfA));
         zip.file(`${baseName}_mold_B.stl`, exportMoldHalfToSTL(halfB));
         halfA.dispose();
@@ -506,8 +495,8 @@ const Index = () => {
               params={plotterParams}
               drawing={plotterDrawing}
               onParamsChange={setPlotterParams}
-              currentMeshParams={last3DParams}
-              currentObjectType={last3DObjectType}
+              currentMeshParams={params}
+              currentShapeStyle={params.shapeStyle}
             />
           </div>
         ) : (
@@ -564,7 +553,7 @@ const Index = () => {
 
               <TabsContent value="presets" className="mt-0">
                 <PresetGallery
-                  type={objectType}
+                  type={params.shapeStyle}
                   currentParams={params}
                   onSelect={setParams}
                 />

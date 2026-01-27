@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { generateMultiPartMoldGeometry } from '@/lib/mold-generator';
-import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ParametricParams, ObjectType, ShapeStyle } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 
 const SCALE = 0.01;
@@ -23,7 +23,7 @@ interface MoldMeshProps {
 const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
   const { parts, gap, showGhostBody, partCount, colors } = useMemo(() => {
     const partCount = params.moldPartCount || 2;
-    const moldGeometry = generateMultiPartMoldGeometry(params, type);
+    const moldGeometry = generateMultiPartMoldGeometry(params);
     const colors = params.moldColors?.length >= partCount 
       ? params.moldColors 
       : DEFAULT_MOLD_COLORS;
@@ -59,7 +59,7 @@ const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
         
         const radius = getBodyRadius(params, t, theta, {
           scale: SCALE,
-          objectType: type,
+          objectType: params.shapeStyle,
           includeTwist: true
         });
         

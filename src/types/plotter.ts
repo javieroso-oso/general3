@@ -155,11 +155,17 @@ export const PLOTTER_MACHINES: Record<string, PlotterMachine> = {
   },
 };
 
-// Captured 3D mesh parameters for projection mode
+// Captured 3D mesh parameters for projection mode (legacy, kept for compatibility)
 export interface CapturedMeshParams {
   params: Record<string, unknown>; // ParametricParams - stored as generic to avoid circular dep
   objectType: 'vase' | 'lamp' | 'sculpture';
   capturedAt: number; // timestamp
+}
+
+// Live 3D mesh parameters for projection mode (new: always-synced)
+export interface LiveMeshParams {
+  params: Record<string, unknown>; // ParametricParams
+  shapeStyle: 'vase' | 'lamp' | 'sculpture';
 }
 
 // Complete plotter parameters
@@ -186,7 +192,8 @@ export interface PlotterParams {
   
   // Projection settings
   projection: ProjectionParams;
-  capturedMesh?: CapturedMeshParams; // Captured 3D design for projection
+  capturedMesh?: CapturedMeshParams; // Legacy: Captured 3D design for projection
+  liveMesh?: LiveMeshParams; // New: Always-synced 3D design for live projection
   
   // Export settings
   machinePreset: string;

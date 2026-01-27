@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import earcut from 'earcut';
-import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, ShapeStyle, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate, generateCenteringLip } from '@/lib/leg-generator';
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
@@ -338,10 +338,12 @@ const ParametricMesh = ({
           break;
         case 'linear':
         default:
-          // Apply object-type specific curves on top of linear base
-          if (type === 'lamp') {
+          // Apply shape-style specific curves on top of linear base
+          // Use params.shapeStyle instead of type for shape-specific behavior
+          const shapeStyle = params.shapeStyle;
+          if (shapeStyle === 'lamp') {
             radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
-          } else if (type === 'sculpture') {
+          } else if (shapeStyle === 'sculpture') {
             const curve = Math.sin(t * Math.PI);
             radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
           } else {

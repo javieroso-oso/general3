@@ -1,7 +1,10 @@
-export type ObjectType = 'vase' | 'lamp' | 'sculpture' | 'plotter';
+export type ObjectType = 'shape' | 'plotter';
 
-// Alias for backward compatibility - 3D object types only
-export type ObjectType3D = Exclude<ObjectType, 'plotter'>;
+// Shape style determines 3D-specific features (sockets, stands)
+export type ShapeStyle = 'vase' | 'lamp' | 'sculpture';
+
+// Alias for backward compatibility - 3D object types only (same as ShapeStyle)
+export type ObjectType3D = ShapeStyle;
 
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
@@ -24,6 +27,9 @@ export const SOCKET_THREAD_DIAMETERS: Record<BulbSocketType, number> = {
 };
 
 export interface ParametricParams {
+  // Shape style - determines 3D-specific features like lamp sockets
+  shapeStyle: ShapeStyle;
+  
   // Basic dimensions (mm for printing)
   height: number;
   baseRadius: number;
@@ -277,7 +283,7 @@ export interface PrintWarning {
 export interface Preset {
   id: string;
   name: string;
-  type: ObjectType;
+  type: ShapeStyle;  // Use ShapeStyle for presets (3D shapes only)
   params: ParametricParams;
 }
 
@@ -329,6 +335,7 @@ export const printConstraints = {
 // Helper to create default params - reduces repetition
 const createDefaultParams = (overrides: Partial<ParametricParams> = {}): ParametricParams => {
   const defaults: ParametricParams = {
+    shapeStyle: 'vase',
     height: 120,
     baseRadius: 40,
     topRadius: 35,
@@ -443,7 +450,8 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   return { ...defaults, ...overrides } as ParametricParams;
 };
 
-export const defaultParams: Record<ObjectType, ParametricParams> = {
+// Default params keyed by ShapeStyle
+export const defaultShapeParams: Record<ShapeStyle, ParametricParams> = {
   vase: createDefaultParams(),
   lamp: createDefaultParams({
     height: 100,
@@ -484,18 +492,23 @@ export const defaultParams: Record<ObjectType, ParametricParams> = {
     wallMountCordHoleEnabled: false,
     cordHoleEnabled: false,
   }),
+};
+
+// Legacy alias for backward compatibility
+export const defaultParams: Record<ObjectType, ParametricParams> = {
+  shape: defaultShapeParams.vase, // Default shape uses vase style
   plotter: createDefaultParams(), // Plotter uses PlotterParams instead, this is a fallback
 };
 
 export const presets: Preset[] = [
-  { id: 'classic-vase', name: 'Classic', type: 'vase', params: { ...defaultParams.vase } },
-  { id: 'belly-vase', name: 'Belly', type: 'vase', params: { ...defaultParams.vase, bulgePosition: 0.35, bulgeAmount: 0.35, lipFlare: 0.12 } },
-  { id: 'twisted-vase', name: 'Twisted', type: 'vase', params: { ...defaultParams.vase, twistAngle: 90, wobbleFrequency: 3, wobbleAmplitude: 0.06 } },
-  { id: 'rippled-vase', name: 'Rippled', type: 'vase', params: { ...defaultParams.vase, rippleCount: 8, rippleDepth: 0.04, bulgeAmount: 0.2 } },
-  { id: 'modern-lamp', name: 'Modern', type: 'lamp', params: { ...defaultParams.lamp } },
-  { id: 'spiral-lamp', name: 'Spiral', type: 'lamp', params: { ...defaultParams.lamp, twistAngle: 120, wobbleFrequency: 4, wobbleAmplitude: 0.05 } },
-  { id: 'organic-sculpture', name: 'Organic', type: 'sculpture', params: { ...defaultParams.sculpture, organicNoise: 0.06, asymmetry: 0.08, bulgeAmount: 0.35 } },
-  { id: 'minimal-sculpture', name: 'Minimal', type: 'sculpture', params: { ...defaultParams.sculpture, wobbleFrequency: 0, twistAngle: 0, organicNoise: 0, bulgeAmount: 0.1 } },
+  { id: 'classic-vase', name: 'Classic', type: 'vase', params: { ...defaultShapeParams.vase } },
+  { id: 'belly-vase', name: 'Belly', type: 'vase', params: { ...defaultShapeParams.vase, bulgePosition: 0.35, bulgeAmount: 0.35, lipFlare: 0.12 } },
+  { id: 'twisted-vase', name: 'Twisted', type: 'vase', params: { ...defaultShapeParams.vase, twistAngle: 90, wobbleFrequency: 3, wobbleAmplitude: 0.06 } },
+  { id: 'rippled-vase', name: 'Rippled', type: 'vase', params: { ...defaultShapeParams.vase, rippleCount: 8, rippleDepth: 0.04, bulgeAmount: 0.2 } },
+  { id: 'modern-lamp', name: 'Modern', type: 'lamp', params: { ...defaultShapeParams.lamp } },
+  { id: 'spiral-lamp', name: 'Spiral', type: 'lamp', params: { ...defaultShapeParams.lamp, twistAngle: 120, wobbleFrequency: 4, wobbleAmplitude: 0.05 } },
+  { id: 'organic-sculpture', name: 'Organic', type: 'sculpture', params: { ...defaultShapeParams.sculpture, organicNoise: 0.06, asymmetry: 0.08, bulgeAmount: 0.35 } },
+  { id: 'minimal-sculpture', name: 'Minimal', type: 'sculpture', params: { ...defaultShapeParams.sculpture, wobbleFrequency: 0, twistAngle: 0, organicNoise: 0, bulgeAmount: 0.1 } },
 ];
 
 // Analyze printability

@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { presets, Preset, ObjectType, ParametricParams } from '@/types/parametric';
+import { presets, Preset, ShapeStyle, ParametricParams } from '@/types/parametric';
 import { cn } from '@/lib/utils';
 
 interface PresetGalleryProps {
-  type: ObjectType;
+  type: ShapeStyle;
   currentParams: ParametricParams;
   onSelect: (params: ParametricParams) => void;
 }

@@ -6,7 +6,7 @@
  * calculation between ParametricMesh and mold-generator.
  */
 
-import { ParametricParams, printConstraints } from '@/types/parametric';
+import { ParametricParams, ShapeStyle, printConstraints } from '@/types/parametric';
 
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
@@ -56,8 +56,8 @@ export interface BodyProfileOptions {
   scale?: number;
   /** Include twist in theta calculation */
   includeTwist?: boolean;
-  /** Object type for type-specific curves */
-  objectType?: 'vase' | 'lamp' | 'sculpture' | 'plotter';
+  /** Shape style for style-specific curves (deprecated, use params.shapeStyle instead) */
+  objectType?: ShapeStyle;
 }
 
 /**

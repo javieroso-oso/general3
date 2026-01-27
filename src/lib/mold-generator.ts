@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { Brush, Evaluator, SUBTRACTION, ADDITION } from 'three-bvh-csg';
-import { ParametricParams, ObjectType } from '@/types/parametric';
+import { ParametricParams, ObjectType, ShapeStyle } from '@/types/parametric';
 import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
 import { calculateOptimalSplits } from '@/lib/mold-undercut-detector';
 
@@ -299,7 +299,7 @@ function generateWedgeMoldPart(
   moldParams: MoldParams,
   startAngle: number,
   endAngle: number,
-  objectType: ObjectType
+  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
   const wallThickness = moldParams.wallThickness * SCALE;
@@ -321,7 +321,7 @@ function generateWedgeMoldPart(
   const segmentsForWedge = Math.max(4, Math.floor(radialSegments * (angleSpan / (Math.PI * 2))));
   
   // Get max body radius for outer mold bounds
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType: params.shapeStyle });
   const outerRadius = maxBodyRadius + wallThickness;
   
   const vertices: number[] = [];
@@ -355,7 +355,7 @@ function generateWedgeMoldPart(
       // Get actual body radius at this point
       let radius = getBodyRadius(params, t, thetaRaw, { 
         scale: SCALE, 
-        objectType,
+        objectType: params.shapeStyle,
         includeTwist: true 
       });
       radius += offset + draftOffset * 0.5;
@@ -535,7 +535,7 @@ function generateWedgeMoldPart(
     // Get body radius at bottom
     let radius = getBodyRadius(params, 0, thetaRaw, { 
       scale: SCALE, 
-      objectType,
+      objectType: params.shapeStyle,
       includeTwist: true 
     });
     radius += offset;
@@ -592,7 +592,7 @@ function generateWedgeMoldPart(
     
     let radius = getBodyRadius(params, 1.0, thetaRaw, { 
       scale: SCALE, 
-      objectType,
+      objectType: params.shapeStyle,
       includeTwist: true 
     });
     radius += offset;
@@ -645,7 +645,7 @@ function addMoldPartFeatures(
   endAngle: number,
   partIndex: number,
   totalParts: number,
-  objectType: ObjectType
+  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
   const wallThickness = moldParams.wallThickness * SCALE;
@@ -655,7 +655,7 @@ function addMoldPartFeatures(
   const adjustedStartAngle = startAngle + splitRotation;
   const adjustedEndAngle = endAngle + splitRotation;
   
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType });
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType: params.shapeStyle });
   const outerRadius = maxBodyRadius + wallThickness;
   
   // Key positioning: midpoint of wall for structural integrity
@@ -810,7 +810,7 @@ function addMoldPartFeatures(
  */
 export function generateMultiPartMoldGeometry(
   params: ParametricParams,
-  objectType: ObjectType
+  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
 ): MultiPartMoldGeometry {
   const partCount = params.moldPartCount || 2;
   const partAngles: number[] = [];
@@ -820,7 +820,7 @@ export function generateMultiPartMoldGeometry(
   let splitAngles: number[];
   
   if (params.moldAutoSplit) {
-    const optimalSplits = calculateOptimalSplits(params, objectType, partCount);
+    const optimalSplits = calculateOptimalSplits(params, params.shapeStyle, partCount);
     splitAngles = optimalSplits.splitAngles;
     
     while (splitAngles.length < partCount) {
@@ -882,7 +882,7 @@ export function generateMultiPartMoldGeometry(
       moldParams,
       startAngle,
       endAngle,
-      objectType
+      params.shapeStyle
     );
     
     // Add CSG features (keys, pour hole, vents)
@@ -894,7 +894,7 @@ export function generateMultiPartMoldGeometry(
       endAngle,
       i,
       partCount,
-      objectType
+      params.shapeStyle
     );
     
     parts.push(partGeometry);
@@ -908,11 +908,11 @@ export function generateMultiPartMoldGeometry(
  */
 export function generateMoldGeometry(
   params: ParametricParams,
-  objectType: ObjectType
+  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
 ): MoldGeometry {
   // Use multi-part with count = 2
   const paramsWithTwoParts = { ...params, moldPartCount: 2 as const };
-  const multiPart = generateMultiPartMoldGeometry(paramsWithTwoParts, objectType);
+  const multiPart = generateMultiPartMoldGeometry(paramsWithTwoParts);
   
   return {
     halfA: multiPart.parts[0],
@@ -941,11 +941,11 @@ export function exportMoldHalfToSTL(geometry: THREE.BufferGeometry): Blob {
  */
 export function downloadMoldSTL(
   params: ParametricParams,
-  objectType: ObjectType,
+  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
   half: 'A' | 'B' | 'both' = 'both',
   filename: string = 'mold'
 ): void {
-  const { halfA, halfB } = generateMoldGeometry(params, objectType);
+  const { halfA, halfB } = generateMoldGeometry(params);
   
   const downloadPart = (geometry: THREE.BufferGeometry, suffix: string) => {
     const blob = exportMoldHalfToSTL(geometry);
@@ -971,11 +971,11 @@ export function downloadMoldSTL(
  */
 export function downloadMultiPartMoldSTL(
   params: ParametricParams,
-  objectType: ObjectType,
+  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
   partIndex: number | 'all' = 'all',
   filename: string = 'mold'
 ): void {
-  const { parts } = generateMultiPartMoldGeometry(params, objectType);
+  const { parts } = generateMultiPartMoldGeometry(params);
   
   const downloadPart = (geometry: THREE.BufferGeometry, index: number) => {
     const blob = exportMoldHalfToSTL(geometry);

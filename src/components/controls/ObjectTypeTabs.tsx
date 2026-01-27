@@ -8,9 +8,7 @@ interface ObjectTypeTabsProps {
 }
 
 const tabs: { type: ObjectType; label: string }[] = [
-  { type: 'vase', label: 'Vase' },
-  { type: 'lamp', label: 'Lamp' },
-  { type: 'sculpture', label: 'Sculpture' },
+  { type: 'shape', label: 'Shape' },
   { type: 'plotter', label: 'Plotter' },
 ];
 
@@ -22,10 +20,10 @@ const ObjectTypeTabs = ({ activeType, onTypeChange }: ObjectTypeTabsProps) => {
           key={tab.type}
           onClick={() => onTypeChange(tab.type)}
           className={cn(
-            'relative px-6 py-2.5 rounded-lg font-medium text-sm transition-colors duration-200',
+            'relative px-8 py-2.5 rounded-lg font-medium text-sm transition-colors duration-200',
             activeType === tab.type
               ? 'text-primary-foreground'
-              : 'text-text-secondary hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
           )}
         >
           {activeType === tab.type && (

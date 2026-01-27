@@ -79,14 +79,14 @@ interface MoldControlsProps {
 }
 
 const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldControlsProps) => {
-  const undercutAnalysis = useMemo(() => analyzeUndercuts(params, type), [params, type]);
+  const undercutAnalysis = useMemo(() => analyzeUndercuts(params), [params]);
   const materialEstimate = useMemo(() => calculateMoldMaterialEstimate(params, type), [params, type]);
   
   // Calculate optimal splits for preview info
   const optimalSplits = useMemo(() => {
     if (!params.moldAutoSplit) return null;
-    return calculateOptimalSplits(params, type, params.moldPartCount);
-  }, [params, type]);
+    return calculateOptimalSplits(params, params.shapeStyle, params.moldPartCount);
+  }, [params]);
 
   const handlePartCountChange = (count: 2 | 3 | 4) => {
     onParamsChange({ ...params, moldPartCount: count });
