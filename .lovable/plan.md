@@ -1,145 +1,176 @@
 
 
-## Enhanced Plotter Generator with 3D-to-2D Projection
+## Plotter Workflow Simplification Plan
 
-### What We're Building
-Transform your 3D lamp designs into beautiful 2D plotter art by adding a **3D Projection mode** that creates cross-section contours, silhouettes, and stacked slice drawings from your parametric objects.
+### Current Problems
 
-### Current Situation
-The plotter currently only generates abstract patterns (flow fields, spirals, waves). There's no way to connect it to your existing 3D designs.
+1. **Confusing design capture flow**: Users must design in Vase/Lamp/Sculpture tab, then switch to Plotter, then switch to "3D Projection" mode, then optionally click "Capture Design". Too many steps.
 
-### Solution Overview
+2. **Redundant object types for plotter use**: Vase, Lamp, and Sculpture share 95% of the same parametric controls. For 2D plotting, there's no functional difference between them.
 
-**Add three input modes to the plotter:**
-1. **Generative** (existing) - Abstract patterns like flow fields, spirals
-2. **3D Projection** (new) - Convert your lamps/vases/sculptures to 2D line art
-3. **Image** (future) - Convert photos to hatched/stippled drawings
+3. **Invisible plotter tab**: The inactive tab text color (`text-text-secondary`) has poor contrast against the light background.
 
 ---
 
-### Mode 1: 3D Projection Types
+### Proposed Solution
 
-**Cross-Section Slices**
-- Slice your 3D object horizontally at multiple heights
-- Each slice becomes a closed contour path
-- Stacked slices create a topographic-style drawing
-- Great for visualizing organic deformations
+#### Option A: Streamlined Dual-Mode Interface (Recommended)
 
-**Silhouette Outline**
-- Extract the outer edge of your object from a specific view angle
-- Single continuous path showing the profile
-- Adjustable rotation to capture different angles
+Simplify to two main tabs:
+- **Shape** - Design your 3D parametric form (combines Vase/Lamp/Sculpture)
+- **Plotter** - Convert shape to 2D art OR use generative patterns
 
-**Contour Stack**
-- Similar to cross-sections but rendered with visual offset
-- Creates a 3D layered effect on paper
-- Spacing and overlap controls
+The plotter automatically uses the current shape parameters in real-time when in projection mode. No "capture" step needed.
 
----
+#### Option B: Keep Current Tabs, Fix UX
 
-### New UI Controls
-
-**Mode Selection**
-- Tabs at top: Generative | 3D Projection
-- Clear visual separation between modes
-
-**3D Projection Settings**
-- **Source Design**: Shows current parametric params preview
-- **Projection Type**: Cross-Section / Silhouette / Contour Stack
-- **Slice Count**: 5-50 horizontal slices
-- **View Rotation**: Rotate the 3D object before projection
-- **Scale**: Fit to paper size
-- **Line Density**: How detailed the contours are
-
-**Design Sync**
-- Button to "Capture Current Design" from your 3D editor
-- The plotter remembers the 3D params you were working on
-- Switch between Plotter and Vase/Lamp tabs while keeping your design
+Keep Vase/Lamp/Sculpture/Plotter but:
+- Auto-sync the 3D design to plotter projection (no capture button)
+- Live preview of projection updates as you switch tabs
+- Fix visibility issues
 
 ---
 
-### Technical Implementation
+### Recommended Implementation: Option A
 
-**New File: `src/lib/plotter/projection.ts`**
-- `generateCrossSectionSlices()` - Use existing `getBodyRadius()` to sample contours at each height
-- `generateSilhouette()` - Project 3D points to 2D from a view angle
-- `generateContourStack()` - Cross-sections with visual offset
+#### 1. Merge Object Types
 
-**Update: `src/hooks/usePlotterDrawing.ts`**
-- Add projection mode detection
-- Call projection generators when mode is 'projection'
-- Pass through parametric params from the 3D editor
+Combine Vase, Lamp, and Sculpture into a single "Shape" type with a sub-selector for specialized features:
 
-**Update: `src/components/plotter/PlotterControls.tsx`**
-- Add mode tabs (Generative | 3D Projection)
-- Add projection-specific sliders and controls
-- Add "Capture Design" button
+```text
+[Shape]  [Plotter]
+    |
+    v
+Shape Mode: [Vase] [Lamp] [Sculpture]
+(Only affects 3D-specific features like sockets/stands)
+```
 
-**Update: `src/pages/Index.tsx`**
-- Pass current 3D params to plotter controls
-- Allow syncing between 3D design and plotter projection
+#### 2. Live Projection Sync
 
----
+Remove the "Capture Design" mechanism. Instead:
+- Plotter projection always uses current `params`
+- When user edits shape parameters, projection updates immediately
+- Shape params are passed directly to plotter components
 
-### User Experience Flow
+#### 3. Fix Tab Visibility
 
-1. Design a lamp in the Lamp tab with your preferred shape
-2. Switch to Plotter tab
-3. Click "Capture Current Design" or it auto-syncs
-4. Select "3D Projection" mode
-5. Choose "Cross-Section Slices" projection type
-6. Adjust slice count, view angle, scale
-7. See 2D preview update in real-time
-8. Export to SVG or G-code for your plotter
+Update `ObjectTypeTabs.tsx` to use higher contrast colors:
+
+```css
+/* Change from text-text-secondary to text-muted-foreground */
+activeType !== tab.type ? 'text-muted-foreground hover:text-foreground'
+```
 
 ---
 
-### Visual Preview
+### File Changes
 
-The plotter preview will show:
-- Paper bounds with margins
-- All contour paths from the sliced 3D object
-- Optional layer numbers or colors per slice
-- Path statistics (total distance, estimated plot time)
+| File | Changes |
+|------|---------|
+| `src/types/parametric.ts` | Add `shapeStyle: 'vase' | 'lamp' | 'sculpture'` to `ParametricParams`. Simplify `ObjectType` to `'shape' | 'plotter'` |
+| `src/components/controls/ObjectTypeTabs.tsx` | Reduce to 2 tabs: Shape, Plotter. Fix text contrast. |
+| `src/pages/Index.tsx` | Remove `last3DParams`/`last3DObjectType` capture logic. Pass live `params` to plotter. Add shape style selector in left panel. |
+| `src/components/plotter/PlotterControls.tsx` | Remove capture button. Simplify props since live params always available. |
+| `src/hooks/usePlotterDrawing.ts` | Update to use live params directly instead of captured mesh. |
+| `src/lib/plotter/projection.ts` | No changes needed - already uses `ParametricParams`. |
 
 ---
 
-### Files to Create/Modify
+### New User Flow
 
-| File | Action |
-|------|--------|
-| `src/lib/plotter/projection.ts` | Create - Core 3D-to-2D algorithms |
-| `src/hooks/usePlotterDrawing.ts` | Modify - Add projection mode |
-| `src/components/plotter/PlotterControls.tsx` | Modify - Add mode tabs and projection controls |
-| `src/pages/Index.tsx` | Modify - Sync 3D params to plotter |
-| `src/types/plotter.ts` | Modify - Add captured 3D params to PlotterParams |
+1. Open app → **Shape** tab is active
+2. Design your form using all parametric controls
+3. Optional: Select shape style (Vase/Lamp/Sculpture) for specialized 3D features
+4. Click **Plotter** tab
+5. Choose mode: Generative OR 3D Projection
+6. In projection mode, see your shape sliced immediately
+7. Adjust projection settings (slice count, view angle, projection type)
+8. Export SVG/G-code
+
+---
+
+### Visual Changes
+
+**Tab Bar**
+```text
+Before: [Vase] [Lamp] [Sculpture] [Plotter]
+After:  [Shape] [Plotter]
+```
+
+**Plotter Panel (Projection Mode)**
+```text
+Before:
+  [Capture Current Design] button
+  "Captured: vase" label
+  (stale data until re-captured)
+
+After:
+  Live preview synced to current shape
+  Direct projection controls
+  No capture step needed
+```
 
 ---
 
 ### Technical Details
 
-**Cross-Section Algorithm**
-```text
-For each slice height (0 to object height):
-  1. Sample getBodyRadius() at 64+ angles around the circumference
-  2. Convert polar coordinates (radius, angle) to cartesian (x, y)
-  3. Center on paper and apply scale
-  4. Create closed path from the sampled points
-  5. Add to drawing paths array
+**Simplified Type Structure**
+
+```typescript
+// parametric.ts
+export type ObjectType = 'shape' | 'plotter';
+
+export interface ParametricParams {
+  // Existing shape params...
+  height: number;
+  baseRadius: number;
+  // etc...
+  
+  // New: which 3D style to apply
+  shapeStyle: 'vase' | 'lamp' | 'sculpture';
+}
 ```
 
-**Silhouette Algorithm**
-```text
-1. Apply rotation matrix based on view angle
-2. Project all mesh vertices to 2D
-3. Find convex hull or edge detection
-4. Trace the outer boundary as a single path
+**Live Projection in Index.tsx**
+
+```typescript
+// No more capture state
+// const [last3DObjectType, setLast3DObjectType] = useState(...)
+// const [last3DParams, setLast3DParams] = useState(...)
+
+// Just pass current params to plotter
+<PlotterControls
+  params={plotterParams}
+  drawing={plotterDrawing}
+  onParamsChange={setPlotterParams}
+  meshParams={params}  // Live, always current
+  shapeStyle={params.shapeStyle}  // For projection
+/>
 ```
 
-**Scale Fitting**
-```text
-1. Calculate bounding box of all projected points
-2. Compute scale factor to fit within paper margins
-3. Apply uniform scale to preserve proportions
+**PlotterControls Changes**
+
+```typescript
+// Remove capture functionality
+// const captureCurrentDesign = useCallback(() => {...}, []);
+
+// Direct access to live params
+interface PlotterControlsProps {
+  params: PlotterParams;
+  drawing: PlotterDrawing | null;
+  onParamsChange: (params: PlotterParams) => void;
+  meshParams: ParametricParams;  // Always live
+  shapeStyle: 'vase' | 'lamp' | 'sculpture';
+}
 ```
+
+---
+
+### Benefits
+
+1. **Clearer mental model**: Shape = what you're making, Plotter = how to draw it
+2. **Fewer clicks**: No capture step, instant projection preview
+3. **Live updates**: Edit shape → see projection change in real-time (when switching back to plotter)
+4. **Better discoverability**: "Plotter" tab is more prominent with only 2 tabs
+5. **Future-proof**: Easy to add more shape styles without cluttering the tab bar
 
