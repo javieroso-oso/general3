@@ -32,7 +32,10 @@ export type GenerativePattern =
 export type HatchStyle = 'parallel' | 'crosshatch' | 'stipple' | 'contour';
 
 // Projection types for 3D to 2D
-export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack';
+export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField';
+
+// Line field wrap modes
+export type LineFieldMode = 'around' | 'through' | 'outline';
 
 // A single path segment with pen state
 export interface PlotterPath {
@@ -125,6 +128,13 @@ export interface ProjectionParams {
   perspective: number;       // Perspective amount for contour stack (0-1)
   centerOffset: { x: number; y: number }; // Offset from center in mm
   simplifyTolerance: number; // Path simplification (0=none, higher=more)
+  // Line field settings
+  lineFieldCount: number;        // 10-100 - how many lines fill the page
+  lineFieldAngle: number;        // 0-180 degrees - direction of lines
+  lineFieldStrength: number;     // 0-2 distortion multiplier
+  lineFieldFalloff: number;      // 0.5-3 distance falloff
+  lineFieldMode: LineFieldMode;  // How lines interact with shape
+  lineFieldExtend: boolean;      // Extend lines beyond paper edges
 }
 
 // Machine presets for G-code
@@ -274,6 +284,13 @@ export const defaultProjectionParams: ProjectionParams = {
   perspective: 0.3,
   centerOffset: { x: 0, y: 0 },
   simplifyTolerance: 0,
+  // Line field defaults
+  lineFieldCount: 40,
+  lineFieldAngle: 0,
+  lineFieldStrength: 1,
+  lineFieldFalloff: 1.5,
+  lineFieldMode: 'around',
+  lineFieldExtend: true,
 };
 
 export const defaultPlotterParams: PlotterParams = {
