@@ -32,7 +32,7 @@ export type GenerativePattern =
 export type HatchStyle = 'parallel' | 'crosshatch' | 'stipple' | 'contour';
 
 // Projection types for 3D to 2D
-export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField';
+export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField' | 'contourLines';
 
 // Line field wrap modes
 export type LineFieldMode = 'around' | 'through' | 'outline';
