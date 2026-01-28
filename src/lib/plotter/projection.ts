@@ -1206,20 +1206,20 @@ function isPointInsidePolygon(
  */
 export function generateContourLines(options: ProjectionOptions): PlotterDrawing {
   const { params, meshParams, objectType, width, height, margin } = options;
-  const { viewAngle, scale, lineFieldCount, centerOffset, simplifyTolerance, lineDetail } = params;
+  const { viewAngle, scale, lineFieldCount, centerOffset, simplifyTolerance, lineDetail, lineFieldBreakInside } = params;
   
   const paths: PlotterPath[] = [];
   const objectHeight = meshParams.height;
   const lineCount = lineFieldCount || 40;
   const angleSegments = lineDetail || 64;
+  const breakInside = lineFieldBreakInside ?? false; // Light pass-through mode
   
   // First, compute the shape's projection to find its bounds
   const maxRadius = getMaxBodyRadius(meshParams, { objectType, scale: 1 });
   
   // Pre-compute cross-sections at various heights
-  // Each cross-section is a slice of the 3D shape projected to 2D
   const crossSections: { t: number; leftX: number; rightX: number; yCenter: number }[] = [];
-  const heightSamples = 100; // Fine sampling for smooth interpolation
+  const heightSamples = 100;
   
   let minShapeX = Infinity, maxShapeX = -Infinity;
   let minShapeY = Infinity, maxShapeY = -Infinity;
@@ -1267,7 +1267,7 @@ export function generateContourLines(options: ProjectionOptions): PlotterDrawing
   const fitScale = Math.min(
     paperWidth / shapeWidth,
     paperHeight / shapeHeight
-  ) * scale * 0.7; // 70% to leave room for lines outside shape
+  ) * scale * 0.7;
   
   const offsetX = width / 2 - (minShapeX + shapeWidth / 2) * fitScale + centerOffset.x;
   const offsetY = height / 2 - (minShapeY + shapeHeight / 2) * fitScale + centerOffset.y;
@@ -1289,12 +1289,10 @@ export function generateContourLines(options: ProjectionOptions): PlotterDrawing
   
   for (let i = 0; i < lineCount; i++) {
     const lineY = margin + i * lineSpacing;
-    const linePoints: { x: number; y: number }[] = [];
     
     // Check if this line intersects the shape
     if (lineY >= shapeYMin && lineY <= shapeYMax) {
       // Find the cross-section at this Y level
-      // Interpolate between the nearest cross-sections
       let leftX = margin;
       let rightX = width - margin;
       let foundIntersection = false;
@@ -1303,9 +1301,7 @@ export function generateContourLines(options: ProjectionOptions): PlotterDrawing
         const s1 = transformedSections[j];
         const s2 = transformedSections[j + 1];
         
-        // Check if lineY is between these two sections
         if ((lineY >= s1.y && lineY <= s2.y) || (lineY <= s1.y && lineY >= s2.y)) {
-          // Interpolate
           const progress = Math.abs(s2.y - s1.y) > 0.001 
             ? (lineY - s1.y) / (s2.y - s1.y) 
             : 0;
@@ -1318,50 +1314,95 @@ export function generateContourLines(options: ProjectionOptions): PlotterDrawing
       }
       
       if (foundIntersection && rightX > leftX) {
-        // Line goes: left edge → shape left → trace along shape (bulge out) → shape right → right edge
-        
-        // Start from left margin
-        linePoints.push({ x: margin, y: lineY });
-        
-        // Go to where shape begins
-        linePoints.push({ x: leftX, y: lineY });
-        
-        // Now trace the contour - find the actual contour points at this height
-        const contourPoints = getContourAtHeight(
-          meshParams, objectType, lineY, 
-          shapeYMin, shapeYMax, 
-          fitScale, offsetX, offsetY, 
-          viewAngle, angleSegments
-        );
-        
-        // Add contour points (the bulging shape)
-        for (const cp of contourPoints) {
-          linePoints.push(cp);
+        if (breakInside) {
+          // LIGHT PASS-THROUGH MODE: Break lines inside the shape
+          // Create two separate paths: left side and right side
+          
+          // Left segment: from margin to shape left edge
+          const leftPoints: { x: number; y: number }[] = [
+            { x: margin, y: lineY },
+            { x: leftX, y: lineY },
+          ];
+          
+          // Right segment: from shape right edge to margin
+          const rightPoints: { x: number; y: number }[] = [
+            { x: rightX, y: lineY },
+            { x: width - margin, y: lineY },
+          ];
+          
+          // Add left segment
+          if (leftX > margin + 1) { // Only add if there's meaningful length
+            paths.push({
+              points: leftPoints,
+              penDown: true,
+              layer: i,
+            });
+          }
+          
+          // Add right segment
+          if (rightX < width - margin - 1) {
+            paths.push({
+              points: rightPoints,
+              penDown: true,
+              layer: i,
+            });
+          }
+        } else {
+          // NORMAL MODE: Lines bulge through the shape contour
+          const linePoints: { x: number; y: number }[] = [];
+          
+          // Start from left margin
+          linePoints.push({ x: margin, y: lineY });
+          linePoints.push({ x: leftX, y: lineY });
+          
+          // Trace the contour - get the bulging points
+          const contourPoints = getContourAtHeight(
+            meshParams, objectType, lineY, 
+            shapeYMin, shapeYMax, 
+            fitScale, offsetX, offsetY, 
+            viewAngle, angleSegments
+          );
+          
+          for (const cp of contourPoints) {
+            linePoints.push(cp);
+          }
+          
+          // Continue to right edge
+          linePoints.push({ x: rightX, y: lineY });
+          linePoints.push({ x: width - margin, y: lineY });
+          
+          // Apply simplification if needed
+          let finalPoints = linePoints;
+          if (simplifyTolerance > 0 && linePoints.length > 2) {
+            finalPoints = simplifyPath(linePoints, simplifyTolerance);
+          }
+          
+          if (finalPoints.length >= 2) {
+            paths.push({
+              points: finalPoints,
+              penDown: true,
+              layer: i,
+            });
+          }
         }
-        
-        // Continue to right edge
-        linePoints.push({ x: rightX, y: lineY });
-        linePoints.push({ x: width - margin, y: lineY });
       } else {
         // No valid intersection, draw straight line
-        linePoints.push({ x: margin, y: lineY });
-        linePoints.push({ x: width - margin, y: lineY });
+        paths.push({
+          points: [
+            { x: margin, y: lineY },
+            { x: width - margin, y: lineY },
+          ],
+          penDown: true,
+          layer: i,
+        });
       }
     } else {
       // Line doesn't intersect shape - draw straight
-      linePoints.push({ x: margin, y: lineY });
-      linePoints.push({ x: width - margin, y: lineY });
-    }
-    
-    // Apply simplification if needed
-    let finalPoints = linePoints;
-    if (simplifyTolerance > 0 && linePoints.length > 2) {
-      finalPoints = simplifyPath(linePoints, simplifyTolerance);
-    }
-    
-    if (finalPoints.length >= 2) {
       paths.push({
-        points: finalPoints,
+        points: [
+          { x: margin, y: lineY },
+          { x: width - margin, y: lineY },
+        ],
         penDown: true,
         layer: i,
       });

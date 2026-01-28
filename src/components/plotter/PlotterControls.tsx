@@ -794,6 +794,40 @@ const PlotterControls = ({
                   />
                 </div>
 
+                {/* Contour Lines Settings */}
+                {params.projection.type === 'contourLines' && (
+                  <>
+                    <div className="border-t border-border pt-3 mt-3">
+                      <Label className="text-xs font-medium text-foreground mb-2 block">Contour Lines</Label>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Line Count: {params.projection.lineFieldCount ?? 40}
+                      </Label>
+                      <Slider
+                        value={[params.projection.lineFieldCount ?? 40]}
+                        min={10}
+                        max={100}
+                        step={1}
+                        onValueChange={([v]) => updateProjection('lineFieldCount', v)}
+                      />
+                    </div>
+
+                    {/* Light Pass-Through Toggle */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Light Pass-Through</Label>
+                        <p className="text-[10px] text-muted-foreground/70">Break lines inside shape</p>
+                      </div>
+                      <Switch
+                        checked={params.projection.lineFieldBreakInside ?? false}
+                        onCheckedChange={(v) => updateProjection('lineFieldBreakInside', v)}
+                      />
+                    </div>
+                  </>
+                )}
+
                 {/* Line Field Settings */}
                 {params.projection.type === 'lineField' && (
                   <>
