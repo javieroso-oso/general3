@@ -1,174 +1,194 @@
 
+# Light Perforations Feature
 
-# Shape-Influenced Line Fill Mode
+Add configurable cutout patterns to 3D shapes that let light pass through, enabling lamp shades and decorative objects with illuminated patterns.
 
-## What You Want
-Fill the entire page with lines (horizontal, vertical, or at an angle) that **curve and bend** as they pass through or near your 3D shape - like the object is distorting a field of parallel lines around it.
+---
 
-## Visual Concept
+## Overview
 
+This feature adds perforations (holes) to the parametric mesh body that create decorative light effects when backlit. Users can choose from several pattern types, control density, size, and the zone where patterns appear.
+
+---
+
+## Pattern Types
+
+| Pattern | Description | Visual Effect |
+|---------|-------------|---------------|
+| **Dots** | Circular holes in a grid or organic distribution | Clean, modern, starry |
+| **Lines** | Horizontal or vertical slots | Art deco, blinds effect |
+| **Organic** | Noise-distributed random holes | Natural, handcrafted feel |
+| **Geometric** | Hexagonal honeycomb or triangular grid | Structured, architectural |
+| **Spiral** | Holes following spiral grooves | Dynamic, flowing |
+
+---
+
+## User Controls
+
+New "Light Patterns" section in Parameter Controls (only visible when `shapeStyle === 'lamp'`):
+
+**Pattern Type** - Dropdown selector for pattern style
+
+**Pattern Settings**:
+- **Density** (0.1 - 1.0) - How many holes per area
+- **Hole Size** (2mm - 15mm) - Diameter of each perforation
+- **Zone Start** (0 - 0.9) - Height percentage where pattern begins
+- **Zone End** (0.1 - 1.0) - Height percentage where pattern ends
+
+**Advanced Options** (collapsible):
+- **Randomness** (0 - 1) - Organic variation in placement
+- **Scale with Height** - Holes get larger toward top
+- **Avoid Rim** - Keeps holes away from top edge for structural integrity
+
+---
+
+## Implementation Approach
+
+### Two-Phase Strategy
+
+**Phase 1: Vertex-based Pattern Masking** (simpler, preview-friendly)
+- Generate hole positions procedurally based on pattern type
+- Store perforation data as metadata for STL export
+- Visual preview shows pattern locations with material opacity variation
+- Fast real-time preview without heavy CSG computation
+
+**Phase 2: CSG Boolean Operations** (export-time)
+- When exporting STL, apply CSG subtraction to create actual through-holes
+- Uses existing `three-bvh-csg` library already in project
+- Ensures watertight, printable geometry
+
+---
+
+## Technical Changes
+
+### 1. Type Definitions (`src/types/parametric.ts`)
+
+Add to `ParametricParams`:
 ```text
-Normal parallel lines:     Shape-distorted lines:
-─────────────────          ────────╭────────
-─────────────────          ───────╭ ╮───────
-─────────────────          ──────(   )──────
-─────────────────          ───────╰ ╯───────
-─────────────────          ────────╰────────
+lightPatternEnabled: boolean;
+lightPatternType: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
+lightPatternDensity: number;      // 0.1-1 holes per unit area
+lightPatternSize: number;         // 2-15mm hole diameter
+lightPatternZoneStart: number;    // 0-0.9 height fraction
+lightPatternZoneEnd: number;      // 0.1-1 height fraction
+lightPatternRandomness: number;   // 0-1 placement variation
+lightPatternScaleWithHeight: boolean;
+lightPatternRimMargin: number;    // 0-0.2 avoid rim zone
 ```
 
-The lines wrap around the silhouette of your lamp/vase, creating a beautiful interplay between geometric order and organic form.
+### 2. New Pattern Generator (`src/lib/light-pattern-generator.ts`)
 
----
+Creates hole positions based on pattern type:
+- `generateDotPattern()` - Grid/hex layout with noise
+- `generateLinePattern()` - Horizontal slot positions
+- `generateOrganicPattern()` - Poisson disc sampling
+- `generateGeometricPattern()` - Honeycomb tessellation
+- `generateSpiralPattern()` - Along spiral groove paths
 
-## New Projection Type: "Line Field"
+Returns array of `{ theta: number, t: number, size: number }` defining hole positions in cylindrical coordinates.
 
-Add a fourth projection type alongside the existing three:
+### 3. Mesh Generation Updates (`src/components/3d/ParametricMesh.tsx`)
 
-| Type | Description |
-|------|-------------|
-| Cross-Section | Slices at multiple heights |
-| Silhouette | Outer boundary outline |
-| Contour Stack | Layered slices with offset |
-| **Line Field** *(new)* | Full-page lines distorted by shape |
+**Preview Mode:**
+- Generate pattern positions
+- Create vertex colors or texture coordinates to visualize pattern
+- Show holes as darker/transparent regions
 
----
+**Export Mode:**
+- Convert pattern positions to 3D cylinder brushes
+- Apply CSG subtraction using `three-bvh-csg`
+- Output clean, manifold geometry
 
-## Line Field Settings
+### 4. STL Export Updates (`src/lib/stl-export.ts`)
 
-| Setting | Description | Range |
-|---------|-------------|-------|
-| **Line Count** | How many lines fill the page | 10-100 |
-| **Line Angle** | Direction of lines (0°=horizontal, 90°=vertical) | 0-180° |
-| **Distortion Strength** | How much the shape bends the lines | 0-2 |
-| **Distortion Falloff** | How far the distortion reaches | 0.5-3 |
-| **Wrap Mode** | How lines interact with shape: `around` (flow around), `through` (distort through center), `outline` (trace the edge) | selection |
-| **Line Extension** | Extend lines beyond paper edges for cleaner edge treatment | toggle |
-
----
-
-## How It Works
-
-### Algorithm: Shape Field Distortion
-
-1. **Project the 3D shape to 2D** (same as silhouette mode - uses view angle)
-2. **Sample the shape boundary** to create a distance field
-3. **Generate base lines** spanning the page at the chosen angle and spacing
-4. **For each point on each line:**
-   - Calculate distance to nearest point on shape boundary
-   - Calculate the direction to push the point (perpendicular to shape surface)
-   - Apply distortion based on distance and strength settings
-5. **Output curved paths** that flow around the shape
-
-### Distortion Modes
-
-**Around Mode:**
-Lines curve to flow around the outside of the shape, never crossing inside. Creates a "force field" effect.
-
-**Through Mode:**
-Lines pass through the shape but distort/compress as they do. Creates a "lens" or "gravity well" effect.
-
-**Outline Mode:**
-Lines trace the edge when they hit the shape boundary, then continue on the other side. Creates a "contour emphasis" effect.
-
----
-
-## Implementation
-
-### Type Changes (`src/types/plotter.ts`)
-
-```typescript
-// Add new projection type
-export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField';
-
-// Add line field parameters to ProjectionParams
-export interface ProjectionParams {
-  // ... existing fields ...
-  
-  // Line field settings
-  lineFieldCount: number;        // 10-100
-  lineFieldAngle: number;        // 0-180 degrees
-  lineFieldStrength: number;     // 0-2 distortion multiplier
-  lineFieldFalloff: number;      // 0.5-3 distance falloff
-  lineFieldMode: 'around' | 'through' | 'outline';
-  lineFieldExtend: boolean;      // extend lines past paper edges
+Add CSG perforation step before export:
+```text
+if (params.lightPatternEnabled) {
+  geometry = applyLightPerforations(geometry, params);
 }
 ```
 
-### Generator Function (`src/lib/plotter/projection.ts`)
+### 5. UI Controls (`src/components/controls/ParameterControls.tsx`)
 
-New function: `generateLineField(options: ProjectionOptions): PlotterDrawing`
-
-**Algorithm outline:**
-1. Generate silhouette boundary points (reuse existing code)
-2. Create distance field by sampling boundary
-3. For each line from edge to edge:
-   - Start at left/top edge (based on angle)
-   - Step along the line direction
-   - At each step, calculate distortion from shape proximity
-   - Offset the point perpendicular to line direction
-   - Collect all points into a path
-4. Return all line paths
-
-### UI Controls (`src/components/plotter/PlotterControls.tsx`)
-
-Add new controls when `lineField` projection type is selected:
-- Line Count slider
-- Line Angle slider with visual indicator
-- Distortion Strength slider
-- Falloff Distance slider
-- Wrap Mode selector (Around / Through / Outline)
-- Extend Lines toggle
+New collapsible "Light Patterns" section:
+- Only visible when `shapeStyle === 'lamp'`
+- Pattern type selector (visual icons)
+- Density and size sliders
+- Zone start/end range slider
+- Advanced options subsection
 
 ---
 
-## Files to Modify
+## Technical Considerations
 
-| File | Changes |
-|------|---------|
-| `src/types/plotter.ts` | Add `'lineField'` to `ProjectionType`, add line field params to `ProjectionParams` and defaults |
-| `src/lib/plotter/projection.ts` | Add `generateLineField()` function, update `generateProjection()` dispatcher |
-| `src/components/plotter/PlotterControls.tsx` | Add Line Field option to projection type selector, add line field controls |
+### Print Safety
+- **Minimum hole size**: 2mm to ensure printability
+- **Minimum spacing**: Wall thickness × 2 between holes
+- **Structural zones**: Automatic exclusion near base and rim
+- **Wall thickness validation**: Holes only allowed if `wallThickness >= 1.6mm`
 
----
+### Performance
+- Pattern calculation is lightweight (runs in useMemo)
+- CSG operations only on export (not real-time)
+- Preview uses vertex coloring instead of actual geometry modification
 
-## User Flow
-
-1. Design your shape in the Shape tab
-2. Switch to Plotter tab
-3. Select "3D Projection" mode
-4. Choose "Line Field" projection type
-5. Adjust line count, angle, and distortion settings
-6. See the full-page lines curve around your design
-7. Export to SVG or G-code
-
----
-
-## Visual Examples
-
-**Horizontal lines around a vase:**
+### File Structure
 ```text
-─────────────────────────────
-────────────╭─────╮──────────
-───────────╱       ╲─────────
-──────────╱         ╲────────
-──────────│         │────────
-──────────│         │────────
-──────────╲         ╱────────
-───────────╲       ╱─────────
-────────────╰─────╯──────────
-─────────────────────────────
+src/lib/light-pattern-generator.ts (new)
+  ├── generateDotPattern()
+  ├── generateLinePattern()
+  ├── generateOrganicPattern()
+  ├── generateGeometricPattern()
+  ├── generateSpiralPattern()
+  └── applyLightPerforations() (CSG for export)
+
+src/types/parametric.ts (modify)
+  └── Add lightPattern* properties
+
+src/components/controls/ParameterControls.tsx (modify)
+  └── Add Light Patterns section
+
+src/lib/stl-export.ts (modify)
+  └── Integrate perforation step
+
+src/components/3d/ParametricMesh.tsx (modify)
+  └── Add pattern visualization
 ```
 
-**Diagonal lines through shape (lens effect):**
+---
+
+## Visual Preview Approach
+
+Since CSG is computationally expensive, the real-time preview will use a shader-based approach:
+
+1. Generate pattern positions in cylindrical coordinates
+2. Pass to shader as uniforms or vertex attributes
+3. Fragment shader renders holes as transparent/dark spots
+4. Gives instant feedback while designing
+
+On export, actual CSG is applied for watertight mesh.
+
+---
+
+## Default Values
+
 ```text
-╲   ╲   ╲   ╲   ╲   ╲   ╲   ╲
- ╲   ╲   ╲   ╲   ╲   ╲   ╲   ╲
-  ╲   ╲   ╲╲ ╱╱   ╲   ╲   ╲
-   ╲   ╲ ╲  │  ╱ ╱   ╲   ╲
-    ╲   ╲   │   ╱   ╱   ╲
-     ╲   ╱  │  ╲   ╱   ╲
-      ╲╱╱   │   ╲╲╱   ╲
-       ╲    │    ╱   ╲
-        ╲   │   ╱   ╲
+lightPatternEnabled: false
+lightPatternType: 'dots'
+lightPatternDensity: 0.3
+lightPatternSize: 5
+lightPatternZoneStart: 0.2
+lightPatternZoneEnd: 0.8
+lightPatternRandomness: 0.2
+lightPatternScaleWithHeight: false
+lightPatternRimMargin: 0.1
 ```
 
+---
+
+## Future Enhancements
+
+- **Custom pattern import**: SVG/image-based perforation masks
+- **Voronoi patterns**: Organic cell-like structures
+- **Gradient density**: Pattern density varies with height
+- **Multi-layer patterns**: Different patterns at different heights
