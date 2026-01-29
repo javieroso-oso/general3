@@ -350,6 +350,7 @@ function getRimWaveOffset(
 
 // Generate body mesh (open bottom, no base cap) for STL export
 // Handles wall mount cut if standType is wall_mount
+// When cordHoleEnabled is true but addLegs is false, generates a floor with cord hole
 export function generateBodyMesh(
   params: ParametricParams,
   type: ObjectType
@@ -362,11 +363,19 @@ export function generateBodyMesh(
     standType,
     wallMountStyle,
     wallMountCutOffset,
+    cordHoleEnabled,
+    cordHoleDiameter,
+    centeringLipEnabled,
+    centeringLipHeight,
+    socketType,
   } = params;
 
   // Check if this is a back-style wall mount
   const isWallMount = addLegs && standType === 'wall_mount' && wallMountStyle === 'back';
   const cutOffset = wallMountCutOffset || 0;
+  
+  // Check if we need to generate a floor with cord hole (when no legs but cord hole enabled)
+  const needsCordHoleFloor = cordHoleEnabled && !addLegs;
 
   const segments = 64;
   const heightSegments = Math.ceil(height / 2);
@@ -516,8 +525,17 @@ export function generateBodyMesh(
   if (isWallMount) {
     // Wall mount: clip at cut plane and generate back wall
     return generateWallMountBody(outerVerts, innerVerts, heightSegments, segments, height, cutOffset, wallThickness);
+  } else if (needsCordHoleFloor) {
+    // Body with integrated floor and cord hole (when legs are disabled but cord hole is enabled)
+    return generateFullBodyWithCordHoleFloor(
+      outerVerts, 
+      innerVerts, 
+      heightSegments, 
+      segments,
+      params
+    );
   } else {
-    // Normal full 360° body
+    // Normal full 360° body (open bottom for legs or solid base)
     return generateFullBody(outerVerts, innerVerts, heightSegments, segments);
   }
 }
@@ -591,6 +609,215 @@ function generateFullBody(
     
     indices.push(outer1, outer2, inner1);
     indices.push(inner1, outer2, inner2);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  return geometry;
+}
+
+// Generate full 360° body mesh with integrated floor and cord hole
+// Used when cordHoleEnabled is true but addLegs is false
+function generateFullBodyWithCordHoleFloor(
+  outerVerts: number[],
+  innerVerts: number[],
+  heightSegments: number,
+  segments: number,
+  params: ParametricParams
+): THREE.BufferGeometry {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  
+  const cordHoleDiameter = params.cordHoleDiameter || 8;
+  const cordHoleRadius = cordHoleDiameter / 2;
+  const centeringLipEnabled = params.centeringLipEnabled ?? false;
+  const centeringLipHeight = params.centeringLipHeight ?? 3;
+  const socketType = params.socketType ?? 'E26';
+  
+  // Socket inner diameters in mm
+  const socketDiameters: Record<string, number> = {
+    E26: 26,
+    E12: 12,
+    E14: 14,
+    GU10: 35,
+  };
+  const socketInnerRadius = (socketDiameters[socketType] ?? 26) / 2;
+  
+  // Copy outer vertices
+  const outerStart = 0;
+  for (let i = 0; i < outerVerts.length; i++) {
+    vertices.push(outerVerts[i]);
+  }
+
+  // Copy inner vertices
+  const innerStart = vertices.length / 3;
+  for (let i = 0; i < innerVerts.length; i++) {
+    vertices.push(innerVerts[i]);
+  }
+
+  // Outer wall faces
+  for (let i = 0; i < heightSegments; i++) {
+    for (let j = 0; j < segments; j++) {
+      const a = outerStart + i * (segments + 1) + j;
+      const b = a + 1;
+      const c = a + (segments + 1);
+      const d = c + 1;
+      indices.push(a, c, b);
+      indices.push(b, c, d);
+    }
+  }
+
+  // Inner wall faces
+  for (let i = 0; i < heightSegments; i++) {
+    for (let j = 0; j < segments; j++) {
+      const a = innerStart + i * (segments + 1) + j;
+      const b = a + 1;
+      const c = a + (segments + 1);
+      const d = c + 1;
+      indices.push(a, b, c);
+      indices.push(b, d, c);
+    }
+  }
+
+  // Top rim - connect outer to inner wall
+  const topOuterStart = outerStart + heightSegments * (segments + 1);
+  const topInnerStart = innerStart + heightSegments * (segments + 1);
+  
+  for (let j = 0; j < segments; j++) {
+    const outer1 = topOuterStart + j;
+    const outer2 = topOuterStart + j + 1;
+    const inner1 = topInnerStart + j;
+    const inner2 = topInnerStart + j + 1;
+    
+    indices.push(outer1, outer2, inner1);
+    indices.push(inner1, outer2, inner2);
+  }
+
+  // === FLOOR WITH CORD HOLE ===
+  // Create a flat floor at y=0 connecting inner wall to cord hole
+  const floorY = 0;
+  
+  // Add floor vertices - inner wall ring at base (reuse existing bottom ring from innerVerts)
+  // Inner wall bottom vertices are at indices innerStart to innerStart + segments
+  
+  // Add cord hole ring vertices at y=0
+  const cordHoleRingStart = vertices.length / 3;
+  for (let j = 0; j <= segments; j++) {
+    const theta = (j / segments) * Math.PI * 2;
+    vertices.push(
+      Math.cos(theta) * cordHoleRadius,
+      floorY,
+      Math.sin(theta) * cordHoleRadius
+    );
+  }
+  
+  // Connect inner wall base to cord hole ring (floor surface)
+  for (let j = 0; j < segments; j++) {
+    const inner1 = innerStart + j;
+    const inner2 = innerStart + j + 1;
+    const cord1 = cordHoleRingStart + j;
+    const cord2 = cordHoleRingStart + j + 1;
+    
+    // Floor faces (facing down for proper normals when printed)
+    indices.push(inner1, inner2, cord1);
+    indices.push(inner2, cord2, cord1);
+  }
+  
+  // Connect outer wall base to inner wall base (bottom rim of the shell)
+  for (let j = 0; j < segments; j++) {
+    const outer1 = outerStart + j;
+    const outer2 = outerStart + j + 1;
+    const inner1 = innerStart + j;
+    const inner2 = innerStart + j + 1;
+    
+    indices.push(outer1, inner1, outer2);
+    indices.push(outer2, inner1, inner2);
+  }
+  
+  // === CENTERING LIP (if enabled) ===
+  if (centeringLipEnabled) {
+    const centeringLipOuterRadius = socketInnerRadius + 3; // 3mm wall thickness
+    const centeringLipInnerRadius = socketInnerRadius;
+    const lipTopY = centeringLipHeight;
+    
+    // Only add if centering lip radius is larger than cord hole
+    if (centeringLipInnerRadius > cordHoleRadius) {
+      // Add centering lip outer ring at top
+      const lipOuterTopStart = vertices.length / 3;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        vertices.push(
+          Math.cos(theta) * centeringLipOuterRadius,
+          lipTopY,
+          Math.sin(theta) * centeringLipOuterRadius
+        );
+      }
+      
+      // Add centering lip inner ring at top
+      const lipInnerTopStart = vertices.length / 3;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        vertices.push(
+          Math.cos(theta) * centeringLipInnerRadius,
+          lipTopY,
+          Math.sin(theta) * centeringLipInnerRadius
+        );
+      }
+      
+      // Add centering lip outer ring at base
+      const lipOuterBaseStart = vertices.length / 3;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        vertices.push(
+          Math.cos(theta) * centeringLipOuterRadius,
+          floorY,
+          Math.sin(theta) * centeringLipOuterRadius
+        );
+      }
+      
+      // Add centering lip inner ring at base (connects to cord hole)
+      const lipInnerBaseStart = vertices.length / 3;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        vertices.push(
+          Math.cos(theta) * centeringLipInnerRadius,
+          floorY,
+          Math.sin(theta) * centeringLipInnerRadius
+        );
+      }
+      
+      // Lip top surface (outer to inner)
+      for (let j = 0; j < segments; j++) {
+        indices.push(lipOuterTopStart + j, lipInnerTopStart + j, lipOuterTopStart + j + 1);
+        indices.push(lipOuterTopStart + j + 1, lipInnerTopStart + j, lipInnerTopStart + j + 1);
+      }
+      
+      // Lip outer wall
+      for (let j = 0; j < segments; j++) {
+        indices.push(lipOuterTopStart + j, lipOuterTopStart + j + 1, lipOuterBaseStart + j);
+        indices.push(lipOuterTopStart + j + 1, lipOuterBaseStart + j + 1, lipOuterBaseStart + j);
+      }
+      
+      // Lip inner wall
+      for (let j = 0; j < segments; j++) {
+        indices.push(lipInnerTopStart + j, lipInnerBaseStart + j, lipInnerTopStart + j + 1);
+        indices.push(lipInnerTopStart + j + 1, lipInnerBaseStart + j, lipInnerBaseStart + j + 1);
+      }
+      
+      // Connect lip base to cord hole ring (floor around lip)
+      for (let j = 0; j < segments; j++) {
+        const lipInner1 = lipInnerBaseStart + j;
+        const lipInner2 = lipInnerBaseStart + j + 1;
+        const cord1 = cordHoleRingStart + j;
+        const cord2 = cordHoleRingStart + j + 1;
+        
+        indices.push(lipInner1, lipInner2, cord1);
+        indices.push(lipInner2, cord2, cord1);
+      }
+    }
   }
 
   const geometry = new THREE.BufferGeometry();
