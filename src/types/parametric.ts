@@ -202,6 +202,17 @@ export interface ParametricParams {
   
   moldShowGhostBody: boolean;        // Show body outline inside mold
   
+  // Light perforations (holes for light pass-through)
+  lightPatternEnabled: boolean;      // Toggle light perforation pattern
+  lightPatternType: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
+  lightPatternDensity: number;       // 0.1-1 holes per unit area
+  lightPatternSize: number;          // 2-15mm hole diameter
+  lightPatternZoneStart: number;     // 0-0.9 height fraction where pattern begins
+  lightPatternZoneEnd: number;       // 0.1-1 height fraction where pattern ends
+  lightPatternRandomness: number;    // 0-1 placement variation
+  lightPatternScaleWithHeight: boolean; // Holes get larger toward top
+  lightPatternRimMargin: number;     // 0-0.2 avoid rim zone
+  
   // Preview mode
   showBaseOnly: boolean;     // Show only base/legs without body for easier editing
   previewColor: string;      // Hex color for preview rendering
@@ -444,6 +455,16 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     moldStrapNotchWidth: 12,
     moldStrapNotchDepth: 4,
     moldShowGhostBody: true,
+    // Light perforations - defaults
+    lightPatternEnabled: false,
+    lightPatternType: 'dots',
+    lightPatternDensity: 0.3,
+    lightPatternSize: 5,
+    lightPatternZoneStart: 0.2,
+    lightPatternZoneEnd: 0.8,
+    lightPatternRandomness: 0.2,
+    lightPatternScaleWithHeight: false,
+    lightPatternRimMargin: 0.1,
     showBaseOnly: false,
     previewColor: '#e8e8e8',
   };

@@ -154,5 +154,12 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
   newParams.lipFlare = randomInRange(0, 0.15);
   newParams.lipHeight = newParams.height * randomInRange(0, 0.05);
 
+  // ============================================
+  // LIGHT PATTERNS (preserve current settings)
+  // ============================================
+  // Light patterns are intentionally preserved from current params
+  // to avoid random changes affecting a carefully designed perforation
+  // User can manually enable/disable and configure
+
   return newParams;
 }

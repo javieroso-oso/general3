@@ -12,8 +12,8 @@ export type StandType = 'tripod' | 'pendant_cord' | 'wall_arm';
 // Cord routing options
 export type CordExit = 'bottom_center' | 'bottom_side' | 'top_hidden' | 'internal_channel';
 
-// Light pattern cutout types
-export type LightPatternType = 'none' | 'dots' | 'lines' | 'organic' | 'geometric';
+// Light pattern cutout types (legacy - ParametricParams now uses unified type)
+export type LightPatternType = 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
 
 // Standard rim sizes (shade must match stand)
 export type StandardRimSize = 100 | 150 | 200 | 250;
@@ -487,6 +487,16 @@ export const defaultLampParams: LampParams = {
   moldAutoSplit: false,
   moldShowPartingLines: false,
   moldColors: ['#C97B5D', '#7B9E87', '#8B7EC7', '#CBA670'],
+  // Light perforations (from ParametricParams)
+  lightPatternEnabled: false,
+  lightPatternType: 'dots',
+  lightPatternDensity: 0.3,
+  lightPatternSize: 5,
+  lightPatternZoneStart: 0.2,
+  lightPatternZoneEnd: 0.8,
+  lightPatternRandomness: 0.2,
+  lightPatternScaleWithHeight: false,
+  lightPatternRimMargin: 0.1,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
@@ -499,8 +509,7 @@ export const defaultLampParams: LampParams = {
   ventSlotWidth: 5,
   ventSlotHeight: 20,
   
-  // Light patterns
-  lightPatternType: 'none',
+  // Light patterns (legacy lamp-specific settings)
   patternDensity: 0.3,
   patternSize: 8,
   patternDepth: 0.8,
