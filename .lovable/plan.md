@@ -1,6 +1,8 @@
 
 # Light Perforations Feature
 
+**Status: Phase 1 Implemented** ✅
+
 Add configurable cutout patterns to 3D shapes that let light pass through, enabling lamp shades and decorative objects with illuminated patterns.
 
 ---

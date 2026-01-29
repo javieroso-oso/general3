@@ -1071,6 +1071,125 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </div>
       </Section>
 
+      {/* Light Patterns - Only visible for lamp shapeStyle */}
+      {params.shapeStyle === 'lamp' && (
+        <Section title="Light Patterns" defaultOpen={false}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className={cn("w-4 h-4", params.lightPatternEnabled ? "text-primary" : "text-muted-foreground")} />
+              <Label htmlFor="light-pattern" className="text-sm font-medium">Enable Perforations</Label>
+            </div>
+            <Switch 
+              id="light-pattern" 
+              checked={params.lightPatternEnabled} 
+              onCheckedChange={(v) => onParamsChange({ ...params, lightPatternEnabled: v })}
+            />
+          </div>
+          
+          {params.wallThickness < 1.6 && params.lightPatternEnabled && (
+            <div className="text-xs text-amber-600 bg-amber-500/10 p-2 rounded border border-amber-500/30">
+              Wall thickness must be ≥1.6mm for perforations
+            </div>
+          )}
+          
+          {params.lightPatternEnabled && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Pattern Type</Label>
+                <Select 
+                  value={params.lightPatternType} 
+                  onValueChange={(value: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral') => {
+                    onParamsChange({ ...params, lightPatternType: value });
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dots">Dots (Grid/Hex)</SelectItem>
+                    <SelectItem value="lines">Lines (Horizontal Slots)</SelectItem>
+                    <SelectItem value="organic">Organic (Random)</SelectItem>
+                    <SelectItem value="geometric">Geometric (Honeycomb)</SelectItem>
+                    <SelectItem value="spiral">Spiral</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <ParameterSlider
+                label="Density"
+                value={params.lightPatternDensity}
+                min={0.1}
+                max={1}
+                step={0.05}
+                onChange={handleChange('lightPatternDensity')}
+              />
+              
+              <ParameterSlider
+                label="Hole Size"
+                value={params.lightPatternSize}
+                min={2}
+                max={15}
+                step={0.5}
+                unit="mm"
+                onChange={handleChange('lightPatternSize')}
+              />
+              
+              <div className="pt-3 border-t border-border/50 space-y-3">
+                <Label className="text-xs text-muted-foreground font-semibold">Pattern Zone</Label>
+                <ParameterSlider
+                  label="Zone Start"
+                  value={params.lightPatternZoneStart}
+                  min={0}
+                  max={0.9}
+                  step={0.05}
+                  onChange={handleChange('lightPatternZoneStart')}
+                />
+                <ParameterSlider
+                  label="Zone End"
+                  value={params.lightPatternZoneEnd}
+                  min={0.1}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('lightPatternZoneEnd')}
+                />
+              </div>
+              
+              <Subsection title="Advanced Options">
+                <ParameterSlider
+                  label="Randomness"
+                  value={params.lightPatternRandomness}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('lightPatternRandomness')}
+                />
+                
+                <ParameterSlider
+                  label="Rim Margin"
+                  value={params.lightPatternRimMargin}
+                  min={0}
+                  max={0.2}
+                  step={0.02}
+                  onChange={handleChange('lightPatternRimMargin')}
+                />
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="scale-with-height" className="text-xs">Scale with Height</Label>
+                  <Switch 
+                    id="scale-with-height" 
+                    checked={params.lightPatternScaleWithHeight} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, lightPatternScaleWithHeight: v })}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground -mt-1">
+                  Holes get larger toward the top
+                </div>
+              </Subsection>
+            </>
+          )}
+        </Section>
+      )}
+
       {/* 5. Cord Hole */}
       <Section title="Cord Hole" defaultOpen={false}>
         <div className="flex items-center justify-between">
