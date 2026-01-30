@@ -8,7 +8,7 @@ import { generateLegsWithBase, generateBaseMountPlate, generateCenteringLip } fr
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
-
+import { getBodyRadius } from '@/lib/body-profile-generator';
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
@@ -19,49 +19,6 @@ interface ParametricMeshProps {
   legMaterialPreset?: MaterialPreset;
   legCustomColor?: string;
 }
-
-// Deterministic noise for consistent results
-const seededRandom = (x: number, y: number, z: number) => {
-  const dot = x * 12.9898 + y * 78.233 + z * 37.719;
-  return (Math.sin(dot) * 43758.5453) % 1;
-};
-
-const noise3D = (x: number, y: number, z: number, scale: number) => {
-  const sx = x * scale;
-  const sy = y * scale;
-  const sz = z * scale;
-  
-  const ix = Math.floor(sx);
-  const iy = Math.floor(sy);
-  const iz = Math.floor(sz);
-  
-  const fx = sx - ix;
-  const fy = sy - iy;
-  const fz = sz - iz;
-  
-  const ux = fx * fx * (3 - 2 * fx);
-  const uy = fy * fy * (3 - 2 * fy);
-  const uz = fz * fz * (3 - 2 * fz);
-  
-  const n000 = seededRandom(ix, iy, iz);
-  const n100 = seededRandom(ix + 1, iy, iz);
-  const n010 = seededRandom(ix, iy + 1, iz);
-  const n110 = seededRandom(ix + 1, iy + 1, iz);
-  const n001 = seededRandom(ix, iy, iz + 1);
-  const n101 = seededRandom(ix + 1, iy, iz + 1);
-  const n011 = seededRandom(ix, iy + 1, iz + 1);
-  const n111 = seededRandom(ix + 1, iy + 1, iz + 1);
-  
-  const nx00 = n000 * (1 - ux) + n100 * ux;
-  const nx10 = n010 * (1 - ux) + n110 * ux;
-  const nx01 = n001 * (1 - ux) + n101 * ux;
-  const nx11 = n011 * (1 - ux) + n111 * ux;
-  
-  const nxy0 = nx00 * (1 - uy) + nx10 * uy;
-  const nxy1 = nx01 * (1 - uy) + nx11 * uy;
-  
-  return (nxy0 * (1 - uz) + nxy1 * uz) * 2 - 1;
-};
 
 // Scale factor: convert mm to scene units (1 unit = 100mm for nice viewport)
 const SCALE = 0.01;
@@ -315,151 +272,33 @@ const ParametricMesh = ({
       const t = i / heightSegments;
       const y = t * h;
 
-      // Base profile interpolation based on profileCurve
-      let radius: number;
-      const radiusDiff = tRad - bRad;
-      
-      switch (profileCurve) {
-        case 'convex':
-          // Bulges outward in the middle
-          radius = bRad + radiusDiff * t + Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
-          break;
-        case 'concave':
-          // Curves inward in the middle
-          radius = bRad + radiusDiff * t - Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
-          break;
-        case 'hourglass':
-          // Pinched in the middle
-          radius = bRad + radiusDiff * t - Math.sin(t * Math.PI) * (bRad + tRad) * 0.15;
-          break;
-        case 'wave':
-          // Wavy profile with 2 oscillations
-          radius = bRad + radiusDiff * t + Math.sin(t * Math.PI * 4) * bRad * 0.08;
-          break;
-        case 'linear':
-        default:
-          // Apply shape-style specific curves on top of linear base
-          // Use params.shapeStyle instead of type for shape-specific behavior
-          const shapeStyle = params.shapeStyle;
-          if (shapeStyle === 'lamp') {
-            radius = bRad + (tRad - bRad) * Math.pow(t, 0.6);
-          } else if (shapeStyle === 'sculpture') {
-            const curve = Math.sin(t * Math.PI);
-            radius = bRad * (1 - t * 0.3) + tRad * t * 0.7 + curve * bRad * 0.2;
-          } else {
-            const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
-            radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
-          }
-          break;
-      }
-
-      // Organic bulge
-      const bulgeDist = Math.abs(t - bulgePosition);
-      radius += Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * bRad;
-
-      // Pinch effect
-      const pinchTop = Math.pow(t, 4) * pinchAmount * 0.3;
-      const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
-      radius *= (1 - pinchTop - pinchBottom);
-
-      // Lip flare
-      if (lipHeight > 0 && lipFlare !== 0) {
-        const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
-        radius += lipT * lipT * lipFlare * bRad;
-      }
-      
-      // Horizontal ribs (sinusoidal modulation based on height)
-      if (horizontalRibCount > 0 && horizontalRibDepth > 0) {
-        const ribPhase = t * horizontalRibCount * Math.PI * 2;
-        const ribWave = Math.sin(ribPhase);
-        // Adjust wave shape based on rib width (narrower = sharper peaks)
-        const sharpness = 1 / horizontalRibWidth;
-        const ribModifier = Math.pow(Math.abs(ribWave), sharpness) * Math.sign(ribWave);
-        radius += ribModifier * horizontalRibDepth * bRad;
-      }
-
-      radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
-      radiiAtHeight.push(radius);
-      if (radius > maxRadius) maxRadius = radius;
-
-      radius = Math.max(radius, printConstraints.minBaseRadius * SCALE * 0.5);
-      radiiAtHeight.push(radius);
-      if (radius > maxRadius) maxRadius = radius;
-
-      const twistRad = (twistAngle * Math.PI / 180) * t;
-
       for (let j = 0; j <= segments; j++) {
-        // Calculate theta with potential faceting
-        let theta: number;
-        if (facetCount > 0 && facetCount >= 3) {
-          // Faceting: snap to polygon vertices with optional sharpness
-          const baseTheta = (j / segments) * Math.PI * 2;
-          const facetAngle = (Math.PI * 2) / facetCount;
-          const facetIndex = Math.floor(baseTheta / facetAngle + 0.5);
-          const snappedTheta = facetIndex * facetAngle;
-          // Interpolate between smooth and snapped based on sharpness
-          theta = baseTheta + (snappedTheta - baseTheta) * facetSharpness + twistRad;
-        } else {
-          theta = (j / segments) * Math.PI * 2 + twistRad;
-        }
+        const baseTheta = (j / segments) * Math.PI * 2;
         
-        let r = radius;
-
-        // Wobble
-        if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
-          const maxWobble = Math.min(wobbleAmplitude, 0.15);
-          r += Math.sin(t * Math.PI * 2 * wobbleFrequency + theta * 2) * maxWobble * bRad;
-        }
-
-        // Ripples (angular)
-        if (rippleCount > 0 && rippleDepth > 0) {
-          const maxRipple = Math.min(rippleDepth, 0.1);
-          r += Math.sin(theta * rippleCount) * maxRipple * bRad;
-        }
+        // Use shared getBodyRadius for consistency with STL export
+        // This ensures preview and exported STL are identical
+        const r = getBodyRadius(params, t, baseTheta, {
+          scale: SCALE,        // Scene units (0.01)
+          includeTwist: true,  // Apply twist inside getBodyRadius
+          objectType: params.shapeStyle,
+        });
         
-        // Fluting (vertical grooves like classical columns)
-        if (flutingCount > 0 && flutingDepth > 0) {
-          // Use half-sine for smooth flutes
-          const fluteAngle = theta * flutingCount;
-          const fluteWave = Math.cos(fluteAngle);
-          // Only cut in (negative), not bulge out
-          if (fluteWave < 0) {
-            r += fluteWave * flutingDepth * bRad;
-          }
-        }
+        // Track max radius for scene bounds
+        if (r > maxRadius) maxRadius = r;
         
-        // Spiral grooves (combine height and angle)
-        if (spiralGrooveCount > 0 && spiralGrooveDepth > 0) {
-          const spiralAngle = theta + t * spiralGrooveTwist * Math.PI * 2;
-          const spiralWave = Math.sin(spiralAngle * spiralGrooveCount);
-          // Only cut in (negative)
-          if (spiralWave < 0) {
-            r += spiralWave * spiralGrooveDepth * bRad;
-          }
+        // Track radius at each height (for overhang calculations)
+        if (j === 0) {
+          radiiAtHeight.push(r);
         }
-
-        // Asymmetry
-        if (asymmetry > 0) {
-          const primaryWave = Math.sin(theta) * Math.cos(t * Math.PI) * asymmetry * bRad;
-          const secondaryWave = Math.sin(theta * 2 + t * Math.PI * 3) * asymmetry * 0.5 * bRad;
-          const lean = Math.cos(theta) * t * asymmetry * 0.4 * bRad;
-          r += primaryWave + secondaryWave + lean;
-        }
-
-        // Organic noise
-        if (organicNoise > 0) {
-          const maxNoise = Math.min(organicNoise, 0.1);
-          const nx = Math.cos(theta) * r;
-          const nz = Math.sin(theta) * r;
-          r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
-        }
-
-        r = Math.max(r, wall * 2);
         
         // Capture bottom radii for base disc (in mm, before SCALE is applied)
         if (i === 0) {
           bottomRadiiArray.push(r / SCALE);
         }
+
+        // Calculate final theta with twist for vertex positioning
+        const twistRad = (twistAngle * Math.PI / 180) * t;
+        const theta = baseTheta + twistRad;
 
         // Calculate final vertex position
         let x: number, finalY: number, z: number;
