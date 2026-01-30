@@ -9,6 +9,7 @@ import PrintSettingsPanel from '@/components/controls/PrintSettingsPanel';
 import BatchGenerator from '@/components/controls/BatchGenerator';
 import DrawerPanel from '@/components/drawer/DrawerPanel';
 import KeepButton from '@/components/drawer/KeepButton';
+import PlotterKeepButton from '@/components/drawer/PlotterKeepButton';
 import Header from '@/components/layout/Header';
 import ExportPaymentDialog from '@/components/ExportPaymentDialog';
 import PlotterPreview from '@/components/plotter/PlotterPreview';
@@ -27,7 +28,7 @@ import {
   analyzePrint,
   PrintAnalysis,
 } from '@/types/parametric';
-import { PlotterParams, defaultPlotterParams } from '@/types/plotter';
+import { PlotterParams, PlotterDrawing, defaultPlotterParams } from '@/types/plotter';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode, exportBodyToSTL } from '@/lib/stl-export';
 import { ExportType } from '@/config/export-pricing';
@@ -86,8 +87,17 @@ const Index = () => {
     setParams(drawerParams);
   }, []);
   
+  const handleLoadPlotterFromDrawer = useCallback((drawerPlotterParams: PlotterParams, _drawing: PlotterDrawing) => {
+    setObjectType('plotter');
+    setPlotterParams(drawerPlotterParams);
+  }, []);
+  
   const handleKeepToDrawer = useCallback((keepParams: ParametricParams, keepType: ObjectType, thumbnail: string) => {
     drawer.addItem(keepParams, keepType, thumbnail);
+  }, [drawer]);
+  
+  const handleKeepPlotterToDrawer = useCallback((keepPlotterParams: PlotterParams, keepDrawing: PlotterDrawing, thumbnail: string) => {
+    drawer.addPlotterItem(keepPlotterParams, keepDrawing, thumbnail);
   }, [drawer]);
   
   const [printSettings, setPrintSettings] = useState<PrintSettings>(defaultPrintSettings);
@@ -494,15 +504,44 @@ const Index = () => {
 
         {/* Tabbed Controls - Different for plotter vs 3D */}
         {objectType === 'plotter' ? (
-          <div className="p-4 flex-1 overflow-y-auto">
-            <PlotterControls
-              params={plotterParams}
-              drawing={plotterDrawing}
-              onParamsChange={setPlotterParams}
-              currentMeshParams={params}
-              currentShapeStyle={params.shapeStyle}
-            />
-          </div>
+          <Tabs defaultValue="controls" className="flex flex-col flex-1 overflow-hidden">
+            <TabsList className="mx-4 mt-3 grid grid-cols-2 bg-secondary/50 p-1 rounded-lg">
+              <TabsTrigger value="controls" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                <Settings2 className="w-3 h-3" />
+                Controls
+              </TabsTrigger>
+              <TabsTrigger value="drawer" className="text-xs gap-1 relative rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                <Archive className="w-3 h-3" />
+                Drawer
+                {drawer.count > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                    {drawer.count}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="p-4 flex-1 overflow-y-auto">
+              <TabsContent value="controls" className="mt-0">
+                <PlotterControls
+                  params={plotterParams}
+                  drawing={plotterDrawing}
+                  onParamsChange={setPlotterParams}
+                  currentMeshParams={params}
+                  currentShapeStyle={params.shapeStyle}
+                />
+              </TabsContent>
+
+              <TabsContent value="drawer" className="mt-0">
+                <DrawerPanel
+                  items={drawer.items}
+                  onLoad={handleLoadFromDrawer}
+                  onLoadPlotter={handleLoadPlotterFromDrawer}
+                  onRemove={drawer.removeItem}
+                />
+              </TabsContent>
+            </div>
+          </Tabs>
         ) : (
           <Tabs defaultValue="design" className="flex flex-col flex-1 overflow-hidden">
             <TabsList className="mx-4 mt-3 grid grid-cols-5 bg-secondary/50 p-1 rounded-lg">
@@ -567,6 +606,7 @@ const Index = () => {
                 <DrawerPanel
                   items={drawer.items}
                   onLoad={handleLoadFromDrawer}
+                  onLoadPlotter={handleLoadPlotterFromDrawer}
                   onRemove={drawer.removeItem}
                 />
               </TabsContent>
@@ -585,6 +625,28 @@ const Index = () => {
       >
         {showLeftPanel ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
       </Button>
+
+      {/* Bottom floating bar for Plotter mode */}
+      {objectType === 'plotter' && (
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center gap-3"
+        >
+          {/* Keep button for plotter */}
+          <PlotterKeepButton
+            plotterParams={plotterParams}
+            drawing={plotterDrawing}
+            onKeep={handleKeepPlotterToDrawer}
+          />
+          
+          <div className="w-px h-6 bg-border/50" />
+          
+          <span className="text-xs text-muted-foreground">
+            Click "Keep" to save this drawing to your drawer for batch export
+          </span>
+        </motion.div>
+      )}
 
       {/* Bottom floating bar - View controls & Export (hidden for plotter mode) */}
       {objectType !== 'plotter' && (

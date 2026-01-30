@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { DrawerItem, isParametricItem, isCustomItem } from '@/types/drawer';
+import { DrawerItem, isParametricItem, isCustomItem, isPlotterItem } from '@/types/drawer';
 import { ParametricParams, ObjectType } from '@/types/parametric';
 import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
-import { X, Archive, Check, Download, Loader2 } from 'lucide-react';
+import { PlotterParams, PlotterDrawing } from '@/types/plotter';
+import { X, Archive, Check, Download, Loader2, Pen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { exportDrawerItemsToZip, downloadBlob, analyzeDrawerItems } from '@/lib/batch-export';
@@ -17,12 +18,13 @@ interface DrawerPanelProps {
   items: DrawerItem[];
   onLoadParametric?: (params: ParametricParams, objectType: ObjectType) => void;
   onLoadCustom?: (profile: ProfilePoint[], settings: ProfileSettings) => void;
+  onLoadPlotter?: (plotterParams: PlotterParams, drawing: PlotterDrawing) => void;
   onRemove: (id: string) => void;
   // Legacy prop for backwards compatibility
   onLoad?: (params: ParametricParams, objectType: ObjectType) => void;
 }
 
-const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }: DrawerPanelProps) => {
+const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onLoadPlotter, onRemove, onLoad }: DrawerPanelProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -36,7 +38,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
     [items, selectedIds]
   );
   
-  const { hasLegs, hasMolds, hasLampShade } = useMemo(() => 
+  const { hasLegs, hasMolds, hasLampShade, hasPlotter } = useMemo(() => 
     analyzeDrawerItems(selectedItems), 
     [selectedItems]
   );
@@ -46,6 +48,8 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
       return item.objectType;
     } else if (isCustomItem(item)) {
       return `custom_${item.generationMode}`;
+    } else if (isPlotterItem(item)) {
+      return `plotter_${item.plotterParams.mode}`;
     }
     return 'item';
   };
@@ -59,6 +63,8 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
       }
     } else if (isCustomItem(item) && onLoadCustom) {
       onLoadCustom(item.profile, item.settings);
+    } else if (isPlotterItem(item) && onLoadPlotter) {
+      onLoadPlotter(item.plotterParams, item.drawing);
     }
   };
 
@@ -113,7 +119,18 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
       return;
     }
 
-    // Show options dialog first
+    // If only plotter items are selected, skip options dialog and export directly
+    const onlyPlotterItems = selectedItems.every(item => isPlotterItem(item));
+    if (onlyPlotterItems) {
+      if (isUnlocked) {
+        doExport();
+      } else {
+        setShowPaymentDialog(true);
+      }
+      return;
+    }
+
+    // Show options dialog for 3D items
     setShowOptionsDialog(true);
   };
 
@@ -194,6 +211,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
           {items.map((item) => {
             const isSelected = selectedIds.has(item.id);
             const label = getItemLabel(item);
+            const isPlotter = isPlotterItem(item);
             
             return (
               <div
@@ -229,9 +247,12 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
                 </div>
                 
                 {/* Type badge */}
-                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-background/80 backdrop-blur rounded text-[10px] font-medium capitalize">
+                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-background/80 backdrop-blur rounded text-[10px] font-medium capitalize flex items-center gap-1">
+                  {isPlotter && <Pen className="w-2.5 h-2.5" />}
                   {isCustomItem(item) ? (
                     <span className="text-primary">{item.generationMode}</span>
+                  ) : isPlotter ? (
+                    <span className="text-accent-foreground">{item.plotterParams.projection?.type || item.plotterParams.pattern}</span>
                   ) : (
                     label
                   )}
