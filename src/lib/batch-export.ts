@@ -9,6 +9,10 @@ import {
 import { exportProfileToSTL } from './profile-to-mesh';
 import { exportMoldHalfToSTL, generateMoldGeometry, generateMultiPartMoldGeometry } from './mold-generator';
 import { ExportOptions, DEFAULT_EXPORT_OPTIONS } from '@/types/export-options';
+import { 
+  exportSocketCradleToSTL, 
+  getSocketCradleParamsForShade 
+} from './socket-cradle-generator';
 
 export interface ExportProgress {
   current: number;
@@ -19,19 +23,25 @@ export interface ExportProgress {
 /**
  * Analyze drawer items to determine what components are available
  */
-export function analyzeDrawerItems(items: DrawerItem[]): { hasLegs: boolean; hasMolds: boolean } {
+export function analyzeDrawerItems(items: DrawerItem[]): { 
+  hasLegs: boolean; 
+  hasMolds: boolean;
+  hasLampShade: boolean;
+} {
   let hasLegs = false;
   let hasMolds = false;
+  let hasLampShade = false;
 
   for (const item of items) {
     if (isParametricItem(item)) {
       if (item.params.addLegs) hasLegs = true;
       if (item.params.moldEnabled) hasMolds = true;
+      if (item.params.shapeStyle === 'lamp') hasLampShade = true;
     }
-    if (hasLegs && hasMolds) break; // Early exit if both found
+    if (hasLegs && hasMolds && hasLampShade) break; // Early exit if all found
   }
 
-  return { hasLegs, hasMolds };
+  return { hasLegs, hasMolds, hasLampShade };
 }
 
 /**
@@ -45,7 +55,7 @@ export async function exportDrawerItemsToZip(
 ): Promise<Blob> {
   const zip = new JSZip();
   const total = items.length;
-  const { includeBody, includeLegs, includeMolds, mergeMode } = options;
+  const { includeBody, includeLegs, includeMolds, includeSocketCradle, mergeMode } = options;
   
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -54,6 +64,7 @@ export async function exportDrawerItemsToZip(
       const baseName = `${item.objectType}_${i + 1}`;
       const itemHasLegs = item.params.addLegs;
       const itemHasMolds = item.params.moldEnabled;
+      const itemIsLamp = item.params.shapeStyle === 'lamp';
       
       onProgress?.({
         current: i + 1,
@@ -65,6 +76,7 @@ export async function exportDrawerItemsToZip(
       const shouldExportBody = includeBody;
       const shouldExportLegs = includeLegs && itemHasLegs;
       const shouldExportMolds = includeMolds && itemHasMolds;
+      const shouldExportCradle = includeSocketCradle && itemIsLamp;
       
       // Handle merge modes
       if (shouldExportBody && shouldExportLegs && mergeMode !== 'separate') {
@@ -112,6 +124,16 @@ export async function exportDrawerItemsToZip(
           moldGeometry.halfA.dispose();
           moldGeometry.halfB.dispose();
         }
+      }
+      
+      // Generate socket cradle STL if enabled and item is a lamp
+      if (shouldExportCradle) {
+        // Map BulbSocketType to SocketType (E14 falls back to E12 as closest size)
+        const rawSocketType = item.params.socketType || 'E26';
+        const socketType = rawSocketType === 'E14' ? 'E12' : rawSocketType;
+        const cradleParams = getSocketCradleParamsForShade(item.params.baseRadius, socketType);
+        const cradleBlob = exportSocketCradleToSTL(cradleParams);
+        zip.file(`${baseName}_socket_cradle.stl`, cradleBlob);
       }
     } else if (isCustomItem(item)) {
       // Custom items always export as body (no legs/molds concept)
