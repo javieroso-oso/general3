@@ -132,7 +132,7 @@ export async function exportDrawerItemsToZip(
         const rawSocketType = item.params.socketType || 'E26';
         const socketType = rawSocketType === 'E14' ? 'E12' : rawSocketType;
         const cradleParams = getSocketCradleParamsForShade(item.params.baseRadius, socketType);
-        const cradleBlob = exportSocketCradleToSTL(cradleParams);
+        const cradleBlob = await exportSocketCradleToSTL(cradleParams);
         zip.file(`${baseName}_socket_cradle.stl`, cradleBlob);
       }
     } else if (isCustomItem(item)) {

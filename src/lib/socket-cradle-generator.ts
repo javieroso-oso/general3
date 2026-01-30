@@ -253,10 +253,10 @@ function flipNormals(geometry: THREE.BufferGeometry): void {
 /**
  * Export socket cradle to STL blob
  */
-export function exportSocketCradleToSTL(
+export async function exportSocketCradleToSTL(
   params: SocketCradleParams
-): Blob {
-  const { STLExporter } = require('three-stdlib');
+): Promise<Blob> {
+  const { STLExporter } = await import('three-stdlib');
   const geometry = generateSocketCradle(params);
   const mesh = new THREE.Mesh(geometry);
   
