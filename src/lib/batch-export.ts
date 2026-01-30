@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { DrawerItem, isParametricItem, isCustomItem } from '@/types/drawer';
+import { DrawerItem, isParametricItem, isCustomItem, isPlotterItem } from '@/types/drawer';
 import { 
   exportBodyToSTL, 
   exportLegsWithBaseToSTL, 
@@ -13,6 +13,7 @@ import {
   exportSocketCradleToSTL, 
   getSocketCradleParamsForShade 
 } from './socket-cradle-generator';
+import { generateSVG, generatePlotterGCode, generateHPGL } from './plotter/export';
 
 export interface ExportProgress {
   current: number;
@@ -27,10 +28,12 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
   hasLegs: boolean; 
   hasMolds: boolean;
   hasLampShade: boolean;
+  hasPlotter: boolean;
 } {
   let hasLegs = false;
   let hasMolds = false;
   let hasLampShade = false;
+  let hasPlotter = false;
 
   for (const item of items) {
     if (isParametricItem(item)) {
@@ -38,14 +41,17 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
       if (item.params.moldEnabled) hasMolds = true;
       if (item.params.shapeStyle === 'lamp') hasLampShade = true;
     }
-    if (hasLegs && hasMolds && hasLampShade) break; // Early exit if all found
+    if (isPlotterItem(item)) {
+      hasPlotter = true;
+    }
+    if (hasLegs && hasMolds && hasLampShade && hasPlotter) break; // Early exit if all found
   }
 
-  return { hasLegs, hasMolds, hasLampShade };
+  return { hasLegs, hasMolds, hasLampShade, hasPlotter };
 }
 
 /**
- * Export multiple drawer items as STL files in a ZIP archive
+ * Export multiple drawer items as STL/SVG files in a ZIP archive
  * Now supports ExportOptions for selective component export
  */
 export async function exportDrawerItemsToZip(
@@ -149,6 +155,29 @@ export async function exportDrawerItemsToZip(
         const stlBlob = exportProfileToSTL(item.profile, item.settings);
         zip.file(`${baseName}.stl`, stlBlob);
       }
+    } else if (isPlotterItem(item)) {
+      // Plotter items export as SVG (and optionally G-code/HPGL)
+      const mode = item.plotterParams.mode;
+      const projType = item.plotterParams.projection?.type || 'crossSection';
+      const baseName = `plotter_${mode}_${projType}_${i + 1}`;
+      
+      onProgress?.({
+        current: i + 1,
+        total,
+        currentItem: baseName,
+      });
+      
+      // Always export SVG
+      const svgContent = generateSVG(item.drawing);
+      zip.file(`${baseName}.svg`, svgContent);
+      
+      // Also include G-code for plotter machines
+      const gcodeContent = generatePlotterGCode(item.drawing, item.plotterParams.machinePreset);
+      zip.file(`${baseName}.gcode`, gcodeContent);
+      
+      // And HPGL for legacy plotters
+      const hpglContent = generateHPGL(item.drawing);
+      zip.file(`${baseName}.hpgl`, hpglContent);
     }
     
     // Small delay to prevent UI freeze on large exports

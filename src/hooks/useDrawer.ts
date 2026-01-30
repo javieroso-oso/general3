@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { DrawerItem, ParametricDrawerItem, CustomDrawerItem, isParametricItem } from '@/types/drawer';
+import { DrawerItem, ParametricDrawerItem, CustomDrawerItem, PlotterDrawerItem, isParametricItem } from '@/types/drawer';
 import { ParametricParams, ObjectType } from '@/types/parametric';
 import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
+import { PlotterParams, PlotterDrawing } from '@/types/plotter';
 
 const STORAGE_KEY = 'parametric-drawer';
 
@@ -74,6 +75,23 @@ export const useDrawer = () => {
     return newItem.id;
   }, []);
 
+  const addPlotterItem = useCallback((
+    plotterParams: PlotterParams,
+    drawing: PlotterDrawing,
+    thumbnail: string
+  ) => {
+    const newItem: PlotterDrawerItem = {
+      id: `drawer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: 'plotter',
+      plotterParams,
+      drawing,
+      thumbnail,
+      createdAt: Date.now(),
+    };
+    setItems((prev) => [newItem, ...prev]);
+    return newItem.id;
+  }, []);
+
   // Legacy addItem for backwards compatibility
   const addItem = useCallback((
     params: ParametricParams,
@@ -96,6 +114,7 @@ export const useDrawer = () => {
     addItem,
     addParametricItem,
     addCustomItem,
+    addPlotterItem,
     removeItem,
     clearAll,
     count: items.length,
