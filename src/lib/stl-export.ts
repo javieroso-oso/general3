@@ -5,6 +5,7 @@ import earcut from 'earcut';
 import { ParametricParams, ObjectType, ShapeStyle, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
+import { getBodyRadius } from '@/lib/body-profile-generator';
 
 // Scale factor: mm to scene units
 const _SCALE = 0.01; // Scale factor: mm to scene units (reserved for future use)
@@ -169,166 +170,22 @@ export function calculateDriftOffsets(
   return driftOffsets;
 }
 
-// Calculate radius at a given height t (0-1) - includes ALL surface features
-// NOTE: Caller is responsible for applying twist to theta before calling this function
+// Calculate radius at a given height t (0-1) - delegates to shared body-profile-generator
+// NOTE: Caller should pass theta WITH twist already applied (this function does not add twist)
+// The result is in mm (uses scale=1)
 function getRadiusAtHeight(
   t: number,
   params: ParametricParams,
-  type: ObjectType,
+  _type: ObjectType,
   theta: number = 0
 ): number {
-  const {
-    baseRadius,
-    topRadius,
-    wobbleFrequency,
-    wobbleAmplitude,
-    bulgePosition,
-    bulgeAmount,
-    pinchAmount,
-    asymmetry,
-    rippleCount,
-    rippleDepth,
-    lipFlare,
-    lipHeight,
-    organicNoise,
-    noiseScale,
-    height,
-    profileCurve,
-    facetCount,
-    facetSharpness,
-    spiralGrooveCount,
-    spiralGrooveDepth,
-    spiralGrooveTwist,
-    horizontalRibCount,
-    horizontalRibDepth,
-    horizontalRibWidth,
-    flutingCount,
-    flutingDepth,
-  } = params;
-
-  // Use theta directly - caller applies twist
-  let effectiveTheta = theta;
-  
-  // Apply faceting (snap theta to polygon vertices)
-  if (facetCount > 0 && facetCount >= 3) {
-    const facetAngle = (Math.PI * 2) / facetCount;
-    const facetIndex = Math.floor(effectiveTheta / facetAngle + 0.5);
-    const snappedTheta = facetIndex * facetAngle;
-    effectiveTheta = effectiveTheta + (snappedTheta - effectiveTheta) * facetSharpness;
-  }
-
-  // Base profile based on profileCurve type
-  let radius: number;
-  const radiusDiff = topRadius - baseRadius;
-  
-  switch (profileCurve) {
-    case 'convex':
-      // Bulges outward in the middle
-      radius = baseRadius + radiusDiff * t + Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
-      break;
-    case 'concave':
-      // Curves inward in the middle
-      radius = baseRadius + radiusDiff * t - Math.sin(t * Math.PI) * Math.abs(radiusDiff) * 0.3;
-      break;
-    case 'hourglass':
-      // Pinched in the middle
-      radius = baseRadius + radiusDiff * t - Math.sin(t * Math.PI) * (baseRadius + topRadius) * 0.15;
-      break;
-    case 'wave':
-      // Wavy profile with 2 oscillations
-      radius = baseRadius + radiusDiff * t + Math.sin(t * Math.PI * 4) * baseRadius * 0.08;
-      break;
-      case 'linear':
-      default:
-        // Apply shape-style specific curves on top of linear base
-        // Use params.shapeStyle instead of type for shape-specific behavior
-        const shapeStyle = params.shapeStyle;
-        if (shapeStyle === 'lamp') {
-          radius = baseRadius + (topRadius - baseRadius) * Math.pow(t, 0.6);
-        } else if (shapeStyle === 'sculpture') {
-          const curve = Math.sin(t * Math.PI);
-          radius = baseRadius * (1 - t * 0.3) + topRadius * t * 0.7 + curve * baseRadius * 0.2;
-        } else {
-          const curve = Math.sin(t * Math.PI * 0.8 + 0.2);
-          radius = baseRadius * (1 - t * 0.4) + topRadius * t * 0.6 + curve * baseRadius * 0.12;
-        }
-      break;
-  }
-
-  // Organic bulge
-  const bulgeDist = Math.abs(t - bulgePosition);
-  radius += Math.exp(-bulgeDist * bulgeDist * 12) * bulgeAmount * baseRadius;
-
-  // Pinch
-  const pinchTop = Math.pow(t, 4) * pinchAmount * 0.3;
-  const pinchBottom = Math.pow(1 - t, 4) * pinchAmount * 0.2;
-  radius *= (1 - pinchTop - pinchBottom);
-
-  // Lip flare
-  if (lipHeight > 0 && lipFlare !== 0) {
-    const lipT = Math.max(0, (t - (1 - lipHeight)) / lipHeight);
-    radius += lipT * lipT * lipFlare * baseRadius;
-  }
-
-  // Horizontal ribs (sinusoidal modulation based on height)
-  if (horizontalRibCount > 0 && horizontalRibDepth > 0) {
-    const ribPhase = t * horizontalRibCount * Math.PI * 2;
-    const ribWave = Math.sin(ribPhase);
-    const sharpness = 1 / (horizontalRibWidth || 0.5);
-    const ribModifier = Math.pow(Math.abs(ribWave), sharpness) * Math.sign(ribWave);
-    radius += ribModifier * horizontalRibDepth * baseRadius;
-  }
-
-  // Min radius
-  radius = Math.max(radius, printConstraints.minBaseRadius * 0.5);
-
-  // Angular deformations
-  if (wobbleFrequency > 0 && wobbleAmplitude > 0) {
-    const maxWobble = Math.min(wobbleAmplitude, 0.15);
-    radius += Math.sin(t * Math.PI * 2 * wobbleFrequency + effectiveTheta * 2) * maxWobble * baseRadius;
-  }
-
-  if (rippleCount > 0 && rippleDepth > 0) {
-    const maxRipple = Math.min(rippleDepth, 0.1);
-    radius += Math.sin(effectiveTheta * rippleCount) * maxRipple * baseRadius;
-  }
-
-  // Fluting (vertical grooves like classical columns)
-  if (flutingCount > 0 && flutingDepth > 0) {
-    const fluteAngle = effectiveTheta * flutingCount;
-    const fluteWave = Math.cos(fluteAngle);
-    if (fluteWave < 0) {
-      radius += fluteWave * flutingDepth * baseRadius;
-    }
-  }
-
-  // Spiral grooves (combine height and angle)
-  if (spiralGrooveCount > 0 && spiralGrooveDepth > 0) {
-    const spiralAngle = effectiveTheta + t * spiralGrooveTwist * Math.PI * 2;
-    const spiralWave = Math.sin(spiralAngle * spiralGrooveCount);
-    if (spiralWave < 0) {
-      radius += spiralWave * spiralGrooveDepth * baseRadius;
-    }
-  }
-
-  // Asymmetry (enhanced version matching ParametricMesh)
-  if (asymmetry > 0) {
-    const primaryWave = Math.sin(effectiveTheta) * Math.cos(t * Math.PI) * asymmetry * baseRadius;
-    const secondaryWave = Math.sin(effectiveTheta * 2 + t * Math.PI * 3) * asymmetry * 0.5 * baseRadius;
-    const lean = Math.cos(effectiveTheta) * t * asymmetry * 0.4 * baseRadius;
-    radius += primaryWave + secondaryWave + lean;
-  }
-
-  if (organicNoise > 0) {
-    const maxNoise = Math.min(organicNoise, 0.1);
-    // Use scaled coordinates to match ParametricMesh.tsx preview noise sampling
-    const yScaled = t * height * 0.01; // Convert to scene units (SCALE = 0.01)
-    const nx = Math.cos(effectiveTheta) * radius * 0.01;
-    const nz = Math.sin(effectiveTheta) * radius * 0.01;
-    radius += noise3D(nx * 10, yScaled * 10, nz * 10, noiseScale) * maxNoise * baseRadius;
-  }
-
-  return Math.max(radius, params.wallThickness * 2);
+  // Use the shared getBodyRadius function with scale=1 for mm output
+  // includeTwist=false because caller already applies twist to theta
+  return getBodyRadius(params, t, theta, {
+    scale: 1, // Output in mm for STL export
+    includeTwist: false, // Caller applies twist
+    objectType: params.shapeStyle,
+  });
 }
 
 // Calculate rim wave Z offset at a given position
