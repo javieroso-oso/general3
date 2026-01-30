@@ -272,14 +272,16 @@ export function generateBodyMesh(
       let x: number, finalY: number, z: number;
       
       if (useSpine && spineFrames[i]) {
-        // SPINE-BASED: Position vertex using Frenet frame
+        // SPINE-BASED: Simple lateral offset without Frenet rotation
+        // Cross-sections stay horizontal, only position shifts along the curved path
+        // This matches the preview behavior in ParametricMesh.tsx
         const frame = spineFrames[i];
-        const localX = Math.cos(theta);
-        const localZ = Math.sin(theta);
+        const localX = Math.cos(theta) * r;
+        const localZ = Math.sin(theta) * r;
         
-        x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-        finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-        z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+        x = localX + frame.position.x;
+        z = localZ + frame.position.z;
+        finalY = frame.position.y;
       } else {
         // Standard centered positioning
         x = Math.cos(theta) * r;
@@ -315,6 +317,12 @@ export function generateBodyMesh(
         }
       }
       
+      // Rim waves: modify Y position for top rows (matches ParametricMesh.tsx)
+      const rimWaveOffset = getRimWaveOffset(t, theta, params);
+      if (rimWaveOffset !== 0) {
+        finalY += rimWaveOffset;
+      }
+      
       outerVerts.push(x, finalY, z);
     }
   }
@@ -333,14 +341,16 @@ export function generateBodyMesh(
       let x: number, finalY: number, z: number;
       
       if (useSpine && spineFrames[i]) {
-        // SPINE-BASED: Position vertex using Frenet frame
+        // SPINE-BASED: Simple lateral offset without Frenet rotation
+        // Cross-sections stay horizontal, only position shifts along the curved path
+        // This matches the preview behavior in ParametricMesh.tsx
         const frame = spineFrames[i];
-        const localX = Math.cos(theta);
-        const localZ = Math.sin(theta);
+        const localX = Math.cos(theta) * r;
+        const localZ = Math.sin(theta) * r;
         
-        x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-        finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-        z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+        x = localX + frame.position.x;
+        z = localZ + frame.position.z;
+        finalY = frame.position.y;
       } else {
         // Standard centered positioning
         x = Math.cos(theta) * r;
@@ -374,6 +384,12 @@ export function generateBodyMesh(
           x += meltDragAmount * envelope * Math.cos(meltDragAngle);
           z += meltDragAmount * envelope * Math.sin(meltDragAngle);
         }
+      }
+      
+      // Rim waves: modify Y position for top rows (matches ParametricMesh.tsx)
+      const rimWaveOffset = getRimWaveOffset(t, theta, params);
+      if (rimWaveOffset !== 0) {
+        finalY += rimWaveOffset;
       }
       
       innerVerts.push(x, finalY, z);
