@@ -2,6 +2,7 @@ export interface ExportOptions {
   includeBody: boolean;
   includeLegs: boolean;
   includeMolds: boolean;
+  includeSocketCradle: boolean;  // NEW: 3D printed socket holder
   mergeMode: 'separate' | 'bodyWithLegs' | 'allMerged';
 }
 
@@ -9,6 +10,7 @@ export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   includeBody: true,
   includeLegs: true,
   includeMolds: false,
+  includeSocketCradle: false,
   mergeMode: 'separate',
 };
 

@@ -275,10 +275,54 @@ export const getSocketHolderDimensions = (socketType: SocketType) => {
   };
 };
 
+// Spider fitter size recommendations
+export interface SpiderFitterRecommendation {
+  sizeInches: number;
+  sizeMm: number;
+  searchTerm: string;
+  notes: string;
+}
+
+// Get spider fitter recommendation based on shade base diameter
+export const getSpiderFitterSize = (baseDiameterMm: number): SpiderFitterRecommendation => {
+  // Fitter should span ~70% of the opening to rest inside the rim
+  const fitterSizeMm = baseDiameterMm * 0.7;
+  const inchToMm = 25.4;
+  
+  // Standard sizes: 4", 6", 8", 10", 12"
+  const standardSizes = [4, 6, 8, 10, 12];
+  let bestSize = 6;
+  let minDiff = Infinity;
+  
+  for (const size of standardSizes) {
+    const sizeMm = size * inchToMm;
+    const diff = Math.abs(sizeMm - fitterSizeMm);
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestSize = size;
+    }
+  }
+  
+  const notes = baseDiameterMm > 250 
+    ? 'Large shade - consider adjustable spider fitter'
+    : baseDiameterMm < 80 
+    ? 'Small shade - clip-on socket may work better'
+    : 'Standard size - widely available';
+
+  return {
+    sizeInches: bestSize,
+    sizeMm: Math.round(bestSize * inchToMm),
+    searchTerm: `${bestSize} inch lamp spider fitter`,
+    notes,
+  };
+};
+
 // Generate hardware shopping list from current selection
 export const generateShoppingList = (
   hardware: LampHardware,
-  material: PrintSettings['material']
+  material: PrintSettings['material'],
+  shadeBaseDiameter?: number,  // Optional: for spider fitter recommendation
+  shadeHeight?: number         // Optional: for harp recommendation
 ): HardwareShoppingList => {
   const bulb = bulbDimensions[hardware.bulbShape];
   const heatLimit = materialHeatLimits[material];
@@ -327,29 +371,58 @@ export const generateShoppingList = (
     assemblySteps: [],
   };
   
+  // Add spider fitter recommendation if shade dimensions provided
+  if (shadeBaseDiameter && shadeBaseDiameter > 0) {
+    const fitter = getSpiderFitterSize(shadeBaseDiameter);
+    list.additionalItems.push({
+      name: 'Spider Fitter',
+      specification: `${fitter.sizeInches}" (${fitter.sizeMm}mm)`,
+      notes: `${fitter.notes}. Metal cross-bar that holds socket inside shade.`,
+      searchTerm: fitter.searchTerm,
+    });
+  }
+  
+  // Add harp recommendation for table lamps (based on height)
+  if (shadeHeight && shadeHeight > 0 && hardware.standType === 'tripod') {
+    const harpInches = Math.round(shadeHeight / 25.4);
+    const standardHarpSizes = [4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const closestHarp = standardHarpSizes.reduce((prev, curr) => 
+      Math.abs(curr - harpInches) < Math.abs(prev - harpInches) ? curr : prev
+    );
+    
+    list.additionalItems.push({
+      name: 'Lamp Harp (Alternative)',
+      specification: `${closestHarp}" height`,
+      notes: 'U-shaped frame for table lamps - shade sits on top with finial',
+      searchTerm: `${closestHarp} inch lamp harp`,
+    });
+  }
+  
   // Stand-specific items and assembly
   if (hardware.standType === 'tripod') {
     list.assemblySteps = [
-      '1. Print the shade and tripod stand',
-      '2. Thread cord up through stand legs and socket holder',
-      '3. Wire cord terminals to socket',
-      '4. Push socket into the socket holder (friction fit)',
-      '5. Place shade on rim ring - it just drops in!',
-      '6. Install bulb and test',
+      '1. Print the shade (decorative shell only)',
+      '2. Install spider fitter or harp on socket',
+      '3. Wire cord to socket terminals',
+      '4. For spider: drop fitter into shade, arms rest on rim',
+      '5. For harp: attach harp to socket base, set shade on top, secure with finial',
+      '6. Install LED bulb (low wattage for 3D printed shade)',
+      '7. Test and enjoy!',
     ];
   } else if (hardware.standType === 'pendant_cord') {
     list.additionalItems.push({
       name: 'Ceiling Canopy Kit',
       specification: 'Matches cord diameter',
-      notes: 'Covers ceiling junction box (or use printed canopy)',
+      notes: 'Covers ceiling junction box',
       searchTerm: 'pendant light canopy kit',
     });
     list.assemblySteps = [
-      '1. Print the shade and pendant bracket (with canopy)',
-      '2. Wire cord to socket in the pendant bracket',
-      '3. Mount canopy to ceiling junction box',
-      '4. Hang shade on bracket rim - it just drops in!',
-      '5. Install bulb and test',
+      '1. Print the shade (decorative shell)',
+      '2. Install spider fitter on socket',
+      '3. Wire cord to socket',
+      '4. Drop spider fitter into shade from bottom',
+      '5. Mount canopy to ceiling junction box',
+      '6. Hang and install LED bulb',
     ];
   } else if (hardware.standType === 'wall_arm') {
     list.additionalItems.push({
@@ -359,12 +432,12 @@ export const generateShoppingList = (
       searchTerm: 'wall sconce mounting screws',
     });
     list.assemblySteps = [
-      '1. Print the shade and wall arm (with backplate)',
-      '2. Mount backplate to wall using screws/anchors',
-      '3. Route cord through arm to socket holder',
-      '4. Wire cord to socket',
-      '5. Place shade on arm rim ring',
-      '6. Install bulb and test',
+      '1. Print the shade and wall arm bracket',
+      '2. Mount backplate to wall',
+      '3. Install spider fitter on socket',
+      '4. Wire cord through arm to socket',
+      '5. Drop shade onto fitter',
+      '6. Install LED bulb',
     ];
   }
   

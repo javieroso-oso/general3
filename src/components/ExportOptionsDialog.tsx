@@ -28,6 +28,7 @@ interface ExportOptionsDialogProps {
   // Availability flags - what components exist in the selection
   hasLegs: boolean;
   hasMolds: boolean;
+  hasLampShade?: boolean;  // NEW: true if any item is a lamp (for socket cradle)
   itemCount?: number; // For batch exports
 }
 
@@ -38,6 +39,7 @@ export function ExportOptionsDialog({
   isExporting = false,
   hasLegs,
   hasMolds,
+  hasLampShade = false,
   itemCount = 1,
 }: ExportOptionsDialogProps) {
   const [options, setOptions] = useState<ExportOptions>(() => getSavedExportOptions());
@@ -55,8 +57,9 @@ export function ExportOptionsDialog({
       ...prev,
       includeLegs: prev.includeLegs && hasLegs,
       includeMolds: prev.includeMolds && hasMolds,
+      includeSocketCradle: prev.includeSocketCradle && hasLampShade,
     }));
-  }, [hasLegs, hasMolds]);
+  }, [hasLegs, hasMolds, hasLampShade]);
 
   const handleExport = () => {
     saveExportOptions(options);
@@ -66,9 +69,9 @@ export function ExportOptionsDialog({
   // Preview what files will be generated
   const filePreview = useMemo(() => {
     const files: string[] = [];
-    const { includeBody, includeLegs, includeMolds, mergeMode } = options;
+    const { includeBody, includeLegs, includeMolds, includeSocketCradle, mergeMode } = options;
 
-    if (!includeBody && !includeLegs && !includeMolds) {
+    if (!includeBody && !includeLegs && !includeMolds && !includeSocketCradle) {
       return ['No components selected'];
     }
 
@@ -89,10 +92,14 @@ export function ExportOptionsDialog({
       files.push('mold_A.stl', 'mold_B.stl', '...');
     }
 
-    return files;
-  }, [options, hasLegs, hasMolds]);
+    if (includeSocketCradle && hasLampShade) {
+      files.push('socket_cradle.stl');
+    }
 
-  const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds);
+    return files;
+  }, [options, hasLegs, hasMolds, hasLampShade]);
+
+  const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds) || (options.includeSocketCradle && hasLampShade);
   const showMergeOptions = options.includeBody && options.includeLegs && hasLegs;
 
   return (
@@ -163,6 +170,25 @@ export function ExportOptionsDialog({
                 >
                   Mold parts
                   {!hasMolds && <span className="ml-1 text-xs">(not available)</span>}
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="include-socket-cradle"
+                  checked={options.includeSocketCradle && hasLampShade}
+                  disabled={!hasLampShade}
+                  onCheckedChange={(checked) =>
+                    setOptions((prev) => ({ ...prev, includeSocketCradle: !!checked }))
+                  }
+                />
+                <Label 
+                  htmlFor="include-socket-cradle" 
+                  className={`text-sm font-normal cursor-pointer ${!hasLampShade ? 'text-muted-foreground' : ''}`}
+                >
+                  Socket Cradle
+                  {!hasLampShade && <span className="ml-1 text-xs">(lamp style only)</span>}
+                  {hasLampShade && <span className="ml-1 text-xs text-muted-foreground">(drops into shade)</span>}
                 </Label>
               </div>
             </div>
