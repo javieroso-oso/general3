@@ -321,10 +321,11 @@ function getRadiusAtHeight(
 
   if (organicNoise > 0) {
     const maxNoise = Math.min(organicNoise, 0.1);
-    const y = t * height;
-    const nx = Math.cos(effectiveTheta) * radius;
-    const nz = Math.sin(effectiveTheta) * radius;
-    radius += noise3D(nx * 0.1, y * 0.1, nz * 0.1, noiseScale) * maxNoise * baseRadius;
+    // Use scaled coordinates to match ParametricMesh.tsx preview noise sampling
+    const yScaled = t * height * 0.01; // Convert to scene units (SCALE = 0.01)
+    const nx = Math.cos(effectiveTheta) * radius * 0.01;
+    const nz = Math.sin(effectiveTheta) * radius * 0.01;
+    radius += noise3D(nx * 10, yScaled * 10, nz * 10, noiseScale) * maxNoise * baseRadius;
   }
 
   return Math.max(radius, params.wallThickness * 2);
