@@ -230,11 +230,17 @@ export function getBodyRadius(
   }
 
   // Organic noise
+  // IMPORTANT: Noise coordinates are ALWAYS in scene units (scale=0.01) for consistency
+  // between preview and export. This ensures the same noise pattern regardless of output scale.
   if (organicNoise > 0) {
     const maxNoise = Math.min(organicNoise, 0.1);
-    const nx = Math.cos(effectiveTheta) * r;
-    const nz = Math.sin(effectiveTheta) * r;
-    r += noise3D(nx * 10, y * 10, nz * 10, noiseScale) * maxNoise * bRad;
+    // Convert to scene units for noise sampling (if scale != 0.01, normalize)
+    const sceneScale = 0.01; // Target scene unit scale
+    const normalizer = sceneScale / scale; // Convert current scale to scene units
+    const nx = Math.cos(effectiveTheta) * r * normalizer;
+    const ny = y * normalizer;
+    const nz = Math.sin(effectiveTheta) * r * normalizer;
+    r += noise3D(nx * 10, ny * 10, nz * 10, noiseScale) * maxNoise * bRad;
   }
 
   r = Math.max(r, wall * 2);
