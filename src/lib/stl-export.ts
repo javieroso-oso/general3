@@ -1097,14 +1097,49 @@ function _addKeyholeHole(
 export function generateLegsWithBaseMesh(
   params: ParametricParams
 ): THREE.BufferGeometry {
+  const segments = 64; // Match body mesh segments
+  const twistRad = (params.twistAngle * Math.PI / 180) * 0; // t=0 at base
+  
+  // Calculate bottomRadiiArray - actual radii at t=0 for each segment
+  // This must match how ParametricMesh.tsx captures radii at base level
+  const bottomRadiiArray: number[] = [];
+  for (let j = 0; j <= segments; j++) {
+    const baseTheta = (j / segments) * Math.PI * 2;
+    const theta = baseTheta + twistRad;
+    
+    // Use getBodyRadius with scale=1 for mm output (same as getRadiusAtHeight)
+    const r = getBodyRadius(params, 0, theta, {
+      scale: 1, // Output in mm for STL export
+      includeTwist: false, // We already applied twist to theta
+      objectType: params.shapeStyle,
+    });
+    
+    bottomRadiiArray.push(r);
+  }
+  
   // Calculate effective base radius based on baseSizeMode (matching preview behavior)
   let effectiveBaseRadius: number;
+  let useBottomRadii = false;
+  
+  // Also calculate max radius for 'tray' mode
+  const heightSegments = Math.ceil(params.height / 2);
+  let maxRadius = 0;
+  for (let i = 0; i <= heightSegments; i++) {
+    const t = i / heightSegments;
+    const twistRadAtT = (params.twistAngle * Math.PI / 180) * t;
+    // Sample at theta=0 with twist applied for a representative radius
+    const r = getBodyRadius(params, t, twistRadAtT, {
+      scale: 1,
+      includeTwist: false,
+      objectType: params.shapeStyle,
+    });
+    if (r > maxRadius) maxRadius = r;
+  }
   
   switch (params.baseSizeMode) {
     case 'tray':
       // Use the maximum body radius
-      // We need to calculate this similarly to the preview
-      effectiveBaseRadius = Math.max(params.baseRadius, params.topRadius) * 1.1;
+      effectiveBaseRadius = maxRadius;
       break;
     case 'custom':
       effectiveBaseRadius = params.standBaseRadius;
@@ -1112,6 +1147,7 @@ export function generateLegsWithBaseMesh(
     case 'auto':
     default:
       effectiveBaseRadius = params.baseRadius;
+      useBottomRadii = true; // Match exact body shape
       break;
   }
   
@@ -1153,7 +1189,8 @@ export function generateLegsWithBaseMesh(
       lipThickness: params.standBaseLipThickness || 2,
       lipEdgeStyle: params.standBaseLipEdgeStyle || 'flat',
     },
-    params.legStyle // Pass the leg style
+    params.legStyle, // Pass the leg style
+    useBottomRadii ? bottomRadiiArray : undefined // Pass actual body radii for 'auto' mode
   );
 }
 
