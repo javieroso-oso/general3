@@ -1,8 +1,14 @@
 import JSZip from 'jszip';
 import { DrawerItem, isParametricItem, isCustomItem } from '@/types/drawer';
-import { exportBodyToSTL, exportLegsWithBaseToSTL } from './stl-export';
+import { 
+  exportBodyToSTL, 
+  exportLegsWithBaseToSTL, 
+  exportCombinedToSTL,
+  exportLegsOnlyToSTL 
+} from './stl-export';
 import { exportProfileToSTL } from './profile-to-mesh';
 import { exportMoldHalfToSTL, generateMoldGeometry, generateMultiPartMoldGeometry } from './mold-generator';
+import { ExportOptions, DEFAULT_EXPORT_OPTIONS } from '@/types/export-options';
 
 export interface ExportProgress {
   current: number;
@@ -11,20 +17,43 @@ export interface ExportProgress {
 }
 
 /**
+ * Analyze drawer items to determine what components are available
+ */
+export function analyzeDrawerItems(items: DrawerItem[]): { hasLegs: boolean; hasMolds: boolean } {
+  let hasLegs = false;
+  let hasMolds = false;
+
+  for (const item of items) {
+    if (isParametricItem(item)) {
+      if (item.params.addLegs) hasLegs = true;
+      if (item.params.moldEnabled) hasMolds = true;
+    }
+    if (hasLegs && hasMolds) break; // Early exit if both found
+  }
+
+  return { hasLegs, hasMolds };
+}
+
+/**
  * Export multiple drawer items as STL files in a ZIP archive
+ * Now supports ExportOptions for selective component export
  */
 export async function exportDrawerItemsToZip(
   items: DrawerItem[],
-  onProgress?: (progress: ExportProgress) => void
+  onProgress?: (progress: ExportProgress) => void,
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS
 ): Promise<Blob> {
   const zip = new JSZip();
   const total = items.length;
+  const { includeBody, includeLegs, includeMolds, mergeMode } = options;
   
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     
     if (isParametricItem(item)) {
       const baseName = `${item.objectType}_${i + 1}`;
+      const itemHasLegs = item.params.addLegs;
+      const itemHasMolds = item.params.moldEnabled;
       
       onProgress?.({
         current: i + 1,
@@ -32,18 +61,37 @@ export async function exportDrawerItemsToZip(
         currentItem: baseName,
       });
       
-      // Generate body STL
-      const bodyBlob = exportBodyToSTL(item.params, item.objectType);
-      zip.file(`${baseName}_body.stl`, bodyBlob);
+      // Determine what to export based on options and item availability
+      const shouldExportBody = includeBody;
+      const shouldExportLegs = includeLegs && itemHasLegs;
+      const shouldExportMolds = includeMolds && itemHasMolds;
       
-      // Generate legs/base STL if applicable
-      if (item.params.addLegs) {
-        const legsBlob = exportLegsWithBaseToSTL(item.params);
+      // Handle merge modes
+      if (shouldExportBody && shouldExportLegs && mergeMode !== 'separate') {
+        // Export combined body + legs
+        const combinedBlob = exportCombinedToSTL(item.params, item.objectType);
+        zip.file(`${baseName}_combined.stl`, combinedBlob);
+      } else {
+        // Export separately
+        if (shouldExportBody) {
+          const bodyBlob = exportBodyToSTL(item.params, item.objectType);
+          zip.file(`${baseName}_body.stl`, bodyBlob);
+        }
+        
+        if (shouldExportLegs) {
+          const legsBlob = exportLegsWithBaseToSTL(item.params);
+          zip.file(`${baseName}_legs_base.stl`, legsBlob);
+        }
+      }
+      
+      // Handle legs-only export (when body not included)
+      if (!shouldExportBody && shouldExportLegs) {
+        const legsBlob = exportLegsOnlyToSTL(item.params);
         zip.file(`${baseName}_legs_base.stl`, legsBlob);
       }
       
-      // Generate mold STLs if mold is enabled
-      if (item.params.moldEnabled) {
+      // Generate mold STLs if mold export is enabled
+      if (shouldExportMolds) {
         const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         
         if (item.params.moldPartCount > 2) {
@@ -66,17 +114,19 @@ export async function exportDrawerItemsToZip(
         }
       }
     } else if (isCustomItem(item)) {
-      const baseName = `custom_${item.generationMode}_${i + 1}`;
-      
-      onProgress?.({
-        current: i + 1,
-        total,
-        currentItem: baseName,
-      });
-      
-      // Generate custom profile STL
-      const stlBlob = exportProfileToSTL(item.profile, item.settings);
-      zip.file(`${baseName}.stl`, stlBlob);
+      // Custom items always export as body (no legs/molds concept)
+      if (includeBody) {
+        const baseName = `custom_${item.generationMode}_${i + 1}`;
+        
+        onProgress?.({
+          current: i + 1,
+          total,
+          currentItem: baseName,
+        });
+        
+        const stlBlob = exportProfileToSTL(item.profile, item.settings);
+        zip.file(`${baseName}.stl`, stlBlob);
+      }
     }
     
     // Small delay to prevent UI freeze on large exports

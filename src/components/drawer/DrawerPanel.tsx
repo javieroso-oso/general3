@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DrawerItem, isParametricItem, isCustomItem } from '@/types/drawer';
 import { ParametricParams, ObjectType } from '@/types/parametric';
 import { ProfilePoint, ProfileSettings } from '@/types/custom-profile';
 import { X, Archive, Check, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { exportDrawerItemsToZip, downloadBlob } from '@/lib/batch-export';
+import { exportDrawerItemsToZip, downloadBlob, analyzeDrawerItems } from '@/lib/batch-export';
 import { toast } from 'sonner';
 import { useLicenseKey } from '@/hooks/useLicenseKey';
 import ExportPaymentDialog from '@/components/ExportPaymentDialog';
+import ExportOptionsDialog from '@/components/ExportOptionsDialog';
 import { calculateBatchPrice } from '@/config/export-pricing';
+import { ExportOptions } from '@/types/export-options';
 
 interface DrawerPanelProps {
   items: DrawerItem[];
@@ -24,7 +26,20 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showOptionsDialog, setShowOptionsDialog] = useState(false);
+  const [pendingExportOptions, setPendingExportOptions] = useState<ExportOptions | null>(null);
   const { isUnlocked } = useLicenseKey();
+
+  // Analyze selected items for available components
+  const selectedItems = useMemo(() => 
+    items.filter((item) => selectedIds.has(item.id)), 
+    [items, selectedIds]
+  );
+  
+  const { hasLegs, hasMolds } = useMemo(() => 
+    analyzeDrawerItems(selectedItems), 
+    [selectedItems]
+  );
 
   const getItemLabel = (item: DrawerItem): string => {
     if (isParametricItem(item)) {
@@ -68,16 +83,16 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
     setSelectedIds(new Set());
   };
 
-  const doExport = async () => {
-    const selectedItems = items.filter((item) => selectedIds.has(item.id));
+  const doExport = async (options?: ExportOptions) => {
     if (selectedItems.length === 0) {
       toast.error('Select items to export');
       return;
     }
     
     setIsExporting(true);
+    setShowOptionsDialog(false);
     try {
-      const zip = await exportDrawerItemsToZip(selectedItems);
+      const zip = await exportDrawerItemsToZip(selectedItems, undefined, options);
       const filename = selectedItems.length === 1 
         ? `${getItemLabel(selectedItems[0])}_export.zip`
         : `drawer_export_${selectedItems.length}_items.zip`;
@@ -88,23 +103,36 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
       toast.error('Failed to export files');
     } finally {
       setIsExporting(false);
+      setPendingExportOptions(null);
     }
   };
 
   const handleExportClick = () => {
-    const selectedItems = items.filter((item) => selectedIds.has(item.id));
     if (selectedItems.length === 0) {
       toast.error('Select items to export');
       return;
     }
 
-    // If unlocked, export directly
+    // Show options dialog first
+    setShowOptionsDialog(true);
+  };
+
+  const handleOptionsConfirm = (options: ExportOptions) => {
+    setPendingExportOptions(options);
+    
+    // If unlocked, export directly with options
     if (isUnlocked) {
-      doExport();
+      doExport(options);
     } else {
-      // Show payment dialog
+      // Show payment dialog, then export with options after payment
+      setShowOptionsDialog(false);
       setShowPaymentDialog(true);
     }
+  };
+
+  const handlePaymentComplete = () => {
+    // Use pending options if available
+    doExport(pendingExportOptions || undefined);
   };
 
   if (items.length === 0) {
@@ -227,11 +255,22 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onRemove, onLoad }
         </div>
       </ScrollArea>
 
+      {/* Export Options Dialog */}
+      <ExportOptionsDialog
+        open={showOptionsDialog}
+        onClose={() => setShowOptionsDialog(false)}
+        onExport={handleOptionsConfirm}
+        isExporting={isExporting}
+        hasLegs={hasLegs}
+        hasMolds={hasMolds}
+        itemCount={selectedItems.length}
+      />
+
       {/* Payment Dialog */}
       <ExportPaymentDialog
         open={showPaymentDialog}
         onClose={() => setShowPaymentDialog(false)}
-        onExport={doExport}
+        onExport={handlePaymentComplete}
         exportType="batch"
         itemCount={selectedIds.size}
       />

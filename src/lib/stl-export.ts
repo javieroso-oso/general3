@@ -1320,6 +1320,19 @@ export function exportLegsWithBaseToSTL(
   return new Blob([result], { type: 'application/octet-stream' });
 }
 
+// Export legs-only mesh to STL (without body)
+export function exportLegsOnlyToSTL(
+  params: ParametricParams
+): Blob {
+  const geometry = generateLegsWithBaseMesh(params);
+  const mesh = new THREE.Mesh(geometry);
+  
+  const exporter = new STLExporter();
+  const result = exporter.parse(mesh);
+  
+  return new Blob([result], { type: 'application/octet-stream' });
+}
+
 // Legacy export function
 export function exportToSTL(
   params: ParametricParams,
