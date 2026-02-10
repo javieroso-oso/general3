@@ -460,7 +460,7 @@ const Index = () => {
       <div className="fixed inset-0 pt-14">
         {objectType === 'plotter' ? (
           <div className="w-full h-full p-8 flex items-center justify-center">
-            <div className="w-full h-full max-w-4xl max-h-[80vh]">
+            <div className="w-full max-w-4xl" style={{ height: 'calc(100vh - 10rem)' }}>
               <PlotterPreview 
                 drawing={plotterDrawing} 
                 margin={plotterParams.marginMm}
