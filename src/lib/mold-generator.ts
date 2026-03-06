@@ -299,7 +299,7 @@ function generateWedgeMoldPart(
   moldParams: MoldParams,
   startAngle: number,
   endAngle: number,
-  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
+  _objectType?: string
 ): THREE.BufferGeometry {
   const height = params.height * SCALE;
   const wallThickness = moldParams.wallThickness * SCALE;
