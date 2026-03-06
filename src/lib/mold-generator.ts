@@ -820,7 +820,7 @@ export function generateMultiPartMoldGeometry(
   let splitAngles: number[];
   
   if (params.moldAutoSplit) {
-    const optimalSplits = calculateOptimalSplits(params, params.shapeStyle, partCount);
+    const optimalSplits = calculateOptimalSplits(params, undefined, partCount);
     splitAngles = optimalSplits.splitAngles;
     
     while (splitAngles.length < partCount) {
