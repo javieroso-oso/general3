@@ -51,7 +51,7 @@ export function findRadiusMaximaAtHeight(
     
     const radius = getBodyRadius(params, heightT, theta, {
       scale: SCALE,
-      objectType: params.shapeStyle,
+      objectType: 'vase',
       includeTwist: true
     }) / SCALE; // Convert back to mm for comparison
     
