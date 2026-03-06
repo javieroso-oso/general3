@@ -20,7 +20,6 @@ import { usePlotterDrawing } from '@/hooks/usePlotterDrawing';
 import { 
   ParametricParams, 
   ObjectType,
-  ShapeStyle,
   defaultShapeParams,
   defaultParams, 
   PrintSettings, 
