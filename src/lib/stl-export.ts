@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import earcut from 'earcut';
-import { ParametricParams, ObjectType, ShapeStyle, PrintSettings, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { getBodyRadius } from '@/lib/body-profile-generator';
