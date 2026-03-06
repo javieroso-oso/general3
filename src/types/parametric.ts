@@ -202,6 +202,14 @@ export interface ParametricParams {
   
   moldShowGhostBody: boolean;        // Show body outline inside mold
   
+  // Wireframe lamp mode (structural ribs/rings for fabric shade)
+  wireframeMode: boolean;
+  wireframeRibCount: number;         // 4-24: number of vertical ribs
+  wireframeRingCount: number;        // 2-10: number of horizontal rings
+  wireframeThickness: number;        // 2-8mm: cross-section thickness of ribs/rings
+  wireframeRibStyle: 'straight' | 'curved' | 'twisted';
+  wireframeMountRingHeight: number;  // 3-15mm: height of top/bottom mounting rings
+
   // Light perforations (holes for light pass-through)
   lightPatternEnabled: boolean;      // Toggle light perforation pattern
   lightPatternType: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
