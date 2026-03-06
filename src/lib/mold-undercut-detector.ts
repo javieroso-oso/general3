@@ -189,7 +189,7 @@ export function calculateOptimalSplits(
       splitAngles: equalSplits,
       partCount,
       confidence: 0, // Low confidence - using fallback
-      undercuts: analyzeUndercuts(params, params.shapeStyle)
+      undercuts: analyzeUndercuts(params)
     };
   }
   
