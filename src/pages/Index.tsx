@@ -308,7 +308,7 @@ const Index = () => {
     } else {
       // Single half A or B
       if (params.moldPartCount > 2) {
-        downloadMultiPartMoldSTL(params, params.shapeStyle, half === 'A' ? 0 : 1, baseName);
+        downloadMultiPartMoldSTL(params, undefined, half === 'A' ? 0 : 1, baseName);
         toast.success(`Mold Part ${half} exported!`);
       } else {
         downloadMoldSTL(params, params.shapeStyle, half, baseName);
