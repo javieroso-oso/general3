@@ -810,7 +810,7 @@ function addMoldPartFeatures(
  */
 export function generateMultiPartMoldGeometry(
   params: ParametricParams,
-  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
+  _objectType?: string
 ): MultiPartMoldGeometry {
   const partCount = params.moldPartCount || 2;
   const partAngles: number[] = [];
