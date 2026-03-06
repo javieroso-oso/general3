@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { generateMultiPartMoldGeometry } from '@/lib/mold-generator';
-import { ParametricParams, ObjectType, ShapeStyle } from '@/types/parametric';
+import { ParametricParams, ObjectType } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 
 const SCALE = 0.01;
