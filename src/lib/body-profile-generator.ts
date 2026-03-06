@@ -6,7 +6,7 @@
  * calculation between ParametricMesh and mold-generator.
  */
 
-import { ParametricParams, ShapeStyle, printConstraints } from '@/types/parametric';
+import { ParametricParams, printConstraints } from '@/types/parametric';
 
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
