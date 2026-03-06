@@ -941,7 +941,7 @@ export function exportMoldHalfToSTL(geometry: THREE.BufferGeometry): Blob {
  */
 export function downloadMoldSTL(
   params: ParametricParams,
-  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
+  _objectType?: string,
   half: 'A' | 'B' | 'both' = 'both',
   filename: string = 'mold'
 ): void {
