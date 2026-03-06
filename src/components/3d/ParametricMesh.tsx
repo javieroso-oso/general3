@@ -10,6 +10,7 @@ import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
+import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
