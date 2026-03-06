@@ -1205,11 +1205,21 @@ export function generatePrintableMesh(
 // Export body mesh to STL
 // Body is exported with base (narrow end) at Y=0 for 3D printing
 // This allows printing opening-up (base on print bed)
+// When wireframeMode is enabled, exports the rib/ring skeleton instead
 export function exportBodyToSTL(
   params: ParametricParams,
   type: ObjectType
 ): Blob {
-  const geometry = generateBodyMesh(params, type);
+  let geometry: THREE.BufferGeometry;
+  
+  if (params.wireframeMode && params.shapeStyle === 'lamp') {
+    // Wireframe mode: generate rib/ring skeleton at mm scale
+    const { generateWireframeLampGeometry } = require('@/lib/wireframe-lamp-generator');
+    geometry = generateWireframeLampGeometry(params, { scale: 1 });
+  } else {
+    geometry = generateBodyMesh(params, type);
+  }
+  
   const mesh = new THREE.Mesh(geometry);
   
   const exporter = new STLExporter();
