@@ -1,9 +1,8 @@
 import { motion } from 'framer-motion';
-import { presets, Preset, ShapeStyle, ParametricParams } from '@/types/parametric';
+import { presets, Preset, ParametricParams } from '@/types/parametric';
 import { cn } from '@/lib/utils';
 
 interface PresetGalleryProps {
-  type: ShapeStyle;
   currentParams: ParametricParams;
   onSelect: (params: ParametricParams) => void;
 }
@@ -12,7 +11,6 @@ interface PresetGalleryProps {
 const PresetVisual = ({ params }: { params: ParametricParams }) => {
   const { bulgeAmount, bulgePosition, topRadius, baseRadius, twistAngle, wobbleFrequency } = params;
   
-  // Calculate visual properties
   const scaleX = topRadius / baseRadius;
   const rotation = twistAngle / 8;
   const borderRadius = wobbleFrequency > 0 ? '30%' : '40%';
@@ -32,11 +30,8 @@ const PresetVisual = ({ params }: { params: ParametricParams }) => {
   );
 };
 
-const PresetGallery = ({ type, currentParams, onSelect }: PresetGalleryProps) => {
-  const filteredPresets = presets.filter((preset) => preset.type === type);
-
+const PresetGallery = ({ currentParams, onSelect }: PresetGalleryProps) => {
   const isActive = (preset: Preset) => {
-    // Check if most key numeric params match
     const numericKeys = ['bulgeAmount', 'twistAngle', 'wobbleFrequency', 'asymmetry'] as const;
     return numericKeys.every(key => {
       const presetVal = preset.params[key] as number;
@@ -56,7 +51,7 @@ const PresetGallery = ({ type, currentParams, onSelect }: PresetGalleryProps) =>
         Presets
       </h3>
       <div className="grid grid-cols-2 gap-2">
-        {filteredPresets.map((preset, index) => (
+        {presets.map((preset, index) => (
           <motion.button
             key={preset.id}
             initial={{ opacity: 0, scale: 0.9 }}
