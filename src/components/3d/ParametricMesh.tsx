@@ -9,6 +9,7 @@ import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 import { getBodyRadius } from '@/lib/body-profile-generator';
+import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
