@@ -595,7 +595,6 @@ const Index = () => {
 
               <TabsContent value="presets" className="mt-0">
                 <PresetGallery
-                  type={params.shapeStyle}
                   currentParams={params}
                   onSelect={setParams}
                 />
