@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { PlotterParams, PlotterDrawing, PAPER_SIZES } from '@/types/plotter';
-import { ParametricParams, ShapeStyle } from '@/types/parametric';
+import { ParametricParams } from '@/types/parametric';
 import { 
   generateFlowField, 
   generateSpiral, 
