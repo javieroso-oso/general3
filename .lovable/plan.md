@@ -1,157 +1,80 @@
 
 
-# Fix: Spine-Based Geometry Discrepancy Between Preview and Export
+# Wireframe Lamp Generator
 
-## Root Cause Identified
+## Concept
 
-The "bending" distortion in exported STLs is caused by **fundamentally different spine handling** between the preview and export code paths:
+A new mode within the Lamp shape style that generates structural ribs/frames instead of solid walls. The output is a 3D-printable skeleton — vertical ribs, horizontal rings, and optional decorative cross-members — designed to be covered with paper, fabric, or other translucent materials.
 
-| Aspect | Preview (`ParametricMesh.tsx`) | Export (`stl-export.ts`) |
-|--------|--------------------------------|--------------------------|
-| **Spine Mode** | Simple lateral offset | Full Frenet frame rotation |
-| **Cross-sections** | Stay horizontal | Rotate with curve tangent |
-| **Visual Effect** | Elegant S-curves, shape unchanged | Cross-sections tilt and distort |
-| **Rim Waves** | Applied correctly | **MISSING** in `generateBodyMesh` |
+Think: Japanese lanterns, Noguchi-style lamps, mid-century modern shades.
 
-### The Technical Problem
+## How It Works
 
-**Preview (lines 306-317):**
-```typescript
-// SPINE-BASED: Simple lateral offset without Frenet rotation
-const localX = Math.cos(theta) * r;
-const localZ = Math.sin(theta) * r;
-x = localX + frame.position.x;  // Just add position offset
-z = localZ + frame.position.z;
-finalY = frame.position.y;
+The generator reuses the existing parametric profile (all the same shape controls — height, radii, profile curve, bulge, twist, etc.) but instead of producing a continuous wall, it samples the profile at discrete points to create:
+
+1. **Vertical ribs** — Thin structural members running from bottom ring to top ring, following the body profile curve
+2. **Horizontal rings** — Circular frames at regular height intervals that hold the ribs in place
+3. **Top & bottom mounting rings** — Thicker rings at the top (for socket attachment) and bottom (for structural stability)
+
+All pieces would be generated as solid printable geometry (extruded cross-sections along the profile curves), not just lines.
+
+## New Parameters
+
+Added to `ParametricParams`:
+
+| Parameter | Type | Range | Description |
+|-----------|------|-------|-------------|
+| `wireframeMode` | boolean | — | Enable wireframe lamp mode |
+| `wireframeRibCount` | number | 4–24 | Number of vertical ribs |
+| `wireframeRingCount` | number | 2–10 | Number of horizontal rings |
+| `wireframeThickness` | number | 2–8 mm | Cross-section thickness of ribs/rings |
+| `wireframeRibStyle` | enum | straight / curved / twisted | How ribs flow between rings |
+| `wireframeMountRingHeight` | number | 3–15 mm | Height of top/bottom mounting rings |
+
+## Architecture
+
+### Files to modify:
+1. **`src/types/parametric.ts`** — Add wireframe parameters to `ParametricParams`, defaults
+2. **`src/components/3d/ParametricMesh.tsx`** — New geometry generation branch when `wireframeMode` is true: generate tube geometries along rib curves + torus rings instead of the solid body mesh
+3. **`src/components/controls/ParameterControls.tsx`** — Add "Wireframe Lamp" section (visible when `shapeStyle === 'lamp'`) with the new sliders and toggle
+4. **`src/lib/wireframe-lamp-generator.ts`** — New file: core geometry generation logic
+5. **`src/lib/stl-export.ts`** — Add wireframe export path that generates the same rib/ring geometry for STL output
+
+### Geometry generation approach (`wireframe-lamp-generator.ts`):
+
+```text
+For each vertical rib (i = 0..ribCount-1):
+  angle = i * 2π / ribCount
+  Sample body radius at N height points using getBodyRadius()
+  Create a 3D curve: [(r*cos(θ), y, r*sin(θ)) for each height sample]
+  Extrude a circular cross-section along this curve → TubeGeometry
+
+For each horizontal ring (j = 0..ringCount-1):
+  t = j / (ringCount - 1)
+  Sample body radius at this height for all angles
+  Create a closed 3D curve following the profile at height t
+  Extrude circular cross-section → TubeGeometry
+
+Top/bottom mounting rings:
+  Same as horizontal rings but with larger cross-section
 ```
 
-**Export (lines 274-282):**
-```typescript
-// SPINE-BASED: Position vertex using Frenet frame
-const localX = Math.cos(theta);
-const localZ = Math.sin(theta);
-// Uses normal/binormal to ROTATE the cross-section
-x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
-```
+This reuses `getBodyRadius()` from `body-profile-generator.ts`, so all existing parametric deformations (twist, bulge, wobble, facets, etc.) automatically apply to the wireframe structure.
 
-The export uses Frenet frame rotation which rotates each cross-section to be perpendicular to the spine tangent. This causes the "bending" distortion where circles become ellipses tilted along the curve.
+### Preview rendering:
 
-### Additional Issue: Missing Rim Waves
+When `wireframeMode` is true, `ParametricMesh` skips the solid body generation and instead renders the merged tube geometries. The existing material system applies normally.
 
-The `generateBodyMesh` function in `stl-export.ts` **does NOT apply rim wave effects** after computing vertices, unlike the preview which adds rim waves at lines 372-380.
+### STL export:
 
----
+A parallel code path in `stl-export.ts` detects `wireframeMode` and calls the same generator with `scale: 1` (mm units) instead of building the solid wall mesh.
 
-## Solution
+## User experience
 
-### Step 1: Fix Spine Handling in STL Export
-
-Update `generateBodyMesh()` in `stl-export.ts` to use **simple lateral offset** (matching preview) instead of Frenet frame rotation.
-
-**Before:**
-```typescript
-if (useSpine && spineFrames[i]) {
-  const frame = spineFrames[i];
-  const localX = Math.cos(theta);
-  const localZ = Math.sin(theta);
-  
-  x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-  finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-  z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
-}
-```
-
-**After:**
-```typescript
-if (useSpine && spineFrames[i]) {
-  // SPINE-BASED: Simple lateral offset without Frenet rotation
-  // Cross-sections stay horizontal, only position shifts along the curved path
-  // This matches the preview behavior in ParametricMesh.tsx
-  const frame = spineFrames[i];
-  const localX = Math.cos(theta) * r;
-  const localZ = Math.sin(theta) * r;
-  
-  x = localX + frame.position.x;
-  z = localZ + frame.position.z;
-  finalY = frame.position.y;
-}
-```
-
-### Step 2: Add Missing Rim Wave Effects
-
-Add rim wave Y-offset to `generateBodyMesh()` after melt effects:
-
-```typescript
-// After melt effect block, add:
-// Rim waves: modify Y position for top rows (matches ParametricMesh.tsx)
-const { rimWaveCount, rimWaveDepth } = params;
-if (rimWaveCount > 0 && rimWaveDepth > 0) {
-  const rimZone = 0.1; // Top 10% of height
-  const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
-  if (rimT > 0) {
-    const waveOffset = Math.sin(theta * rimWaveCount) * rimWaveDepth * height * rimT;
-    finalY += waveOffset;
-  }
-}
-```
-
-### Step 3: Apply Same Fix to Inner Wall Vertices
-
-The inner wall generation (lines 322-381) has the same Frenet frame issue and also lacks rim waves. Apply identical fixes there.
-
----
-
-## Files to Modify
-
-1. **`src/lib/stl-export.ts`**
-   - Lines 274-282: Change Frenet frame rotation to simple lateral offset (outer wall)
-   - Lines 335-343: Change Frenet frame rotation to simple lateral offset (inner wall)
-   - Lines 316-318: Add rim wave effect (after melt, before push to outerVerts)
-   - Lines 376-378: Add rim wave effect (after melt, before push to innerVerts)
-
----
-
-## Technical Details
-
-### Why Frenet Frame Causes Distortion
-
-The Frenet frame consists of three orthonormal vectors at each point on the curve:
-- **Tangent (T)**: Direction of travel along curve
-- **Normal (N)**: Points toward center of curvature  
-- **Binormal (B)**: T × N
-
-When you position cross-section vertices using `normal * x + binormal * z`, you're rotating the circle to lie in a plane perpendicular to the tangent. This works well for tubes (like pipes), but for vases/lamps it creates unwanted distortion because the "top" and "bottom" of the object tilt with the curve.
-
-The preview's approach of simple lateral offset (`position.x + localX`, `position.z + localZ`) keeps cross-sections horizontal (parallel to ground), which is what users expect for vases/lamps.
-
-### Rim Wave Formula (matching preview)
-
-```typescript
-rimZone = 0.1           // Top 10% of height
-rimT = (t - 0.9) / 0.1  // Normalized position within rim zone (0 at 90% height, 1 at 100%)
-waveOffset = sin(theta * rimWaveCount) * rimWaveDepth * height * rimT
-finalY += waveOffset    // Add to Y position
-```
-
----
-
-## Verification Plan
-
-After implementation:
-1. Create a shape with **spineEnabled** and non-zero **spineAmplitudeX/Z**
-2. Enable **rimWaveCount** with non-zero **rimWaveDepth**
-3. Verify preview shows S-curve with wavy rim
-4. Export to STL and open in slicer
-5. Compare shape - should be identical to preview (no tilted/distorted cross-sections)
-
----
-
-## Risk Assessment
-
-**Low risk** - Changes are localized to vertex positioning in `generateBodyMesh()`:
-- Preview code is unchanged (already correct)
-- Only modifying export to match preview behavior
-- No changes to radius calculation (shared `getBodyRadius()` is untouched)
+- User selects "Lamp" style
+- New toggle appears: "Wireframe / Shade Frame Mode"
+- When enabled, the solid body is replaced by the rib structure in the 3D preview
+- All existing shape controls (profile curve, twist, bulge, etc.) continue to work — they now shape the ribs
+- Socket mounting and legs still work normally
+- Export produces printable rib structure
 
