@@ -36,7 +36,7 @@ const SCALE = 0.01;
  */
 export function findRadiusMaximaAtHeight(
   params: ParametricParams,
-  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
+  _objectType?: string,
   heightT: number = 0.5,
   angleSamples: number = 72
 ): RadiusMaxima[] {
