@@ -282,7 +282,7 @@ const ParametricMesh = ({
         const r = getBodyRadius(params, t, baseTheta, {
           scale: SCALE,        // Scene units (0.01)
           includeTwist: true,  // Apply twist inside getBodyRadius
-          objectType: params.shapeStyle,
+          objectType: 'vase',
         });
         
         // Track max radius for scene bounds
