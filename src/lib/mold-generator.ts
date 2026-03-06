@@ -321,7 +321,7 @@ function generateWedgeMoldPart(
   const segmentsForWedge = Math.max(4, Math.floor(radialSegments * (angleSpan / (Math.PI * 2))));
   
   // Get max body radius for outer mold bounds
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType: params.shapeStyle });
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType: 'vase' });
   const outerRadius = maxBodyRadius + wallThickness;
   
   const vertices: number[] = [];
