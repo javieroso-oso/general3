@@ -778,7 +778,7 @@ const ParametricMesh = ({
     }
     
     // Light pattern vertex preview: darken vertices near perforation holes
-    if (params.lightPatternEnabled && params.shapeStyle === 'lamp' && !params.wireframeMode && !params.showOverhangMap) {
+    if (params.lightPatternEnabled && !params.wireframeMode && !params.showOverhangMap) {
       const holes = generateLightPattern(params);
       if (holes.length > 0) {
         const posAttr = bodyGeo.getAttribute('position');
