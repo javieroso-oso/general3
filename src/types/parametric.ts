@@ -476,6 +476,12 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     wireframeThickness: 3,
     wireframeRibStyle: 'curved',
     wireframeMountRingHeight: 5,
+    wireframeCrossSection: 'round',
+    wireframeJointBulge: 0.5,
+    wireframeFlatBase: true,
+    wireframeRingThickness: 1.0,
+    wireframeDiagonalBracing: false,
+    wireframeBraceFrequency: 1,
     // Light perforations - defaults
     lightPatternEnabled: false,
     lightPatternType: 'dots',

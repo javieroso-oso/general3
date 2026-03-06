@@ -577,6 +577,12 @@ export const defaultLampParams: LampParams = {
   wireframeThickness: 3,
   wireframeRibStyle: 'curved',
   wireframeMountRingHeight: 5,
+  wireframeCrossSection: 'round',
+  wireframeJointBulge: 0.5,
+  wireframeFlatBase: true,
+  wireframeRingThickness: 1.0,
+  wireframeDiagonalBracing: false,
+  wireframeBraceFrequency: 1,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
