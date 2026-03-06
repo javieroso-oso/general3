@@ -203,6 +203,11 @@ export interface ParametricParams {
   wireframeDiagonalBracing: boolean;
   wireframeBraceFrequency: number;
 
+  // Organic wireframe deformation
+  wireframeOrganic: number;
+  wireframeOrganicSeed: number;
+  wireframeThicknessVariation: number;
+
   // Light perforations (holes for light pass-through)
   lightPatternEnabled: boolean;
   lightPatternType: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
