@@ -455,6 +455,13 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     moldStrapNotchWidth: 12,
     moldStrapNotchDepth: 4,
     moldShowGhostBody: true,
+    // Wireframe lamp mode - defaults
+    wireframeMode: false,
+    wireframeRibCount: 8,
+    wireframeRingCount: 4,
+    wireframeThickness: 3,
+    wireframeRibStyle: 'curved',
+    wireframeMountRingHeight: 5,
     // Light perforations - defaults
     lightPatternEnabled: false,
     lightPatternType: 'dots',
