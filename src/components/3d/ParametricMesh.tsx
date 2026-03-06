@@ -886,6 +886,12 @@ const ParametricMesh = ({
       centeringLipGeo = lipGeoMM;
     }
 
+    // Generate wireframe lamp geometry if in wireframe mode
+    let wireframeLampGeo: THREE.BufferGeometry | null = null;
+    if (params.wireframeMode && params.shapeStyle === 'lamp') {
+      wireframeLampGeo = generateWireframeLampGeometry(params, { scale: SCALE });
+    }
+
     return { 
       bodyGeometry: bodyGeo, 
       wireframeGeo: wireGeo, 
@@ -894,6 +900,7 @@ const ParametricMesh = ({
       overhangColors: overhangColorArray,
       keyholeGeometries,
       cordHoleGeometry,
+      wireframeLampGeometry: wireframeLampGeo,
     };
   }, [params, type]);
 
