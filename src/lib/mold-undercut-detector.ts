@@ -172,7 +172,7 @@ export function findGlobalPartingLines(
  */
 export function calculateOptimalSplits(
   params: ParametricParams,
-  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
+  _objectType?: string,
   requestedPartCount?: number
 ): PartingLineResult {
   const { angles: partingAngles, strength } = findGlobalPartingLines(params, params.shapeStyle);
