@@ -52,7 +52,7 @@ import {
 
 const Index = () => {
   const [objectType, setObjectType] = useState<ObjectType>('shape');
-  const [params, setParams] = useState<ParametricParams>(defaultShapeParams.vase);
+  const [params, setParams] = useState<ParametricParams>(defaultShapeParams);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
   
   // Plotter drawing (computed from plotter params + live mesh params)
