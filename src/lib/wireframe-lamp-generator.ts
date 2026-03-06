@@ -18,46 +18,101 @@ interface WireframeOptions {
 }
 
 /**
- * Create a cross-section shape for extrusion along curves.
+ * Reshape a TubeGeometry's circular cross-section into square or flat profiles.
+ * Works by remapping each ring of vertices from circular to the target shape.
  */
-function createCrossSection(
-  radius: number,
-  type: 'round' | 'square' | 'flat',
-  segments: number = 8
-): THREE.Shape {
-  const shape = new THREE.Shape();
-  
-  if (type === 'square') {
-    const half = radius;
-    shape.moveTo(-half, -half);
-    shape.lineTo(half, -half);
-    shape.lineTo(half, half);
-    shape.lineTo(-half, half);
-    shape.closePath();
-  } else if (type === 'flat') {
-    const width = radius * 1.5;
-    const height = radius * 0.6;
-    shape.moveTo(-width, -height);
-    shape.lineTo(width, -height);
-    shape.lineTo(width, height);
-    shape.lineTo(-width, height);
-    shape.closePath();
-  } else {
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-      if (i === 0) shape.moveTo(x, y);
-      else shape.lineTo(x, y);
+function reshapeTubeCrossSection(
+  geo: THREE.TubeGeometry,
+  type: 'square' | 'flat',
+  tubularSegments: number
+): void {
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  const vertCount = pos.count;
+  const ringSize = tubularSegments + 1; // vertices per ring
+  const ringCount = Math.floor(vertCount / ringSize);
+
+  // We need the tube's internal frames to know local directions.
+  // Reconstruct by averaging ring centers and computing local axes.
+  for (let ring = 0; ring < ringCount; ring++) {
+    const startIdx = ring * ringSize;
+    
+    // Compute ring center
+    const center = new THREE.Vector3(0, 0, 0);
+    for (let j = 0; j < ringSize; j++) {
+      center.x += pos.getX(startIdx + j);
+      center.y += pos.getY(startIdx + j);
+      center.z += pos.getZ(startIdx + j);
     }
-    shape.closePath();
+    center.divideScalar(ringSize);
+    
+    // For each vertex, get its angle and radius relative to center
+    // Then remap to the target shape
+    const localVecs: THREE.Vector3[] = [];
+    let avgRadius = 0;
+    
+    for (let j = 0; j < ringSize; j++) {
+      const v = new THREE.Vector3(
+        pos.getX(startIdx + j) - center.x,
+        pos.getY(startIdx + j) - center.y,
+        pos.getZ(startIdx + j) - center.z
+      );
+      avgRadius += v.length();
+      localVecs.push(v);
+    }
+    avgRadius /= ringSize;
+    if (avgRadius < 1e-10) continue;
+
+    // Build local 2D basis from first two perpendicular directions
+    const basisU = localVecs[0].clone().normalize();
+    // Find a vertex roughly 90° away
+    const quarterIdx = Math.floor(ringSize / 4);
+    const basisV = localVecs[quarterIdx].clone();
+    // Orthogonalize V against U
+    basisV.sub(basisU.clone().multiplyScalar(basisV.dot(basisU))).normalize();
+
+    for (let j = 0; j < ringSize; j++) {
+      const v = localVecs[j];
+      // Project onto local 2D
+      const u2d = v.dot(basisU);
+      const v2d = v.dot(basisV);
+      const angle = Math.atan2(v2d, u2d);
+      
+      let newU: number, newV: number;
+      
+      if (type === 'square') {
+        // Map circle to square: for angle θ, square boundary is at
+        // max(|cos θ|, |sin θ|) = 1 → scale = 1/max(|cos|,|sin|)
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        const maxCS = Math.max(Math.abs(cosA), Math.abs(sinA));
+        const scale = avgRadius / maxCS;
+        newU = cosA * scale;
+        newV = sinA * scale;
+      } else {
+        // Flat: wider in U, shorter in V
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        const widthScale = 1.5;
+        const heightScale = 0.6;
+        // Elliptical mapping
+        newU = cosA * avgRadius * widthScale;
+        newV = sinA * avgRadius * heightScale;
+      }
+      
+      const newPos = center.clone()
+        .add(basisU.clone().multiplyScalar(newU))
+        .add(basisV.clone().multiplyScalar(newV));
+      
+      pos.setXYZ(startIdx + j, newPos.x, newPos.y, newPos.z);
+    }
   }
   
-  return shape;
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
 }
 
 /**
- * Create a tube geometry along a curve.
+ * Create a tube geometry along a curve with the specified cross-section.
  */
 function createTubeAlongCurve(
   curve: THREE.CatmullRomCurve3,
@@ -67,18 +122,13 @@ function createTubeAlongCurve(
   tubularSegments: number,
   closed: boolean = false
 ): THREE.BufferGeometry {
-  if (crossSection === 'round') {
-    return new THREE.TubeGeometry(curve, pathSegments, tubeRadius, tubularSegments, closed);
+  const tube = new THREE.TubeGeometry(curve, pathSegments, tubeRadius, tubularSegments, closed);
+  
+  if (crossSection !== 'round') {
+    reshapeTubeCrossSection(tube, crossSection, tubularSegments);
   }
   
-  const shape = createCrossSection(tubeRadius, crossSection, tubularSegments);
-  const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-    steps: pathSegments,
-    bevelEnabled: false,
-    extrudePath: curve,
-  };
-  
-  return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  return tube;
 }
 
 /**
