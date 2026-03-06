@@ -7,6 +7,7 @@ import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
+import { applyLightPerforations } from '@/lib/light-pattern-generator';
 
 // Scale factor: mm to scene units
 const _SCALE = 0.01; // Scale factor: mm to scene units (reserved for future use)
@@ -1218,6 +1219,22 @@ export function exportBodyToSTL(
     geometry = generateWireframeLampGeometry(params, { scale: 1 });
   } else {
     geometry = generateBodyMesh(params, type);
+    
+    // Apply light perforations via CSG (only for non-wireframe, solid wall lamps)
+    if (params.lightPatternEnabled && params.shapeStyle === 'lamp' && !params.wireframeMode) {
+      const getRadiusAtHeight = (t: number, theta: number) => {
+        return getBodyRadius(params, t, theta, {
+          scale: 1,
+          includeTwist: false,
+          objectType: params.shapeStyle,
+        });
+      };
+      try {
+        geometry = applyLightPerforations(geometry, params, getRadiusAtHeight);
+      } catch (e) {
+        console.warn('Light perforation CSG failed, exporting without holes:', e);
+      }
+    }
   }
   
   const mesh = new THREE.Mesh(geometry);

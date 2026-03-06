@@ -1136,7 +1136,7 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 onChange={handleChange('wireframeRingCount')}
               />
               <ParameterSlider
-                label="Thickness"
+                label="Rib Thickness"
                 value={params.wireframeThickness ?? 3}
                 min={2}
                 max={8}
@@ -1152,6 +1152,15 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                 step={1}
                 unit="mm"
                 onChange={handleChange('wireframeMountRingHeight')}
+              />
+              <ParameterSlider
+                label="Ring Thickness"
+                value={params.wireframeRingThickness ?? 1.0}
+                min={0.5}
+                max={1.5}
+                step={0.1}
+                unit="×"
+                onChange={handleChange('wireframeRingThickness')}
               />
               
               <div className="space-y-2">
@@ -1172,6 +1181,77 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Cross Section</Label>
+                <Select 
+                  value={params.wireframeCrossSection ?? 'round'} 
+                  onValueChange={(value: 'round' | 'square' | 'flat') => {
+                    onParamsChange({ ...params, wireframeCrossSection: value });
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="round">Round</SelectItem>
+                    <SelectItem value="square">Square</SelectItem>
+                    <SelectItem value="flat">Flat (Wide)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <Subsection title="Printability">
+                <ParameterSlider
+                  label="Joint Bulge"
+                  value={params.wireframeJointBulge ?? 0.5}
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  onChange={handleChange('wireframeJointBulge')}
+                />
+                <div className="text-xs text-muted-foreground -mt-2">
+                  Extra material at rib-ring joints for strength
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="flat-base" className="text-xs">Flat Base (Bed Adhesion)</Label>
+                  <Switch 
+                    id="flat-base" 
+                    checked={params.wireframeFlatBase ?? true} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, wireframeFlatBase: v })}
+                  />
+                </div>
+                
+                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border border-border/50">
+                  💡 <strong>Print tips:</strong> Use square or flat cross-section for better layer adhesion. Print upside-down (base on bed) for best results.
+                </div>
+              </Subsection>
+              
+              <Subsection title="Diagonal Bracing">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="diagonal-bracing" className="text-xs">Enable Bracing</Label>
+                  <Switch 
+                    id="diagonal-bracing" 
+                    checked={params.wireframeDiagonalBracing ?? false} 
+                    onCheckedChange={(v) => onParamsChange({ ...params, wireframeDiagonalBracing: v })}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground -mt-1">
+                  X-braces between ribs for rigidity
+                </div>
+                
+                {params.wireframeDiagonalBracing && (
+                  <ParameterSlider
+                    label="Brace Frequency"
+                    value={params.wireframeBraceFrequency ?? 1}
+                    min={1}
+                    max={4}
+                    step={1}
+                    onChange={handleChange('wireframeBraceFrequency')}
+                  />
+                )}
+              </Subsection>
             </>
           )}
         </Section>

@@ -209,6 +209,12 @@ export interface ParametricParams {
   wireframeThickness: number;        // 2-8mm: cross-section thickness of ribs/rings
   wireframeRibStyle: 'straight' | 'curved' | 'twisted';
   wireframeMountRingHeight: number;  // 3-15mm: height of top/bottom mounting rings
+  wireframeCrossSection: 'round' | 'square' | 'flat';  // Tube cross-section shape
+  wireframeJointBulge: number;       // 0-2: extra thickness at rib-ring intersections
+  wireframeFlatBase: boolean;        // Flatten bottom ring for bed adhesion
+  wireframeRingThickness: number;    // 0.5-1.5: ring thickness multiplier relative to rib
+  wireframeDiagonalBracing: boolean; // Add diagonal cross-braces between ribs
+  wireframeBraceFrequency: number;   // 1-4: diagonal pairs per section
 
   // Light perforations (holes for light pass-through)
   lightPatternEnabled: boolean;      // Toggle light perforation pattern
@@ -470,6 +476,12 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     wireframeThickness: 3,
     wireframeRibStyle: 'curved',
     wireframeMountRingHeight: 5,
+    wireframeCrossSection: 'round',
+    wireframeJointBulge: 0.5,
+    wireframeFlatBase: true,
+    wireframeRingThickness: 1.0,
+    wireframeDiagonalBracing: false,
+    wireframeBraceFrequency: 1,
     // Light perforations - defaults
     lightPatternEnabled: false,
     lightPatternType: 'dots',
