@@ -295,7 +295,7 @@ const Index = () => {
     
     if (typeof half === 'number') {
       // Multi-part mold specific part
-      downloadMultiPartMoldSTL(params, params.shapeStyle, half, baseName);
+      downloadMultiPartMoldSTL(params, undefined, half, baseName);
       toast.success(`Mold Part ${partLabels[half]} exported!`);
     } else if (half === 'both') {
       if (params.moldPartCount > 2) {
