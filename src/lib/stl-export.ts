@@ -6,6 +6,7 @@ import { ParametricParams, ObjectType, ShapeStyle, PrintSettings, printConstrain
 import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { getBodyRadius } from '@/lib/body-profile-generator';
+import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 
 // Scale factor: mm to scene units
 const _SCALE = 0.01; // Scale factor: mm to scene units (reserved for future use)
