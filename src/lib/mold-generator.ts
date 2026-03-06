@@ -882,7 +882,7 @@ export function generateMultiPartMoldGeometry(
       moldParams,
       startAngle,
       endAngle,
-      params.shapeStyle
+      undefined
     );
     
     // Add CSG features (keys, pour hole, vents)
