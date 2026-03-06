@@ -1071,8 +1071,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </div>
       </Section>
 
-      {/* Wireframe Shade Frame - Only visible for lamp shapeStyle */}
-      {params.shapeStyle === 'lamp' && (
+      {/* Wireframe Shade Frame */}
+      {(
         <Section title="Shade Frame" defaultOpen={false}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
