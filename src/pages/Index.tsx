@@ -59,7 +59,7 @@ const Index = () => {
   const plotterDrawing = usePlotterDrawing({
     params: plotterParams,
     currentMeshParams: params,
-    currentShapeStyle: params.shapeStyle,
+    currentShapeStyle: 'vase',
   });
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(false);
