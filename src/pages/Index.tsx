@@ -290,7 +290,7 @@ const Index = () => {
 
   // Actual mold export function (called after payment/unlock)
   const doExportMold = useCallback((half: 'A' | 'B' | 'both' | number) => {
-    const baseName = `${params.shapeStyle}_${params.height}mm_${Date.now()}`;
+    const baseName = `shape_${params.height}mm_${Date.now()}`;
     const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
     if (typeof half === 'number') {
