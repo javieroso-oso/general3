@@ -16,7 +16,7 @@ import { noise2D, seedNoise } from './noise';
 interface ProjectionOptions {
   params: ProjectionParams;
   meshParams: ParametricParams;
-  objectType: ObjectType3D;
+  objectType: string;
   width: number;
   height: number;
   margin: number;
