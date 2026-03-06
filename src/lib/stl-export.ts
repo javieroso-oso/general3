@@ -1133,7 +1133,7 @@ export function generateLegsWithBaseMesh(
     const r = getBodyRadius(params, t, twistRadAtT, {
       scale: 1,
       includeTwist: false,
-      objectType: params.shapeStyle,
+      objectType: 'vase',
     });
     if (r > maxRadius) maxRadius = r;
   }
