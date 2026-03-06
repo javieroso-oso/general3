@@ -302,7 +302,7 @@ const Index = () => {
         downloadMultiPartMoldSTL(params, undefined, 'all', baseName);
         toast.success(`All ${params.moldPartCount} mold parts exported!`);
       } else {
-        downloadMoldSTL(params, params.shapeStyle, 'both', baseName);
+        downloadMoldSTL(params, undefined, 'both', baseName);
         toast.success('Both mold halves exported!');
       }
     } else {
