@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { Brush, Evaluator, SUBTRACTION, ADDITION } from 'three-bvh-csg';
-import { ParametricParams, ObjectType, ShapeStyle } from '@/types/parametric';
+import { ParametricParams, ObjectType } from '@/types/parametric';
 import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
 import { calculateOptimalSplits } from '@/lib/mold-undercut-detector';
 

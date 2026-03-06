@@ -1226,7 +1226,7 @@ export function exportBodyToSTL(
         return getBodyRadius(params, t, theta, {
           scale: 1,
           includeTwist: false,
-          objectType: params.shapeStyle,
+          objectType: 'vase',
         });
       };
       try {

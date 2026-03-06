@@ -1,4 +1,4 @@
-import { ParametricParams, ObjectType, ShapeStyle } from '@/types/parametric';
+import { ParametricParams, ObjectType } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 
 export interface UndercutAnalysis {
