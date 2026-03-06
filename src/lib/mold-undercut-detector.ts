@@ -235,7 +235,7 @@ export function calculateOptimalSplits(
     splitAngles: selectedAngles,
     partCount: optimalPartCount,
     confidence,
-    undercuts: analyzeUndercuts(params, params.shapeStyle)
+    undercuts: analyzeUndercuts(params)
   };
 }
 
