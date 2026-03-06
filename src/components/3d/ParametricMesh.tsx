@@ -805,7 +805,7 @@ const ParametricMesh = ({
             let dTheta = Math.abs(vTheta - holeTheta);
             if (dTheta > Math.PI) dTheta = 2 * Math.PI - dTheta;
             
-            const holeR = getBodyRadius(params, hole.t, holeTheta, { scale: SCALE, includeTwist: false, objectType: params.shapeStyle });
+            const holeR = getBodyRadius(params, hole.t, holeTheta, { scale: SCALE, includeTwist: false, objectType: 'vase' });
             const angularDist = dTheta * holeR;
             const heightDist = Math.abs(vt - hole.t) * h;
             const dist = Math.sqrt(angularDist * angularDist + heightDist * heightDist);
