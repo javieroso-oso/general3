@@ -952,6 +952,7 @@ const ParametricMesh = ({
       legGeometry: standGeo, 
       centeringLipGeometry: centeringLipGeo,
       overhangColors: overhangColorArray,
+      hasVertexColors,
       keyholeGeometries,
       cordHoleGeometry,
       wireframeLampGeometry: wireframeLampGeo,
