@@ -769,9 +769,62 @@ const ParametricMesh = ({
     // Keyholes are now directly cut into the back wall mesh - no separate visual needed
     
     let overhangColorArray: Float32Array | null = null;
+    let hasVertexColors = false;
+    
     if (params.showOverhangMap && !isWallMount) {
       overhangColorArray = getOverhangVertexColors(params, heightSegments, segments);
       bodyGeo.setAttribute('color', new THREE.Float32BufferAttribute(overhangColorArray, 3));
+      hasVertexColors = true;
+    }
+    
+    // Light pattern vertex preview: darken vertices near perforation holes
+    if (params.lightPatternEnabled && params.shapeStyle === 'lamp' && !params.wireframeMode && !params.showOverhangMap) {
+      const holes = generateLightPattern(params);
+      if (holes.length > 0) {
+        const posAttr = bodyGeo.getAttribute('position');
+        const vertCount = posAttr.count;
+        const colors = new Float32Array(vertCount * 3);
+        colors.fill(1.0); // Start white
+        
+        const twistAngleRad = params.twistAngle * Math.PI / 180;
+        
+        for (let vi = 0; vi < vertCount; vi++) {
+          const vx = posAttr.getX(vi);
+          const vy = posAttr.getY(vi);
+          const vz = posAttr.getZ(vi);
+          
+          const vt = vy / h; // height fraction
+          const vTheta = Math.atan2(vz, vx);
+          
+          // Check proximity to any hole
+          for (const hole of holes) {
+            const holeTwist = twistAngleRad * hole.t;
+            const holeTheta = hole.theta + holeTwist;
+            
+            // Angular distance (wrapped)
+            let dTheta = Math.abs(vTheta - holeTheta);
+            if (dTheta > Math.PI) dTheta = 2 * Math.PI - dTheta;
+            
+            const holeR = getBodyRadius(params, hole.t, holeTheta, { scale: SCALE, includeTwist: false, objectType: params.shapeStyle });
+            const angularDist = dTheta * holeR;
+            const heightDist = Math.abs(vt - hole.t) * h;
+            const dist = Math.sqrt(angularDist * angularDist + heightDist * heightDist);
+            
+            const holeRadiusScaled = (hole.size / 2) * SCALE;
+            if (dist < holeRadiusScaled * 1.2) {
+              const fade = Math.max(0, 1 - dist / (holeRadiusScaled * 1.2));
+              const darkness = fade * 0.7;
+              colors[vi * 3] = Math.min(colors[vi * 3], 1 - darkness);
+              colors[vi * 3 + 1] = Math.min(colors[vi * 3 + 1], 1 - darkness);
+              colors[vi * 3 + 2] = Math.min(colors[vi * 3 + 2], 1 - darkness);
+              break; // One match is enough
+            }
+          }
+        }
+        
+        bodyGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        hasVertexColors = true;
+      }
     }
 
     const wireGeo = new THREE.WireframeGeometry(bodyGeo);
