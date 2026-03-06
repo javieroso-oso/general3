@@ -94,7 +94,7 @@ export function findGlobalPartingLines(
   // Sample at multiple heights (skip very bottom and top which can be irregular)
   for (let i = 1; i < heightSamples - 1; i++) {
     const t = i / heightSamples;
-    const maxima = findRadiusMaximaAtHeight(params, params.shapeStyle, t);
+    const maxima = findRadiusMaximaAtHeight(params, undefined, t);
     allMaxima.push(...maxima);
   }
   
