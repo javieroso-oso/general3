@@ -527,7 +527,7 @@ const Index = () => {
                   drawing={plotterDrawing}
                   onParamsChange={setPlotterParams}
                   currentMeshParams={params}
-                  currentShapeStyle={params.shapeStyle}
+                  currentShapeStyle={'vase'}
                 />
               </TabsContent>
 
