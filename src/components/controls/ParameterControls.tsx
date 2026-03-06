@@ -578,34 +578,6 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
       transition={{ duration: 0.3 }}
       className="space-y-3"
     >
-      {/* Shape Style Selector */}
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Object Type</Label>
-        <div className="flex gap-1 p-1 bg-secondary rounded-xl">
-          {(['vase', 'lamp', 'sculpture'] as const).map((style) => (
-            <button
-              key={style}
-              onClick={() => onParamsChange({ ...params, shapeStyle: style })}
-              className={cn(
-                'relative flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors duration-200 capitalize',
-                params.shapeStyle === style
-                  ? 'text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {params.shapeStyle === style && (
-                <motion.div
-                  layoutId="activeShapeStyle"
-                  className="absolute inset-0 bg-primary rounded-lg shadow-lg"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
-                />
-              )}
-              <span className="relative z-10">{style}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Randomize / Reset */}
       <div className="flex gap-2 items-center">
         <Button variant="outline" size="sm" onClick={handleRandomize} className="flex-1 gap-2">
