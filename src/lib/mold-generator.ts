@@ -655,7 +655,7 @@ function addMoldPartFeatures(
   const adjustedStartAngle = startAngle + splitRotation;
   const adjustedEndAngle = endAngle + splitRotation;
   
-  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType: params.shapeStyle });
+  const maxBodyRadius = getMaxBodyRadius(params, { scale: SCALE, objectType: 'vase' });
   const outerRadius = maxBodyRadius + wallThickness;
   
   // Key positioning: midpoint of wall for structural integrity
