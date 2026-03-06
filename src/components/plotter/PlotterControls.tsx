@@ -30,7 +30,7 @@ import {
   CapturedMeshParams,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
-import { ParametricParams, ShapeStyle } from '@/types/parametric';
+import { ParametricParams } from '@/types/parametric';
 import { downloadSVG, downloadPlotterGCode, downloadHPGL } from '@/lib/plotter/export';
 
 interface PlotterControlsProps {
