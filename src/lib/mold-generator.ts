@@ -894,7 +894,7 @@ export function generateMultiPartMoldGeometry(
       endAngle,
       i,
       partCount,
-      params.shapeStyle
+      undefined
     );
     
     parts.push(partGeometry);
