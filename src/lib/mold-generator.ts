@@ -535,7 +535,7 @@ function generateWedgeMoldPart(
     // Get body radius at bottom
     let radius = getBodyRadius(params, 0, thetaRaw, { 
       scale: SCALE, 
-      objectType: params.shapeStyle,
+      objectType: 'vase',
       includeTwist: true 
     });
     radius += offset;
