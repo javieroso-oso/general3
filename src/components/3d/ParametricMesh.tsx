@@ -9,6 +9,7 @@ import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materials';
 import { getBodyRadius } from '@/lib/body-profile-generator';
+import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
@@ -190,7 +191,7 @@ const ParametricMesh = ({
     return { spineCurve, crossSectionRings, frameIndicators };
   }, [params]);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, centeringLipGeometry, overhangColors, keyholeGeometries, cordHoleGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, centeringLipGeometry, overhangColors, keyholeGeometries, cordHoleGeometry, wireframeLampGeometry } = useMemo(() => {
     const {
       height,
       baseRadius,
@@ -885,6 +886,12 @@ const ParametricMesh = ({
       centeringLipGeo = lipGeoMM;
     }
 
+    // Generate wireframe lamp geometry if in wireframe mode
+    let wireframeLampGeo: THREE.BufferGeometry | null = null;
+    if (params.wireframeMode && params.shapeStyle === 'lamp') {
+      wireframeLampGeo = generateWireframeLampGeometry(params, { scale: SCALE });
+    }
+
     return { 
       bodyGeometry: bodyGeo, 
       wireframeGeo: wireGeo, 
@@ -893,6 +900,7 @@ const ParametricMesh = ({
       overhangColors: overhangColorArray,
       keyholeGeometries,
       cordHoleGeometry,
+      wireframeLampGeometry: wireframeLampGeo,
     };
   }, [params, type]);
 
@@ -941,8 +949,8 @@ const ParametricMesh = ({
         </mesh>
       )}
       
-      {/* Organic body - hidden in base only preview mode */}
-      {!params.showBaseOnly && (
+      {/* Organic body - hidden in base only preview mode or wireframe mode */}
+      {!params.showBaseOnly && !wireframeLampGeometry && (
         <mesh geometry={bodyGeometry} castShadow receiveShadow>
           <meshPhysicalMaterial
             color={params.showOverhangMap ? "#ffffff" : materialConfig.color}
@@ -954,6 +962,21 @@ const ParametricMesh = ({
             transmission={materialConfig.transmission ?? 0}
             thickness={materialConfig.thickness ?? 0}
             ior={materialConfig.ior ?? 1.5}
+            envMapIntensity={materialConfig.envMapIntensity ?? 1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      
+      {/* Wireframe lamp skeleton */}
+      {wireframeLampGeometry && !params.showBaseOnly && (
+        <mesh geometry={wireframeLampGeometry} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            color={materialConfig.color}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            clearcoat={materialConfig.clearcoat ?? 0}
+            clearcoatRoughness={materialConfig.clearcoatRoughness ?? 0}
             envMapIntensity={materialConfig.envMapIntensity ?? 1}
             side={THREE.DoubleSide}
           />
