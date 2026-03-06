@@ -85,7 +85,7 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
   // Calculate optimal splits for preview info
   const optimalSplits = useMemo(() => {
     if (!params.moldAutoSplit) return null;
-    return calculateOptimalSplits(params, params.shapeStyle, params.moldPartCount);
+    return calculateOptimalSplits(params, undefined, params.moldPartCount);
   }, [params]);
 
   const handlePartCountChange = (count: 2 | 3 | 4) => {
