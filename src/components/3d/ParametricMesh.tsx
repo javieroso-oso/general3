@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import earcut from 'earcut';
-import { ParametricParams, ObjectType, ShapeStyle, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate, generateCenteringLip } from '@/lib/leg-generator';
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
