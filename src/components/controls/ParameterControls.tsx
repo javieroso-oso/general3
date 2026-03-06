@@ -1099,6 +1099,84 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </div>
       </Section>
 
+      {/* Wireframe Shade Frame - Only visible for lamp shapeStyle */}
+      {params.shapeStyle === 'lamp' && (
+        <Section title="Shade Frame" defaultOpen={false}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className={cn("w-4 h-4", params.wireframeMode ? "text-primary" : "text-muted-foreground")} />
+              <Label htmlFor="wireframe-mode" className="text-sm font-medium">Wireframe Mode</Label>
+            </div>
+            <Switch 
+              id="wireframe-mode" 
+              checked={params.wireframeMode ?? false} 
+              onCheckedChange={(v) => onParamsChange({ ...params, wireframeMode: v })}
+            />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Generates structural ribs &amp; rings for fabric/paper shades
+          </div>
+          
+          {params.wireframeMode && (
+            <>
+              <ParameterSlider
+                label="Rib Count"
+                value={params.wireframeRibCount ?? 8}
+                min={4}
+                max={24}
+                step={1}
+                onChange={handleChange('wireframeRibCount')}
+              />
+              <ParameterSlider
+                label="Ring Count"
+                value={params.wireframeRingCount ?? 4}
+                min={2}
+                max={10}
+                step={1}
+                onChange={handleChange('wireframeRingCount')}
+              />
+              <ParameterSlider
+                label="Thickness"
+                value={params.wireframeThickness ?? 3}
+                min={2}
+                max={8}
+                step={0.5}
+                unit="mm"
+                onChange={handleChange('wireframeThickness')}
+              />
+              <ParameterSlider
+                label="Mount Ring Height"
+                value={params.wireframeMountRingHeight ?? 5}
+                min={3}
+                max={15}
+                step={1}
+                unit="mm"
+                onChange={handleChange('wireframeMountRingHeight')}
+              />
+              
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Rib Style</Label>
+                <Select 
+                  value={params.wireframeRibStyle ?? 'curved'} 
+                  onValueChange={(value: 'straight' | 'curved' | 'twisted') => {
+                    onParamsChange({ ...params, wireframeRibStyle: value });
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="straight">Straight</SelectItem>
+                    <SelectItem value="curved">Curved</SelectItem>
+                    <SelectItem value="twisted">Twisted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+        </Section>
+      )}
+
       {/* Light Patterns - Only visible for lamp shapeStyle */}
       {params.shapeStyle === 'lamp' && (
         <Section title="Light Patterns" defaultOpen={false}>
