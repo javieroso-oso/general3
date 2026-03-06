@@ -1224,6 +1224,41 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
                   />
                 )}
               </Subsection>
+              
+              <Subsection title="Organic">
+                <ParameterSlider
+                  label="Organic Intensity"
+                  value={params.wireframeOrganic ?? 0}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('wireframeOrganic')}
+                />
+                <div className="text-xs text-muted-foreground -mt-2">
+                  Makes ribs &amp; rings look hand-bent and natural
+                </div>
+                
+                <ParameterSlider
+                  label="Thickness Variation"
+                  value={params.wireframeThicknessVariation ?? 0}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={handleChange('wireframeThicknessVariation')}
+                />
+                <div className="text-xs text-muted-foreground -mt-2">
+                  Varies tube thickness along each rib/ring
+                </div>
+                
+                <ParameterSlider
+                  label="Seed"
+                  value={params.wireframeOrganicSeed ?? 42}
+                  min={0}
+                  max={999}
+                  step={1}
+                  onChange={handleChange('wireframeOrganicSeed')}
+                />
+              </Subsection>
             </>
           )}
         </Section>
