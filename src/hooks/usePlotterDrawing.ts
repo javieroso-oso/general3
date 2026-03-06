@@ -14,7 +14,7 @@ import { optimizePaths, clipToBounds } from '@/lib/plotter/path-utils';
 interface UsePlotterDrawingOptions {
   params: PlotterParams;
   currentMeshParams?: ParametricParams;
-  currentShapeStyle?: ShapeStyle;
+  currentShapeStyle?: string;
 }
 
 export function usePlotterDrawing({ params, currentMeshParams, currentShapeStyle }: UsePlotterDrawingOptions): PlotterDrawing | null {

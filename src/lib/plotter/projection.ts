@@ -1420,7 +1420,7 @@ export function generateContourLines(options: ProjectionOptions): PlotterDrawing
 // Helper: Get the visible contour points at a specific Y height in paper coordinates
 function getContourAtHeight(
   meshParams: ParametricParams,
-  objectType: ObjectType3D,
+  objectType: string,
   targetY: number,
   shapeYMin: number,
   shapeYMax: number,

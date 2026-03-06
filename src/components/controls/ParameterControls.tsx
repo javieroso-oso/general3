@@ -1229,8 +1229,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         </Section>
       )}
 
-      {/* Light Patterns - Only visible for lamp shapeStyle */}
-      {params.shapeStyle === 'lamp' && (
+      {/* Light Patterns */}
+      {(
         <Section title="Light Patterns" defaultOpen={false}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

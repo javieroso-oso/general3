@@ -39,7 +39,7 @@ interface PlotterControlsProps {
   onParamsChange: (params: PlotterParams) => void;
   // For 3D projection mode - live params (always synced)
   currentMeshParams?: ParametricParams;
-  currentShapeStyle?: ShapeStyle;
+  currentShapeStyle?: string;
 }
 
 const PATTERN_LABELS: Record<GenerativePattern, string> = {
