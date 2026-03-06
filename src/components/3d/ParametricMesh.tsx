@@ -1008,8 +1008,8 @@ const ParametricMesh = ({
       {!params.showBaseOnly && !wireframeLampGeometry && (
         <mesh geometry={bodyGeometry} castShadow receiveShadow>
           <meshPhysicalMaterial
-            color={params.showOverhangMap ? "#ffffff" : materialConfig.color}
-            vertexColors={params.showOverhangMap}
+            color={hasVertexColors ? "#ffffff" : materialConfig.color}
+            vertexColors={hasVertexColors}
             roughness={materialConfig.roughness}
             metalness={materialConfig.metalness}
             clearcoat={materialConfig.clearcoat ?? 0}
