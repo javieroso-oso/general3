@@ -126,9 +126,6 @@ const Gallery = () => {
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold text-foreground">{preset.name}</h3>
-                      <span className="text-xs font-medium text-text-muted uppercase tracking-wider bg-secondary px-2 py-1 rounded-md">
-                        {preset.type}
-                      </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs text-text-muted mb-4">
                       <span>Height: {preset.params.height}</span>
