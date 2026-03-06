@@ -59,7 +59,7 @@ const MoldMesh = ({ params, type, showWireframe = false }: MoldMeshProps) => {
         
         const radius = getBodyRadius(params, t, theta, {
           scale: SCALE,
-          objectType: params.shapeStyle,
+          objectType: 'vase',
           includeTwist: true
         });
         

@@ -942,7 +942,7 @@ const ParametricMesh = ({
 
     // Generate wireframe lamp geometry if in wireframe mode
     let wireframeLampGeo: THREE.BufferGeometry | null = null;
-    if (params.wireframeMode && params.shapeStyle === 'lamp') {
+    if (params.wireframeMode) {
       wireframeLampGeo = generateWireframeLampGeometry(params, { scale: SCALE });
     }
 

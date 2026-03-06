@@ -56,8 +56,8 @@ export interface BodyProfileOptions {
   scale?: number;
   /** Include twist in theta calculation */
   includeTwist?: boolean;
-  /** Shape style for style-specific curves (deprecated, use params.shapeStyle instead) */
-  objectType?: ShapeStyle;
+  /** Shape style for style-specific linear curves */
+  objectType?: string;
 }
 
 /**

@@ -9,7 +9,7 @@
  */
 
 import { PlotterDrawing, PlotterPath, ProjectionParams, PAPER_SIZES, LineFieldGeometry } from '@/types/plotter';
-import { ParametricParams, ObjectType3D } from '@/types/parametric';
+import { ParametricParams } from '@/types/parametric';
 import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
 import { noise2D, seedNoise } from './noise';
 
