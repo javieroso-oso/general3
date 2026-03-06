@@ -949,8 +949,8 @@ const ParametricMesh = ({
         </mesh>
       )}
       
-      {/* Organic body - hidden in base only preview mode */}
-      {!params.showBaseOnly && (
+      {/* Organic body - hidden in base only preview mode or wireframe mode */}
+      {!params.showBaseOnly && !wireframeLampGeometry && (
         <mesh geometry={bodyGeometry} castShadow receiveShadow>
           <meshPhysicalMaterial
             color={params.showOverhangMap ? "#ffffff" : materialConfig.color}
@@ -962,6 +962,21 @@ const ParametricMesh = ({
             transmission={materialConfig.transmission ?? 0}
             thickness={materialConfig.thickness ?? 0}
             ior={materialConfig.ior ?? 1.5}
+            envMapIntensity={materialConfig.envMapIntensity ?? 1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      
+      {/* Wireframe lamp skeleton */}
+      {wireframeLampGeometry && !params.showBaseOnly && (
+        <mesh geometry={wireframeLampGeometry} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            color={materialConfig.color}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            clearcoat={materialConfig.clearcoat ?? 0}
+            clearcoatRoughness={materialConfig.clearcoatRoughness ?? 0}
             envMapIntensity={materialConfig.envMapIntensity ?? 1}
             side={THREE.DoubleSide}
           />
