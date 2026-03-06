@@ -570,6 +570,13 @@ export const defaultLampParams: LampParams = {
   lightPatternRandomness: 0.2,
   lightPatternScaleWithHeight: false,
   lightPatternRimMargin: 0.1,
+  // Wireframe lamp mode
+  wireframeMode: false,
+  wireframeRibCount: 8,
+  wireframeRingCount: 4,
+  wireframeThickness: 3,
+  wireframeRibStyle: 'curved',
+  wireframeMountRingHeight: 5,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
