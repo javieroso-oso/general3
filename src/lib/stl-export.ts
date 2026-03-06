@@ -186,7 +186,7 @@ function getRadiusAtHeight(
   return getBodyRadius(params, t, theta, {
     scale: 1, // Output in mm for STL export
     includeTwist: false, // Caller applies twist
-    objectType: params.shapeStyle,
+    objectType: 'vase',
   });
 }
 
