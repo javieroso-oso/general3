@@ -39,7 +39,7 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
     if (isParametricItem(item)) {
       if (item.params.addLegs) hasLegs = true;
       if (item.params.moldEnabled) hasMolds = true;
-      if (item.params.shapeStyle === 'lamp') hasLampShade = true;
+      if (item.params.wireframeMode || item.params.lightPatternEnabled) hasLampShade = true;
     }
     if (isPlotterItem(item)) {
       hasPlotter = true;
