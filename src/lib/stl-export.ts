@@ -1214,7 +1214,7 @@ export function exportBodyToSTL(
 ): Blob {
   let geometry: THREE.BufferGeometry;
   
-  if (params.wireframeMode && params.shapeStyle === 'lamp') {
+  if (params.wireframeMode) {
     // Wireframe mode: generate rib/ring skeleton at mm scale
     geometry = generateWireframeLampGeometry(params, { scale: 1 });
   } else {
