@@ -203,6 +203,11 @@ export interface ParametricParams {
   wireframeDiagonalBracing: boolean;
   wireframeBraceFrequency: number;
 
+  // Organic wireframe deformation
+  wireframeOrganic: number;
+  wireframeOrganicSeed: number;
+  wireframeThicknessVariation: number;
+
   // Light perforations (holes for light pass-through)
   lightPatternEnabled: boolean;
   lightPatternType: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
@@ -464,6 +469,9 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     wireframeRingThickness: 1.0,
     wireframeDiagonalBracing: false,
     wireframeBraceFrequency: 1,
+    wireframeOrganic: 0,
+    wireframeOrganicSeed: 42,
+    wireframeThicknessVariation: 0,
     lightPatternEnabled: false,
     lightPatternType: 'dots',
     lightPatternDensity: 0.3,

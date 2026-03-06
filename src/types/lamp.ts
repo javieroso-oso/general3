@@ -582,6 +582,9 @@ export const defaultLampParams: LampParams = {
   wireframeRingThickness: 1.0,
   wireframeDiagonalBracing: false,
   wireframeBraceFrequency: 1,
+  wireframeOrganic: 0,
+  wireframeOrganicSeed: 42,
+  wireframeThicknessVariation: 0,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
