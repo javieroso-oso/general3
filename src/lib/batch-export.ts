@@ -39,7 +39,7 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
     if (isParametricItem(item)) {
       if (item.params.addLegs) hasLegs = true;
       if (item.params.moldEnabled) hasMolds = true;
-      if (item.params.shapeStyle === 'lamp') hasLampShade = true;
+      if (item.params.wireframeMode || item.params.lightPatternEnabled) hasLampShade = true;
     }
     if (isPlotterItem(item)) {
       hasPlotter = true;
@@ -70,7 +70,7 @@ export async function exportDrawerItemsToZip(
       const baseName = `${item.objectType}_${i + 1}`;
       const itemHasLegs = item.params.addLegs;
       const itemHasMolds = item.params.moldEnabled;
-      const itemIsLamp = item.params.shapeStyle === 'lamp';
+      const itemIsLamp = item.params.wireframeMode || item.params.lightPatternEnabled;
       
       onProgress?.({
         current: i + 1,

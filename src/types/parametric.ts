@@ -1,11 +1,5 @@
 export type ObjectType = 'shape' | 'plotter';
 
-// Shape style determines 3D-specific features (sockets, stands)
-export type ShapeStyle = 'vase' | 'lamp' | 'sculpture';
-
-// Alias for backward compatibility - 3D object types only (same as ShapeStyle)
-export type ObjectType3D = ShapeStyle;
-
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
@@ -27,9 +21,6 @@ export const SOCKET_THREAD_DIAMETERS: Record<BulbSocketType, number> = {
 };
 
 export interface ParametricParams {
-  // Shape style - determines 3D-specific features like lamp sockets
-  shapeStyle: ShapeStyle;
-  
   // Basic dimensions (mm for printing)
   height: number;
   baseRadius: number;
@@ -38,30 +29,30 @@ export interface ParametricParams {
   
   // Integrated legs (extending from base)
   addLegs: boolean;
-  standType: StandType;       // Type of stand/support structure
-  legStyle: LegStyle;         // Style of legs (tripod, riser, column, ball)
+  standType: StandType;
+  legStyle: LegStyle;
   legCount: 3 | 4;
-  legHeight: number;          // Stand height in mm
-  legSpread: number;          // Angle in degrees (15-45)
-  legThickness: number;       // Leg thickness in mm (4-8)
-  legTaper: number;           // Taper factor (0-1)
-  legInset: number;           // How far inward from edge (0-1)
+  legHeight: number;
+  legSpread: number;
+  legThickness: number;
+  legTaper: number;
+  legInset: number;
   
-  // Wall mount parameters (planar cut style - no separate plate)
-  wallMountCutOffset: number;       // mm - distance from center for cut plane (0 = exact half, positive = keep more)
-  wallMountHoleCount: 2 | 3 | 4;    // number of mounting holes on flat back
-  wallMountHoleDiameter: number;    // mm - mounting hole diameter
-  wallMountHoleStyle: 'round' | 'keyhole' | 'countersink'; // hole style
-  wallMountHoleMargin: number;      // 0-1 - distance from edge as percentage of available space
-  wallMountCordHoleEnabled: boolean; // add cord exit hole through flat back
-  wallMountStyle: 'back' | 'base';  // mounting style: back (flat cut) or base (plate with keyholes)
+  // Wall mount parameters
+  wallMountCutOffset: number;
+  wallMountHoleCount: 2 | 3 | 4;
+  wallMountHoleDiameter: number;
+  wallMountHoleStyle: 'round' | 'keyhole' | 'countersink';
+  wallMountHoleMargin: number;
+  wallMountCordHoleEnabled: boolean;
+  wallMountStyle: 'back' | 'base';
   
-  // Hardware attachment bracket (separate printable piece)
-  wallMountBracketEnabled: boolean;  // Enable separate hardware bracket
-  wallMountBracketWidth: number;     // mm - bracket width
-  wallMountBracketHeight: number;    // mm - bracket height
-  wallMountBracketThickness: number; // mm - bracket plate thickness
-  wallMountBracketHoleSpacing: number; // mm - spacing between screw holes
+  // Hardware attachment bracket
+  wallMountBracketEnabled: boolean;
+  wallMountBracketWidth: number;
+  wallMountBracketHeight: number;
+  wallMountBracketThickness: number;
+  wallMountBracketHoleSpacing: number;
   
   // Organic deformations
   wobbleFrequency: number;
@@ -87,50 +78,46 @@ export interface ParametricParams {
   noiseScale: number;
   
   // Spine-based geometry
-  // The spine is a continuous 3D curve that defines the center-line of the body
   spineEnabled: boolean;
-  spineAmplitudeX: number;      // 0-50 mm: maximum lateral displacement in X
-  spineFrequencyX: number;      // 0-4: number of half-periods (2 = one S-curve)
-  spinePhaseX: number;          // 0-1: phase offset normalized
-  spineAmplitudeZ: number;      // 0-50 mm: maximum lateral displacement in Z
-  spineFrequencyZ: number;      // 0-4: number of half-periods
-  spinePhaseZ: number;          // 0-1: phase offset normalized
+  spineAmplitudeX: number;
+  spineFrequencyX: number;
+  spinePhaseX: number;
+  spineAmplitudeZ: number;
+  spineFrequencyZ: number;
+  spinePhaseZ: number;
   
-  // Melt effect: vertical offset simulating gravity pulling softened material
-  // δy(t, θ) = -M × envelope(t) × (1 + α × sin(nθ + φ))
-  // where envelope(t) = ((t - delay) / (1 - delay))² for t > delay, else 0
-  meltAmount: number;           // 0-30 mm: maximum vertical droop at top
-  meltLobes: number;            // 0-8: number of angular variations (lobes)
-  meltVariation: number;        // 0-1: amplitude of angular variation (α)
-  meltPhase: number;            // 0-1: phase offset for angular variation
-  meltDelay: number;            // 0-0.8: height at which melt begins (simulates viscosity gradient)
+  // Melt effect
+  meltAmount: number;
+  meltLobes: number;
+  meltVariation: number;
+  meltPhase: number;
+  meltDelay: number;
   
-  // Lateral drag: sideways drift proportional to melt, simulating flow
-  // δx = D × envelope(t) × cos(dragAngle), δz = D × envelope(t) × sin(dragAngle)
-  meltDragAmount: number;       // 0-30 mm: how far sideways the top drifts
-  meltDragAngle: number;        // 0-1: direction of drag (normalized to 0-2π)
+  // Lateral drag
+  meltDragAmount: number;
+  meltDragAngle: number;
   
   // Advanced body customization - Faceting
-  facetCount: number;           // 0 = smooth, 6 = hexagonal, 8 = octagonal, etc.
-  facetSharpness: number;       // 0-1: 0 = rounded facets, 1 = sharp edges
+  facetCount: number;
+  facetSharpness: number;
   
   // Spiral grooves
-  spiralGrooveCount: number;    // 0-8: number of spiral grooves
-  spiralGrooveDepth: number;    // 0-0.15: how deep the grooves cut
-  spiralGrooveTwist: number;    // 1-10: how many turns around the body
+  spiralGrooveCount: number;
+  spiralGrooveDepth: number;
+  spiralGrooveTwist: number;
   
   // Horizontal ribs
-  horizontalRibCount: number;   // 0-20: number of horizontal ribs
-  horizontalRibDepth: number;   // 0-0.1: depth of ribs
-  horizontalRibWidth: number;   // 0.1-0.5: width of each rib as fraction of spacing
+  horizontalRibCount: number;
+  horizontalRibDepth: number;
+  horizontalRibWidth: number;
   
   // Fluting (vertical grooves)
-  flutingCount: number;         // 0-24: number of vertical grooves
-  flutingDepth: number;         // 0-0.15: depth of flutes
+  flutingCount: number;
+  flutingDepth: number;
   
   // Rim waves
-  rimWaveCount: number;         // 0-12: number of waves around the rim
-  rimWaveDepth: number;         // 0-0.3: how much the rim dips/rises
+  rimWaveCount: number;
+  rimWaveDepth: number;
   
   // Profile curve type
   profileCurve: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave';
@@ -139,97 +126,97 @@ export interface ParametricParams {
   baseThickness: number;
   
   // Stand base sizing control
-  baseSizeMode: 'auto' | 'tray' | 'custom';  // auto = fit bottom, tray = max radius, custom = user-defined
-  standBaseRadius: number;  // mm - custom base radius when baseSizeMode is 'custom'
+  baseSizeMode: 'auto' | 'tray' | 'custom';
+  standBaseRadius: number;
   
   // Pedestal-style base controls
-  standBaseThickness: number;       // mm - height of the base disc (2-30mm)
-  standBaseTaper: number;           // 0-0.5 - taper from bottom to top
-  standBaseEdgeStyle: 'flat' | 'rounded' | 'chamfer';  // edge profile style
-  standBaseLip: number;             // mm - raised lip height around edge (0-10mm)
-  standBaseLipThickness: number;    // mm - lip wall thickness (1.5-8mm)
-  standBaseLipEdgeStyle: 'flat' | 'rounded' | 'chamfer';  // lip top edge profile
+  standBaseThickness: number;
+  standBaseTaper: number;
+  standBaseEdgeStyle: 'flat' | 'rounded' | 'chamfer';
+  standBaseLip: number;
+  standBaseLipThickness: number;
+  standBaseLipEdgeStyle: 'flat' | 'rounded' | 'chamfer';
   
   // Cord exit hole in base (for lamp wiring)
-  cordHoleEnabled: boolean;     // Toggle cord exit hole
-  cordHoleDiameter: number;     // mm - cord exit hole diameter
+  cordHoleEnabled: boolean;
+  cordHoleDiameter: number;
   
-  // Centering lip sized to socket (raised ring for socket alignment)
-  centeringLipEnabled: boolean;  // Toggle centering lip
-  centeringLipHeight: number;    // mm - height of centering lip (2-5mm)
-  socketType: 'E26' | 'E12' | 'E14' | 'GU10';  // Socket type for lip sizing
+  // Centering lip sized to socket
+  centeringLipEnabled: boolean;
+  centeringLipHeight: number;
+  socketType: 'E26' | 'E12' | 'E14' | 'GU10';
   
   // Support-free printing mode
   supportFreeMode: boolean;
   showOverhangMap: boolean;
   
   // Mold generation (for ceramics slip-casting)
-  moldEnabled: boolean;              // Toggle mold generation mode
-  moldWallThickness: number;         // mm - thickness of mold walls (15-50mm)
-  moldBaseThickness: number;         // mm - thickness of mold base (10-30mm)
-  moldPourHoleDiameter: number;      // mm - pour hole diameter (15-40mm)
-  moldPourHoleTaper: number;         // degrees - funnel taper angle (5-30)
-  moldRegistrationKeySize: number;   // mm - size of registration keys (5-15mm)
-  moldRegistrationKeyCount: number;  // number of keys per seam (2-6)
-  moldSplitAngle: number;            // degrees - rotation of split plane (0-180)
-  moldDraftAngle: number;            // degrees - draft angle for easier demolding (0-5)
-  moldGap: number;                   // mm - gap between halves for preview (0-20mm)
-  moldOffset: number;                // mm - shrinkage/clearance offset (0-2mm)
+  moldEnabled: boolean;
+  moldWallThickness: number;
+  moldBaseThickness: number;
+  moldPourHoleDiameter: number;
+  moldPourHoleTaper: number;
+  moldRegistrationKeySize: number;
+  moldRegistrationKeyCount: number;
+  moldSplitAngle: number;
+  moldDraftAngle: number;
+  moldGap: number;
+  moldOffset: number;
   
   // Multi-part mold
-  moldPartCount: 2 | 3 | 4;          // Number of mold parts (2, 3, or 4)
-  moldAutoSplit: boolean;            // Use geometry-based automatic split detection
-  moldSplitAngles?: number[];        // Manual override for split positions (radians)
-  moldShowPartingLines: boolean;     // Show parting line visualization in preview
+  moldPartCount: 2 | 3 | 4;
+  moldAutoSplit: boolean;
+  moldSplitAngles?: number[];
+  moldShowPartingLines: boolean;
   
   // Mold colors for preview
-  moldColors: string[];              // Hex colors for each mold part
+  moldColors: string[];
   
   // Mold enhancements
-  moldVentHolesEnabled: boolean;     // Toggle vent holes for air escape
-  moldVentHoleCount: number;         // Number of vent holes (2-8)
-  moldVentHoleDiameter: number;      // mm - vent hole diameter (2-5mm)
-  moldVentHolePosition: number;      // 0-1 - position along height
+  moldVentHolesEnabled: boolean;
+  moldVentHoleCount: number;
+  moldVentHoleDiameter: number;
+  moldVentHolePosition: number;
   
-  moldSpareEnabled: boolean;         // Toggle spare/reservoir collar
-  moldSpareHeight: number;           // mm - height of spare collar (10-30mm)
-  moldSpareDiameter: number;         // mm - diameter of spare (0 = auto)
+  moldSpareEnabled: boolean;
+  moldSpareHeight: number;
+  moldSpareDiameter: number;
   
-  moldStrapNotchesEnabled: boolean;  // Toggle strap notches
-  moldStrapNotchCount: number;       // Number of notches (2-4)
-  moldStrapNotchWidth: number;       // mm - notch width (8-15mm)
-  moldStrapNotchDepth: number;       // mm - notch depth (3-6mm)
+  moldStrapNotchesEnabled: boolean;
+  moldStrapNotchCount: number;
+  moldStrapNotchWidth: number;
+  moldStrapNotchDepth: number;
   
-  moldShowGhostBody: boolean;        // Show body outline inside mold
+  moldShowGhostBody: boolean;
   
   // Wireframe lamp mode (structural ribs/rings for fabric shade)
   wireframeMode: boolean;
-  wireframeRibCount: number;         // 4-24: number of vertical ribs
-  wireframeRingCount: number;        // 2-10: number of horizontal rings
-  wireframeThickness: number;        // 2-8mm: cross-section thickness of ribs/rings
+  wireframeRibCount: number;
+  wireframeRingCount: number;
+  wireframeThickness: number;
   wireframeRibStyle: 'straight' | 'curved' | 'twisted';
-  wireframeMountRingHeight: number;  // 3-15mm: height of top/bottom mounting rings
-  wireframeCrossSection: 'round' | 'square' | 'flat';  // Tube cross-section shape
-  wireframeJointBulge: number;       // 0-2: extra thickness at rib-ring intersections
-  wireframeFlatBase: boolean;        // Flatten bottom ring for bed adhesion
-  wireframeRingThickness: number;    // 0.5-1.5: ring thickness multiplier relative to rib
-  wireframeDiagonalBracing: boolean; // Add diagonal cross-braces between ribs
-  wireframeBraceFrequency: number;   // 1-4: diagonal pairs per section
+  wireframeMountRingHeight: number;
+  wireframeCrossSection: 'round' | 'square' | 'flat';
+  wireframeJointBulge: number;
+  wireframeFlatBase: boolean;
+  wireframeRingThickness: number;
+  wireframeDiagonalBracing: boolean;
+  wireframeBraceFrequency: number;
 
   // Light perforations (holes for light pass-through)
-  lightPatternEnabled: boolean;      // Toggle light perforation pattern
+  lightPatternEnabled: boolean;
   lightPatternType: 'dots' | 'lines' | 'organic' | 'geometric' | 'spiral';
-  lightPatternDensity: number;       // 0.1-1 holes per unit area
-  lightPatternSize: number;          // 2-15mm hole diameter
-  lightPatternZoneStart: number;     // 0-0.9 height fraction where pattern begins
-  lightPatternZoneEnd: number;       // 0.1-1 height fraction where pattern ends
-  lightPatternRandomness: number;    // 0-1 placement variation
-  lightPatternScaleWithHeight: boolean; // Holes get larger toward top
-  lightPatternRimMargin: number;     // 0-0.2 avoid rim zone
+  lightPatternDensity: number;
+  lightPatternSize: number;
+  lightPatternZoneStart: number;
+  lightPatternZoneEnd: number;
+  lightPatternRandomness: number;
+  lightPatternScaleWithHeight: boolean;
+  lightPatternRimMargin: number;
   
   // Preview mode
-  showBaseOnly: boolean;     // Show only base/legs without body for easier editing
-  previewColor: string;      // Hex color for preview rendering
+  showBaseOnly: boolean;
+  previewColor: string;
 }
 
 // Print modes
@@ -237,65 +224,63 @@ export type PrintMode = 'standard' | 'vase_spiral' | 'non_planar';
 
 // Non-planar printing settings
 export interface NonPlanarSettings {
-  maxZAngle: number;           // Maximum nozzle tilt angle (degrees, typically 15-45°)
-  curvedLayers: boolean;       // Enable curved layer paths
-  topSurfaceOptimized: boolean; // Optimize top surface with curved layers
-  fullSurfaceLayers: boolean;  // Stage 2: Follow entire object surface contour
-  adaptiveLayerHeight: boolean; // Vary layer height based on surface angle
-  minLayerHeight: number;       // Minimum layer height for adaptive (mm)
-  maxLayerHeight: number;       // Maximum layer height for adaptive (mm)
+  maxZAngle: number;
+  curvedLayers: boolean;
+  topSurfaceOptimized: boolean;
+  fullSurfaceLayers: boolean;
+  adaptiveLayerHeight: boolean;
+  minLayerHeight: number;
+  maxLayerHeight: number;
 }
 
 export interface PrintSettings {
-  layerHeight: number;        // mm
-  nozzleDiameter: number;     // mm
-  infillPercent: number;      // 0-100
-  printSpeed: number;         // mm/s
+  layerHeight: number;
+  nozzleDiameter: number;
+  infillPercent: number;
+  printSpeed: number;
   material: 'PLA' | 'PETG' | 'ABS' | 'TPU';
   supportEnabled: boolean;
-  brimWidth: number;          // mm
+  brimWidth: number;
   
-  // Build plate dimensions for centering
-  buildPlateWidth: number;    // mm (default 200)
-  buildPlateDepth: number;    // mm (default 200)
+  buildPlateWidth: number;
+  buildPlateDepth: number;
   
-  // Advanced print modes
   printMode: PrintMode;
-  spiralVase: boolean;        // Spiral vase mode (single wall, continuous Z)
+  spiralVase: boolean;
   nonPlanar: NonPlanarSettings;
 }
 
 // Non-planar printing analysis
 export interface NonPlanarAnalysis {
-  maxTiltAngle: number;           // Maximum tilt angle encountered (degrees)
-  avgTiltAngle: number;           // Average tilt angle (degrees)
-  nonPlanarLayerCount: number;    // Number of layers with non-planar paths
-  totalLayerCount: number;        // Total layer count
-  collisionRiskZones: Array<{     // Zones where collision might occur
+  maxTiltAngle: number;
+  avgTiltAngle: number;
+  nonPlanarLayerCount: number;
+  totalLayerCount: number;
+  collisionRiskZones: Array<{
     layerIndex: number;
     tiltAngle: number;
     x: number;
     y: number;
     z: number;
   }>;
-  exceedsMaxAngle: boolean;       // True if any point exceeds configured max angle
-  isSafeForPrinting: boolean;     // Overall safety assessment
+  exceedsMaxAngle: boolean;
+  isSafeForPrinting: boolean;
 }
 
 export interface PrintAnalysis {
   isValid: boolean;
   warnings: PrintWarning[];
-  estimatedTime: number;      // minutes
-  materialWeight: number;     // grams
-  materialLength: number;     // meters
+  estimatedTime: number;
+  materialWeight: number;
+  materialLength: number;
   layerCount: number;
-  maxOverhang: number;        // degrees
-  minWallThickness: number;   // mm
-  baseContactArea: number;    // mm²
+  maxOverhang: number;
+  minWallThickness: number;
+  baseContactArea: number;
   centerOfMass: { x: number; y: number; z: number };
   needsSupport: boolean;
-  guaranteedSupportFree: boolean;  // true when supportFreeMode is on and constraints met
-  nonPlanarAnalysis?: NonPlanarAnalysis;  // Non-planar printing analysis (when in non-planar mode)
+  guaranteedSupportFree: boolean;
+  nonPlanarAnalysis?: NonPlanarAnalysis;
 }
 
 export interface PrintWarning {
@@ -308,7 +293,6 @@ export interface PrintWarning {
 export interface Preset {
   id: string;
   name: string;
-  type: ShapeStyle;  // Use ShapeStyle for presets (3D shapes only)
   params: ParametricParams;
 }
 
@@ -347,20 +331,19 @@ export const materialDensities: Record<PrintSettings['material'], number> = {
 
 // Constraints for printability
 export const printConstraints = {
-  minWallThickness: 1.2,      // mm - minimum for structural integrity
-  maxWallThickness: 10,       // mm
-  minBaseThickness: 0.8,      // mm
-  maxOverhangAngle: 45,       // degrees without support
-  minBaseRadius: 10,          // mm for stability
-  maxHeight: 300,             // mm - typical printer limit
-  minHeight: 10,              // mm
-  minBaseContactArea: 200,    // mm² for bed adhesion
+  minWallThickness: 1.2,
+  maxWallThickness: 10,
+  minBaseThickness: 0.8,
+  maxOverhangAngle: 45,
+  minBaseRadius: 10,
+  maxHeight: 300,
+  minHeight: 10,
+  minBaseContactArea: 200,
 };
 
-// Helper to create default params - reduces repetition
+// Helper to create default params
 const createDefaultParams = (overrides: Partial<ParametricParams> = {}): ParametricParams => {
   const defaults: ParametricParams = {
-    shapeStyle: 'vase',
     height: 120,
     baseRadius: 40,
     topRadius: 35,
@@ -469,7 +452,6 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     moldStrapNotchWidth: 12,
     moldStrapNotchDepth: 4,
     moldShowGhostBody: true,
-    // Wireframe lamp mode - defaults
     wireframeMode: false,
     wireframeRibCount: 8,
     wireframeRingCount: 4,
@@ -482,7 +464,6 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     wireframeRingThickness: 1.0,
     wireframeDiagonalBracing: false,
     wireframeBraceFrequency: 1,
-    // Light perforations - defaults
     lightPatternEnabled: false,
     lightPatternType: 'dots',
     lightPatternDensity: 0.3,
@@ -498,72 +479,30 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   return { ...defaults, ...overrides } as ParametricParams;
 };
 
-// Default params keyed by ShapeStyle
-export const defaultShapeParams: Record<ShapeStyle, ParametricParams> = {
-  vase: createDefaultParams(),
-  lamp: createDefaultParams({
-    height: 100,
-    baseRadius: 30,
-    topRadius: 60,
-    wallThickness: 1.6,
-    legHeight: 100,
-    legSpread: 30,
-    legThickness: 4,
-    legTaper: 0.6,
-    bulgePosition: 0.7,
-    bulgeAmount: 0.1,
-    cordHoleEnabled: true,
-    centeringLipEnabled: true,
-  }),
-  sculpture: createDefaultParams({
-    height: 150,
-    baseRadius: 35,
-    topRadius: 25,
-    wallThickness: 3.0,
-    legCount: 4,
-    legHeight: 60,
-    legSpread: 20,
-    legThickness: 6,
-    legTaper: 0.4,
-    wobbleFrequency: 3,
-    wobbleAmplitude: 0.08,
-    twistAngle: 30,
-    bulgePosition: 0.5,
-    bulgeAmount: 0.25,
-    pinchAmount: 0.05,
-    asymmetry: 0.05,
-    lipFlare: 0,
-    lipHeight: 0,
-    organicNoise: 0.03,
-    noiseScale: 2,
-    baseThickness: 2.4,
-    wallMountCordHoleEnabled: false,
-    cordHoleEnabled: false,
-  }),
-};
+// Single default params for Shape mode
+export const defaultShapeParams: ParametricParams = createDefaultParams();
 
-// Legacy alias for backward compatibility
+// Default params keyed by ObjectType
 export const defaultParams: Record<ObjectType, ParametricParams> = {
-  shape: defaultShapeParams.vase, // Default shape uses vase style
-  plotter: createDefaultParams(), // Plotter uses PlotterParams instead, this is a fallback
+  shape: defaultShapeParams,
+  plotter: createDefaultParams(),
 };
 
 export const presets: Preset[] = [
-  { id: 'classic-vase', name: 'Classic', type: 'vase', params: { ...defaultShapeParams.vase } },
-  { id: 'belly-vase', name: 'Belly', type: 'vase', params: { ...defaultShapeParams.vase, bulgePosition: 0.35, bulgeAmount: 0.35, lipFlare: 0.12 } },
-  { id: 'twisted-vase', name: 'Twisted', type: 'vase', params: { ...defaultShapeParams.vase, twistAngle: 90, wobbleFrequency: 3, wobbleAmplitude: 0.06 } },
-  { id: 'rippled-vase', name: 'Rippled', type: 'vase', params: { ...defaultShapeParams.vase, rippleCount: 8, rippleDepth: 0.04, bulgeAmount: 0.2 } },
-  { id: 'modern-lamp', name: 'Modern', type: 'lamp', params: { ...defaultShapeParams.lamp } },
-  { id: 'spiral-lamp', name: 'Spiral', type: 'lamp', params: { ...defaultShapeParams.lamp, twistAngle: 120, wobbleFrequency: 4, wobbleAmplitude: 0.05 } },
-  { id: 'organic-sculpture', name: 'Organic', type: 'sculpture', params: { ...defaultShapeParams.sculpture, organicNoise: 0.06, asymmetry: 0.08, bulgeAmount: 0.35 } },
-  { id: 'minimal-sculpture', name: 'Minimal', type: 'sculpture', params: { ...defaultShapeParams.sculpture, wobbleFrequency: 0, twistAngle: 0, organicNoise: 0, bulgeAmount: 0.1 } },
+  { id: 'classic', name: 'Classic', params: createDefaultParams() },
+  { id: 'belly', name: 'Belly', params: createDefaultParams({ bulgePosition: 0.35, bulgeAmount: 0.35, lipFlare: 0.12 }) },
+  { id: 'twisted', name: 'Twisted', params: createDefaultParams({ twistAngle: 90, wobbleFrequency: 3, wobbleAmplitude: 0.06 }) },
+  { id: 'rippled', name: 'Rippled', params: createDefaultParams({ rippleCount: 8, rippleDepth: 0.04, bulgeAmount: 0.2 }) },
+  { id: 'modern-lamp', name: 'Modern Lamp', params: createDefaultParams({ height: 100, baseRadius: 30, topRadius: 60, wallThickness: 1.6, bulgePosition: 0.7, bulgeAmount: 0.1, cordHoleEnabled: true, centeringLipEnabled: true }) },
+  { id: 'spiral-lamp', name: 'Spiral Lamp', params: createDefaultParams({ height: 100, baseRadius: 30, topRadius: 60, wallThickness: 1.6, twistAngle: 120, wobbleFrequency: 4, wobbleAmplitude: 0.05, cordHoleEnabled: true, centeringLipEnabled: true }) },
+  { id: 'organic', name: 'Organic', params: createDefaultParams({ height: 150, baseRadius: 35, topRadius: 25, wallThickness: 3.0, organicNoise: 0.06, asymmetry: 0.08, bulgeAmount: 0.35, wobbleFrequency: 3, wobbleAmplitude: 0.08, twistAngle: 30 }) },
+  { id: 'minimal', name: 'Minimal', params: createDefaultParams({ height: 150, baseRadius: 35, topRadius: 25, wallThickness: 3.0, wobbleFrequency: 0, twistAngle: 0, organicNoise: 0, bulgeAmount: 0.1, lipFlare: 0, lipHeight: 0 }) },
 ];
 
 // Analyze printability
 export function analyzePrint(params: ParametricParams, settings: PrintSettings): PrintAnalysis {
   const warnings: PrintWarning[] = [];
   
-  // Check wall thickness
   const effectiveWall = params.wallThickness - (params.wobbleAmplitude * params.baseRadius * 0.5);
   if (effectiveWall < printConstraints.minWallThickness) {
     warnings.push({
@@ -574,7 +513,6 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     });
   }
   
-  // Check base contact area
   const baseArea = Math.PI * params.baseRadius * params.baseRadius;
   if (baseArea < printConstraints.minBaseContactArea) {
     warnings.push({
@@ -585,7 +523,6 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     });
   }
   
-  // Check overhang angles
   const radiusDiff = Math.abs(params.topRadius - params.baseRadius);
   const maxOverhang = Math.atan2(radiusDiff, params.height) * (180 / Math.PI);
   const needsSupport = maxOverhang > printConstraints.maxOverhangAngle;
@@ -599,7 +536,6 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     });
   }
   
-  // Check height
   if (params.height > printConstraints.maxHeight) {
     warnings.push({
       type: 'error',
@@ -609,7 +545,6 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     });
   }
   
-  // Check asymmetry stability
   if (params.asymmetry > 0.15) {
     warnings.push({
       type: 'warning',
@@ -619,25 +554,23 @@ export function analyzePrint(params: ParametricParams, settings: PrintSettings):
     });
   }
   
-  // Calculate estimates
   const avgRadius = (params.baseRadius + params.topRadius) / 2;
   const shellVolume = Math.PI * params.height * (
     Math.pow(avgRadius, 2) - Math.pow(avgRadius - params.wallThickness, 2)
   );
   const baseVolume = Math.PI * params.baseRadius * params.baseRadius * params.baseThickness;
-  const totalVolume = (shellVolume + baseVolume) * (1 + settings.infillPercent / 100 * 0.3); // mm³
+  const totalVolume = (shellVolume + baseVolume) * (1 + settings.infillPercent / 100 * 0.3);
   
-  const materialWeight = (totalVolume / 1000) * materialDensities[settings.material]; // grams
-  const materialLength = totalVolume / (Math.PI * Math.pow(1.75 / 2, 2)) / 1000; // meters (1.75mm filament)
+  const materialWeight = (totalVolume / 1000) * materialDensities[settings.material];
+  const materialLength = totalVolume / (Math.PI * Math.pow(1.75 / 2, 2)) / 1000;
   
   const layerCount = Math.ceil(params.height / settings.layerHeight);
-  const perimeterLength = 2 * Math.PI * avgRadius * 2; // inner + outer walls
-  const timePerLayer = (perimeterLength + avgRadius * 2) / settings.printSpeed / 60; // minutes
-  const estimatedTime = layerCount * timePerLayer * 1.3; // 30% overhead for travel/retraction
+  const perimeterLength = 2 * Math.PI * avgRadius * 2;
+  const timePerLayer = (perimeterLength + avgRadius * 2) / settings.printSpeed / 60;
+  const estimatedTime = layerCount * timePerLayer * 1.3;
   
   const isValid = !warnings.some(w => w.type === 'error');
   
-  // Check if support-free mode guarantees no supports needed
   const guaranteedSupportFree = params.supportFreeMode && maxOverhang <= printConstraints.maxOverhangAngle;
   
   return {
@@ -667,7 +600,6 @@ export function generateBatchVariations(
   for (let i = 0; i < count; i++) {
     const varied = { ...baseParams };
     
-    // Vary organic parameters within printable limits
     varied.bulgeAmount = clamp(baseParams.bulgeAmount + (Math.random() - 0.5) * variationStrength, 0, 0.5);
     varied.bulgePosition = clamp(baseParams.bulgePosition + (Math.random() - 0.5) * variationStrength * 0.5, 0.2, 0.8);
     varied.twistAngle = clamp(baseParams.twistAngle + (Math.random() - 0.5) * variationStrength * 60, 0, 180);

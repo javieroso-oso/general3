@@ -446,8 +446,7 @@ export const generateShoppingList = (
 
 // Default lamp params (Akari-style: pure decorative shade)
 export const defaultLampParams: LampParams = {
-  // Shape style
-  shapeStyle: 'lamp',
+  // Base parametric shape
   // Base parametric shape
   height: 180,
   baseRadius: 60,

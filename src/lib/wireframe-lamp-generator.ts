@@ -142,7 +142,7 @@ export function generateWireframeLampGeometry(
     const r = getBodyRadius(params, t, theta, {
       scale,
       includeTwist: true,
-      objectType: params.shapeStyle,
+      objectType: 'vase',
     });
 
     const twistRad = (twistAngle * Math.PI / 180) * t;

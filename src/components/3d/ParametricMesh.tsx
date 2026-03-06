@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import earcut from 'earcut';
-import { ParametricParams, ObjectType, ShapeStyle, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, printConstraints } from '@/types/parametric';
 import { getOverhangVertexColors } from '@/lib/support-free-constraints';
 import { generateLegsWithBase, generateBaseMountPlate, generateCenteringLip } from '@/lib/leg-generator';
 import { calculateDriftOffsets, DriftOffset } from '@/lib/stl-export';
@@ -282,7 +282,7 @@ const ParametricMesh = ({
         const r = getBodyRadius(params, t, baseTheta, {
           scale: SCALE,        // Scene units (0.01)
           includeTwist: true,  // Apply twist inside getBodyRadius
-          objectType: params.shapeStyle,
+          objectType: 'vase',
         });
         
         // Track max radius for scene bounds
@@ -778,7 +778,7 @@ const ParametricMesh = ({
     }
     
     // Light pattern vertex preview: darken vertices near perforation holes
-    if (params.lightPatternEnabled && params.shapeStyle === 'lamp' && !params.wireframeMode && !params.showOverhangMap) {
+    if (params.lightPatternEnabled && !params.wireframeMode && !params.showOverhangMap) {
       const holes = generateLightPattern(params);
       if (holes.length > 0) {
         const posAttr = bodyGeo.getAttribute('position');
@@ -805,7 +805,7 @@ const ParametricMesh = ({
             let dTheta = Math.abs(vTheta - holeTheta);
             if (dTheta > Math.PI) dTheta = 2 * Math.PI - dTheta;
             
-            const holeR = getBodyRadius(params, hole.t, holeTheta, { scale: SCALE, includeTwist: false, objectType: params.shapeStyle });
+            const holeR = getBodyRadius(params, hole.t, holeTheta, { scale: SCALE, includeTwist: false, objectType: 'vase' });
             const angularDist = dTheta * holeR;
             const heightDist = Math.abs(vt - hole.t) * h;
             const dist = Math.sqrt(angularDist * angularDist + heightDist * heightDist);
@@ -942,7 +942,7 @@ const ParametricMesh = ({
 
     // Generate wireframe lamp geometry if in wireframe mode
     let wireframeLampGeo: THREE.BufferGeometry | null = null;
-    if (params.wireframeMode && params.shapeStyle === 'lamp') {
+    if (params.wireframeMode) {
       wireframeLampGeo = generateWireframeLampGeometry(params, { scale: SCALE });
     }
 

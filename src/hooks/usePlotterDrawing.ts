@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { PlotterParams, PlotterDrawing, PAPER_SIZES } from '@/types/plotter';
-import { ParametricParams, ShapeStyle } from '@/types/parametric';
+import { ParametricParams } from '@/types/parametric';
 import { 
   generateFlowField, 
   generateSpiral, 
@@ -14,7 +14,7 @@ import { optimizePaths, clipToBounds } from '@/lib/plotter/path-utils';
 interface UsePlotterDrawingOptions {
   params: PlotterParams;
   currentMeshParams?: ParametricParams;
-  currentShapeStyle?: ShapeStyle;
+  currentShapeStyle?: string;
 }
 
 export function usePlotterDrawing({ params, currentMeshParams, currentShapeStyle }: UsePlotterDrawingOptions): PlotterDrawing | null {

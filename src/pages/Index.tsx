@@ -20,7 +20,6 @@ import { usePlotterDrawing } from '@/hooks/usePlotterDrawing';
 import { 
   ParametricParams, 
   ObjectType,
-  ShapeStyle,
   defaultShapeParams,
   defaultParams, 
   PrintSettings, 
@@ -53,14 +52,14 @@ import {
 
 const Index = () => {
   const [objectType, setObjectType] = useState<ObjectType>('shape');
-  const [params, setParams] = useState<ParametricParams>(defaultShapeParams.vase);
+  const [params, setParams] = useState<ParametricParams>(defaultShapeParams);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
   
   // Plotter drawing (computed from plotter params + live mesh params)
   const plotterDrawing = usePlotterDrawing({
     params: plotterParams,
     currentMeshParams: params,
-    currentShapeStyle: params.shapeStyle,
+    currentShapeStyle: 'vase',
   });
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(false);
@@ -291,28 +290,28 @@ const Index = () => {
 
   // Actual mold export function (called after payment/unlock)
   const doExportMold = useCallback((half: 'A' | 'B' | 'both' | number) => {
-    const baseName = `${params.shapeStyle}_${params.height}mm_${Date.now()}`;
+    const baseName = `shape_${params.height}mm_${Date.now()}`;
     const partLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
     if (typeof half === 'number') {
       // Multi-part mold specific part
-      downloadMultiPartMoldSTL(params, params.shapeStyle, half, baseName);
+      downloadMultiPartMoldSTL(params, undefined, half, baseName);
       toast.success(`Mold Part ${partLabels[half]} exported!`);
     } else if (half === 'both') {
       if (params.moldPartCount > 2) {
-        downloadMultiPartMoldSTL(params, params.shapeStyle, 'all', baseName);
+        downloadMultiPartMoldSTL(params, undefined, 'all', baseName);
         toast.success(`All ${params.moldPartCount} mold parts exported!`);
       } else {
-        downloadMoldSTL(params, params.shapeStyle, 'both', baseName);
+        downloadMoldSTL(params, undefined, 'both', baseName);
         toast.success('Both mold halves exported!');
       }
     } else {
       // Single half A or B
       if (params.moldPartCount > 2) {
-        downloadMultiPartMoldSTL(params, params.shapeStyle, half === 'A' ? 0 : 1, baseName);
+        downloadMultiPartMoldSTL(params, undefined, half === 'A' ? 0 : 1, baseName);
         toast.success(`Mold Part ${half} exported!`);
       } else {
-        downloadMoldSTL(params, params.shapeStyle, half, baseName);
+        downloadMoldSTL(params, undefined, half, baseName);
         toast.success(`Mold Half ${half} exported!`);
       }
     }
@@ -528,7 +527,7 @@ const Index = () => {
                   drawing={plotterDrawing}
                   onParamsChange={setPlotterParams}
                   currentMeshParams={params}
-                  currentShapeStyle={params.shapeStyle}
+                  currentShapeStyle={'vase'}
                 />
               </TabsContent>
 
@@ -596,7 +595,6 @@ const Index = () => {
 
               <TabsContent value="presets" className="mt-0">
                 <PresetGallery
-                  type={params.shapeStyle}
                   currentParams={params}
                   onSelect={setParams}
                 />

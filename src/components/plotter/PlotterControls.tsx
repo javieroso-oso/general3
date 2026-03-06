@@ -30,7 +30,7 @@ import {
   CapturedMeshParams,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
-import { ParametricParams, ShapeStyle } from '@/types/parametric';
+import { ParametricParams } from '@/types/parametric';
 import { downloadSVG, downloadPlotterGCode, downloadHPGL } from '@/lib/plotter/export';
 
 interface PlotterControlsProps {
@@ -39,7 +39,7 @@ interface PlotterControlsProps {
   onParamsChange: (params: PlotterParams) => void;
   // For 3D projection mode - live params (always synced)
   currentMeshParams?: ParametricParams;
-  currentShapeStyle?: ShapeStyle;
+  currentShapeStyle?: string;
 }
 
 const PATTERN_LABELS: Record<GenerativePattern, string> = {

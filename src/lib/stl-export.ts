@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import earcut from 'earcut';
-import { ParametricParams, ObjectType, ShapeStyle, PrintSettings, printConstraints } from '@/types/parametric';
+import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
 import { sampleSpine, SpinePoint } from '@/lib/spine-generator';
 import { getBodyRadius } from '@/lib/body-profile-generator';
@@ -186,7 +186,7 @@ function getRadiusAtHeight(
   return getBodyRadius(params, t, theta, {
     scale: 1, // Output in mm for STL export
     includeTwist: false, // Caller applies twist
-    objectType: params.shapeStyle,
+    objectType: 'vase',
   });
 }
 
@@ -1113,7 +1113,7 @@ export function generateLegsWithBaseMesh(
     const r = getBodyRadius(params, 0, theta, {
       scale: 1, // Output in mm for STL export
       includeTwist: false, // We already applied twist to theta
-      objectType: params.shapeStyle,
+      objectType: 'vase',
     });
     
     bottomRadiiArray.push(r);
@@ -1133,7 +1133,7 @@ export function generateLegsWithBaseMesh(
     const r = getBodyRadius(params, t, twistRadAtT, {
       scale: 1,
       includeTwist: false,
-      objectType: params.shapeStyle,
+      objectType: 'vase',
     });
     if (r > maxRadius) maxRadius = r;
   }
@@ -1214,19 +1214,19 @@ export function exportBodyToSTL(
 ): Blob {
   let geometry: THREE.BufferGeometry;
   
-  if (params.wireframeMode && params.shapeStyle === 'lamp') {
+  if (params.wireframeMode) {
     // Wireframe mode: generate rib/ring skeleton at mm scale
     geometry = generateWireframeLampGeometry(params, { scale: 1 });
   } else {
     geometry = generateBodyMesh(params, type);
     
     // Apply light perforations via CSG (only for non-wireframe, solid wall lamps)
-    if (params.lightPatternEnabled && params.shapeStyle === 'lamp' && !params.wireframeMode) {
+    if (params.lightPatternEnabled && !params.wireframeMode) {
       const getRadiusAtHeight = (t: number, theta: number) => {
         return getBodyRadius(params, t, theta, {
           scale: 1,
           includeTwist: false,
-          objectType: params.shapeStyle,
+          objectType: 'vase',
         });
       };
       try {

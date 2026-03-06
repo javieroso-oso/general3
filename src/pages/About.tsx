@@ -10,8 +10,8 @@ const features = [
   },
   {
     icon: Layers,
-    title: 'Multiple Object Types',
-    description: 'Choose from vases, lamps, and sculptures. Each type has unique characteristics and shape profiles.',
+    title: 'Versatile Features',
+    description: 'Add wireframe shade frames, light perforation patterns, cord holes, socket mounts, and ceramic molds — all as optional toggles on any shape.',
   },
   {
     icon: Cpu,

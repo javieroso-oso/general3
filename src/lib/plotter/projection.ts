@@ -9,14 +9,14 @@
  */
 
 import { PlotterDrawing, PlotterPath, ProjectionParams, PAPER_SIZES, LineFieldGeometry } from '@/types/plotter';
-import { ParametricParams, ObjectType3D } from '@/types/parametric';
+import { ParametricParams } from '@/types/parametric';
 import { getBodyRadius, getMaxBodyRadius } from '@/lib/body-profile-generator';
 import { noise2D, seedNoise } from './noise';
 
 interface ProjectionOptions {
   params: ProjectionParams;
   meshParams: ParametricParams;
-  objectType: ObjectType3D;
+  objectType: string;
   width: number;
   height: number;
   margin: number;
@@ -1420,7 +1420,7 @@ export function generateContourLines(options: ProjectionOptions): PlotterDrawing
 // Helper: Get the visible contour points at a specific Y height in paper coordinates
 function getContourAtHeight(
   meshParams: ParametricParams,
-  objectType: ObjectType3D,
+  objectType: string,
   targetY: number,
   shapeYMin: number,
   shapeYMax: number,
