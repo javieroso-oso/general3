@@ -971,7 +971,7 @@ export function downloadMoldSTL(
  */
 export function downloadMultiPartMoldSTL(
   params: ParametricParams,
-  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
+  _objectType?: string,
   partIndex: number | 'all' = 'all',
   filename: string = 'mold'
 ): void {

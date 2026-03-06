@@ -346,7 +346,7 @@ export function analyzeUndercuts(
       // Get radius at current and previous height
       const currentRadius = getBodyRadius(params, t, theta, {
         scale: SCALE,
-        objectType: params.shapeStyle,
+        objectType: 'vase',
         includeTwist: true
       }) / SCALE;
       
