@@ -175,7 +175,7 @@ export function calculateOptimalSplits(
   _objectType?: string,
   requestedPartCount?: number
 ): PartingLineResult {
-  const { angles: partingAngles, strength } = findGlobalPartingLines(params, params.shapeStyle);
+  const { angles: partingAngles, strength } = findGlobalPartingLines(params);
   
   // If no clear geometry features, return equal division
   if (partingAngles.length < 2 || strength[0] < 0.3) {
