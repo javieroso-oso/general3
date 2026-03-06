@@ -908,7 +908,7 @@ export function generateMultiPartMoldGeometry(
  */
 export function generateMoldGeometry(
   params: ParametricParams,
-  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
+  _objectType?: string
 ): MoldGeometry {
   // Use multi-part with count = 2
   const paramsWithTwoParts = { ...params, moldPartCount: 2 as const };
