@@ -316,7 +316,7 @@ function selectDistributedAngles(
  */
 export function analyzeUndercuts(
   params: ParametricParams,
-  _objectType?: ShapeStyle // deprecated, uses params.shapeStyle
+  _objectType?: string
 ): UndercutAnalysis {
   const samples = 64;
   const angleSamples = 48;
