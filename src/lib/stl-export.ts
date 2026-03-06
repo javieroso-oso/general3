@@ -1113,7 +1113,7 @@ export function generateLegsWithBaseMesh(
     const r = getBodyRadius(params, 0, theta, {
       scale: 1, // Output in mm for STL export
       includeTwist: false, // We already applied twist to theta
-      objectType: params.shapeStyle,
+      objectType: 'vase',
     });
     
     bottomRadiiArray.push(r);
