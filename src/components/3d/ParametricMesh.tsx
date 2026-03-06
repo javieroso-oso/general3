@@ -192,7 +192,7 @@ const ParametricMesh = ({
     return { spineCurve, crossSectionRings, frameIndicators };
   }, [params]);
 
-  const { bodyGeometry, wireframeGeo, legGeometry, centeringLipGeometry, overhangColors, keyholeGeometries, cordHoleGeometry, wireframeLampGeometry } = useMemo(() => {
+  const { bodyGeometry, wireframeGeo, legGeometry, centeringLipGeometry, overhangColors, hasVertexColors, keyholeGeometries, cordHoleGeometry, wireframeLampGeometry } = useMemo(() => {
     const {
       height,
       baseRadius,
