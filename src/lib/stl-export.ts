@@ -1221,7 +1221,7 @@ export function exportBodyToSTL(
     geometry = generateBodyMesh(params, type);
     
     // Apply light perforations via CSG (only for non-wireframe, solid wall lamps)
-    if (params.lightPatternEnabled && params.shapeStyle === 'lamp' && !params.wireframeMode) {
+    if (params.lightPatternEnabled && !params.wireframeMode) {
       const getRadiusAtHeight = (t: number, theta: number) => {
         return getBodyRadius(params, t, theta, {
           scale: 1,
