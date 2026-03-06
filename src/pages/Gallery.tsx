@@ -131,7 +131,7 @@ const Gallery = () => {
                       <span>Height: {preset.params.height}</span>
                       <span>Twist: {preset.params.twistAngle}°</span>
                     </div>
-                    <Link to={`/?type=${preset.type}&preset=${preset.id}`}>
+                    <Link to={`/?preset=${preset.id}`}>
                       <Button variant="secondary" size="sm" className="w-full gap-2">
                         Open in Generator
                         <ArrowRight className="w-4 h-4" />

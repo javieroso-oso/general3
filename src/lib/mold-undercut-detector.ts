@@ -352,7 +352,7 @@ export function analyzeUndercuts(
       
       const prevRadius = getBodyRadius(params, prevT, theta, {
         scale: SCALE,
-        objectType: params.shapeStyle,
+        objectType: 'vase',
         includeTwist: true
       }) / SCALE;
       
