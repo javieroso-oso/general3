@@ -311,7 +311,7 @@ const Index = () => {
         downloadMultiPartMoldSTL(params, undefined, half === 'A' ? 0 : 1, baseName);
         toast.success(`Mold Part ${half} exported!`);
       } else {
-        downloadMoldSTL(params, params.shapeStyle, half, baseName);
+        downloadMoldSTL(params, undefined, half, baseName);
         toast.success(`Mold Half ${half} exported!`);
       }
     }
