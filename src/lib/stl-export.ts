@@ -1215,7 +1215,6 @@ export function exportBodyToSTL(
   
   if (params.wireframeMode && params.shapeStyle === 'lamp') {
     // Wireframe mode: generate rib/ring skeleton at mm scale
-    const { generateWireframeLampGeometry } = require('@/lib/wireframe-lamp-generator');
     geometry = generateWireframeLampGeometry(params, { scale: 1 });
   } else {
     geometry = generateBodyMesh(params, type);
