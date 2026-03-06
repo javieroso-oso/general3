@@ -86,7 +86,7 @@ export function findRadiusMaximaAtHeight(
  */
 export function findGlobalPartingLines(
   params: ParametricParams,
-  _objectType?: ShapeStyle, // deprecated, uses params.shapeStyle
+  _objectType?: string,
   heightSamples: number = 16
 ): { angles: number[]; strength: number[] } {
   const allMaxima: RadiusMaxima[] = [];
