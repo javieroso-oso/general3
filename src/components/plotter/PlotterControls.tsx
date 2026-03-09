@@ -17,7 +17,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Switch } from '@/components/ui/switch';
-import { Download, Shuffle, FileCode, FileImage, Camera, RotateCcw } from 'lucide-react';
+import { Download, Shuffle, FileCode, FileImage, Camera, RotateCcw, Palette } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { 
   PlotterParams, 
   PAPER_SIZES, 
@@ -28,6 +29,8 @@ import {
   LineFieldMode,
   LineFieldGeometry,
   CapturedMeshParams,
+  PlotterPreviewColors,
+  PAPER_PRESETS,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
 import { ParametricParams } from '@/types/parametric';
@@ -1025,6 +1028,129 @@ const PlotterControls = ({
           </Accordion>
         </>
       )}
+
+      {/* Preview Colors */}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="previewColors" className="border-none">
+          <AccordionTrigger className="py-2 text-sm font-medium">
+            <span className="flex items-center gap-2">
+              <Palette className="w-3.5 h-3.5" />
+              Preview Colors
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3 pt-2">
+            {/* Paper Presets */}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Paper</Label>
+              <div className="grid grid-cols-4 gap-1">
+                {Object.entries(PAPER_PRESETS).map(([key, preset]) => (
+                  <Button
+                    key={key}
+                    variant={params.previewColors.paperTint === key ? 'default' : 'outline'}
+                    size="sm"
+                    className="text-xs h-8 gap-1"
+                    onClick={() => {
+                      onParamsChange({
+                        ...params,
+                        previewColors: {
+                          ...params.previewColors,
+                          paperTint: key as PlotterPreviewColors['paperTint'],
+                          backgroundColor: preset.background,
+                          strokeColor: params.previewColors.multiPen ? params.previewColors.strokeColor : preset.stroke,
+                        },
+                      });
+                    }}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full border border-border"
+                      style={{ backgroundColor: preset.background }}
+                    />
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Stroke Color */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">Stroke</Label>
+              <input
+                type="color"
+                value={params.previewColors.strokeColor}
+                onChange={(e) => onParamsChange({
+                  ...params,
+                  previewColors: { ...params.previewColors, strokeColor: e.target.value },
+                })}
+                className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent"
+              />
+              <Input
+                value={params.previewColors.strokeColor}
+                onChange={(e) => onParamsChange({
+                  ...params,
+                  previewColors: { ...params.previewColors, strokeColor: e.target.value },
+                })}
+                className="h-8 text-xs font-mono flex-1"
+              />
+            </div>
+
+            {/* Stroke Width */}
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                Stroke Width: {params.previewColors.strokeWidth.toFixed(1)}
+              </Label>
+              <Slider
+                value={[params.previewColors.strokeWidth * 10]}
+                min={2}
+                max={20}
+                step={1}
+                onValueChange={([v]) => onParamsChange({
+                  ...params,
+                  previewColors: { ...params.previewColors, strokeWidth: v / 10 },
+                })}
+              />
+            </div>
+
+            {/* Multi-pen toggle */}
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">Multi-pen by Layer</Label>
+              <Switch
+                checked={params.previewColors.multiPen}
+                onCheckedChange={(v) => onParamsChange({
+                  ...params,
+                  previewColors: { ...params.previewColors, multiPen: v },
+                })}
+              />
+            </div>
+
+            {/* Multi-pen color swatches */}
+            {params.previewColors.multiPen && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Pen Colors</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {params.previewColors.penColors.map((color, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      <input
+                        type="color"
+                        value={color}
+                        onChange={(e) => {
+                          const newColors = [...params.previewColors.penColors];
+                          newColors[i] = e.target.value;
+                          onParamsChange({
+                            ...params,
+                            previewColors: { ...params.previewColors, penColors: newColors },
+                          });
+                        }}
+                        className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent"
+                      />
+                      <span className="text-[10px] text-muted-foreground">Pen {i + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {/* Export Settings */}
       <Accordion type="single" collapsible defaultValue="export">
