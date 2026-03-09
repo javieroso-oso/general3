@@ -463,6 +463,7 @@ const Index = () => {
               <PlotterPreview 
                 drawing={plotterDrawing} 
                 margin={plotterParams.marginMm}
+                previewColors={plotterParams.previewColors}
               />
             </div>
           </div>
