@@ -364,6 +364,7 @@ export const defaultPlotterParams: PlotterParams = {
   wave: defaultWaveParams,
   imagePath: defaultImageToPathParams,
   projection: defaultProjectionParams,
+  previewColors: defaultPreviewColors,
   machinePreset: 'axidraw',
   optimizePaths: true,
 };
