@@ -200,6 +200,32 @@ export interface LiveMeshParams {
   shapeStyle: 'vase' | 'lamp' | 'sculpture';
 }
 
+// Preview color settings
+export interface PlotterPreviewColors {
+  strokeColor: string;
+  backgroundColor: string;
+  strokeWidth: number;
+  paperTint: 'white' | 'cream' | 'kraft' | 'black';
+  multiPen: boolean;
+  penColors: string[];
+}
+
+export const PAPER_PRESETS: Record<string, { background: string; stroke: string; label: string }> = {
+  white: { background: '#ffffff', stroke: '#000000', label: 'White' },
+  cream: { background: '#f5f0e1', stroke: '#1a1a1a', label: 'Cream' },
+  kraft: { background: '#c4a882', stroke: '#2d1f10', label: 'Kraft' },
+  black: { background: '#1a1a1a', stroke: '#ffffff', label: 'Black' },
+};
+
+export const defaultPreviewColors: PlotterPreviewColors = {
+  strokeColor: '#000000',
+  backgroundColor: '#ffffff',
+  strokeWidth: 0.5,
+  paperTint: 'white',
+  multiPen: false,
+  penColors: ['#000000', '#e63946', '#457b9d', '#2a9d8f'],
+};
+
 // Complete plotter parameters
 export interface PlotterParams {
   // Paper settings
