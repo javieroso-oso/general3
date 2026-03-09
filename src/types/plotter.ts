@@ -253,6 +253,9 @@ export interface PlotterParams {
   capturedMesh?: CapturedMeshParams; // Legacy: Captured 3D design for projection
   liveMesh?: LiveMeshParams; // New: Always-synced 3D design for live projection
   
+  // Preview colors
+  previewColors: PlotterPreviewColors;
+
   // Export settings
   machinePreset: string;
   optimizePaths: boolean;
