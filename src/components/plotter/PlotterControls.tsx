@@ -17,7 +17,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Switch } from '@/components/ui/switch';
-import { Download, Shuffle, FileCode, FileImage, Camera, RotateCcw } from 'lucide-react';
+import { Download, Shuffle, FileCode, FileImage, Camera, RotateCcw, Palette } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { 
   PlotterParams, 
   PAPER_SIZES, 
@@ -28,6 +29,8 @@ import {
   LineFieldMode,
   LineFieldGeometry,
   CapturedMeshParams,
+  PlotterPreviewColors,
+  PAPER_PRESETS,
 } from '@/types/plotter';
 import { PlotterDrawing } from '@/types/plotter';
 import { ParametricParams } from '@/types/parametric';
