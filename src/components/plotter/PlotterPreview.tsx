@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { PlotterDrawing } from '@/types/plotter';
+import { PlotterDrawing, PlotterPreviewColors, defaultPreviewColors } from '@/types/plotter';
 import { calculateStats } from '@/lib/plotter/path-utils';
 
 interface PlotterPreviewProps {
@@ -7,13 +7,15 @@ interface PlotterPreviewProps {
   showBounds?: boolean;
   showStats?: boolean;
   margin?: number;
+  previewColors?: PlotterPreviewColors;
 }
 
 const PlotterPreview = ({ 
   drawing, 
   showBounds = true, 
   showStats = true,
-  margin = 10 
+  margin = 10,
+  previewColors = defaultPreviewColors,
 }: PlotterPreviewProps) => {
   const stats = useMemo(() => {
     if (!drawing) return null;
@@ -43,7 +45,14 @@ const PlotterPreview = ({
       return `${command}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
     }).join(' ');
     
-    const strokeColor = path.color || 'hsl(var(--foreground))';
+    // Determine stroke color: multi-pen by layer, path color, or global stroke
+    let strokeColor: string;
+    if (previewColors.multiPen && previewColors.penColors.length > 0) {
+      const layerIndex = path.layer ?? index;
+      strokeColor = previewColors.penColors[layerIndex % previewColors.penColors.length];
+    } else {
+      strokeColor = path.color || previewColors.strokeColor;
+    }
     
     return (
       <path
@@ -51,7 +60,7 @@ const PlotterPreview = ({
         d={d}
         fill="none"
         stroke={strokeColor}
-        strokeWidth={0.5}
+        strokeWidth={previewColors.strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
         className="transition-opacity"
@@ -68,9 +77,17 @@ const PlotterPreview = ({
           className="max-w-full max-h-full"
           style={{ 
             aspectRatio: `${width} / ${height}`,
-            background: 'hsl(var(--background))'
           }}
         >
+          {/* Paper background */}
+          <rect
+            x={-padding}
+            y={-padding}
+            width={width + padding * 2}
+            height={height + padding * 2}
+            fill={previewColors.backgroundColor}
+          />
+
           {/* Paper bounds */}
           {showBounds && (
             <>
