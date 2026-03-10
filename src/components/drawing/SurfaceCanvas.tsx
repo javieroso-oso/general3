@@ -153,15 +153,14 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
   const mirrorPath = useCallback((path: Path): Path | null => {
     if (!path.path) return null;
     const mirroredPathData = path.path.map((cmd: any) => {
-      const newCmd = [...cmd];
-      // Mirror x coordinates (last-2 and any intermediate control points)
+      const newCmd = [...cmd] as any;
       for (let i = 1; i < newCmd.length; i += 2) {
         if (typeof newCmd[i] === 'number') {
           newCmd[i] = width - newCmd[i];
         }
       }
       return newCmd;
-    });
+    }) as any;
     
     const mirroredPath = new Path(mirroredPathData, {
       stroke: path.stroke,
