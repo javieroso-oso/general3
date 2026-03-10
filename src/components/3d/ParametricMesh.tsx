@@ -11,6 +11,7 @@ import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materi
 import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
+import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
