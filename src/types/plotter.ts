@@ -151,6 +151,16 @@ export interface ProjectionParams {
   lineFieldOverlayOffset: number;// 15-90 degrees between layers
   lineFieldFillInside: boolean;  // Fill shape with different pattern
   lineFieldFillDensity: number;  // 1-3 fill pattern density multiplier
+  
+  // Exploded view settings
+  explodeSpread: number;         // 0-50 mm vertical gap between bands
+  explodeStagger: number;        // 0-30 mm lateral offset alternating per band
+  explodeConnectors: boolean;    // Draw dashed connector lines between bands
+  
+  // Transform settings
+  mirrorX: boolean;              // Mirror drawing horizontally
+  mirrorY: boolean;              // Mirror drawing vertically
+  repeatGrid: number;            // 1-4 tile projection in grid
 }
 
 // Machine presets for G-code
