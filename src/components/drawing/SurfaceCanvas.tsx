@@ -5,7 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Trash2, Undo, Redo, Fliporiz, FlipHorizontal } from 'lucide-react';
+import { Pencil, Trash2, Undo, Redo, FlipHorizontal } from 'lucide-react';
 import { SurfaceStroke, TexturePattern } from '@/types/parametric';
 
 interface SurfaceCanvasProps {
