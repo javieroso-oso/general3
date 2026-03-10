@@ -1915,6 +1915,28 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
           <MoldControls params={params} type={type} onParamsChange={onParamsChange} handleChange={handleChange} />
         )}
       </div>
+      
+      {/* 9. Surface Art */}
+      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenTool className={cn("w-4 h-4", params.surfaceStrokes?.length > 0 ? "text-primary" : "text-muted-foreground")} />
+            <Label className="text-sm font-medium">Surface Art</Label>
+          </div>
+          <Switch
+            id="surface-strokes-visible"
+            checked={params.surfaceStrokesVisible ?? true}
+            onCheckedChange={(v) => onParamsChange({ ...params, surfaceStrokesVisible: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Draw lines on the unwrapped surface. They become 3D tubes, grooves, or ribbons on your shape.
+        </div>
+        <SurfaceCanvas
+          strokes={params.surfaceStrokes || []}
+          onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
+        />
+      </div>
     </motion.div>
   );
 };
