@@ -1501,6 +1501,160 @@ function getContourAtHeight(
 }
 
 /**
+ * Generate exploded/dissected view.
+ * Splits the object into horizontal bands and draws them separated vertically.
+ */
+export function generateExplodedView(options: ProjectionOptions): PlotterDrawing {
+  const { params, meshParams, objectType, width, height, margin } = options;
+  const { sliceCount, viewAngle, scale, lineDetail, centerOffset, simplifyTolerance } = params;
+  const explodeSpread = params.explodeSpread ?? 15;
+  const explodeStagger = params.explodeStagger ?? 0;
+  const explodeConnectors = params.explodeConnectors ?? false;
+
+  const paths: PlotterPath[] = [];
+  const objectHeight = meshParams.height;
+  const angleSegments = lineDetail;
+  const bandCount = Math.max(2, sliceCount);
+  const contoursPerBand = 3;
+
+  // Generate all band contours
+  const bandData: { centerY: number; contours: { x: number; y: number }[][] }[] = [];
+
+  for (let b = 0; b < bandCount; b++) {
+    const contours: { x: number; y: number }[][] = [];
+    for (let c = 0; c < contoursPerBand; c++) {
+      const t = (b + c / contoursPerBand) / bandCount;
+      if (t > 1) continue;
+      const points: { x: number; y: number }[] = [];
+      for (let j = 0; j <= angleSegments; j++) {
+        const theta = (j / angleSegments) * Math.PI * 2;
+        const radius = getBodyRadius(meshParams, t, theta, {
+          objectType,
+          scale: 1,
+          includeTwist: true,
+        });
+        const point3D = {
+          x: Math.cos(theta) * radius,
+          y: t * objectHeight,
+          z: Math.sin(theta) * radius,
+        };
+        const rotated = rotatePoint3D(point3D, viewAngle.x, viewAngle.y);
+        points.push({ x: rotated.x, y: rotated.z });
+      }
+      contours.push(points);
+    }
+    const bandCenterT = (b + 0.5) / bandCount;
+    bandData.push({ centerY: bandCenterT * objectHeight, contours });
+  }
+
+  // Collect all raw points for bounds calculation
+  const allRawPoints = bandData.flatMap(b => b.contours.flat());
+  const rawBounds = getBounds(allRawPoints);
+
+  // Calculate total visual height including spread
+  const totalSpread = (bandCount - 1) * explodeSpread;
+  const rawHeight = rawBounds.maxY - rawBounds.minY;
+  const rawWidth = rawBounds.maxX - rawBounds.minX;
+  const totalVisualHeight = rawHeight + totalSpread;
+  const maxStagger = explodeStagger;
+  const totalVisualWidth = rawWidth + maxStagger;
+
+  const paperWidth = width - margin * 2;
+  const paperHeight = height - margin * 2;
+
+  const fitScale = Math.min(
+    paperWidth / (totalVisualWidth || 1),
+    paperHeight / (totalVisualHeight || 1)
+  ) * scale * 0.85;
+
+  const offsetX = width / 2 - (rawBounds.minX + rawWidth / 2) * fitScale + centerOffset.x;
+  const baseOffsetY = height / 2 - (totalVisualHeight / 2) * fitScale + centerOffset.y;
+
+  // Draw each band with vertical spread and lateral stagger
+  const bandCenters: { x: number; y: number }[] = [];
+
+  for (let b = 0; b < bandData.length; b++) {
+    const band = bandData[b];
+    const spreadOffset = b * explodeSpread * fitScale;
+    const staggerOffset = (b % 2 === 1 ? explodeStagger : -explodeStagger) * fitScale * 0.5;
+    
+    let bandCenterX = 0;
+    let bandCenterY = 0;
+    let pointCount = 0;
+
+    for (const contour of band.contours) {
+      let transformedPoints = contour.map(p => ({
+        x: p.x * fitScale + offsetX + staggerOffset,
+        y: (p.y - rawBounds.minY) * fitScale + baseOffsetY + spreadOffset,
+      }));
+
+      if (simplifyTolerance > 0) {
+        transformedPoints = simplifyPath(transformedPoints, simplifyTolerance);
+      }
+
+      // Close path
+      if (transformedPoints.length > 2) {
+        transformedPoints.push({ ...transformedPoints[0] });
+      }
+
+      for (const p of transformedPoints) {
+        bandCenterX += p.x;
+        bandCenterY += p.y;
+        pointCount++;
+      }
+
+      paths.push({
+        points: transformedPoints,
+        penDown: true,
+        layer: b,
+        color: `hsl(${(b / bandCount) * 300}, 60%, 50%)`,
+      });
+    }
+
+    if (pointCount > 0) {
+      bandCenters.push({ x: bandCenterX / pointCount, y: bandCenterY / pointCount });
+    }
+  }
+
+  // Draw connector lines between band centers
+  if (explodeConnectors && bandCenters.length > 1) {
+    for (let i = 0; i < bandCenters.length - 1; i++) {
+      const from = bandCenters[i];
+      const to = bandCenters[i + 1];
+      // Dashed line: create segments
+      const dashLen = 3;
+      const gapLen = 3;
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const totalLen = Math.sqrt(dx * dx + dy * dy);
+      const nx = dx / totalLen;
+      const ny = dy / totalLen;
+      let d = 0;
+      while (d < totalLen) {
+        const segEnd = Math.min(d + dashLen, totalLen);
+        paths.push({
+          points: [
+            { x: from.x + nx * d, y: from.y + ny * d },
+            { x: from.x + nx * segEnd, y: from.y + ny * segEnd },
+          ],
+          penDown: true,
+          layer: bandCount, // separate layer for connectors
+          color: '#999999',
+        });
+        d = segEnd + gapLen;
+      }
+    }
+  }
+
+  return {
+    paths,
+    width,
+    height,
+    units: 'mm',
+  };
+}
+
+/**
  * Main projection generator - dispatches to specific type.
  */
 export function generateProjection(options: ProjectionOptions): PlotterDrawing {
