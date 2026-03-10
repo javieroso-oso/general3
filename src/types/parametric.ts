@@ -494,6 +494,8 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     lightPatternRandomness: 0.2,
     lightPatternScaleWithHeight: false,
     lightPatternRimMargin: 0.1,
+    surfaceStrokes: [],
+    surfaceStrokesVisible: true,
     showBaseOnly: false,
     previewColor: '#e8e8e8',
   };
