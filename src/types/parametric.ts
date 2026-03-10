@@ -505,6 +505,7 @@ export const presets: Preset[] = [
   { id: 'spiral-lamp', name: 'Spiral Lamp', params: createDefaultParams({ height: 100, baseRadius: 30, topRadius: 60, wallThickness: 1.6, twistAngle: 120, wobbleFrequency: 4, wobbleAmplitude: 0.05, cordHoleEnabled: true, centeringLipEnabled: true }) },
   { id: 'organic', name: 'Organic', params: createDefaultParams({ height: 150, baseRadius: 35, topRadius: 25, wallThickness: 3.0, organicNoise: 0.06, asymmetry: 0.08, bulgeAmount: 0.35, wobbleFrequency: 3, wobbleAmplitude: 0.08, twistAngle: 30 }) },
   { id: 'minimal', name: 'Minimal', params: createDefaultParams({ height: 150, baseRadius: 35, topRadius: 25, wallThickness: 3.0, wobbleFrequency: 0, twistAngle: 0, organicNoise: 0, bulgeAmount: 0.1, lipFlare: 0, lipHeight: 0 }) },
+  { id: 'cable-pass', name: 'Cable Pass', params: createDefaultParams({ height: 80, baseRadius: 50, topRadius: 45, wallThickness: 3.0, cordHoleEnabled: true, cordHoleDiameter: 60, centeringLipEnabled: false, baseThickness: 3.0 }) },
 ];
 
 // Analyze printability
