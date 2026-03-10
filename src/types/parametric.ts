@@ -1,12 +1,15 @@
 export type ObjectType = 'shape' | 'plotter';
 
 // Surface stroke for drawing-to-3D feature
+export type TexturePattern = 'dots' | 'crosshatch' | 'zigzag';
+
 export interface SurfaceStroke {
   id: string;
   points: { u: number; v: number }[];  // u=0..1 (angle around body), v=0..1 (height)
   thickness: number;     // tube diameter in mm
-  effect: 'raised' | 'engraved' | 'ribbon';
+  effect: 'raised' | 'engraved' | 'ribbon' | 'cut' | 'texture';
   depth: number;         // how far it protrudes or cuts in (mm)
+  texturePattern?: TexturePattern; // only used when effect = 'texture'
 }
 
 // Stand types - different structural support options
