@@ -359,6 +359,16 @@ export const defaultProjectionParams: ProjectionParams = {
   lineFieldOverlayOffset: 45,
   lineFieldFillInside: false,
   lineFieldFillDensity: 2,
+  
+  // Exploded view defaults
+  explodeSpread: 15,
+  explodeStagger: 0,
+  explodeConnectors: false,
+  
+  // Transform defaults
+  mirrorX: false,
+  mirrorY: false,
+  repeatGrid: 1,
 };
 
 export const defaultPlotterParams: PlotterParams = {
