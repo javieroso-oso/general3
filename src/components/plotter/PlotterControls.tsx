@@ -61,6 +61,7 @@ const PROJECTION_TYPE_LABELS: Record<ProjectionType, string> = {
   contourStack: 'Contour Stack',
   lineField: 'Distortion Field',
   contourLines: 'Contour Lines',
+  exploded: 'Exploded View',
 };
 
 const LINE_FIELD_MODE_LABELS: Record<LineFieldMode, { label: string; description: string }> = {
@@ -1023,6 +1024,87 @@ const PlotterControls = ({
                     </div>
                   </>
                 )}
+
+                {/* Exploded View Settings */}
+                {params.projection.type === 'exploded' && (
+                  <>
+                    <div className="border-t border-border pt-3 mt-3">
+                      <Label className="text-xs font-medium text-foreground mb-2 block">Exploded View</Label>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Spread: {params.projection.explodeSpread ?? 15}mm
+                      </Label>
+                      <Slider
+                        value={[params.projection.explodeSpread ?? 15]}
+                        min={0}
+                        max={50}
+                        step={1}
+                        onValueChange={([v]) => updateProjection('explodeSpread', v)}
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Stagger: {params.projection.explodeStagger ?? 0}mm
+                      </Label>
+                      <Slider
+                        value={[params.projection.explodeStagger ?? 0]}
+                        min={0}
+                        max={30}
+                        step={1}
+                        onValueChange={([v]) => updateProjection('explodeStagger', v)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Assembly Lines</Label>
+                        <p className="text-[10px] text-muted-foreground/70">Draw dashed connectors</p>
+                      </div>
+                      <Switch
+                        checked={params.projection.explodeConnectors ?? false}
+                        onCheckedChange={(v) => updateProjection('explodeConnectors', v)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Transform Settings - available for all projection types */}
+                <div className="border-t border-border pt-3 mt-3">
+                  <Label className="text-xs font-medium text-foreground mb-2 block">Transform</Label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Mirror X</Label>
+                    <Switch
+                      checked={params.projection.mirrorX ?? false}
+                      onCheckedChange={(v) => updateProjection('mirrorX', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Mirror Y</Label>
+                    <Switch
+                      checked={params.projection.mirrorY ?? false}
+                      onCheckedChange={(v) => updateProjection('mirrorY', v)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Repeat Grid: {params.projection.repeatGrid ?? 1}×{params.projection.repeatGrid ?? 1}
+                  </Label>
+                  <Slider
+                    value={[params.projection.repeatGrid ?? 1]}
+                    min={1}
+                    max={4}
+                    step={1}
+                    onValueChange={([v]) => updateProjection('repeatGrid', v)}
+                  />
+                </div>
               </AccordionContent>
             </AccordionItem>
           </Accordion>

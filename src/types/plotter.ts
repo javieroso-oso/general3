@@ -32,7 +32,7 @@ export type GenerativePattern =
 export type HatchStyle = 'parallel' | 'crosshatch' | 'stipple' | 'contour';
 
 // Projection types for 3D to 2D
-export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField' | 'contourLines';
+export type ProjectionType = 'crossSection' | 'silhouette' | 'contourStack' | 'lineField' | 'contourLines' | 'exploded';
 
 // Line field wrap modes
 export type LineFieldMode = 'around' | 'through' | 'outline';
@@ -151,6 +151,16 @@ export interface ProjectionParams {
   lineFieldOverlayOffset: number;// 15-90 degrees between layers
   lineFieldFillInside: boolean;  // Fill shape with different pattern
   lineFieldFillDensity: number;  // 1-3 fill pattern density multiplier
+  
+  // Exploded view settings
+  explodeSpread: number;         // 0-50 mm vertical gap between bands
+  explodeStagger: number;        // 0-30 mm lateral offset alternating per band
+  explodeConnectors: boolean;    // Draw dashed connector lines between bands
+  
+  // Transform settings
+  mirrorX: boolean;              // Mirror drawing horizontally
+  mirrorY: boolean;              // Mirror drawing vertically
+  repeatGrid: number;            // 1-4 tile projection in grid
 }
 
 // Machine presets for G-code
@@ -349,6 +359,16 @@ export const defaultProjectionParams: ProjectionParams = {
   lineFieldOverlayOffset: 45,
   lineFieldFillInside: false,
   lineFieldFillDensity: 2,
+  
+  // Exploded view defaults
+  explodeSpread: 15,
+  explodeStagger: 0,
+  explodeConnectors: false,
+  
+  // Transform defaults
+  mirrorX: false,
+  mirrorY: false,
+  repeatGrid: 1,
 };
 
 export const defaultPlotterParams: PlotterParams = {
