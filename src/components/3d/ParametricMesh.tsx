@@ -1096,4 +1096,24 @@ const ParametricMesh = ({
   );
 };
 
+// Separate component for surface strokes to keep render clean
+function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricParams; materialConfig: MaterialConfig }) {
+  const strokeGeos = useMemo(() => generateSurfaceStrokeGeometries(params), [params]);
+  
+  return (
+    <>
+      {strokeGeos.map((sg, idx) => (
+        <mesh key={idx} geometry={sg.geometry} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            color={sg.effect === 'engraved' ? '#222' : materialConfig.color}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            side={sg.effect === 'engraved' ? THREE.DoubleSide : THREE.FrontSide}
+          />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
 export default ParametricMesh;
