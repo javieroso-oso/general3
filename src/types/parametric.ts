@@ -228,6 +228,10 @@ export interface ParametricParams {
   lightPatternScaleWithHeight: boolean;
   lightPatternRimMargin: number;
   
+  // Surface art strokes
+  surfaceStrokes: SurfaceStroke[];
+  surfaceStrokesVisible: boolean;
+
   // Preview mode
   showBaseOnly: boolean;
   previewColor: string;
