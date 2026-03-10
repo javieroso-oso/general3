@@ -353,7 +353,7 @@ function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.Buffer
 
     if (idx) {
       for (let i = 0; i < idx.count; i++) {
-        indices.push(idx.getComponent(i) + vertexOffset);
+        indices.push((idx.array as Uint16Array | Uint32Array)[i] + vertexOffset);
       }
     } else {
       // Non-indexed: create sequential indices
