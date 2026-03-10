@@ -1504,20 +1504,74 @@ function getContourAtHeight(
  * Main projection generator - dispatches to specific type.
  */
 export function generateProjection(options: ProjectionOptions): PlotterDrawing {
+  let drawing: PlotterDrawing;
+  
   switch (options.params.type) {
     case 'crossSection':
-      return generateCrossSectionSlices(options);
+      drawing = generateCrossSectionSlices(options);
+      break;
     case 'silhouette':
-      return generateSilhouette(options);
+      drawing = generateSilhouette(options);
+      break;
     case 'contourStack':
-      return generateContourStack(options);
+      drawing = generateContourStack(options);
+      break;
     case 'lineField':
-      return generateLineField(options);
+      drawing = generateLineField(options);
+      break;
     case 'contourLines':
-      return generateContourLines(options);
+      drawing = generateContourLines(options);
+      break;
+    case 'exploded':
+      drawing = generateExplodedView(options);
+      break;
     default:
-      return generateCrossSectionSlices(options);
+      drawing = generateCrossSectionSlices(options);
   }
+  
+  // Post-processing: mirror
+  const { mirrorX, mirrorY, repeatGrid } = options.params;
+  
+  if (mirrorX || mirrorY) {
+    drawing = {
+      ...drawing,
+      paths: drawing.paths.map(path => ({
+        ...path,
+        points: path.points.map(p => ({
+          x: mirrorX ? drawing.width - p.x : p.x,
+          y: mirrorY ? drawing.height - p.y : p.y,
+        })),
+      })),
+    };
+  }
+  
+  // Post-processing: repeat grid
+  if (repeatGrid && repeatGrid > 1) {
+    const tileW = drawing.width / repeatGrid;
+    const tileH = drawing.height / repeatGrid;
+    const scaleFactor = 1 / repeatGrid;
+    const tiledPaths: PlotterPath[] = [];
+    
+    for (let gx = 0; gx < repeatGrid; gx++) {
+      for (let gy = 0; gy < repeatGrid; gy++) {
+        const ox = gx * tileW;
+        const oy = gy * tileH;
+        for (const path of drawing.paths) {
+          tiledPaths.push({
+            ...path,
+            points: path.points.map(p => ({
+              x: p.x * scaleFactor + ox,
+              y: p.y * scaleFactor + oy,
+            })),
+          });
+        }
+      }
+    }
+    
+    drawing = { ...drawing, paths: tiledPaths };
+  }
+  
+  return drawing;
 }
 
 // Helper: Rotate a 3D point around X and Y axes
