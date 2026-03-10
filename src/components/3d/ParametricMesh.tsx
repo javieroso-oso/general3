@@ -1063,6 +1063,11 @@ const ParametricMesh = ({
         </mesh>
       )}
       
+      {/* Surface art strokes */}
+      {params.surfaceStrokesVisible && params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
+        <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
+      )}
+      
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
