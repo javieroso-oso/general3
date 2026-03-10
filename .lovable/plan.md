@@ -1,157 +1,57 @@
 
 
-# Fix: Spine-Based Geometry Discrepancy Between Preview and Export
+# Exploded View + New Plotter Projection Settings
 
-## Root Cause Identified
+## The Exploded/Dissected View
 
-The "bending" distortion in exported STLs is caused by **fundamentally different spine handling** between the preview and export code paths:
+A new projection type called **"Exploded View"** that splits the object into horizontal bands and draws them separated vertically (and optionally laterally), like a technical illustration or assembly diagram. Each band is a cross-section slice range rendered as a mini-contour, spaced apart with configurable gap and optional lateral offset for a staggered look.
 
-| Aspect | Preview (`ParametricMesh.tsx`) | Export (`stl-export.ts`) |
-|--------|--------------------------------|--------------------------|
-| **Spine Mode** | Simple lateral offset | Full Frenet frame rotation |
-| **Cross-sections** | Stay horizontal | Rotate with curve tangent |
-| **Visual Effect** | Elegant S-curves, shape unchanged | Cross-sections tilt and distort |
-| **Rim Waves** | Applied correctly | **MISSING** in `generateBodyMesh` |
+### How it works
+- Divide the shape into N bands (reuse `sliceCount`)
+- Each band is a group of 3-4 closely-spaced cross-section contours
+- Bands are drawn with vertical gaps between them (`explodeSpread`)
+- Optional lateral stagger: alternating bands shift left/right (`explodeStagger`)
+- Optional connecting lines between bands (dashed "assembly lines")
+- Each band gets its own layer index for multi-pen coloring
 
-### The Technical Problem
+## Additional New Settings
 
-**Preview (lines 306-317):**
-```typescript
-// SPINE-BASED: Simple lateral offset without Frenet rotation
-const localX = Math.cos(theta) * r;
-const localZ = Math.sin(theta) * r;
-x = localX + frame.position.x;  // Just add position offset
-z = localZ + frame.position.z;
-finalY = frame.position.y;
-```
+Beyond exploded view, add these universally useful projection controls:
 
-**Export (lines 274-282):**
-```typescript
-// SPINE-BASED: Position vertex using Frenet frame
-const localX = Math.cos(theta);
-const localZ = Math.sin(theta);
-// Uses normal/binormal to ROTATE the cross-section
-x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
-```
+| Setting | Type | Range | What it does |
+|---------|------|-------|-------------|
+| `explodeSpread` | number | 0–50mm | Vertical gap between bands in exploded view |
+| `explodeStagger` | number | 0–30mm | Lateral offset alternating per band |
+| `explodeConnectors` | boolean | — | Draw dashed connector lines between bands |
+| `lineWeight` | number | 0.1–2.0 | Override stroke weight hint per projection |
+| `mirrorX` | boolean | — | Mirror the drawing horizontally |
+| `mirrorY` | boolean | — | Mirror the drawing vertically |
+| `repeatGrid` | number | 1–4 | Tile the projection in a grid (1=off, 2=2x2, etc.) |
 
-The export uses Frenet frame rotation which rotates each cross-section to be perpendicular to the spine tangent. This causes the "bending" distortion where circles become ellipses tilted along the curve.
+## File Changes
 
-### Additional Issue: Missing Rim Waves
+### 1. `src/types/plotter.ts`
+- Add `'exploded'` to `ProjectionType`
+- Add `explodeSpread`, `explodeStagger`, `explodeConnectors`, `mirrorX`, `mirrorY`, `repeatGrid` to `ProjectionParams`
+- Add defaults
 
-The `generateBodyMesh` function in `stl-export.ts` **does NOT apply rim wave effects** after computing vertices, unlike the preview which adds rim waves at lines 372-380.
+### 2. `src/lib/plotter/projection.ts`
+- Add `generateExplodedView()` function:
+  - Split object into bands using `sliceCount`
+  - For each band, generate 3 closely-spaced cross-section contours
+  - Position bands with vertical spread gap
+  - Apply lateral stagger
+  - Optionally draw dashed connector lines between band centers
+- Update `generateProjection()` to route `'exploded'` type
+- Add post-processing for `mirrorX`/`mirrorY` (flip coordinates)
+- Add `repeatGrid` tiling logic (duplicate and offset all paths)
 
----
+### 3. `src/components/plotter/PlotterControls.tsx`
+- Add "Exploded View" to projection type selector
+- Show explode-specific controls when `type === 'exploded'`: spread slider, stagger slider, connectors toggle
+- Add "Transform" section to projection accordion: mirror X/Y toggles, repeat grid selector
+- Add stroke weight override slider (visible for all projection types)
 
-## Solution
-
-### Step 1: Fix Spine Handling in STL Export
-
-Update `generateBodyMesh()` in `stl-export.ts` to use **simple lateral offset** (matching preview) instead of Frenet frame rotation.
-
-**Before:**
-```typescript
-if (useSpine && spineFrames[i]) {
-  const frame = spineFrames[i];
-  const localX = Math.cos(theta);
-  const localZ = Math.sin(theta);
-  
-  x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
-  finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
-  z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
-}
-```
-
-**After:**
-```typescript
-if (useSpine && spineFrames[i]) {
-  // SPINE-BASED: Simple lateral offset without Frenet rotation
-  // Cross-sections stay horizontal, only position shifts along the curved path
-  // This matches the preview behavior in ParametricMesh.tsx
-  const frame = spineFrames[i];
-  const localX = Math.cos(theta) * r;
-  const localZ = Math.sin(theta) * r;
-  
-  x = localX + frame.position.x;
-  z = localZ + frame.position.z;
-  finalY = frame.position.y;
-}
-```
-
-### Step 2: Add Missing Rim Wave Effects
-
-Add rim wave Y-offset to `generateBodyMesh()` after melt effects:
-
-```typescript
-// After melt effect block, add:
-// Rim waves: modify Y position for top rows (matches ParametricMesh.tsx)
-const { rimWaveCount, rimWaveDepth } = params;
-if (rimWaveCount > 0 && rimWaveDepth > 0) {
-  const rimZone = 0.1; // Top 10% of height
-  const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
-  if (rimT > 0) {
-    const waveOffset = Math.sin(theta * rimWaveCount) * rimWaveDepth * height * rimT;
-    finalY += waveOffset;
-  }
-}
-```
-
-### Step 3: Apply Same Fix to Inner Wall Vertices
-
-The inner wall generation (lines 322-381) has the same Frenet frame issue and also lacks rim waves. Apply identical fixes there.
-
----
-
-## Files to Modify
-
-1. **`src/lib/stl-export.ts`**
-   - Lines 274-282: Change Frenet frame rotation to simple lateral offset (outer wall)
-   - Lines 335-343: Change Frenet frame rotation to simple lateral offset (inner wall)
-   - Lines 316-318: Add rim wave effect (after melt, before push to outerVerts)
-   - Lines 376-378: Add rim wave effect (after melt, before push to innerVerts)
-
----
-
-## Technical Details
-
-### Why Frenet Frame Causes Distortion
-
-The Frenet frame consists of three orthonormal vectors at each point on the curve:
-- **Tangent (T)**: Direction of travel along curve
-- **Normal (N)**: Points toward center of curvature  
-- **Binormal (B)**: T × N
-
-When you position cross-section vertices using `normal * x + binormal * z`, you're rotating the circle to lie in a plane perpendicular to the tangent. This works well for tubes (like pipes), but for vases/lamps it creates unwanted distortion because the "top" and "bottom" of the object tilt with the curve.
-
-The preview's approach of simple lateral offset (`position.x + localX`, `position.z + localZ`) keeps cross-sections horizontal (parallel to ground), which is what users expect for vases/lamps.
-
-### Rim Wave Formula (matching preview)
-
-```typescript
-rimZone = 0.1           // Top 10% of height
-rimT = (t - 0.9) / 0.1  // Normalized position within rim zone (0 at 90% height, 1 at 100%)
-waveOffset = sin(theta * rimWaveCount) * rimWaveDepth * height * rimT
-finalY += waveOffset    // Add to Y position
-```
-
----
-
-## Verification Plan
-
-After implementation:
-1. Create a shape with **spineEnabled** and non-zero **spineAmplitudeX/Z**
-2. Enable **rimWaveCount** with non-zero **rimWaveDepth**
-3. Verify preview shows S-curve with wavy rim
-4. Export to STL and open in slicer
-5. Compare shape - should be identical to preview (no tilted/distorted cross-sections)
-
----
-
-## Risk Assessment
-
-**Low risk** - Changes are localized to vertex positioning in `generateBodyMesh()`:
-- Preview code is unchanged (already correct)
-- Only modifying export to match preview behavior
-- No changes to radius calculation (shared `getBodyRadius()` is untouched)
+### 4. `src/components/plotter/PlotterPreview.tsx`
+- No changes needed — existing rendering handles any paths/layers
 
