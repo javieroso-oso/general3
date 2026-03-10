@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, Undo, Redo } from 'lucide-react';
-import { SurfaceStroke } from '@/types/parametric';
+import { Switch } from '@/components/ui/switch';
+import { Pencil, Trash2, Undo, Redo, Fliporiz, FlipHorizontal } from 'lucide-react';
+import { SurfaceStroke, TexturePattern } from '@/types/parametric';
 
 interface SurfaceCanvasProps {
   strokes: SurfaceStroke[];
@@ -14,13 +15,12 @@ interface SurfaceCanvasProps {
   height?: number;
 }
 
-const COLORS = {
-  background: '#1a1a2e',
-  grid: '#2a2a4a',
-  stroke: '#60a5fa',
+const EFFECT_COLORS: Record<SurfaceStroke['effect'], string> = {
+  raised: '#60a5fa',
   engraved: '#f97316',
   ribbon: '#a78bfa',
-  raised: '#60a5fa',
+  cut: '#ef4444',
+  texture: '#4ade80',
 };
 
 const CANVAS_W = 400;
@@ -32,6 +32,9 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
   const [brushWidth, setBrushWidth] = useState(4);
   const [currentEffect, setCurrentEffect] = useState<SurfaceStroke['effect']>('raised');
   const [currentDepth, setCurrentDepth] = useState(2);
+  const [currentTexturePattern, setCurrentTexturePattern] = useState<TexturePattern>('dots');
+  const [symmetry, setSymmetry] = useState(false);
+  const [brushOpacity, setBrushOpacity] = useState(1);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isLoadingRef = useRef(false);
@@ -46,7 +49,7 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
     const canvas = new FabricCanvas(canvasRef.current, {
       width,
       height,
-      backgroundColor: COLORS.background,
+      backgroundColor: '#1a1a2e',
       selection: false,
       isDrawingMode: true,
     });
@@ -56,12 +59,12 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
     const gridY = height / 6;
     for (let x = gridX; x < width; x += gridX) {
       canvas.add(new Line([x, 0, x, height], {
-        stroke: COLORS.grid, strokeWidth: 0.5, selectable: false, evented: false,
+        stroke: '#2a2a4a', strokeWidth: 0.5, selectable: false, evented: false,
       }));
     }
     for (let y = gridY; y < height; y += gridY) {
       canvas.add(new Line([0, y, width, y], {
-        stroke: COLORS.grid, strokeWidth: 0.5, selectable: false, evented: false,
+        stroke: '#2a2a4a', strokeWidth: 0.5, selectable: false, evented: false,
       }));
     }
 
@@ -74,7 +77,7 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
     }));
 
     canvas.freeDrawingBrush = new PencilBrush(canvas);
-    canvas.freeDrawingBrush.color = COLORS.raised;
+    canvas.freeDrawingBrush.color = EFFECT_COLORS.raised;
     canvas.freeDrawingBrush.width = brushWidth;
 
     setFabricCanvas(canvas);
@@ -86,12 +89,17 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
     return () => { canvas.dispose(); };
   }, [width, height]);
 
-  // Update brush on effect change
+  // Update brush on effect/opacity change
   useEffect(() => {
     if (!fabricCanvas?.freeDrawingBrush) return;
     fabricCanvas.freeDrawingBrush.width = brushWidth;
-    fabricCanvas.freeDrawingBrush.color = COLORS[currentEffect] || COLORS.raised;
-  }, [brushWidth, currentEffect, fabricCanvas]);
+    const hex = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.raised;
+    // Apply opacity via rgba
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    fabricCanvas.freeDrawingBrush.color = `rgba(${r},${g},${b},${brushOpacity})`;
+  }, [brushWidth, currentEffect, fabricCanvas, brushOpacity]);
 
   // Extract strokes from canvas paths
   const extractStrokes = useCallback(() => {
@@ -113,21 +121,19 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
           let px = cmd[cmd.length - 2];
           let py = cmd[cmd.length - 1];
 
-          // Apply object transform
           const transformed = {
             x: matrix[0] * px + matrix[2] * py + matrix[4],
             y: matrix[1] * px + matrix[3] * py + matrix[5],
           };
 
           const u = Math.max(0, Math.min(1, transformed.x / width));
-          const v = Math.max(0, Math.min(1, 1 - transformed.y / height)); // flip Y
+          const v = Math.max(0, Math.min(1, 1 - transformed.y / height));
 
           points.push({ u, v });
         }
       });
 
       if (points.length >= 2) {
-        // Check if this stroke already exists (by index matching)
         const existing = strokesRef.current[newStrokes.length];
         newStrokes.push({
           id: existing?.id || `stroke-${Date.now()}-${idx}`,
@@ -135,19 +141,55 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
           thickness: existing?.thickness || brushWidth * 0.5,
           effect: existing?.effect || currentEffect,
           depth: existing?.depth || currentDepth,
+          ...(currentEffect === 'texture' ? { texturePattern: currentTexturePattern } : {}),
         });
       }
     });
 
     onChange(newStrokes);
-  }, [fabricCanvas, width, height, onChange, currentEffect, currentDepth, brushWidth]);
+  }, [fabricCanvas, width, height, onChange, currentEffect, currentDepth, brushWidth, currentTexturePattern]);
+
+  // Mirror stroke points horizontally for symmetry
+  const mirrorPath = useCallback((path: Path): Path | null => {
+    if (!path.path) return null;
+    const mirroredPathData = path.path.map((cmd: any) => {
+      const newCmd = [...cmd];
+      // Mirror x coordinates (last-2 and any intermediate control points)
+      for (let i = 1; i < newCmd.length; i += 2) {
+        if (typeof newCmd[i] === 'number') {
+          newCmd[i] = width - newCmd[i];
+        }
+      }
+      return newCmd;
+    });
+    
+    const mirroredPath = new Path(mirroredPathData, {
+      stroke: path.stroke,
+      strokeWidth: path.strokeWidth,
+      fill: '',
+      selectable: true,
+      evented: true,
+      opacity: path.opacity,
+    });
+    return mirroredPath;
+  }, [width]);
 
   // Listen for new paths
   useEffect(() => {
     if (!fabricCanvas) return;
 
-    const handlePathCreated = () => {
+    const handlePathCreated = (e: any) => {
       if (isLoadingRef.current) return;
+      
+      // Add mirrored stroke if symmetry is on
+      if (symmetry && e.path) {
+        const mirrored = mirrorPath(e.path);
+        if (mirrored) {
+          fabricCanvas.add(mirrored);
+          fabricCanvas.renderAll();
+        }
+      }
+      
       extractStrokes();
 
       const json = JSON.stringify(fabricCanvas.toJSON());
@@ -157,7 +199,7 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
 
     fabricCanvas.on('path:created', handlePathCreated);
     return () => { fabricCanvas.off('path:created', handlePathCreated); };
-  }, [fabricCanvas, extractStrokes, historyIndex]);
+  }, [fabricCanvas, extractStrokes, historyIndex, symmetry, mirrorPath]);
 
   const handleClear = () => {
     if (!fabricCanvas) return;
@@ -209,6 +251,11 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
           <Trash2 className="w-3 h-3 mr-1" />
           Clear
         </Button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <FlipHorizontal className="w-3 h-3 text-muted-foreground" />
+          <Label className="text-xs text-muted-foreground">Symmetry</Label>
+          <Switch checked={symmetry} onCheckedChange={setSymmetry} className="scale-75" />
+        </div>
       </div>
 
       {/* Effect & depth controls */}
@@ -220,9 +267,36 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="raised">Raised (tube)</SelectItem>
-              <SelectItem value="engraved">Engraved (groove)</SelectItem>
-              <SelectItem value="ribbon">Ribbon (flat)</SelectItem>
+              <SelectItem value="raised">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.raised }} />
+                  Raised (emboss)
+                </span>
+              </SelectItem>
+              <SelectItem value="engraved">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.engraved }} />
+                  Engraved (groove)
+                </span>
+              </SelectItem>
+              <SelectItem value="ribbon">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.ribbon }} />
+                  Ribbon (flat)
+                </span>
+              </SelectItem>
+              <SelectItem value="cut">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.cut }} />
+                  Cut (through)
+                </span>
+              </SelectItem>
+              <SelectItem value="texture">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.texture }} />
+                  Texture (pattern)
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -239,8 +313,25 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
         </div>
       </div>
 
-      {/* Brush size */}
-      <div className="flex items-center gap-3">
+      {/* Texture pattern selector - only when texture effect */}
+      {currentEffect === 'texture' && (
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Texture Pattern</Label>
+          <Select value={currentTexturePattern} onValueChange={(v) => setCurrentTexturePattern(v as TexturePattern)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dots">Dots</SelectItem>
+              <SelectItem value="crosshatch">Crosshatch</SelectItem>
+              <SelectItem value="zigzag">Zigzag</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Brush size & opacity */}
+      <div className="flex items-center gap-3 flex-wrap">
         <Pencil className="w-3 h-3 text-muted-foreground" />
         <Label className="text-xs text-muted-foreground">Brush</Label>
         <Slider
@@ -249,9 +340,18 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
           min={2}
           max={12}
           step={1}
-          className="w-24 py-2"
+          className="w-20 py-2"
         />
         <span className="text-xs text-muted-foreground tabular-nums">{brushWidth}px</span>
+        <Label className="text-xs text-muted-foreground ml-2">Opacity</Label>
+        <Slider
+          value={[brushOpacity]}
+          onValueChange={([v]) => setBrushOpacity(v)}
+          min={0.2}
+          max={1}
+          step={0.1}
+          className="w-16 py-2"
+        />
       </div>
 
       {/* Canvas */}

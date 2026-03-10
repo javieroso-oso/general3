@@ -1100,18 +1100,38 @@ const ParametricMesh = ({
 function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricParams; materialConfig: MaterialConfig }) {
   const strokeGeos = useMemo(() => generateSurfaceStrokeGeometries(params), [params]);
   
+  const getMaterial = (effect: SurfaceStroke['effect']) => {
+    switch (effect) {
+      case 'engraved':
+        return { color: '#222', opacity: 1, transparent: false, side: THREE.DoubleSide };
+      case 'cut':
+        return { color: '#ef4444', opacity: 0.4, transparent: true, side: THREE.DoubleSide };
+      case 'texture':
+        return { color: '#4ade80', opacity: 0.9, transparent: false, side: THREE.FrontSide };
+      case 'ribbon':
+        return { color: materialConfig.color, opacity: 1, transparent: false, side: THREE.DoubleSide };
+      default: // raised
+        return { color: materialConfig.color, opacity: 1, transparent: false, side: THREE.FrontSide };
+    }
+  };
+  
   return (
     <>
-      {strokeGeos.map((sg, idx) => (
-        <mesh key={idx} geometry={sg.geometry} castShadow receiveShadow>
-          <meshPhysicalMaterial
-            color={sg.effect === 'engraved' ? '#222' : materialConfig.color}
-            roughness={materialConfig.roughness}
-            metalness={materialConfig.metalness}
-            side={sg.effect === 'engraved' ? THREE.DoubleSide : THREE.FrontSide}
-          />
-        </mesh>
-      ))}
+      {strokeGeos.map((sg, idx) => {
+        const mat = getMaterial(sg.effect);
+        return (
+          <mesh key={idx} geometry={sg.geometry} castShadow={!mat.transparent} receiveShadow>
+            <meshPhysicalMaterial
+              color={mat.color}
+              roughness={materialConfig.roughness}
+              metalness={materialConfig.metalness}
+              side={mat.side}
+              transparent={mat.transparent}
+              opacity={mat.opacity}
+            />
+          </mesh>
+        );
+      })}
     </>
   );
 }
