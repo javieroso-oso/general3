@@ -61,6 +61,7 @@ const PROJECTION_TYPE_LABELS: Record<ProjectionType, string> = {
   contourStack: 'Contour Stack',
   lineField: 'Distortion Field',
   contourLines: 'Contour Lines',
+  exploded: 'Exploded View',
 };
 
 const LINE_FIELD_MODE_LABELS: Record<LineFieldMode, { label: string; description: string }> = {
