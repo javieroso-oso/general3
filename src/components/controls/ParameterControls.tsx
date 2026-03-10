@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2 } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2, PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
-import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle } from '@/types/parametric';
+import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
+import SurfaceCanvas from '@/components/drawing/SurfaceCanvas';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams } from '@/lib/random-generator';
 import { analyzeUndercuts, calculateMoldMaterialEstimate, calculateOptimalSplits } from '@/lib/mold-undercut-detector';
@@ -1913,6 +1914,28 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         {params.moldEnabled && (
           <MoldControls params={params} type={type} onParamsChange={onParamsChange} handleChange={handleChange} />
         )}
+      </div>
+      
+      {/* 9. Surface Art */}
+      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenTool className={cn("w-4 h-4", params.surfaceStrokes?.length > 0 ? "text-primary" : "text-muted-foreground")} />
+            <Label className="text-sm font-medium">Surface Art</Label>
+          </div>
+          <Switch
+            id="surface-strokes-visible"
+            checked={params.surfaceStrokesVisible ?? true}
+            onCheckedChange={(v) => onParamsChange({ ...params, surfaceStrokesVisible: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Draw lines on the unwrapped surface. They become 3D tubes, grooves, or ribbons on your shape.
+        </div>
+        <SurfaceCanvas
+          strokes={params.surfaceStrokes || []}
+          onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
+        />
       </div>
     </motion.div>
   );

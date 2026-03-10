@@ -607,4 +607,8 @@ export const defaultLampParams: LampParams = {
   translucencyZoneStart: 0.3,
   translucencyZoneEnd: 0.7,
   translucencyThickness: 0.8,
+  
+  // Surface art
+  surfaceStrokes: [],
+  surfaceStrokesVisible: true,
 };

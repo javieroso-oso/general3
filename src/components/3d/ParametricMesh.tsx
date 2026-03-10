@@ -11,6 +11,7 @@ import { MaterialPreset, MATERIAL_PRESETS, MaterialConfig } from '@/types/materi
 import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
+import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
@@ -1062,6 +1063,11 @@ const ParametricMesh = ({
         </mesh>
       )}
       
+      {/* Surface art strokes */}
+      {params.surfaceStrokesVisible && params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
+        <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
+      )}
+      
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
@@ -1089,5 +1095,25 @@ const ParametricMesh = ({
     </group>
   );
 };
+
+// Separate component for surface strokes to keep render clean
+function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricParams; materialConfig: MaterialConfig }) {
+  const strokeGeos = useMemo(() => generateSurfaceStrokeGeometries(params), [params]);
+  
+  return (
+    <>
+      {strokeGeos.map((sg, idx) => (
+        <mesh key={idx} geometry={sg.geometry} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            color={sg.effect === 'engraved' ? '#222' : materialConfig.color}
+            roughness={materialConfig.roughness}
+            metalness={materialConfig.metalness}
+            side={sg.effect === 'engraved' ? THREE.DoubleSide : THREE.FrontSide}
+          />
+        </mesh>
+      ))}
+    </>
+  );
+}
 
 export default ParametricMesh;
