@@ -1,5 +1,14 @@
 export type ObjectType = 'shape' | 'plotter';
 
+// Surface stroke for drawing-to-3D feature
+export interface SurfaceStroke {
+  id: string;
+  points: { u: number; v: number }[];  // u=0..1 (angle around body), v=0..1 (height)
+  thickness: number;     // tube diameter in mm
+  effect: 'raised' | 'engraved' | 'ribbon';
+  depth: number;         // how far it protrudes or cuts in (mm)
+}
+
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
