@@ -5,7 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Trash2, Undo, Redo, FlipHorizontal, Move, ChevronDown, ChevronRight } from 'lucide-react';
+import { Pencil, Trash2, Undo, Redo, FlipHorizontal, ChevronDown, ChevronRight } from 'lucide-react';
 import { SurfaceStroke, TexturePattern, ParametricParams } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
 import { cn } from '@/lib/utils';
