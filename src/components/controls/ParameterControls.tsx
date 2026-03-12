@@ -1936,6 +1936,8 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
         <SurfaceCanvas
           strokes={params.surfaceStrokes || []}
           onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
+          onHover={onSurfaceHover}
+          params={params}
         />
       </div>
     </motion.div>
