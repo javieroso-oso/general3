@@ -494,7 +494,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         Mueve el mouse sobre el canvas — el punto amarillo en el modelo 3D muestra dónde estás dibujando
       </p>
 
-      {/* Stroke count + list toggle */}
+      {/* Stroke list - simple delete only */}
       {strokes.length > 0 && (
         <div className="space-y-2">
           <button
@@ -502,81 +502,33 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
           >
             {showStrokeList ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            <Move className="w-3 h-3" />
-            <span>{strokes.length} stroke{strokes.length !== 1 ? 's' : ''} — adjust placement</span>
+            <span>{strokes.length} trazo{strokes.length !== 1 ? 's' : ''}</span>
           </button>
 
           {showStrokeList && (
-            <div className="space-y-3 max-h-48 overflow-y-auto">
+            <div className="space-y-1 max-h-32 overflow-y-auto">
               {strokes.map((stroke, idx) => (
-                <div key={stroke.id} className="bg-background/50 rounded p-2 space-y-2 border border-border/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: EFFECT_COLORS[stroke.effect] }}
-                      />
-                      <span className="text-xs font-medium text-foreground">
-                        Stroke {idx + 1}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        ({stroke.effect})
-                      </span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 w-5 p-0"
-                      onClick={() => handleRemoveStroke(idx)}
-                    >
-                      <Trash2 className="w-3 h-3 text-muted-foreground" />
-                    </Button>
+                <div key={stroke.id} className="flex items-center justify-between bg-background/50 rounded px-2 py-1 border border-border/50">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: EFFECT_COLORS[stroke.effect] }}
+                    />
+                    <span className="text-xs text-foreground">
+                      Trazo {idx + 1}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      ({stroke.effect})
+                    </span>
                   </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] text-muted-foreground w-14">Rotate</Label>
-                      <Slider
-                        value={[stroke.offsetU ?? 0]}
-                        onValueChange={([v]) => handleStrokeOffsetU(idx, v)}
-                        min={-0.5}
-                        max={0.5}
-                        step={0.01}
-                        className="flex-1 py-1"
-                      />
-                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
-                        {Math.round((stroke.offsetU ?? 0) * 360)}°
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] text-muted-foreground w-14">Height</Label>
-                      <Slider
-                        value={[stroke.offsetV ?? 0]}
-                        onValueChange={([v]) => handleStrokeOffsetV(idx, v)}
-                        min={-0.5}
-                        max={0.5}
-                        step={0.01}
-                        className="flex-1 py-1"
-                      />
-                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
-                        {((stroke.offsetV ?? 0) * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] text-muted-foreground w-14">Scale</Label>
-                      <Slider
-                        value={[stroke.strokeScale ?? 1]}
-                        onValueChange={([v]) => handleStrokeScale(idx, v)}
-                        min={0.3}
-                        max={2}
-                        step={0.05}
-                        className="flex-1 py-1"
-                      />
-                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
-                        {(stroke.strokeScale ?? 1).toFixed(2)}×
-                      </span>
-                    </div>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0"
+                    onClick={() => handleRemoveStroke(idx)}
+                  >
+                    <Trash2 className="w-3 h-3 text-muted-foreground" />
+                  </Button>
                 </div>
               ))}
             </div>
