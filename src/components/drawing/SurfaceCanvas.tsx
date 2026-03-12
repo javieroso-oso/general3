@@ -342,25 +342,6 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
     });
   };
 
-  // Per-stroke adjustment handlers
-  const handleStrokeOffsetU = (idx: number, val: number) => {
-    const updated = [...strokes];
-    updated[idx] = { ...updated[idx], offsetU: val };
-    onChange(updated);
-  };
-
-  const handleStrokeOffsetV = (idx: number, val: number) => {
-    const updated = [...strokes];
-    updated[idx] = { ...updated[idx], offsetV: val };
-    onChange(updated);
-  };
-
-  const handleStrokeScale = (idx: number, val: number) => {
-    const updated = [...strokes];
-    updated[idx] = { ...updated[idx], strokeScale: val };
-    onChange(updated);
-  };
-
   const handleRemoveStroke = (idx: number) => {
     const updated = strokes.filter((_, i) => i !== idx);
     onChange(updated);
