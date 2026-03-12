@@ -1072,9 +1072,9 @@ const ParametricMesh = ({
         <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
       )}
       
-      {/* Surface hover crosshair */}
-      {surfaceHover && params.surfaceStrokesVisible && (
-        <SurfaceCrosshair params={params} hover={surfaceHover} />
+      {/* Surface art bounding box indicator */}
+      {params.surfaceStrokesVisible && params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
+        <SurfaceBoundsIndicator params={params} />
       )}
       
       {showWireframe && (
