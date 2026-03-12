@@ -237,6 +237,10 @@ export interface ParametricParams {
   // Surface art strokes
   surfaceStrokes: SurfaceStroke[];
   surfaceStrokesVisible: boolean;
+  // Global placement for all strokes
+  surfaceGlobalOffsetU: number;  // rotate all strokes around body (0..1 = 0..360°)
+  surfaceGlobalOffsetV: number;  // shift all strokes up/down (fraction of height)
+  surfaceGlobalScale: number;    // scale all strokes from center
 
   // Preview mode
   showBaseOnly: boolean;
