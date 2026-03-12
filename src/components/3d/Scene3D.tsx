@@ -66,6 +66,7 @@ const Scene3D = ({
   customColor,
   legMaterialPreset,
   legCustomColor,
+  surfaceHover,
 }: Scene3DProps) => {
   // When legs are enabled, lift the entire object so legs touch ground
   const legHeight = params.addLegs ? params.legHeight : 0;
