@@ -28,6 +28,7 @@ import {
   PrintAnalysis,
 } from '@/types/parametric';
 import { PlotterParams, PlotterDrawing, defaultPlotterParams } from '@/types/plotter';
+import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode, exportBodyToSTL } from '@/lib/stl-export';
 import { ExportType } from '@/config/export-pricing';
