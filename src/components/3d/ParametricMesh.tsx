@@ -1145,82 +1145,115 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
   );
 }
 
-// Surface crosshair: shows a ring at hover height and a vertical line at hover angle
-function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: SurfaceHoverPosition }) {
+// Surface bounds indicator: shows two rings marking the top and bottom of the drawing area
+function SurfaceBoundsIndicator({ params }: { params: ParametricParams }) {
   const SCALE = 0.01;
   const h = params.height * SCALE;
   
-  const ringLine = useMemo(() => {
+  // Compute bounding box of all strokes (in UV space) with global offsets applied
+  const bounds = useMemo(() => {
+    const strokes = params.surfaceStrokes || [];
+    if (strokes.length === 0) return null;
+    
+    const globalU = params.surfaceGlobalOffsetU ?? 0;
+    const globalV = params.surfaceGlobalOffsetV ?? 0;
+    const globalScale = params.surfaceGlobalScale ?? 1;
+    
+    let minU = 1, maxU = 0, minV = 1, maxV = 0;
+    
+    // Find centroid of all points for scaling
+    let allU = 0, allV = 0, count = 0;
+    for (const s of strokes) {
+      for (const p of s.points) {
+        allU += p.u; allV += p.v; count++;
+      }
+    }
+    const cu = count > 0 ? allU / count : 0.5;
+    const cv = count > 0 ? allV / count : 0.5;
+    
+    for (const s of strokes) {
+      const sOffU = (s.offsetU ?? 0) + globalU;
+      const sOffV = (s.offsetV ?? 0) + globalV;
+      const sScale = (s.strokeScale ?? 1) * globalScale;
+      
+      for (const p of s.points) {
+        const u = Math.max(0, Math.min(1, (p.u - cu) * sScale + cu + sOffU));
+        const v = Math.max(0, Math.min(1, (p.v - cv) * sScale + cv + sOffV));
+        if (u < minU) minU = u;
+        if (u > maxU) maxU = u;
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+      }
+    }
+    
+    return { minU, maxU, minV, maxV };
+  }, [params]);
+  
+  const ringTop = useMemo(() => {
+    if (!bounds) return null;
     const segments = 64;
     const points: THREE.Vector3[] = [];
-    const t = hover.v;
+    const t = Math.min(1, bounds.maxV);
     
     for (let j = 0; j <= segments; j++) {
-      const theta = (j / segments) * Math.PI * 2;
+      const frac = j / segments;
+      // Only draw ring in the U range of the drawing
+      const theta = (bounds.minU + frac * (bounds.maxU - bounds.minU)) * Math.PI * 2;
       const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
-      const twistRad = (params.twistAngle * Math.PI / 180) * t;
-      const finalTheta = theta + twistRad;
-      points.push(new THREE.Vector3(
-        Math.cos(finalTheta) * r,
-        t * h,
-        Math.sin(finalTheta) * r,
-      ));
+      points.push(new THREE.Vector3(Math.cos(theta) * r * 1.005, t * h, Math.sin(theta) * r * 1.005));
     }
     
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2, transparent: true, opacity: 0.85 });
-    return new THREE.Line(geo, mat);
-  }, [params, hover.v, h]);
+    return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.6 }));
+  }, [params, bounds, h]);
   
-  const vertLine = useMemo(() => {
-    const segments = 32;
+  const ringBottom = useMemo(() => {
+    if (!bounds) return null;
+    const segments = 64;
     const points: THREE.Vector3[] = [];
-    const theta = hover.u * Math.PI * 2;
+    const t = Math.max(0, bounds.minV);
     
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
+    for (let j = 0; j <= segments; j++) {
+      const frac = j / segments;
+      const theta = (bounds.minU + frac * (bounds.maxU - bounds.minU)) * Math.PI * 2;
       const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
-      const twistRad = (params.twistAngle * Math.PI / 180) * t;
-      const finalTheta = theta + twistRad;
-      points.push(new THREE.Vector3(
-        Math.cos(finalTheta) * r,
-        t * h,
-        Math.sin(finalTheta) * r,
-      ));
+      points.push(new THREE.Vector3(Math.cos(theta) * r * 1.005, t * h, Math.sin(theta) * r * 1.005));
     }
     
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2, transparent: true, opacity: 0.85 });
-    return new THREE.Line(geo, mat);
-  }, [params, hover.u, h]);
+    return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.6 }));
+  }, [params, bounds, h]);
   
-  const dotPos = useMemo(() => {
-    const theta = hover.u * Math.PI * 2;
-    const t = hover.v;
-    const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
-    const twistRad = (params.twistAngle * Math.PI / 180) * t;
-    const finalTheta = theta + twistRad;
-    return new THREE.Vector3(
-      Math.cos(finalTheta) * r * 1.02,
-      t * h,
-      Math.sin(finalTheta) * r * 1.02,
-    );
-  }, [params, hover.u, hover.v, h]);
+  // Vertical edge lines at minU and maxU
+  const edgeLines = useMemo(() => {
+    if (!bounds) return [];
+    const segments = 24;
+    const lines: THREE.Line[] = [];
+    
+    for (const u of [bounds.minU, bounds.maxU]) {
+      const theta = u * Math.PI * 2;
+      const points: THREE.Vector3[] = [];
+      for (let i = 0; i <= segments; i++) {
+        const t = bounds.minV + (i / segments) * (bounds.maxV - bounds.minV);
+        const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+        points.push(new THREE.Vector3(Math.cos(theta) * r * 1.005, t * h, Math.sin(theta) * r * 1.005));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      lines.push(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.4, depthTest: false })));
+    }
+    
+    return lines;
+  }, [params, bounds, h]);
+  
+  if (!bounds || !ringTop || !ringBottom) return null;
   
   return (
     <group>
-      <primitive object={ringLine} />
-      <primitive object={vertLine} />
-      {/* Bright dot at intersection */}
-      <mesh position={dotPos}>
-        <sphereGeometry args={[0.025, 12, 12]} />
-        <meshBasicMaterial color="#fbbf24" />
-      </mesh>
-      {/* Glow around dot */}
-      <mesh position={dotPos}>
-        <sphereGeometry args={[0.05, 12, 12]} />
-        <meshBasicMaterial color="#fbbf24" transparent opacity={0.25} />
-      </mesh>
+      <primitive object={ringTop} />
+      <primitive object={ringBottom} />
+      {edgeLines.map((line, i) => (
+        <primitive key={i} object={line} />
+      ))}
     </group>
   );
 }
