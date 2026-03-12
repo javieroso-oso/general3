@@ -1150,8 +1150,7 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
   const SCALE = 0.01;
   const h = params.height * SCALE;
   
-  // Horizontal ring at hover.v height
-  const ringGeo = useMemo(() => {
+  const ringLine = useMemo(() => {
     const segments = 64;
     const points: THREE.Vector3[] = [];
     const t = hover.v;
@@ -1168,11 +1167,12 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
       ));
     }
     
-    return new THREE.BufferGeometry().setFromPoints(points);
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    return new THREE.Line(geo, mat);
   }, [params, hover.v, h]);
   
-  // Vertical line at hover.u angle
-  const lineGeo = useMemo(() => {
+  const vertLine = useMemo(() => {
     const segments = 32;
     const points: THREE.Vector3[] = [];
     const theta = hover.u * Math.PI * 2;
@@ -1189,10 +1189,11 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
       ));
     }
     
-    return new THREE.BufferGeometry().setFromPoints(points);
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    return new THREE.Line(geo, mat);
   }, [params, hover.u, h]);
   
-  // Small dot at intersection
   const dotPos = useMemo(() => {
     const theta = hover.u * Math.PI * 2;
     const t = hover.v;
@@ -1208,12 +1209,8 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
   
   return (
     <group>
-      <line geometry={ringGeo}>
-        <lineBasicMaterial color="#fbbf24" linewidth={2} transparent opacity={0.7} />
-      </line>
-      <line geometry={lineGeo}>
-        <lineBasicMaterial color="#fbbf24" linewidth={2} transparent opacity={0.7} />
-      </line>
+      <primitive object={ringLine} />
+      <primitive object={vertLine} />
       <mesh position={dotPos}>
         <sphereGeometry args={[0.015, 8, 8]} />
         <meshBasicMaterial color="#fbbf24" />
