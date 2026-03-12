@@ -224,7 +224,7 @@ const ImageToSurfaceStrokes = ({
     }
 
     setProcessing(false);
-  }, [image, canvasWidth, canvasHeight, detectEdges, traceContours]);
+  }, [image, canvasWidth, canvasHeight, detectEdges, traceContours, strokeEffect]);
 
   // Auto-process when settings change
   useEffect(() => {
