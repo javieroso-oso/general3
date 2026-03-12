@@ -38,6 +38,7 @@ const ParametricMesh = ({
   customColor,
   legMaterialPreset,
   legCustomColor,
+  surfaceHover,
 }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
