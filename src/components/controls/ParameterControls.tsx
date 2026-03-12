@@ -484,6 +484,66 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
   );
 };
 
+// Surface Art tabs: Draw mode vs Photo-to-Strokes mode
+interface SurfaceArtTabsProps {
+  params: ParametricParams;
+  onParamsChange: (params: ParametricParams) => void;
+  onSurfaceHover?: (pos: SurfaceHoverPosition | null) => void;
+}
+
+const SurfaceArtTabs = ({ params, onParamsChange, onSurfaceHover }: SurfaceArtTabsProps) => {
+  const [activeTab, setActiveTab] = useState<'draw' | 'photo'>('draw');
+
+  const handleImageStrokes = useCallback((newStrokes: SurfaceStroke[]) => {
+    const existing = params.surfaceStrokes || [];
+    onParamsChange({ ...params, surfaceStrokes: [...existing, ...newStrokes] });
+  }, [params, onParamsChange]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1 bg-background/50 rounded-md p-0.5">
+        <button
+          onClick={() => setActiveTab('draw')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs rounded transition-colors",
+            activeTab === 'draw'
+              ? "bg-card shadow-sm text-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <PenTool className="w-3 h-3" />
+          Draw
+        </button>
+        <button
+          onClick={() => setActiveTab('photo')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs rounded transition-colors",
+            activeTab === 'photo'
+              ? "bg-card shadow-sm text-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <ImageIcon className="w-3 h-3" />
+          Photo
+        </button>
+      </div>
+
+      {activeTab === 'photo' ? (
+        <ImageToSurfaceStrokes
+          onStrokesGenerated={handleImageStrokes}
+        />
+      ) : (
+        <SurfaceCanvas
+          strokes={params.surfaceStrokes || []}
+          onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
+          onHover={onSurfaceHover}
+          params={params}
+        />
+      )}
+    </div>
+  );
+};
+
 const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: ParameterControlsProps) => {
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
     let newParams = { ...params, [key]: value };
