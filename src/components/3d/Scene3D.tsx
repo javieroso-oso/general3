@@ -6,6 +6,7 @@ import MoldMesh from './MoldMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
 import { MaterialPreset, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
+import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -22,6 +23,7 @@ interface Scene3DProps {
   customColor?: string;
   legMaterialPreset?: MaterialPreset;
   legCustomColor?: string;
+  surfaceHover?: SurfaceHoverPosition | null;
 }
 
 const defaultSettings: PrintSettings = {
