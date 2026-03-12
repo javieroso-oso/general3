@@ -117,6 +117,7 @@ const Index = () => {
   const [legCustomColor, setLegCustomColor] = useState<string | undefined>(undefined);
   const [useLegPresetColor, setUseLegPresetColor] = useState(true);
   const [syncLegMaterial, setSyncLegMaterial] = useState(true);
+  const [surfaceHover, setSurfaceHover] = useState<SurfaceHoverPosition | null>(null);
   
   // Handle successful payment return and load gallery params from URL
   useEffect(() => {
