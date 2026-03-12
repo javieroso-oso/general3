@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
+import { Slider } from '@/components/ui/slider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
@@ -2001,6 +2002,57 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
           onParamsChange={onParamsChange}
           onSurfaceHover={onSurfaceHover}
         />
+
+        {/* Global placement controls - shown when strokes exist */}
+        {params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
+          <div className="border-t border-border/50 pt-3 space-y-2">
+            <Label className="text-xs font-medium text-foreground">Posición del dibujo</Label>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] text-muted-foreground w-14">Rotar</Label>
+                <Slider
+                  value={[params.surfaceGlobalOffsetU ?? 0]}
+                  onValueChange={([v]) => onParamsChange({ ...params, surfaceGlobalOffsetU: v })}
+                  min={-0.5}
+                  max={0.5}
+                  step={0.01}
+                  className="flex-1 py-1"
+                />
+                <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                  {Math.round((params.surfaceGlobalOffsetU ?? 0) * 360)}°
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] text-muted-foreground w-14">Altura</Label>
+                <Slider
+                  value={[params.surfaceGlobalOffsetV ?? 0]}
+                  onValueChange={([v]) => onParamsChange({ ...params, surfaceGlobalOffsetV: v })}
+                  min={-0.5}
+                  max={0.5}
+                  step={0.01}
+                  className="flex-1 py-1"
+                />
+                <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                  {((params.surfaceGlobalOffsetV ?? 0) * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] text-muted-foreground w-14">Escala</Label>
+                <Slider
+                  value={[params.surfaceGlobalScale ?? 1]}
+                  onValueChange={([v]) => onParamsChange({ ...params, surfaceGlobalScale: v })}
+                  min={0.3}
+                  max={2}
+                  step={0.05}
+                  className="flex-1 py-1"
+                />
+                <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                  {(params.surfaceGlobalScale ?? 1).toFixed(2)}×
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
