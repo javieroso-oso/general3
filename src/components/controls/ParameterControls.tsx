@@ -483,7 +483,7 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
   );
 };
 
-const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsProps) => {
+const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: ParameterControlsProps) => {
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
     let newParams = { ...params, [key]: value };
     
