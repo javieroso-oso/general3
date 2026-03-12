@@ -207,7 +207,8 @@ const ImageToSurfaceStrokes = ({
     }
 
     // Draw traced paths
-    prevCtx.strokeStyle = '#f97316'; // orange for engraved look
+    const EFFECT_COLORS: Record<string, string> = { raised: '#60a5fa', engraved: '#f97316', ribbon: '#a78bfa', cut: '#ef4444', texture: '#4ade80' };
+    prevCtx.strokeStyle = EFFECT_COLORS[strokeEffect] || '#60a5fa';
     prevCtx.lineWidth = 1.5;
     prevCtx.lineCap = 'round';
     prevCtx.lineJoin = 'round';
