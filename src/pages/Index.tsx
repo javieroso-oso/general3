@@ -485,6 +485,7 @@ const Index = () => {
             customColor={usePresetColor ? undefined : customColor}
             legMaterialPreset={syncLegMaterial ? materialPreset : legMaterialPreset}
             legCustomColor={syncLegMaterial ? (usePresetColor ? undefined : customColor) : (useLegPresetColor ? undefined : legCustomColor)}
+            surfaceHover={surfaceHover}
           />
         )}
       </div>
