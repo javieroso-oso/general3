@@ -28,6 +28,7 @@ import {
   PrintAnalysis,
 } from '@/types/parametric';
 import { PlotterParams, PlotterDrawing, defaultPlotterParams } from '@/types/plotter';
+import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode, exportBodyToSTL } from '@/lib/stl-export';
 import { ExportType } from '@/config/export-pricing';
@@ -116,6 +117,7 @@ const Index = () => {
   const [legCustomColor, setLegCustomColor] = useState<string | undefined>(undefined);
   const [useLegPresetColor, setUseLegPresetColor] = useState(true);
   const [syncLegMaterial, setSyncLegMaterial] = useState(true);
+  const [surfaceHover, setSurfaceHover] = useState<SurfaceHoverPosition | null>(null);
   
   // Handle successful payment return and load gallery params from URL
   useEffect(() => {
@@ -483,6 +485,7 @@ const Index = () => {
             customColor={usePresetColor ? undefined : customColor}
             legMaterialPreset={syncLegMaterial ? materialPreset : legMaterialPreset}
             legCustomColor={syncLegMaterial ? (usePresetColor ? undefined : customColor) : (useLegPresetColor ? undefined : legCustomColor)}
+            surfaceHover={surfaceHover}
           />
         )}
       </div>
@@ -576,6 +579,7 @@ const Index = () => {
                   params={params}
                   type={objectType}
                   onParamsChange={setParams}
+                  onSurfaceHover={setSurfaceHover}
                 />
               </TabsContent>
 

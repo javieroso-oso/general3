@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
-import SurfaceCanvas from '@/components/drawing/SurfaceCanvas';
+import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams } from '@/lib/random-generator';
 import { analyzeUndercuts, calculateMoldMaterialEstimate, calculateOptimalSplits } from '@/lib/mold-undercut-detector';
@@ -19,6 +19,7 @@ interface ParameterControlsProps {
   params: ParametricParams;
   type: ObjectType;
   onParamsChange: (params: ParametricParams) => void;
+  onSurfaceHover?: (pos: SurfaceHoverPosition | null) => void;
 }
 
 interface SectionProps {
@@ -482,7 +483,7 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
   );
 };
 
-const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsProps) => {
+const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: ParameterControlsProps) => {
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
     let newParams = { ...params, [key]: value };
     
@@ -1935,6 +1936,8 @@ const ParameterControls = ({ params, type, onParamsChange }: ParameterControlsPr
         <SurfaceCanvas
           strokes={params.surfaceStrokes || []}
           onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
+          onHover={onSurfaceHover}
+          params={params}
         />
       </div>
     </motion.div>

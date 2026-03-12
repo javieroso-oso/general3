@@ -6,6 +6,7 @@ import MoldMesh from './MoldMesh';
 import GCodePreview from './GCodePreview';
 import { ParametricParams, ObjectType, PrintSettings } from '@/types/parametric';
 import { MaterialPreset, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
+import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 
 interface Scene3DProps {
   params: ParametricParams;
@@ -22,6 +23,7 @@ interface Scene3DProps {
   customColor?: string;
   legMaterialPreset?: MaterialPreset;
   legCustomColor?: string;
+  surfaceHover?: SurfaceHoverPosition | null;
 }
 
 const defaultSettings: PrintSettings = {
@@ -64,6 +66,7 @@ const Scene3D = ({
   customColor,
   legMaterialPreset,
   legCustomColor,
+  surfaceHover,
 }: Scene3DProps) => {
   // When legs are enabled, lift the entire object so legs touch ground
   const legHeight = params.addLegs ? params.legHeight : 0;
@@ -111,6 +114,7 @@ const Scene3D = ({
                   customColor={customColor}
                   legMaterialPreset={legMaterialPreset}
                   legCustomColor={legCustomColor}
+                  surfaceHover={surfaceHover}
                 />
               </group>
             )

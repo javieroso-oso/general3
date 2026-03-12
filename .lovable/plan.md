@@ -1,62 +1,157 @@
 
 
-# Surface Art: Placement Preview & Enhanced Drawing Board
+# Fix: Spine-Based Geometry Discrepancy Between Preview and Export
 
-The user wants to see **where on the 3D surface** their drawing will land — a live placement guide that connects the 2D canvas to the 3D model. Like ceramic artists who mark placement before incising/drawing on clay.
+## Root Cause Identified
 
-## What to Build
+The "bending" distortion in exported STLs is caused by **fundamentally different spine handling** between the preview and export code paths:
 
-### 1. Live placement indicator on the 3D model
-When hovering or drawing on the 2D canvas, show a **highlight ring/band** on the 3D model indicating the corresponding height zone and angular position:
-- A horizontal ring at the current V (height) position
-- A vertical line at the current U (angle) position  
-- These form a crosshair on the 3D surface showing exactly where the brush is
+| Aspect | Preview (`ParametricMesh.tsx`) | Export (`stl-export.ts`) |
+|--------|--------------------------------|--------------------------|
+| **Spine Mode** | Simple lateral offset | Full Frenet frame rotation |
+| **Cross-sections** | Stay horizontal | Rotate with curve tangent |
+| **Visual Effect** | Elegant S-curves, shape unchanged | Cross-sections tilt and distort |
+| **Rim Waves** | Applied correctly | **MISSING** in `generateBodyMesh` |
 
-### 2. Ghost preview of the current stroke on the 3D model
-As you draw on the 2D canvas, show a **real-time translucent preview** of the stroke being projected onto the 3D shape — so you see the tube/groove forming live before committing.
+### The Technical Problem
 
-### 3. Zone markers on the 2D canvas
-Overlay the canvas with a **silhouette outline** of the body's profile (radius at each height), so you can see which parts of the canvas correspond to the bulge, the lip, the base, etc. This gives spatial context to the flat unwrap.
-
-### 4. Placement controls
-Add controls to **reposition** and **scale** existing strokes after drawing:
-- Vertical offset slider (shift stroke up/down on the body)
-- Rotation offset slider (rotate stroke around the body)
-- Scale slider (make the stroke bigger/smaller)
-
-## Technical Approach
-
-### Files to modify
-
-**`src/components/drawing/SurfaceCanvas.tsx`**
-- Add `onHover` callback that emits `{ u, v }` as mouse moves over canvas
-- Draw body profile silhouette overlay (call `getBodyRadius` at multiple heights, scale to canvas width to show where the shape widens/narrows)
-- Add per-stroke offset/rotation/scale controls in a stroke list below the canvas
-
-**`src/components/3d/ParametricMesh.tsx`**
-- New `SurfaceCrosshair` child component: takes `{ u, v }` hover position and renders two indicator rings (horizontal height ring + vertical angle line) on the body surface using `getBodyRadius`
-- Update `SurfaceStrokeMeshes` to show ghost preview geometry for in-progress stroke
-
-**`src/types/parametric.ts`**
-- Add `offsetU`, `offsetV`, `scale` optional fields to `SurfaceStroke` for post-draw repositioning
-
-**`src/lib/surface-stroke-generator.ts`**
-- Apply `offsetU`, `offsetV`, `scale` transforms to stroke points before projecting to 3D
-
-**`src/components/controls/ParameterControls.tsx`**
-- Pass hover state between `SurfaceCanvas` and the 3D scene (lift state to parent)
-- Add stroke list with per-stroke repositioning sliders
-
-### Data flow
-
-```text
-SurfaceCanvas (mouse move) 
-  → onHover({u, v}) 
-  → ParameterControls lifts state 
-  → passes to Index page 
-  → ParametricMesh renders crosshair at {u, v}
+**Preview (lines 306-317):**
+```typescript
+// SPINE-BASED: Simple lateral offset without Frenet rotation
+const localX = Math.cos(theta) * r;
+const localZ = Math.sin(theta) * r;
+x = localX + frame.position.x;  // Just add position offset
+z = localZ + frame.position.z;
+finalY = frame.position.y;
 ```
 
-### Profile silhouette on canvas
-Sample `getBodyRadius(params, t, 0)` for t=0..1 at ~50 points. Normalize to canvas width. Draw as a faint curved line on the left edge and mirrored on the right edge, showing the body's cross-section profile as context.
+**Export (lines 274-282):**
+```typescript
+// SPINE-BASED: Position vertex using Frenet frame
+const localX = Math.cos(theta);
+const localZ = Math.sin(theta);
+// Uses normal/binormal to ROTATE the cross-section
+x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
+finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
+z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+```
+
+The export uses Frenet frame rotation which rotates each cross-section to be perpendicular to the spine tangent. This causes the "bending" distortion where circles become ellipses tilted along the curve.
+
+### Additional Issue: Missing Rim Waves
+
+The `generateBodyMesh` function in `stl-export.ts` **does NOT apply rim wave effects** after computing vertices, unlike the preview which adds rim waves at lines 372-380.
+
+---
+
+## Solution
+
+### Step 1: Fix Spine Handling in STL Export
+
+Update `generateBodyMesh()` in `stl-export.ts` to use **simple lateral offset** (matching preview) instead of Frenet frame rotation.
+
+**Before:**
+```typescript
+if (useSpine && spineFrames[i]) {
+  const frame = spineFrames[i];
+  const localX = Math.cos(theta);
+  const localZ = Math.sin(theta);
+  
+  x = frame.position.x + frame.normal.x * localX * r + frame.binormal.x * localZ * r;
+  finalY = frame.position.y + frame.normal.y * localX * r + frame.binormal.y * localZ * r;
+  z = frame.position.z + frame.normal.z * localX * r + frame.binormal.z * localZ * r;
+}
+```
+
+**After:**
+```typescript
+if (useSpine && spineFrames[i]) {
+  // SPINE-BASED: Simple lateral offset without Frenet rotation
+  // Cross-sections stay horizontal, only position shifts along the curved path
+  // This matches the preview behavior in ParametricMesh.tsx
+  const frame = spineFrames[i];
+  const localX = Math.cos(theta) * r;
+  const localZ = Math.sin(theta) * r;
+  
+  x = localX + frame.position.x;
+  z = localZ + frame.position.z;
+  finalY = frame.position.y;
+}
+```
+
+### Step 2: Add Missing Rim Wave Effects
+
+Add rim wave Y-offset to `generateBodyMesh()` after melt effects:
+
+```typescript
+// After melt effect block, add:
+// Rim waves: modify Y position for top rows (matches ParametricMesh.tsx)
+const { rimWaveCount, rimWaveDepth } = params;
+if (rimWaveCount > 0 && rimWaveDepth > 0) {
+  const rimZone = 0.1; // Top 10% of height
+  const rimT = Math.max(0, (t - (1 - rimZone)) / rimZone);
+  if (rimT > 0) {
+    const waveOffset = Math.sin(theta * rimWaveCount) * rimWaveDepth * height * rimT;
+    finalY += waveOffset;
+  }
+}
+```
+
+### Step 3: Apply Same Fix to Inner Wall Vertices
+
+The inner wall generation (lines 322-381) has the same Frenet frame issue and also lacks rim waves. Apply identical fixes there.
+
+---
+
+## Files to Modify
+
+1. **`src/lib/stl-export.ts`**
+   - Lines 274-282: Change Frenet frame rotation to simple lateral offset (outer wall)
+   - Lines 335-343: Change Frenet frame rotation to simple lateral offset (inner wall)
+   - Lines 316-318: Add rim wave effect (after melt, before push to outerVerts)
+   - Lines 376-378: Add rim wave effect (after melt, before push to innerVerts)
+
+---
+
+## Technical Details
+
+### Why Frenet Frame Causes Distortion
+
+The Frenet frame consists of three orthonormal vectors at each point on the curve:
+- **Tangent (T)**: Direction of travel along curve
+- **Normal (N)**: Points toward center of curvature  
+- **Binormal (B)**: T × N
+
+When you position cross-section vertices using `normal * x + binormal * z`, you're rotating the circle to lie in a plane perpendicular to the tangent. This works well for tubes (like pipes), but for vases/lamps it creates unwanted distortion because the "top" and "bottom" of the object tilt with the curve.
+
+The preview's approach of simple lateral offset (`position.x + localX`, `position.z + localZ`) keeps cross-sections horizontal (parallel to ground), which is what users expect for vases/lamps.
+
+### Rim Wave Formula (matching preview)
+
+```typescript
+rimZone = 0.1           // Top 10% of height
+rimT = (t - 0.9) / 0.1  // Normalized position within rim zone (0 at 90% height, 1 at 100%)
+waveOffset = sin(theta * rimWaveCount) * rimWaveDepth * height * rimT
+finalY += waveOffset    // Add to Y position
+```
+
+---
+
+## Verification Plan
+
+After implementation:
+1. Create a shape with **spineEnabled** and non-zero **spineAmplitudeX/Z**
+2. Enable **rimWaveCount** with non-zero **rimWaveDepth**
+3. Verify preview shows S-curve with wavy rim
+4. Export to STL and open in slicer
+5. Compare shape - should be identical to preview (no tilted/distorted cross-sections)
+
+---
+
+## Risk Assessment
+
+**Low risk** - Changes are localized to vertex positioning in `generateBodyMesh()`:
+- Preview code is unchanged (already correct)
+- Only modifying export to match preview behavior
+- No changes to radius calculation (shared `getBodyRadius()` is untouched)
 

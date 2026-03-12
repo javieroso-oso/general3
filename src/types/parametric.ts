@@ -10,6 +10,9 @@ export interface SurfaceStroke {
   effect: 'raised' | 'engraved' | 'ribbon' | 'cut' | 'texture';
   depth: number;         // how far it protrudes or cuts in (mm)
   texturePattern?: TexturePattern; // only used when effect = 'texture'
+  offsetU?: number;      // post-draw U offset (rotation around body), default 0
+  offsetV?: number;      // post-draw V offset (shift up/down), default 0
+  strokeScale?: number;  // post-draw scale factor, default 1
 }
 
 // Stand types - different structural support options

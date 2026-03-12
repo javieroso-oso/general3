@@ -12,6 +12,8 @@ import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
 import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
+import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
+
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
@@ -21,6 +23,7 @@ interface ParametricMeshProps {
   customColor?: string;
   legMaterialPreset?: MaterialPreset;
   legCustomColor?: string;
+  surfaceHover?: SurfaceHoverPosition | null;
 }
 
 // Scale factor: convert mm to scene units (1 unit = 100mm for nice viewport)
@@ -35,6 +38,7 @@ const ParametricMesh = ({
   customColor,
   legMaterialPreset,
   legCustomColor,
+  surfaceHover,
 }: ParametricMeshProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
@@ -1068,6 +1072,11 @@ const ParametricMesh = ({
         <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
       )}
       
+      {/* Surface hover crosshair */}
+      {surfaceHover && params.surfaceStrokesVisible && (
+        <SurfaceCrosshair params={params} hover={surfaceHover} />
+      )}
+      
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
@@ -1133,6 +1142,80 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
         );
       })}
     </>
+  );
+}
+
+// Surface crosshair: shows a ring at hover height and a vertical line at hover angle
+function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: SurfaceHoverPosition }) {
+  const SCALE = 0.01;
+  const h = params.height * SCALE;
+  
+  const ringLine = useMemo(() => {
+    const segments = 64;
+    const points: THREE.Vector3[] = [];
+    const t = hover.v;
+    
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2;
+      const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+      const twistRad = (params.twistAngle * Math.PI / 180) * t;
+      const finalTheta = theta + twistRad;
+      points.push(new THREE.Vector3(
+        Math.cos(finalTheta) * r,
+        t * h,
+        Math.sin(finalTheta) * r,
+      ));
+    }
+    
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    return new THREE.Line(geo, mat);
+  }, [params, hover.v, h]);
+  
+  const vertLine = useMemo(() => {
+    const segments = 32;
+    const points: THREE.Vector3[] = [];
+    const theta = hover.u * Math.PI * 2;
+    
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+      const twistRad = (params.twistAngle * Math.PI / 180) * t;
+      const finalTheta = theta + twistRad;
+      points.push(new THREE.Vector3(
+        Math.cos(finalTheta) * r,
+        t * h,
+        Math.sin(finalTheta) * r,
+      ));
+    }
+    
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    return new THREE.Line(geo, mat);
+  }, [params, hover.u, h]);
+  
+  const dotPos = useMemo(() => {
+    const theta = hover.u * Math.PI * 2;
+    const t = hover.v;
+    const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+    const twistRad = (params.twistAngle * Math.PI / 180) * t;
+    const finalTheta = theta + twistRad;
+    return new THREE.Vector3(
+      Math.cos(finalTheta) * r * 1.02,
+      t * h,
+      Math.sin(finalTheta) * r * 1.02,
+    );
+  }, [params, hover.u, hover.v, h]);
+  
+  return (
+    <group>
+      <primitive object={ringLine} />
+      <primitive object={vertLine} />
+      <mesh position={dotPos}>
+        <sphereGeometry args={[0.015, 8, 8]} />
+        <meshBasicMaterial color="#fbbf24" />
+      </mesh>
+    </group>
   );
 }
 
