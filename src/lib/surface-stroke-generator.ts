@@ -119,10 +119,12 @@ function resampleStroke(points: { u: number; v: number }[], count: number): { u:
 function applyStrokeTransforms(
   points: { u: number; v: number }[],
   stroke: SurfaceStroke,
+  params: ParametricParams,
 ): { u: number; v: number }[] {
-  const offsetU = stroke.offsetU ?? 0;
-  const offsetV = stroke.offsetV ?? 0;
-  const scale = stroke.strokeScale ?? 1;
+  // Combine per-stroke and global offsets
+  const offsetU = (stroke.offsetU ?? 0) + (params.surfaceGlobalOffsetU ?? 0);
+  const offsetV = (stroke.offsetV ?? 0) + (params.surfaceGlobalOffsetV ?? 0);
+  const scale = (stroke.strokeScale ?? 1) * (params.surfaceGlobalScale ?? 1);
 
   if (offsetU === 0 && offsetV === 0 && scale === 1) return points;
 
@@ -141,7 +143,7 @@ function applyStrokeTransforms(
 function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams): StrokePoint3D[] {
   const sampleCount = Math.max(stroke.points.length, 24);
   const resampled = resampleStroke(stroke.points, sampleCount);
-  const transformed = applyStrokeTransforms(resampled, stroke);
+  const transformed = applyStrokeTransforms(resampled, stroke, params);
 
   const points3D: StrokePoint3D[] = [];
   for (let i = 0; i < transformed.length; i++) {
