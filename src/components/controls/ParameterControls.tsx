@@ -1932,13 +1932,14 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
           />
         </div>
         <div className="text-xs text-muted-foreground">
-          Draw lines on the unwrapped surface. They become 3D tubes, grooves, or ribbons on your shape.
+          Draw or upload a photo to create surface decoration. Lines become 3D tubes, grooves, or carvings on your shape.
         </div>
-        <SurfaceCanvas
-          strokes={params.surfaceStrokes || []}
-          onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
-          onHover={onSurfaceHover}
+        
+        {/* Draw / Photo tabs */}
+        <SurfaceArtTabs
           params={params}
+          onParamsChange={onParamsChange}
+          onSurfaceHover={onSurfaceHover}
         />
       </div>
     </motion.div>
