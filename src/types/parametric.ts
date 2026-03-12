@@ -506,6 +506,9 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     lightPatternRimMargin: 0.1,
     surfaceStrokes: [],
     surfaceStrokesVisible: true,
+    surfaceGlobalOffsetU: 0,
+    surfaceGlobalOffsetV: 0,
+    surfaceGlobalScale: 1,
     showBaseOnly: false,
     previewColor: '#e8e8e8',
   };
