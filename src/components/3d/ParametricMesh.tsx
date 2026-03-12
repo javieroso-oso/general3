@@ -1145,4 +1145,81 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
   );
 }
 
+// Surface crosshair: shows a ring at hover height and a vertical line at hover angle
+function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: SurfaceHoverPosition }) {
+  const SCALE = 0.01;
+  const h = params.height * SCALE;
+  
+  // Horizontal ring at hover.v height
+  const ringGeo = useMemo(() => {
+    const segments = 64;
+    const points: THREE.Vector3[] = [];
+    const t = hover.v;
+    
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2;
+      const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+      const twistRad = (params.twistAngle * Math.PI / 180) * t;
+      const finalTheta = theta + twistRad;
+      points.push(new THREE.Vector3(
+        Math.cos(finalTheta) * r,
+        t * h,
+        Math.sin(finalTheta) * r,
+      ));
+    }
+    
+    return new THREE.BufferGeometry().setFromPoints(points);
+  }, [params, hover.v, h]);
+  
+  // Vertical line at hover.u angle
+  const lineGeo = useMemo(() => {
+    const segments = 32;
+    const points: THREE.Vector3[] = [];
+    const theta = hover.u * Math.PI * 2;
+    
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+      const twistRad = (params.twistAngle * Math.PI / 180) * t;
+      const finalTheta = theta + twistRad;
+      points.push(new THREE.Vector3(
+        Math.cos(finalTheta) * r,
+        t * h,
+        Math.sin(finalTheta) * r,
+      ));
+    }
+    
+    return new THREE.BufferGeometry().setFromPoints(points);
+  }, [params, hover.u, h]);
+  
+  // Small dot at intersection
+  const dotPos = useMemo(() => {
+    const theta = hover.u * Math.PI * 2;
+    const t = hover.v;
+    const r = getBodyRadius(params, t, theta, { scale: SCALE, includeTwist: true, objectType: 'vase' });
+    const twistRad = (params.twistAngle * Math.PI / 180) * t;
+    const finalTheta = theta + twistRad;
+    return new THREE.Vector3(
+      Math.cos(finalTheta) * r * 1.02,
+      t * h,
+      Math.sin(finalTheta) * r * 1.02,
+    );
+  }, [params, hover.u, hover.v, h]);
+  
+  return (
+    <group>
+      <line geometry={ringGeo}>
+        <lineBasicMaterial color="#fbbf24" linewidth={2} transparent opacity={0.7} />
+      </line>
+      <line geometry={lineGeo}>
+        <lineBasicMaterial color="#fbbf24" linewidth={2} transparent opacity={0.7} />
+      </line>
+      <mesh position={dotPos}>
+        <sphereGeometry args={[0.015, 8, 8]} />
+        <meshBasicMaterial color="#fbbf24" />
+      </mesh>
+    </group>
+  );
+}
+
 export default ParametricMesh;

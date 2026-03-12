@@ -114,6 +114,7 @@ const Scene3D = ({
                   customColor={customColor}
                   legMaterialPreset={legMaterialPreset}
                   legCustomColor={legCustomColor}
+                  surfaceHover={surfaceHover}
                 />
               </group>
             )
