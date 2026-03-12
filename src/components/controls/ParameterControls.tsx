@@ -19,6 +19,7 @@ interface ParameterControlsProps {
   params: ParametricParams;
   type: ObjectType;
   onParamsChange: (params: ParametricParams) => void;
+  onSurfaceHover?: (pos: SurfaceHoverPosition | null) => void;
 }
 
 interface SectionProps {
