@@ -229,7 +229,7 @@ const ImageToSurfaceStrokes = ({
   // Auto-process when settings change
   useEffect(() => {
     if (image) processImage();
-  }, [image, threshold, edgeStrength, simplification, minPathLength, processImage]);
+  }, [image, threshold, edgeStrength, simplification, minPathLength, strokeEffect, processImage]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -1168,7 +1168,7 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
     }
     
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2, transparent: true, opacity: 0.85 });
     return new THREE.Line(geo, mat);
   }, [params, hover.v, h]);
   
@@ -1190,7 +1190,7 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
     }
     
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2, transparent: true, opacity: 0.85 });
     return new THREE.Line(geo, mat);
   }, [params, hover.u, h]);
   
