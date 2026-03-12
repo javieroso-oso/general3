@@ -12,6 +12,8 @@ import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
 import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
+import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
+
 interface ParametricMeshProps {
   params: ParametricParams;
   type: ObjectType;
@@ -21,6 +23,7 @@ interface ParametricMeshProps {
   customColor?: string;
   legMaterialPreset?: MaterialPreset;
   legCustomColor?: string;
+  surfaceHover?: SurfaceHoverPosition | null;
 }
 
 // Scale factor: convert mm to scene units (1 unit = 100mm for nice viewport)
