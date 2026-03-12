@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2, PenTool } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2, PenTool, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
