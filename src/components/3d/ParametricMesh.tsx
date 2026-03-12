@@ -1168,7 +1168,7 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
     }
     
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2, transparent: true, opacity: 0.85 });
     return new THREE.Line(geo, mat);
   }, [params, hover.v, h]);
   
@@ -1190,7 +1190,7 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
     }
     
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2, transparent: true, opacity: 0.85 });
     return new THREE.Line(geo, mat);
   }, [params, hover.u, h]);
   
@@ -1211,9 +1211,15 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
     <group>
       <primitive object={ringLine} />
       <primitive object={vertLine} />
+      {/* Bright dot at intersection */}
       <mesh position={dotPos}>
-        <sphereGeometry args={[0.015, 8, 8]} />
+        <sphereGeometry args={[0.025, 12, 12]} />
         <meshBasicMaterial color="#fbbf24" />
+      </mesh>
+      {/* Glow around dot */}
+      <mesh position={dotPos}>
+        <sphereGeometry args={[0.05, 12, 12]} />
+        <meshBasicMaterial color="#fbbf24" transparent opacity={0.25} />
       </mesh>
     </group>
   );

@@ -506,9 +506,12 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       {/* Labels */}
       <div className="flex justify-between text-[10px] text-muted-foreground -mt-1 px-1">
         <span>0°</span>
-        <span>← angle (wraps around) →</span>
+        <span>← ángulo (envuelve) →</span>
         <span>360°</span>
       </div>
+      <p className="text-[10px] text-muted-foreground/60 text-center -mt-0.5">
+        Mueve el mouse sobre el canvas — el punto amarillo en el modelo 3D muestra dónde estás dibujando
+      </p>
 
       {/* Stroke count + list toggle */}
       {strokes.length > 0 && (

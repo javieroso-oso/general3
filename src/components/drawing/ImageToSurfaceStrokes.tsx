@@ -31,7 +31,7 @@ const ImageToSurfaceStrokes = ({
   const [edgeStrength, setEdgeStrength] = useState(60);
   const [simplification, setSimplification] = useState(3); // skip every N pixels in contour
   const [minPathLength, setMinPathLength] = useState(8); // min points to keep a path
-  const [strokeEffect, setStrokeEffect] = useState<SurfaceStroke['effect']>('engraved');
+  const [strokeEffect, setStrokeEffect] = useState<SurfaceStroke['effect']>('raised');
   const [strokeDepth, setStrokeDepth] = useState(1.5);
   const [strokeThickness, setStrokeThickness] = useState(1.5);
   const [previewPaths, setPreviewPaths] = useState<{ u: number; v: number }[][]>([]);
@@ -207,7 +207,8 @@ const ImageToSurfaceStrokes = ({
     }
 
     // Draw traced paths
-    prevCtx.strokeStyle = '#f97316'; // orange for engraved look
+    const EFFECT_COLORS: Record<string, string> = { raised: '#60a5fa', engraved: '#f97316', ribbon: '#a78bfa', cut: '#ef4444', texture: '#4ade80' };
+    prevCtx.strokeStyle = EFFECT_COLORS[strokeEffect] || '#60a5fa';
     prevCtx.lineWidth = 1.5;
     prevCtx.lineCap = 'round';
     prevCtx.lineJoin = 'round';
@@ -223,12 +224,12 @@ const ImageToSurfaceStrokes = ({
     }
 
     setProcessing(false);
-  }, [image, canvasWidth, canvasHeight, detectEdges, traceContours]);
+  }, [image, canvasWidth, canvasHeight, detectEdges, traceContours, strokeEffect]);
 
   // Auto-process when settings change
   useEffect(() => {
     if (image) processImage();
-  }, [image, threshold, edgeStrength, simplification, minPathLength, processImage]);
+  }, [image, threshold, edgeStrength, simplification, minPathLength, strokeEffect, processImage]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
