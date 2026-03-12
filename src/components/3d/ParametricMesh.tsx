@@ -1072,6 +1072,11 @@ const ParametricMesh = ({
         <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
       )}
       
+      {/* Surface hover crosshair */}
+      {surfaceHover && params.surfaceStrokesVisible && (
+        <SurfaceCrosshair params={params} hover={surfaceHover} />
+      )}
+      
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
