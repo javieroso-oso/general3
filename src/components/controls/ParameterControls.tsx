@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2, PenTool } from 'lucide-react';
+import { RotateCcw, Shield, Eye, Footprints, Cable, Box, Grip, Layers, Shuffle, ChevronDown, ChevronRight, FlaskConical, Wind, CircleDot, Ruler, AlertTriangle, Sparkles, CheckCircle2, Maximize2, PenTool, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ParameterSlider from './ParameterSlider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
+import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams } from '@/lib/random-generator';
 import { analyzeUndercuts, calculateMoldMaterialEstimate, calculateOptimalSplits } from '@/lib/mold-undercut-detector';
 import { toast } from 'sonner';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ParameterControlsProps {
@@ -479,6 +480,66 @@ const MoldControls = ({ params, type, onParamsChange, handleChange }: MoldContro
           onCheckedChange={(v) => onParamsChange({ ...params, moldShowGhostBody: v })}
         />
       </div>
+    </div>
+  );
+};
+
+// Surface Art tabs: Draw mode vs Photo-to-Strokes mode
+interface SurfaceArtTabsProps {
+  params: ParametricParams;
+  onParamsChange: (params: ParametricParams) => void;
+  onSurfaceHover?: (pos: SurfaceHoverPosition | null) => void;
+}
+
+const SurfaceArtTabs = ({ params, onParamsChange, onSurfaceHover }: SurfaceArtTabsProps) => {
+  const [activeTab, setActiveTab] = useState<'draw' | 'photo'>('draw');
+
+  const handleImageStrokes = useCallback((newStrokes: SurfaceStroke[]) => {
+    const existing = params.surfaceStrokes || [];
+    onParamsChange({ ...params, surfaceStrokes: [...existing, ...newStrokes] });
+  }, [params, onParamsChange]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1 bg-background/50 rounded-md p-0.5">
+        <button
+          onClick={() => setActiveTab('draw')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs rounded transition-colors",
+            activeTab === 'draw'
+              ? "bg-card shadow-sm text-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <PenTool className="w-3 h-3" />
+          Draw
+        </button>
+        <button
+          onClick={() => setActiveTab('photo')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs rounded transition-colors",
+            activeTab === 'photo'
+              ? "bg-card shadow-sm text-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <ImageIcon className="w-3 h-3" />
+          Photo
+        </button>
+      </div>
+
+      {activeTab === 'photo' ? (
+        <ImageToSurfaceStrokes
+          onStrokesGenerated={handleImageStrokes}
+        />
+      ) : (
+        <SurfaceCanvas
+          strokes={params.surfaceStrokes || []}
+          onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
+          onHover={onSurfaceHover}
+          params={params}
+        />
+      )}
     </div>
   );
 };
@@ -1931,13 +1992,14 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
           />
         </div>
         <div className="text-xs text-muted-foreground">
-          Draw lines on the unwrapped surface. They become 3D tubes, grooves, or ribbons on your shape.
+          Draw or upload a photo to create surface decoration. Lines become 3D tubes, grooves, or carvings on your shape.
         </div>
-        <SurfaceCanvas
-          strokes={params.surfaceStrokes || []}
-          onChange={(newStrokes: SurfaceStroke[]) => onParamsChange({ ...params, surfaceStrokes: newStrokes })}
-          onHover={onSurfaceHover}
+        
+        {/* Draw / Photo tabs */}
+        <SurfaceArtTabs
           params={params}
+          onParamsChange={onParamsChange}
+          onSurfaceHover={onSurfaceHover}
         />
       </div>
     </motion.div>
