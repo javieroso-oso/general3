@@ -113,13 +113,39 @@ function resampleStroke(points: { u: number; v: number }[], count: number): { u:
 /**
  * Convert stroke points to 3D with tangents computed.
  */
+/**
+ * Apply offset and scale transforms to stroke points before 3D projection.
+ */
+function applyStrokeTransforms(
+  points: { u: number; v: number }[],
+  stroke: SurfaceStroke,
+): { u: number; v: number }[] {
+  const offsetU = stroke.offsetU ?? 0;
+  const offsetV = stroke.offsetV ?? 0;
+  const scale = stroke.strokeScale ?? 1;
+
+  if (offsetU === 0 && offsetV === 0 && scale === 1) return points;
+
+  // Find centroid for scaling
+  let cu = 0, cv = 0;
+  for (const p of points) { cu += p.u; cv += p.v; }
+  cu /= points.length;
+  cv /= points.length;
+
+  return points.map(p => ({
+    u: Math.max(0, Math.min(1, (p.u - cu) * scale + cu + offsetU)),
+    v: Math.max(0, Math.min(1, (p.v - cv) * scale + cv + offsetV)),
+  }));
+}
+
 function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams): StrokePoint3D[] {
   const sampleCount = Math.max(stroke.points.length, 24);
   const resampled = resampleStroke(stroke.points, sampleCount);
+  const transformed = applyStrokeTransforms(resampled, stroke);
 
   const points3D: StrokePoint3D[] = [];
-  for (let i = 0; i < resampled.length; i++) {
-    const { position, normal } = uvTo3D(params, resampled[i].u, resampled[i].v);
+  for (let i = 0; i < transformed.length; i++) {
+    const { position, normal } = uvTo3D(params, transformed[i].u, transformed[i].v);
     points3D.push({ position, normal, tangent: new THREE.Vector3() });
   }
 

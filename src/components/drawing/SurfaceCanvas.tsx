@@ -5,12 +5,21 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Trash2, Undo, Redo, FlipHorizontal } from 'lucide-react';
-import { SurfaceStroke, TexturePattern } from '@/types/parametric';
+import { Pencil, Trash2, Undo, Redo, FlipHorizontal, Move, ChevronDown, ChevronRight } from 'lucide-react';
+import { SurfaceStroke, TexturePattern, ParametricParams } from '@/types/parametric';
+import { getBodyRadius } from '@/lib/body-profile-generator';
+import { cn } from '@/lib/utils';
+
+export interface SurfaceHoverPosition {
+  u: number; // 0..1 angle
+  v: number; // 0..1 height
+}
 
 interface SurfaceCanvasProps {
   strokes: SurfaceStroke[];
   onChange: (strokes: SurfaceStroke[]) => void;
+  onHover?: (pos: SurfaceHoverPosition | null) => void;
+  params?: ParametricParams;
   width?: number;
   height?: number;
 }
@@ -26,8 +35,9 @@ const EFFECT_COLORS: Record<SurfaceStroke['effect'], string> = {
 const CANVAS_W = 400;
 const CANVAS_H = 300;
 
-const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H }: SurfaceCanvasProps) => {
+const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, height = CANVAS_H }: SurfaceCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [brushWidth, setBrushWidth] = useState(4);
   const [currentEffect, setCurrentEffect] = useState<SurfaceStroke['effect']>('raised');
@@ -37,10 +47,74 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
   const [brushOpacity, setBrushOpacity] = useState(1);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showStrokeList, setShowStrokeList] = useState(false);
   const isLoadingRef = useRef(false);
   const strokesRef = useRef<SurfaceStroke[]>(strokes);
 
   strokesRef.current = strokes;
+
+  // Draw body profile silhouette overlay
+  useEffect(() => {
+    if (!overlayRef.current || !params) return;
+    const ctx = overlayRef.current.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Sample body radius at multiple heights
+    const samples = 50;
+    let maxR = 0;
+    const radii: number[] = [];
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const r = getBodyRadius(params, t, 0, { scale: 1, includeTwist: false });
+      radii.push(r);
+      if (r > maxR) maxR = r;
+    }
+
+    if (maxR === 0) return;
+
+    // Draw left and right silhouette lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+
+    // Left edge silhouette
+    ctx.beginPath();
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const normalized = radii[i] / maxR; // 0..1
+      const x = (1 - normalized) * width * 0.15; // map to left 15% of canvas
+      const y = (1 - t) * height;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Right edge silhouette (mirrored)
+    ctx.beginPath();
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const normalized = radii[i] / maxR;
+      const x = width - (1 - normalized) * width * 0.15;
+      const y = (1 - t) * height;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Draw height markers with labels
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    const heightMarkers = [0, 0.25, 0.5, 0.75, 1];
+    for (const t of heightMarkers) {
+      const y = (1 - t) * height;
+      const pct = Math.round(t * 100);
+      ctx.fillText(`${pct}%`, width - 4, y + 3);
+    }
+  }, [params, width, height]);
 
   // Initialize canvas
   useEffect(() => {
@@ -89,12 +163,41 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
     return () => { canvas.dispose(); };
   }, [width, height]);
 
+  // Mouse move handler for hover position
+  useEffect(() => {
+    if (!canvasRef.current || !onHover) return;
+    const el = canvasRef.current;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const u = Math.max(0, Math.min(1, x / width));
+      const v = Math.max(0, Math.min(1, 1 - y / height));
+      onHover({ u, v });
+    };
+
+    const handleMouseLeave = () => {
+      onHover(null);
+    };
+
+    // The fabric canvas wraps the actual canvas element; listen on parent
+    const container = el.parentElement;
+    if (container) {
+      container.addEventListener('mousemove', handleMouseMove);
+      container.addEventListener('mouseleave', handleMouseLeave);
+      return () => {
+        container.removeEventListener('mousemove', handleMouseMove);
+        container.removeEventListener('mouseleave', handleMouseLeave);
+      };
+    }
+  }, [onHover, width, height]);
+
   // Update brush on effect/opacity change
   useEffect(() => {
     if (!fabricCanvas?.freeDrawingBrush) return;
     fabricCanvas.freeDrawingBrush.width = brushWidth;
     const hex = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.raised;
-    // Apply opacity via rgba
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
@@ -142,6 +245,10 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
           effect: existing?.effect || currentEffect,
           depth: existing?.depth || currentDepth,
           ...(currentEffect === 'texture' ? { texturePattern: currentTexturePattern } : {}),
+          // Preserve existing offsets/scale
+          offsetU: existing?.offsetU ?? 0,
+          offsetV: existing?.offsetV ?? 0,
+          strokeScale: existing?.strokeScale ?? 1,
         });
       }
     });
@@ -180,7 +287,6 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
     const handlePathCreated = (e: any) => {
       if (isLoadingRef.current) return;
       
-      // Add mirrored stroke if symmetry is on
       if (symmetry && e.path) {
         const mirrored = mirrorPath(e.path);
         if (mirrored) {
@@ -234,6 +340,38 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
       extractStrokes();
       isLoadingRef.current = false;
     });
+  };
+
+  // Per-stroke adjustment handlers
+  const handleStrokeOffsetU = (idx: number, val: number) => {
+    const updated = [...strokes];
+    updated[idx] = { ...updated[idx], offsetU: val };
+    onChange(updated);
+  };
+
+  const handleStrokeOffsetV = (idx: number, val: number) => {
+    const updated = [...strokes];
+    updated[idx] = { ...updated[idx], offsetV: val };
+    onChange(updated);
+  };
+
+  const handleStrokeScale = (idx: number, val: number) => {
+    const updated = [...strokes];
+    updated[idx] = { ...updated[idx], strokeScale: val };
+    onChange(updated);
+  };
+
+  const handleRemoveStroke = (idx: number) => {
+    const updated = strokes.filter((_, i) => i !== idx);
+    onChange(updated);
+    // Also remove from canvas
+    if (fabricCanvas) {
+      const paths = fabricCanvas.getObjects().filter(obj => obj instanceof Path);
+      if (paths[idx]) {
+        fabricCanvas.remove(paths[idx]);
+        fabricCanvas.renderAll();
+      }
+    }
   };
 
   return (
@@ -353,9 +491,16 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
         />
       </div>
 
-      {/* Canvas */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      {/* Canvas with overlay */}
+      <div className="border border-border rounded-lg overflow-hidden relative">
         <canvas ref={canvasRef} />
+        <canvas
+          ref={overlayRef}
+          width={width}
+          height={height}
+          className="absolute inset-0 pointer-events-none"
+          style={{ width, height }}
+        />
       </div>
 
       {/* Labels */}
@@ -365,11 +510,94 @@ const SurfaceCanvas = ({ strokes, onChange, width = CANVAS_W, height = CANVAS_H 
         <span>360°</span>
       </div>
 
-      {/* Stroke count */}
+      {/* Stroke count + list toggle */}
       {strokes.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {strokes.length} stroke{strokes.length !== 1 ? 's' : ''} on surface
-        </p>
+        <div className="space-y-2">
+          <button
+            onClick={() => setShowStrokeList(!showStrokeList)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            {showStrokeList ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            <Move className="w-3 h-3" />
+            <span>{strokes.length} stroke{strokes.length !== 1 ? 's' : ''} — adjust placement</span>
+          </button>
+
+          {showStrokeList && (
+            <div className="space-y-3 max-h-48 overflow-y-auto">
+              {strokes.map((stroke, idx) => (
+                <div key={stroke.id} className="bg-background/50 rounded p-2 space-y-2 border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: EFFECT_COLORS[stroke.effect] }}
+                      />
+                      <span className="text-xs font-medium text-foreground">
+                        Stroke {idx + 1}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        ({stroke.effect})
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0"
+                      onClick={() => handleRemoveStroke(idx)}
+                    >
+                      <Trash2 className="w-3 h-3 text-muted-foreground" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground w-14">Rotate</Label>
+                      <Slider
+                        value={[stroke.offsetU ?? 0]}
+                        onValueChange={([v]) => handleStrokeOffsetU(idx, v)}
+                        min={-0.5}
+                        max={0.5}
+                        step={0.01}
+                        className="flex-1 py-1"
+                      />
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                        {Math.round((stroke.offsetU ?? 0) * 360)}°
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground w-14">Height</Label>
+                      <Slider
+                        value={[stroke.offsetV ?? 0]}
+                        onValueChange={([v]) => handleStrokeOffsetV(idx, v)}
+                        min={-0.5}
+                        max={0.5}
+                        step={0.01}
+                        className="flex-1 py-1"
+                      />
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                        {((stroke.offsetV ?? 0) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground w-14">Scale</Label>
+                      <Slider
+                        value={[stroke.strokeScale ?? 1]}
+                        onValueChange={([v]) => handleStrokeScale(idx, v)}
+                        min={0.3}
+                        max={2}
+                        step={0.05}
+                        className="flex-1 py-1"
+                      />
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                        {(stroke.strokeScale ?? 1).toFixed(2)}×
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
