@@ -579,6 +579,7 @@ const Index = () => {
                   params={params}
                   type={objectType}
                   onParamsChange={setParams}
+                  onSurfaceHover={setSurfaceHover}
                 />
               </TabsContent>
 
