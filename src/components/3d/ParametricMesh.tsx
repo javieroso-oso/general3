@@ -1211,9 +1211,15 @@ function SurfaceCrosshair({ params, hover }: { params: ParametricParams; hover: 
     <group>
       <primitive object={ringLine} />
       <primitive object={vertLine} />
+      {/* Bright dot at intersection */}
       <mesh position={dotPos}>
-        <sphereGeometry args={[0.015, 8, 8]} />
+        <sphereGeometry args={[0.025, 12, 12]} />
         <meshBasicMaterial color="#fbbf24" />
+      </mesh>
+      {/* Glow around dot */}
+      <mesh position={dotPos}>
+        <sphereGeometry args={[0.05, 12, 12]} />
+        <meshBasicMaterial color="#fbbf24" transparent opacity={0.25} />
       </mesh>
     </group>
   );
