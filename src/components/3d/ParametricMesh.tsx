@@ -1072,11 +1072,6 @@ const ParametricMesh = ({
         <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
       )}
       
-      {/* Surface art bounding box indicator */}
-      {params.surfaceStrokesVisible && params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
-        <SurfaceBoundsIndicator params={params} />
-      )}
-      
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
           <lineBasicMaterial color="#3b82f6" opacity={0.3} transparent />
@@ -1112,7 +1107,7 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
   const getMaterial = (effect: SurfaceStroke['effect']) => {
     switch (effect) {
       case 'engraved':
-        return { color: '#222', opacity: 1, transparent: false, side: THREE.DoubleSide };
+        return { color: materialConfig.color, opacity: 1, transparent: false, side: THREE.DoubleSide };
       case 'cut':
         return { color: '#ef4444', opacity: 0.4, transparent: true, side: THREE.DoubleSide };
       case 'texture':
