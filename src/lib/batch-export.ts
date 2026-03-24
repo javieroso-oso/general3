@@ -146,6 +146,12 @@ export async function exportDrawerItemsToZip(
         const cradleBlob = await exportSocketCradleToSTL(cradleParams);
         zip.file(`${baseName}_socket_cradle.stl`, cradleBlob);
       }
+      
+      // Generate base plate STL if enabled
+      if (shouldExportBasePlate) {
+        const basePlateBlob = exportBasePlateToSTL(item.params);
+        zip.file(`${baseName}_base_plate.stl`, basePlateBlob);
+      }
     } else if (isCustomItem(item)) {
       // Custom items always export as body (no legs/molds concept)
       if (includeBody) {
