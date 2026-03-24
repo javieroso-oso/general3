@@ -1527,6 +1527,53 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
         )}
       </Section>
 
+      {/* Base Plate (for spiral vase mode + LED puck) */}
+      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Box className={cn("w-4 h-4", params.basePlateEnabled ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="base-plate" className="text-sm font-medium">Base Plate</Label>
+          </div>
+          <Switch 
+            id="base-plate" 
+            checked={params.basePlateEnabled} 
+            onCheckedChange={(checked) => onParamsChange({ ...params, basePlateEnabled: checked })}
+          />
+        </div>
+        
+        {params.basePlateEnabled && (
+          <div className="space-y-3 pt-2 border-t border-border/50">
+            <ParameterSlider
+              label="Plate Thickness"
+              value={params.basePlateThickness}
+              min={8}
+              max={25}
+              step={1}
+              unit="mm"
+              onChange={handleChange('basePlateThickness')}
+            />
+            <ParameterSlider
+              label="Puck Diameter"
+              value={params.basePlatePuckDiameter}
+              min={30}
+              max={120}
+              step={1}
+              unit="mm"
+              onChange={handleChange('basePlatePuckDiameter')}
+            />
+            <ParameterSlider
+              label="Puck Recess Depth"
+              value={params.basePlatePuckDepth}
+              min={5}
+              max={25}
+              step={1}
+              unit="mm"
+              onChange={handleChange('basePlatePuckDepth')}
+            />
+          </div>
+        )}
+      </div>
+
       {/* 6. Legs/Stand */}
       <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
