@@ -87,6 +87,7 @@ export async function exportDrawerItemsToZip(
       const shouldExportLegs = includeLegs && itemHasLegs;
       const shouldExportMolds = includeMolds && itemHasMolds;
       const shouldExportCradle = includeSocketCradle && itemIsLamp;
+      const shouldExportBasePlate = includeBasePlate && item.params.basePlateEnabled;
       
       // Handle merge modes
       if (shouldExportBody && shouldExportLegs && mergeMode !== 'separate') {
