@@ -71,9 +71,9 @@ export function ExportOptionsDialog({
   // Preview what files will be generated
   const filePreview = useMemo(() => {
     const files: string[] = [];
-    const { includeBody, includeLegs, includeMolds, includeSocketCradle, mergeMode } = options;
+    const { includeBody, includeLegs, includeMolds, includeSocketCradle, includeBasePlate, mergeMode } = options;
 
-    if (!includeBody && !includeLegs && !includeMolds && !includeSocketCradle) {
+    if (!includeBody && !includeLegs && !includeMolds && !includeSocketCradle && !includeBasePlate) {
       return ['No components selected'];
     }
 
@@ -98,8 +98,12 @@ export function ExportOptionsDialog({
       files.push('socket_cradle.stl');
     }
 
+    if (includeBasePlate && hasBasePlate) {
+      files.push('base_plate.stl');
+    }
+
     return files;
-  }, [options, hasLegs, hasMolds, hasLampShade]);
+  }, [options, hasLegs, hasMolds, hasLampShade, hasBasePlate]);
 
   const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds) || (options.includeSocketCradle && hasLampShade);
   const showMergeOptions = options.includeBody && options.includeLegs && hasLegs;
