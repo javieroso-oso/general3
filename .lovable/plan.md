@@ -1,57 +1,68 @@
 
 
-# Desdoblado (Unwrap) de la Pieza 3D como Base de Dibujo
+# Export Base Plate + LED Puck Light Recess
 
-## Idea
+## Overview
 
-En vez de dibujar en un rectángulo plano y adivinar dónde caerá en la pieza, primero **desdoblar la superficie 3D** en una forma plana que refleje la silueta real: más ancha donde el radio es mayor, más estrecha donde es menor. Dibujas directamente sobre esa forma y luego se proyecta al 3D.
+Add a new exportable **Base Plate** component: a flat disc matching the bottom cross-section of the shape, with an optional circular recess for LED puck lights. This lets the shade print in spiral vase mode while the base prints separately with regular infill.
 
 ```text
-  Rectángulo actual:          Unwrap propuesto:
-  ┌──────────────┐                ╭──────╮
-  │              │              ╭─╯      ╰─╮
-  │  dibujo     │             │            │  ← bulge
-  │              │              ╰─╮      ╭─╯
-  └──────────────┘                ╰──────╯
-                                   base
+  Side view:
+  ╭───────────╮  ← shade (spiral vase, open bottom)
+  │           │
+  │    LED↑   │
+  ├═══════════╤  ← base plate (regular print)
+  │  ○ recess │  ← puck light pocket
+  └───────────┘
 ```
 
-## Que Cambia
+## Changes
 
-### 1. Generar el contorno del unwrap (`src/lib/surface-unwrap.ts` - nuevo)
-- Samplear `getBodyRadius(params, t, 0)` para t=0..1 (ej. 100 puntos)
-- Calcular la circunferencia a cada altura: `C(t) = 2 * π * r(t)`
-- Normalizar al ancho del canvas: el ancho a cada altura es proporcional a `C(t) / C_max`
-- Exportar función `getUnwrapProfile(params): { t: number, widthFraction: number }[]`
+### 1. Add base plate params to `src/types/parametric.ts`
+Add to `ParametricParams` interface and `createDefaultParams`:
+- `basePlateEnabled: boolean` (default false)
+- `basePlatePuckDiameter: number` (default 70mm)
+- `basePlatePuckDepth: number` (default 10mm)
+- `basePlateThickness: number` (default 15mm)
 
-### 2. Canvas con forma de unwrap (`src/components/drawing/SurfaceCanvas.tsx`)
-- Reemplazar el overlay de silueta actual por un **clip path** y **fondo con forma** que muestre la forma desdoblada
-- El canvas Fabric.js sigue siendo rectangular internamente, pero se aplica una máscara visual (overlay canvas) que muestra los bordes del unwrap
-- Al exportar puntos UV, ajustar la coordenada U según el ancho real a esa altura: `u_real = u_canvas * widthFraction(v)` para que el mapeo a 3D sea correcto
-- Las líneas de silueta actuales (izquierda/derecha) se convierten en el borde real de la forma
+### 2. Create `src/lib/base-plate-generator.ts` (new file)
+- Generate a solid disc geometry matching `getBodyRadius(params, 0, angle)` around 360 degrees
+- Cut a centered circular pocket for the puck light (configurable diameter/depth)
+- Add a small lip/ridge on the top edge (2mm inset, 3mm tall) so the shade sits snugly
+- Uses Three.js BufferGeometry with proper normals
+- Apply Y-up to Z-up rotation and build plate normalization (matching existing STL convention)
 
-### 3. Ajustar la conversión UV → 3D (`src/lib/surface-stroke-generator.ts`)
-- En `applyStrokeTransforms`, compensar por el unwrap: los puntos dibujados en el canvas ya están en coordenadas de unwrap, convertirlos a UV uniforme dividiendo U por `widthFraction(v)`
-- Esto garantiza que un trazo recto horizontal en el canvas se convierte en un anillo a la misma altura en la pieza
+### 3. Add export function in `src/lib/stl-export.ts`
+- Add `exportBasePlateToSTL(params)` function that calls the generator and exports via STLExporter
+- Same rotation/normalization pattern as other exports
 
-### 4. Overlay visual mejorado
-- Dibujar líneas de cuadrícula que sigan la forma del unwrap (horizontales rectas, verticales que se curvan con el contorno)
-- Zona sombreada fuera del unwrap para que sea obvio dónde NO se puede dibujar
-- Marcadores de altura (25%, 50%, 75%) como antes pero siguiendo la forma
+### 4. Update `src/types/export-options.ts`
+- Add `includeBasePlate: boolean` to `ExportOptions` interface and `DEFAULT_EXPORT_OPTIONS`
 
-## Archivos
+### 5. Update `src/components/ExportOptionsDialog.tsx`
+- Add "Base Plate" checkbox (enabled when `basePlateEnabled` is true on any item)
+- Show `base_plate.stl` in file preview
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/lib/surface-unwrap.ts` | **Nuevo** - función de cálculo del perfil unwrap |
-| `src/components/drawing/SurfaceCanvas.tsx` | Overlay con forma de unwrap, clip visual, ajuste de coordenadas UV |
-| `src/lib/surface-stroke-generator.ts` | Compensar coordenadas unwrap en `applyStrokeTransforms` |
-| `src/components/drawing/ImageToSurfaceStrokes.tsx` | Aplicar misma compensación al convertir foto a trazos |
+### 6. Update `src/lib/batch-export.ts`
+- Add `hasBasePlate` to `analyzeDrawerItems`
+- Include `base_plate.stl` in ZIP when enabled
 
-## Flujo del Usuario
+### 7. Update `src/components/controls/ParameterControls.tsx`
+- Add "Base Plate" section (between Cord Hole and Legs sections, around line 1529) with:
+  - Enable toggle
+  - Puck light diameter slider (30-120mm)
+  - Recess depth slider (5-25mm)
+  - Plate thickness slider (8-25mm)
 
-1. Abre Surface Art → ve la forma desdoblada de su pieza (más ancha en el bulge, más estrecha en base/boca)
-2. Dibuja directamente sobre esa forma — sabe exactamente dónde quedará cada trazo
-3. El trazo aparece en tiempo real grabado en la pieza 3D
-4. Si cambia la forma de la pieza, el unwrap se actualiza automáticamente
+## Files Summary
+
+| File | Change |
+|------|--------|
+| `src/types/parametric.ts` | Add 4 base plate params + defaults |
+| `src/lib/base-plate-generator.ts` | **New** - disc mesh with puck recess |
+| `src/lib/stl-export.ts` | Add `exportBasePlateToSTL` |
+| `src/types/export-options.ts` | Add `includeBasePlate` |
+| `src/components/ExportOptionsDialog.tsx` | Add checkbox + file preview |
+| `src/lib/batch-export.ts` | Include base plate in ZIP |
+| `src/components/controls/ParameterControls.tsx` | Add Base Plate UI section |
 
