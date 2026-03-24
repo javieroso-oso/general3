@@ -65,7 +65,7 @@ export async function exportDrawerItemsToZip(
 ): Promise<Blob> {
   const zip = new JSZip();
   const total = items.length;
-  const { includeBody, includeLegs, includeMolds, includeSocketCradle, mergeMode } = options;
+  const { includeBody, includeLegs, includeMolds, includeSocketCradle, includeBasePlate, mergeMode } = options;
   
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
