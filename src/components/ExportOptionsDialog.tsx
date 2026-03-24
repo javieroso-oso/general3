@@ -59,8 +59,9 @@ export function ExportOptionsDialog({
       includeLegs: prev.includeLegs && hasLegs,
       includeMolds: prev.includeMolds && hasMolds,
       includeSocketCradle: prev.includeSocketCradle && hasLampShade,
+      includeBasePlate: prev.includeBasePlate && hasBasePlate,
     }));
-  }, [hasLegs, hasMolds, hasLampShade]);
+  }, [hasLegs, hasMolds, hasLampShade, hasBasePlate]);
 
   const handleExport = () => {
     saveExportOptions(options);
