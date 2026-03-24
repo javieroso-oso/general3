@@ -120,13 +120,18 @@ function resampleStroke(points: { u: number; v: number }[], count: number): { u:
 function applyStrokeTransforms(
   points: { u: number; v: number }[],
   _stroke: SurfaceStroke,
-  _params: ParametricParams,
+  params: ParametricParams,
 ): { u: number; v: number }[] {
-  // Simplified workflow: direct UV mapping only (no global/per-stroke rotate/scale offsets).
-  return points.map((p) => ({
-    u: Math.max(0, Math.min(1, p.u)),
-    v: Math.max(0, Math.min(1, p.v)),
-  }));
+  // Compensate for the unwrap canvas shape: the canvas U coordinate
+  // is in unwrap-space (wider where radius is larger). Convert back to
+  // real UV (uniform 0..1 around circumference).
+  const profile = getUnwrapProfile(params);
+  return points.map((p) => {
+    const v = Math.max(0, Math.min(1, p.v));
+    const wf = interpolateWidthFraction(profile, v);
+    const u = canvasUToRealU(p.u, wf);
+    return { u, v };
+  });
 }
 
 function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams): StrokePoint3D[] {
