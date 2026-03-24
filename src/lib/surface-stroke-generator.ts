@@ -118,25 +118,13 @@ function resampleStroke(points: { u: number; v: number }[], count: number): { u:
  */
 function applyStrokeTransforms(
   points: { u: number; v: number }[],
-  stroke: SurfaceStroke,
-  params: ParametricParams,
+  _stroke: SurfaceStroke,
+  _params: ParametricParams,
 ): { u: number; v: number }[] {
-  // Combine per-stroke and global offsets
-  const offsetU = (stroke.offsetU ?? 0) + (params.surfaceGlobalOffsetU ?? 0);
-  const offsetV = (stroke.offsetV ?? 0) + (params.surfaceGlobalOffsetV ?? 0);
-  const scale = (stroke.strokeScale ?? 1) * (params.surfaceGlobalScale ?? 1);
-
-  if (offsetU === 0 && offsetV === 0 && scale === 1) return points;
-
-  // Find centroid for scaling
-  let cu = 0, cv = 0;
-  for (const p of points) { cu += p.u; cv += p.v; }
-  cu /= points.length;
-  cv /= points.length;
-
-  return points.map(p => ({
-    u: Math.max(0, Math.min(1, (p.u - cu) * scale + cu + offsetU)),
-    v: Math.max(0, Math.min(1, (p.v - cv) * scale + cv + offsetV)),
+  // Simplified workflow: direct UV mapping only (no global/per-stroke rotate/scale offsets).
+  return points.map((p) => ({
+    u: Math.max(0, Math.min(1, p.u)),
+    v: Math.max(0, Math.min(1, p.v)),
   }));
 }
 
@@ -197,17 +185,17 @@ function generateSweptGeometry(
 
       if (isRibbon) {
         const halfW = scaledThickness * 0.5;
-        const halfH = scaledDepth * 0.25;
-        if (j <= 1) {
-          localX = -halfW + t * 2 * halfW;
-          localY = halfH;
-        } else if (j <= 2) {
-          localX = halfW;
-          localY = halfH - (t - 0.5) * 4 * halfH;
-        } else {
-          localX = halfW - (t - 0.75) * 4 * halfW;
-          localY = -halfH;
-        }
+        const halfH = scaledDepth * 0.5;
+        const profile: [number, number][] = [
+          [-halfW, halfH],
+          [halfW, halfH],
+          [halfW, -halfH],
+          [-halfW, -halfH],
+          [-halfW, halfH],
+        ];
+        const profileIdx = Math.min(j, profile.length - 1);
+        localX = profile[profileIdx][0];
+        localY = profile[profileIdx][1];
         vertNormal = localNormal.clone();
       } else {
         const angle = t * Math.PI * 2;
@@ -422,9 +410,9 @@ function generateStrokeGeometry(
     );
   }
 
-  // raised, engraved, ribbon, cut all use swept geometry
-  const isEngraved = stroke.effect === 'engraved';
-  const isRibbon = stroke.effect === 'ribbon';
+  // Simplified behavior for consistency: non-texture strokes become engraved grooves.
+  const isEngraved = true;
+  const isRibbon = true;
 
   return generateSweptGeometry(
     points3D,
@@ -448,7 +436,7 @@ export function generateSurfaceStrokeGeometries(
   for (const stroke of params.surfaceStrokes) {
     const geo = generateStrokeGeometry(stroke, params);
     if (geo) {
-      results.push({ geometry: geo, effect: stroke.effect });
+      results.push({ geometry: geo, effect: stroke.effect === 'texture' ? 'texture' : 'engraved' });
     }
   }
 
