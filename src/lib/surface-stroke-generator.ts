@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { ParametricParams, SurfaceStroke, TexturePattern } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
+import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU } from '@/lib/surface-unwrap';
 
 const SCALE = 0.01;
 
