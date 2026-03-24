@@ -25,11 +25,11 @@ interface ExportOptionsDialogProps {
   onClose: () => void;
   onExport: (options: ExportOptions) => void;
   isExporting?: boolean;
-  // Availability flags - what components exist in the selection
   hasLegs: boolean;
   hasMolds: boolean;
-  hasLampShade?: boolean;  // NEW: true if any item is a lamp (for socket cradle)
-  itemCount?: number; // For batch exports
+  hasLampShade?: boolean;
+  hasBasePlate?: boolean;
+  itemCount?: number;
 }
 
 export function ExportOptionsDialog({
@@ -40,6 +40,7 @@ export function ExportOptionsDialog({
   hasLegs,
   hasMolds,
   hasLampShade = false,
+  hasBasePlate = false,
   itemCount = 1,
 }: ExportOptionsDialogProps) {
   const [options, setOptions] = useState<ExportOptions>(() => getSavedExportOptions());
@@ -58,8 +59,9 @@ export function ExportOptionsDialog({
       includeLegs: prev.includeLegs && hasLegs,
       includeMolds: prev.includeMolds && hasMolds,
       includeSocketCradle: prev.includeSocketCradle && hasLampShade,
+      includeBasePlate: prev.includeBasePlate && hasBasePlate,
     }));
-  }, [hasLegs, hasMolds, hasLampShade]);
+  }, [hasLegs, hasMolds, hasLampShade, hasBasePlate]);
 
   const handleExport = () => {
     saveExportOptions(options);
@@ -69,9 +71,9 @@ export function ExportOptionsDialog({
   // Preview what files will be generated
   const filePreview = useMemo(() => {
     const files: string[] = [];
-    const { includeBody, includeLegs, includeMolds, includeSocketCradle, mergeMode } = options;
+    const { includeBody, includeLegs, includeMolds, includeSocketCradle, includeBasePlate, mergeMode } = options;
 
-    if (!includeBody && !includeLegs && !includeMolds && !includeSocketCradle) {
+    if (!includeBody && !includeLegs && !includeMolds && !includeSocketCradle && !includeBasePlate) {
       return ['No components selected'];
     }
 
@@ -96,10 +98,14 @@ export function ExportOptionsDialog({
       files.push('socket_cradle.stl');
     }
 
-    return files;
-  }, [options, hasLegs, hasMolds, hasLampShade]);
+    if (includeBasePlate && hasBasePlate) {
+      files.push('base_plate.stl');
+    }
 
-  const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds) || (options.includeSocketCradle && hasLampShade);
+    return files;
+  }, [options, hasLegs, hasMolds, hasLampShade, hasBasePlate]);
+
+  const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds) || (options.includeSocketCradle && hasLampShade) || (options.includeBasePlate && hasBasePlate);
   const showMergeOptions = options.includeBody && options.includeLegs && hasLegs;
 
   return (
@@ -189,6 +195,25 @@ export function ExportOptionsDialog({
                   Socket Cradle
                   {!hasLampShade && <span className="ml-1 text-xs">(lamp style only)</span>}
                   {hasLampShade && <span className="ml-1 text-xs text-muted-foreground">(drops into shade)</span>}
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="include-base-plate"
+                  checked={options.includeBasePlate && hasBasePlate}
+                  disabled={!hasBasePlate}
+                  onCheckedChange={(checked) =>
+                    setOptions((prev) => ({ ...prev, includeBasePlate: !!checked }))
+                  }
+                />
+                <Label 
+                  htmlFor="include-base-plate" 
+                  className={`text-sm font-normal cursor-pointer ${!hasBasePlate ? 'text-muted-foreground' : ''}`}
+                >
+                  Base Plate
+                  {!hasBasePlate && <span className="ml-1 text-xs">(enable in params)</span>}
+                  {hasBasePlate && <span className="ml-1 text-xs text-muted-foreground">(LED puck recess)</span>}
                 </Label>
               </div>
             </div>

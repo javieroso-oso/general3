@@ -13,6 +13,7 @@ import {
   exportSocketCradleToSTL, 
   getSocketCradleParamsForShade 
 } from './socket-cradle-generator';
+import { exportBasePlateToSTL } from './base-plate-generator';
 import { generateSVG, generatePlotterGCode, generateHPGL } from './plotter/export';
 
 export interface ExportProgress {
@@ -28,11 +29,13 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
   hasLegs: boolean; 
   hasMolds: boolean;
   hasLampShade: boolean;
+  hasBasePlate: boolean;
   hasPlotter: boolean;
 } {
   let hasLegs = false;
   let hasMolds = false;
   let hasLampShade = false;
+  let hasBasePlate = false;
   let hasPlotter = false;
 
   for (const item of items) {
@@ -40,14 +43,15 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
       if (item.params.addLegs) hasLegs = true;
       if (item.params.moldEnabled) hasMolds = true;
       if (item.params.wireframeMode || item.params.lightPatternEnabled) hasLampShade = true;
+      if (item.params.basePlateEnabled) hasBasePlate = true;
     }
     if (isPlotterItem(item)) {
       hasPlotter = true;
     }
-    if (hasLegs && hasMolds && hasLampShade && hasPlotter) break; // Early exit if all found
+    if (hasLegs && hasMolds && hasLampShade && hasBasePlate && hasPlotter) break;
   }
 
-  return { hasLegs, hasMolds, hasLampShade, hasPlotter };
+  return { hasLegs, hasMolds, hasLampShade, hasBasePlate, hasPlotter };
 }
 
 /**
@@ -61,7 +65,7 @@ export async function exportDrawerItemsToZip(
 ): Promise<Blob> {
   const zip = new JSZip();
   const total = items.length;
-  const { includeBody, includeLegs, includeMolds, includeSocketCradle, mergeMode } = options;
+  const { includeBody, includeLegs, includeMolds, includeSocketCradle, includeBasePlate, mergeMode } = options;
   
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -83,6 +87,7 @@ export async function exportDrawerItemsToZip(
       const shouldExportLegs = includeLegs && itemHasLegs;
       const shouldExportMolds = includeMolds && itemHasMolds;
       const shouldExportCradle = includeSocketCradle && itemIsLamp;
+      const shouldExportBasePlate = includeBasePlate && item.params.basePlateEnabled;
       
       // Handle merge modes
       if (shouldExportBody && shouldExportLegs && mergeMode !== 'separate') {
@@ -140,6 +145,12 @@ export async function exportDrawerItemsToZip(
         const cradleParams = getSocketCradleParamsForShade(item.params.baseRadius, socketType);
         const cradleBlob = await exportSocketCradleToSTL(cradleParams);
         zip.file(`${baseName}_socket_cradle.stl`, cradleBlob);
+      }
+      
+      // Generate base plate STL if enabled
+      if (shouldExportBasePlate) {
+        const basePlateBlob = exportBasePlateToSTL(item.params);
+        zip.file(`${baseName}_base_plate.stl`, basePlateBlob);
       }
     } else if (isCustomItem(item)) {
       // Custom items always export as body (no legs/molds concept)

@@ -242,6 +242,12 @@ export interface ParametricParams {
   surfaceGlobalOffsetV: number;  // shift all strokes up/down (fraction of height)
   surfaceGlobalScale: number;    // scale all strokes from center
 
+  // Base plate (for spiral vase mode + LED puck light)
+  basePlateEnabled: boolean;
+  basePlatePuckDiameter: number;
+  basePlatePuckDepth: number;
+  basePlateThickness: number;
+
   // Preview mode
   showBaseOnly: boolean;
   previewColor: string;
@@ -504,6 +510,10 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     lightPatternRandomness: 0.2,
     lightPatternScaleWithHeight: false,
     lightPatternRimMargin: 0.1,
+    basePlateEnabled: false,
+    basePlatePuckDiameter: 70,
+    basePlatePuckDepth: 10,
+    basePlateThickness: 15,
     surfaceStrokes: [],
     surfaceStrokesVisible: true,
     surfaceGlobalOffsetU: 0,
