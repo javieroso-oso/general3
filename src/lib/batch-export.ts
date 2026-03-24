@@ -29,11 +29,13 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
   hasLegs: boolean; 
   hasMolds: boolean;
   hasLampShade: boolean;
+  hasBasePlate: boolean;
   hasPlotter: boolean;
 } {
   let hasLegs = false;
   let hasMolds = false;
   let hasLampShade = false;
+  let hasBasePlate = false;
   let hasPlotter = false;
 
   for (const item of items) {
@@ -41,14 +43,15 @@ export function analyzeDrawerItems(items: DrawerItem[]): {
       if (item.params.addLegs) hasLegs = true;
       if (item.params.moldEnabled) hasMolds = true;
       if (item.params.wireframeMode || item.params.lightPatternEnabled) hasLampShade = true;
+      if (item.params.basePlateEnabled) hasBasePlate = true;
     }
     if (isPlotterItem(item)) {
       hasPlotter = true;
     }
-    if (hasLegs && hasMolds && hasLampShade && hasPlotter) break; // Early exit if all found
+    if (hasLegs && hasMolds && hasLampShade && hasBasePlate && hasPlotter) break;
   }
 
-  return { hasLegs, hasMolds, hasLampShade, hasPlotter };
+  return { hasLegs, hasMolds, hasLampShade, hasBasePlate, hasPlotter };
 }
 
 /**

@@ -197,6 +197,25 @@ export function ExportOptionsDialog({
                   {hasLampShade && <span className="ml-1 text-xs text-muted-foreground">(drops into shade)</span>}
                 </Label>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="include-base-plate"
+                  checked={options.includeBasePlate && hasBasePlate}
+                  disabled={!hasBasePlate}
+                  onCheckedChange={(checked) =>
+                    setOptions((prev) => ({ ...prev, includeBasePlate: !!checked }))
+                  }
+                />
+                <Label 
+                  htmlFor="include-base-plate" 
+                  className={`text-sm font-normal cursor-pointer ${!hasBasePlate ? 'text-muted-foreground' : ''}`}
+                >
+                  Base Plate
+                  {!hasBasePlate && <span className="ml-1 text-xs">(enable in params)</span>}
+                  {hasBasePlate && <span className="ml-1 text-xs text-muted-foreground">(LED puck recess)</span>}
+                </Label>
+              </div>
             </div>
           </div>
 
