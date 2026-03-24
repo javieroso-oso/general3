@@ -25,11 +25,11 @@ interface ExportOptionsDialogProps {
   onClose: () => void;
   onExport: (options: ExportOptions) => void;
   isExporting?: boolean;
-  // Availability flags - what components exist in the selection
   hasLegs: boolean;
   hasMolds: boolean;
-  hasLampShade?: boolean;  // NEW: true if any item is a lamp (for socket cradle)
-  itemCount?: number; // For batch exports
+  hasLampShade?: boolean;
+  hasBasePlate?: boolean;
+  itemCount?: number;
 }
 
 export function ExportOptionsDialog({
