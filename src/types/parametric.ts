@@ -242,6 +242,12 @@ export interface ParametricParams {
   surfaceGlobalOffsetV: number;  // shift all strokes up/down (fraction of height)
   surfaceGlobalScale: number;    // scale all strokes from center
 
+  // Base plate (for spiral vase mode + LED puck light)
+  basePlateEnabled: boolean;
+  basePlatePuckDiameter: number;
+  basePlatePuckDepth: number;
+  basePlateThickness: number;
+
   // Preview mode
   showBaseOnly: boolean;
   previewColor: string;
