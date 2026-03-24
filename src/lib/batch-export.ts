@@ -13,6 +13,7 @@ import {
   exportSocketCradleToSTL, 
   getSocketCradleParamsForShade 
 } from './socket-cradle-generator';
+import { exportBasePlateToSTL } from './base-plate-generator';
 import { generateSVG, generatePlotterGCode, generateHPGL } from './plotter/export';
 
 export interface ExportProgress {
