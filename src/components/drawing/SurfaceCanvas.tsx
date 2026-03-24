@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Canvas as FabricCanvas, Path, Line, PencilBrush } from 'fabric';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -7,12 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Pencil, Trash2, Undo, Redo, FlipHorizontal, ChevronDown, ChevronRight } from 'lucide-react';
 import { SurfaceStroke, TexturePattern, ParametricParams } from '@/types/parametric';
-import { getBodyRadius } from '@/lib/body-profile-generator';
+import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU, getUnwrapClipPath } from '@/lib/surface-unwrap';
 import { cn } from '@/lib/utils';
 
 export interface SurfaceHoverPosition {
-  u: number; // 0..1 angle
-  v: number; // 0..1 height
+  u: number;
+  v: number;
 }
 
 interface SurfaceCanvasProps {
@@ -53,68 +53,99 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
 
   strokesRef.current = strokes;
 
-  // Draw body profile silhouette overlay
+  // Compute unwrap profile from params
+  const unwrapProfile = useMemo(() => {
+    if (!params) return null;
+    return getUnwrapProfile(params, 80);
+  }, [params]);
+
+  // Draw unwrap shape overlay (silhouette + shaded outside area + grid)
   useEffect(() => {
-    if (!overlayRef.current || !params) return;
+    if (!overlayRef.current || !unwrapProfile) return;
     const ctx = overlayRef.current.getContext('2d');
     if (!ctx) return;
 
     ctx.clearRect(0, 0, width, height);
 
-    // Sample body radius at multiple heights
-    const samples = 50;
-    let maxR = 0;
-    const radii: number[] = [];
-    for (let i = 0; i <= samples; i++) {
-      const t = i / samples;
-      const r = getBodyRadius(params, t, 0, { scale: 1, includeTwist: false });
-      radii.push(r);
-      if (r > maxR) maxR = r;
+    // Get clip path points
+    const clipPoints = getUnwrapClipPath(unwrapProfile, width, height);
+    if (clipPoints.length < 4) return;
+
+    // Fill entire canvas with dark overlay (outside area)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, width, height);
+
+    // Cut out the unwrap shape (clear it)
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(clipPoints[0].x, clipPoints[0].y);
+    for (let i = 1; i < clipPoints.length; i++) {
+      ctx.lineTo(clipPoints[i].x, clipPoints[i].y);
     }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
 
-    if (maxR === 0) return;
-
-    // Draw left and right silhouette lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    // Draw the unwrap shape border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(clipPoints[0].x, clipPoints[0].y);
+    for (let i = 1; i < clipPoints.length; i++) {
+      ctx.lineTo(clipPoints[i].x, clipPoints[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Draw horizontal height markers inside the shape
     ctx.setLineDash([3, 3]);
-
-    // Left edge silhouette
-    ctx.beginPath();
-    for (let i = 0; i <= samples; i++) {
-      const t = i / samples;
-      const normalized = radii[i] / maxR; // 0..1
-      const x = (1 - normalized) * width * 0.15; // map to left 15% of canvas
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 0.5;
+    const heightMarkers = [0.25, 0.5, 0.75];
+    for (const t of heightMarkers) {
+      const wf = interpolateWidthFraction(unwrapProfile, t);
       const y = (1 - t) * height;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      const xLeft = (1 - wf) / 2 * width;
+      const xRight = (1 + wf) / 2 * width;
+      ctx.beginPath();
+      ctx.moveTo(xLeft, y);
+      ctx.lineTo(xRight, y);
+      ctx.stroke();
     }
-    ctx.stroke();
 
-    // Right edge silhouette (mirrored)
-    ctx.beginPath();
-    for (let i = 0; i <= samples; i++) {
-      const t = i / samples;
-      const normalized = radii[i] / maxR;
-      const x = width - (1 - normalized) * width * 0.15;
-      const y = (1 - t) * height;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    // Draw vertical grid lines that follow the unwrap shape
+    ctx.setLineDash([2, 4]);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    const vLines = 6;
+    for (let vi = 1; vi < vLines; vi++) {
+      const frac = vi / vLines; // fraction across width
+      ctx.beginPath();
+      let started = false;
+      for (let si = 0; si < unwrapProfile.length; si++) {
+        const s = unwrapProfile[si];
+        const xLeft = (1 - s.widthFraction) / 2 * width;
+        const xRight = (1 + s.widthFraction) / 2 * width;
+        const x = xLeft + (xRight - xLeft) * frac;
+        const y = (1 - s.t) * height;
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
 
-    // Draw height markers with labels
+    // Height labels
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.font = '9px monospace';
     ctx.textAlign = 'right';
-    const heightMarkers = [0, 0.25, 0.5, 0.75, 1];
-    for (const t of heightMarkers) {
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      const wf = interpolateWidthFraction(unwrapProfile, t);
       const y = (1 - t) * height;
-      const pct = Math.round(t * 100);
-      ctx.fillText(`${pct}%`, width - 4, y + 3);
+      const xRight = (1 + wf) / 2 * width + 14;
+      ctx.fillText(`${Math.round(t * 100)}%`, xRight, y + 3);
     }
-  }, [params, width, height]);
+  }, [unwrapProfile, width, height]);
 
   // Initialize canvas
   useEffect(() => {
@@ -128,30 +159,8 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       isDrawingMode: true,
     });
 
-    // Draw grid
-    const gridX = width / 8;
-    const gridY = height / 6;
-    for (let x = gridX; x < width; x += gridX) {
-      canvas.add(new Line([x, 0, x, height], {
-        stroke: '#2a2a4a', strokeWidth: 0.5, selectable: false, evented: false,
-      }));
-    }
-    for (let y = gridY; y < height; y += gridY) {
-      canvas.add(new Line([0, y, width, y], {
-        stroke: '#2a2a4a', strokeWidth: 0.5, selectable: false, evented: false,
-      }));
-    }
-
-    // Wrap-around indicator line at left & right edges
-    canvas.add(new Line([0, 0, 0, height], {
-      stroke: '#4ade80', strokeWidth: 1.5, selectable: false, evented: false, strokeDashArray: [4, 4],
-    }));
-    canvas.add(new Line([width, 0, width, height], {
-      stroke: '#4ade80', strokeWidth: 1.5, selectable: false, evented: false, strokeDashArray: [4, 4],
-    }));
-
     canvas.freeDrawingBrush = new PencilBrush(canvas);
-    canvas.freeDrawingBrush.color = EFFECT_COLORS.raised;
+    canvas.freeDrawingBrush.color = EFFECT_COLORS.engraved;
     canvas.freeDrawingBrush.width = brushWidth;
 
     setFabricCanvas(canvas);
@@ -163,7 +172,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
     return () => { canvas.dispose(); };
   }, [width, height]);
 
-  // Mouse move handler for hover position
+  // Mouse move handler for hover position (with unwrap compensation)
   useEffect(() => {
     if (!canvasRef.current || !onHover) return;
     const el = canvasRef.current;
@@ -172,16 +181,21 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       const rect = el.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const u = Math.max(0, Math.min(1, x / width));
+      const uCanvas = Math.max(0, Math.min(1, x / width));
       const v = Math.max(0, Math.min(1, 1 - y / height));
-      onHover({ u, v });
+
+      // Compensate for unwrap shape
+      if (unwrapProfile) {
+        const wf = interpolateWidthFraction(unwrapProfile, v);
+        const uReal = canvasUToRealU(uCanvas, wf);
+        onHover({ u: uReal, v });
+      } else {
+        onHover({ u: uCanvas, v });
+      }
     };
 
-    const handleMouseLeave = () => {
-      onHover(null);
-    };
+    const handleMouseLeave = () => { onHover(null); };
 
-    // The fabric canvas wraps the actual canvas element; listen on parent
     const container = el.parentElement;
     if (container) {
       container.addEventListener('mousemove', handleMouseMove);
@@ -191,20 +205,20 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         container.removeEventListener('mouseleave', handleMouseLeave);
       };
     }
-  }, [onHover, width, height]);
+  }, [onHover, width, height, unwrapProfile]);
 
   // Update brush on effect/opacity change
   useEffect(() => {
     if (!fabricCanvas?.freeDrawingBrush) return;
     fabricCanvas.freeDrawingBrush.width = brushWidth;
-    const hex = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.raised;
+    const hex = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.engraved;
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     fabricCanvas.freeDrawingBrush.color = `rgba(${r},${g},${b},${brushOpacity})`;
   }, [brushWidth, currentEffect, fabricCanvas, brushOpacity]);
 
-  // Extract strokes from canvas paths
+  // Extract strokes from canvas paths (with unwrap UV compensation)
   const extractStrokes = useCallback(() => {
     if (!fabricCanvas) return;
 
@@ -229,6 +243,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
             y: matrix[1] * px + matrix[3] * py + matrix[5],
           };
 
+          // Store raw canvas-space UV — the stroke generator will compensate for unwrap
           const u = Math.max(0, Math.min(1, transformed.x / width));
           const v = Math.max(0, Math.min(1, 1 - transformed.y / height));
 
@@ -266,7 +281,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       }
       return newCmd;
     }) as any;
-    
+
     const mirroredPath = new Path(mirroredPathData, {
       stroke: path.stroke,
       strokeWidth: path.strokeWidth,
@@ -284,7 +299,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
 
     const handlePathCreated = (e: any) => {
       if (isLoadingRef.current) return;
-      
+
       if (symmetry && e.path) {
         const mirrored = mirrorPath(e.path);
         if (mirrored) {
@@ -292,7 +307,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
           fabricCanvas.renderAll();
         }
       }
-      
+
       extractStrokes();
 
       const json = JSON.stringify(fabricCanvas.toJSON());
@@ -343,7 +358,6 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
   const handleRemoveStroke = (idx: number) => {
     const updated = strokes.filter((_, i) => i !== idx);
     onChange(updated);
-    // Also remove from canvas
     if (fabricCanvas) {
       const paths = fabricCanvas.getObjects().filter(obj => obj instanceof Path);
       if (paths[idx]) {
@@ -405,7 +419,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         </div>
       </div>
 
-      {/* Texture pattern selector - only when texture effect */}
+      {/* Texture pattern selector */}
       {currentEffect === 'texture' && (
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Texture Pattern</Label>
@@ -446,7 +460,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         />
       </div>
 
-      {/* Canvas with overlay */}
+      {/* Canvas with unwrap overlay */}
       <div className="border border-border rounded-lg overflow-hidden relative">
         <canvas ref={canvasRef} />
         <canvas
@@ -461,14 +475,14 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       {/* Labels */}
       <div className="flex justify-between text-[10px] text-muted-foreground -mt-1 px-1">
         <span>0°</span>
-        <span>← ángulo (envuelve) →</span>
+        <span>← dibuja dentro de la forma →</span>
         <span>360°</span>
       </div>
       <p className="text-[10px] text-muted-foreground/60 text-center -mt-0.5">
-        Dibuja en 2D y el trazo se graba directamente en la pieza, sin giro ni reposicionamiento global.
+        La forma muestra el desdoblado real de la pieza. Dibuja dentro de la silueta y se grabará proporcionalmente.
       </p>
 
-      {/* Stroke list - simple delete only */}
+      {/* Stroke list */}
       {strokes.length > 0 && (
         <div className="space-y-2">
           <button
