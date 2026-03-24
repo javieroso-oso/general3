@@ -40,7 +40,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [brushWidth, setBrushWidth] = useState(4);
-  const [currentEffect, setCurrentEffect] = useState<SurfaceStroke['effect']>('raised');
+  const [currentEffect, setCurrentEffect] = useState<SurfaceStroke['effect']>('engraved');
   const [currentDepth, setCurrentDepth] = useState(2);
   const [currentTexturePattern, setCurrentTexturePattern] = useState<TexturePattern>('dots');
   const [symmetry, setSymmetry] = useState(false);
@@ -242,19 +242,17 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
           id: existing?.id || `stroke-${Date.now()}-${idx}`,
           points,
           thickness: existing?.thickness || brushWidth * 0.5,
-          effect: existing?.effect || currentEffect,
+          effect: 'engraved',
           depth: existing?.depth || currentDepth,
-          ...(currentEffect === 'texture' ? { texturePattern: currentTexturePattern } : {}),
-          // Preserve existing offsets/scale
-          offsetU: existing?.offsetU ?? 0,
-          offsetV: existing?.offsetV ?? 0,
-          strokeScale: existing?.strokeScale ?? 1,
+          offsetU: 0,
+          offsetV: 0,
+          strokeScale: 1,
         });
       }
     });
 
     onChange(newStrokes);
-  }, [fabricCanvas, width, height, onChange, currentEffect, currentDepth, brushWidth, currentTexturePattern]);
+  }, [fabricCanvas, width, height, onChange, currentDepth, brushWidth]);
 
   // Mirror stroke points horizontally for symmetry
   const mirrorPath = useCallback((path: Path): Path | null => {
@@ -379,40 +377,16 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       {/* Effect & depth controls */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Effect</Label>
+          <Label className="text-xs text-muted-foreground">Modo</Label>
           <Select value={currentEffect} onValueChange={(v) => setCurrentEffect(v as SurfaceStroke['effect'])}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="raised">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.raised }} />
-                  Raised (emboss)
-                </span>
-              </SelectItem>
               <SelectItem value="engraved">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.engraved }} />
-                  Engraved (groove)
-                </span>
-              </SelectItem>
-              <SelectItem value="ribbon">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.ribbon }} />
-                  Ribbon (flat)
-                </span>
-              </SelectItem>
-              <SelectItem value="cut">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.cut }} />
-                  Cut (through)
-                </span>
-              </SelectItem>
-              <SelectItem value="texture">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.texture }} />
-                  Texture (pattern)
+                  Grabado
                 </span>
               </SelectItem>
             </SelectContent>
@@ -491,7 +465,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         <span>360°</span>
       </div>
       <p className="text-[10px] text-muted-foreground/60 text-center -mt-0.5">
-        Mueve el mouse sobre el canvas — el punto amarillo en el modelo 3D muestra dónde estás dibujando
+        Dibuja en 2D y el trazo se graba directamente en la pieza, sin giro ni reposicionamiento global.
       </p>
 
       {/* Stroke list - simple delete only */}
