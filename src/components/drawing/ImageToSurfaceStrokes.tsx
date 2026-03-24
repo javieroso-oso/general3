@@ -31,8 +31,8 @@ const ImageToSurfaceStrokes = ({
   const [edgeStrength, setEdgeStrength] = useState(60);
   const [simplification, setSimplification] = useState(3); // skip every N pixels in contour
   const [minPathLength, setMinPathLength] = useState(8); // min points to keep a path
-  const [strokeEffect, setStrokeEffect] = useState<SurfaceStroke['effect']>('raised');
-  const [strokeDepth, setStrokeDepth] = useState(1.5);
+  const [strokeEffect, setStrokeEffect] = useState<SurfaceStroke['effect']>('engraved');
+  const [strokeDepth, setStrokeDepth] = useState(2);
   const [strokeThickness, setStrokeThickness] = useState(1.5);
   const [previewPaths, setPreviewPaths] = useState<{ u: number; v: number }[][]>([]);
   const [processing, setProcessing] = useState(false);
@@ -245,14 +245,14 @@ const ImageToSurfaceStrokes = ({
       id: `img-stroke-${Date.now()}-${idx}`,
       points: path,
       thickness: strokeThickness,
-      effect: strokeEffect,
+      effect: 'engraved',
       depth: strokeDepth,
       offsetU: 0,
       offsetV: 0,
       strokeScale: 1,
     }));
     onStrokesGenerated(strokes);
-  }, [previewPaths, strokeEffect, strokeDepth, strokeThickness, onStrokesGenerated]);
+  }, [previewPaths, strokeDepth, strokeThickness, onStrokesGenerated]);
 
   return (
     <div className="space-y-3">
@@ -343,16 +343,13 @@ const ImageToSurfaceStrokes = ({
           {/* Stroke settings */}
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Effect</Label>
+              <Label className="text-[10px] text-muted-foreground">Modo</Label>
               <Select value={strokeEffect} onValueChange={(v) => setStrokeEffect(v as SurfaceStroke['effect'])}>
                 <SelectTrigger className="h-7 text-[10px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="engraved">Engraved</SelectItem>
-                  <SelectItem value="raised">Raised</SelectItem>
-                  <SelectItem value="cut">Cut</SelectItem>
-                  <SelectItem value="ribbon">Ribbon</SelectItem>
                 </SelectContent>
               </Select>
             </div>
