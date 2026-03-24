@@ -614,4 +614,10 @@ export const defaultLampParams: LampParams = {
   surfaceGlobalOffsetU: 0,
   surfaceGlobalOffsetV: 0,
   surfaceGlobalScale: 1,
+  
+  // Base plate
+  basePlateEnabled: false,
+  basePlatePuckDiameter: 70,
+  basePlatePuckDepth: 10,
+  basePlateThickness: 15,
 };
