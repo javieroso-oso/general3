@@ -105,7 +105,7 @@ export function ExportOptionsDialog({
     return files;
   }, [options, hasLegs, hasMolds, hasLampShade, hasBasePlate]);
 
-  const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds) || (options.includeSocketCradle && hasLampShade);
+  const canExport = options.includeBody || (options.includeLegs && hasLegs) || (options.includeMolds && hasMolds) || (options.includeSocketCradle && hasLampShade) || (options.includeBasePlate && hasBasePlate);
   const showMergeOptions = options.includeBody && options.includeLegs && hasLegs;
 
   return (
