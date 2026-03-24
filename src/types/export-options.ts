@@ -2,7 +2,8 @@ export interface ExportOptions {
   includeBody: boolean;
   includeLegs: boolean;
   includeMolds: boolean;
-  includeSocketCradle: boolean;  // NEW: 3D printed socket holder
+  includeSocketCradle: boolean;  // 3D printed socket holder
+  includeBasePlate: boolean;     // Base plate with LED puck recess
   mergeMode: 'separate' | 'bodyWithLegs' | 'allMerged';
 }
 
@@ -11,6 +12,7 @@ export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   includeLegs: true,
   includeMolds: false,
   includeSocketCradle: false,
+  includeBasePlate: false,
   mergeMode: 'separate',
 };
 
