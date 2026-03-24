@@ -40,6 +40,7 @@ export function ExportOptionsDialog({
   hasLegs,
   hasMolds,
   hasLampShade = false,
+  hasBasePlate = false,
   itemCount = 1,
 }: ExportOptionsDialogProps) {
   const [options, setOptions] = useState<ExportOptions>(() => getSavedExportOptions());
