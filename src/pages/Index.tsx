@@ -30,7 +30,7 @@ import {
 } from '@/types/parametric';
 import { PlotterParams, PlotterDrawing, defaultPlotterParams } from '@/types/plotter';
 import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
-import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
+import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS, EXHIBIT_SWATCHES } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode, exportBodyToSTL } from '@/lib/stl-export';
 import { ExportType } from '@/config/export-pricing';
 import { downloadMoldSTL, downloadMultiPartMoldSTL, generateMoldGeometry, generateMultiPartMoldGeometry, exportMoldHalfToSTL } from '@/lib/mold-generator';
@@ -562,10 +562,15 @@ const Index = () => {
       
       {/* Exhibit branding header */}
       {isExhibitMode && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-center bg-background/80 backdrop-blur-xl border-b border-border/50">
-          <h1 className="text-lg font-medium tracking-tight text-foreground">
-            Design Your Own
-          </h1>
+        <div className="kiosk-header h-16">
+          <div className="text-center">
+            <h1 className="text-2xl font-medium tracking-[0.15em] uppercase" style={{ color: 'hsla(0,0%,92%,1)' }}>
+              Design Your Own
+            </h1>
+            <p className="text-xs tracking-[0.3em] uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>
+              Interactive Sculpture Generator
+            </p>
+          </div>
         </div>
       )}
       
@@ -623,7 +628,7 @@ const Index = () => {
           opacity: showLeftPanel ? 1 : 0 
         }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed left-4 top-20 bottom-4 w-[340px] z-20 glass-panel overflow-hidden flex flex-col"
+        className={`fixed left-4 top-20 bottom-4 z-20 overflow-hidden flex flex-col ${isExhibitMode ? 'kiosk-panel w-[380px]' : 'glass-panel w-[340px]'}`}
       >
         {/* Object Type */}
         {!isExhibitMode && (
