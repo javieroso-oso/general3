@@ -51,11 +51,8 @@ export async function submitToExhibitQueue(submission: ExhibitSubmission): Promi
 
   if (error) throw new Error(`Queue submission failed: ${error.message}`);
 
-  // 5. Get queue position (count of pending items before this one)
-  const { count } = await supabase
-    .from('print_queue')
-    .select('id', { count: 'exact', head: true })
-    .in('status', ['pending', 'printing']);
+  // 5. Get queue position via secure server-side function
+  const { data: position } = await supabase.rpc('get_queue_position');
 
-  return { queuePosition: count || 1, id: entryId };
+  return { queuePosition: position || 1, id: entryId };
 }
