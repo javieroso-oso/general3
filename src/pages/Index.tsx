@@ -1065,8 +1065,6 @@ const Index = () => {
                   </Button>
                 </>
               )}
-            </>
-          )}
         </motion.div>
       )}
 
