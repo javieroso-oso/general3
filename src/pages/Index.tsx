@@ -30,7 +30,7 @@ import {
 } from '@/types/parametric';
 import { PlotterParams, PlotterDrawing, defaultPlotterParams } from '@/types/plotter';
 import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
-import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS } from '@/types/materials';
+import { MaterialPreset, MATERIAL_LABELS, MATERIAL_PRESETS, BackgroundPreset, BACKGROUND_PRESETS, EXHIBIT_SWATCHES } from '@/types/materials';
 import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCode, analyzeNonPlanarGCode, exportBodyToSTL } from '@/lib/stl-export';
 import { ExportType } from '@/config/export-pricing';
 import { downloadMoldSTL, downloadMultiPartMoldSTL, generateMoldGeometry, generateMultiPartMoldGeometry, exportMoldHalfToSTL } from '@/lib/mold-generator';
@@ -551,9 +551,12 @@ const Index = () => {
     }
   }, [analysis.isValid, isUnlocked, doExportAllMoldsZip]);
 
-  // Force left panel visible in exhibit mode
+  // Force left panel visible + studio background in exhibit mode
   useEffect(() => {
-    if (isExhibitMode) setShowLeftPanel(true);
+    if (isExhibitMode) {
+      setShowLeftPanel(true);
+      setBackgroundPreset('studio');
+    }
   }, [isExhibitMode]);
 
   return (
@@ -562,10 +565,15 @@ const Index = () => {
       
       {/* Exhibit branding header */}
       {isExhibitMode && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-center bg-background/80 backdrop-blur-xl border-b border-border/50">
-          <h1 className="text-lg font-medium tracking-tight text-foreground">
-            Design Your Own
-          </h1>
+        <div className="kiosk-header h-16">
+          <div className="text-center">
+            <h1 className="text-2xl font-medium tracking-[0.15em] uppercase" style={{ color: 'hsla(0,0%,92%,1)' }}>
+              Design Your Own
+            </h1>
+            <p className="text-xs tracking-[0.3em] uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>
+              Interactive Sculpture Generator
+            </p>
+          </div>
         </div>
       )}
       
@@ -619,11 +627,11 @@ const Index = () => {
       <motion.aside
         initial={{ x: -20, opacity: 0 }}
         animate={{ 
-          x: showLeftPanel ? 0 : -360,
+          x: showLeftPanel ? 0 : (isExhibitMode ? -400 : -360),
           opacity: showLeftPanel ? 1 : 0 
         }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed left-4 top-20 bottom-4 w-[340px] z-20 glass-panel overflow-hidden flex flex-col"
+        className={`fixed left-4 top-20 bottom-4 z-20 overflow-hidden flex flex-col ${isExhibitMode ? 'kiosk-panel w-[380px]' : 'glass-panel w-[340px]'}`}
       >
         {/* Object Type */}
         {!isExhibitMode && (
@@ -788,45 +796,12 @@ const Index = () => {
       )}
 
       {/* Bottom floating bar - View controls & Export (hidden for plotter mode) */}
-      {objectType !== 'plotter' && (
+      {objectType !== 'plotter' && !isExhibitMode && (
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center justify-center gap-3 overflow-x-auto"
         >
-          {isExhibitMode ? (
-            /* Exhibit mode: Randomize + Color + Print */
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
-                variant="secondary"
-                className="gap-2 h-14 px-8 rounded-xl text-lg font-semibold"
-              >
-                <Shuffle className="w-5 h-5" />
-                Randomize
-              </Button>
-
-              <input
-                type="color"
-                value={customColor || MATERIAL_PRESETS[materialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
-                onChange={(e) => {
-                  setCustomColor(e.target.value);
-                  setUsePresetColor(false);
-                }}
-                className="w-12 h-12 rounded-xl cursor-pointer border-2 border-border/50"
-                title="Pick a color"
-              />
-
-              <Button
-                onClick={() => setShowExhibitDialog(true)}
-                className="gap-2 h-14 px-8 rounded-xl text-lg font-semibold"
-              >
-                <Printer className="w-5 h-5" />
-                Print This!
-              </Button>
-            </div>
-          ) : (
-            <>
               {/* View mode */}
               <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
                 <Button
@@ -1093,9 +1068,47 @@ const Index = () => {
                   </Button>
                 </>
               )}
-            </>
-          )}
         </motion.div>
+      )}
+
+      {/* Exhibit mode: full-width swatch strip */}
+      {isExhibitMode && objectType !== 'plotter' && (
+        <div className="fixed bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-5 px-6 py-3" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
+          {EXHIBIT_SWATCHES.map((swatch) => (
+            <button
+              key={swatch.label}
+              className={`kiosk-swatch ${customColor === swatch.color && materialPreset === swatch.material ? 'active' : ''}`}
+              onClick={() => {
+                setCustomColor(swatch.color);
+                setUsePresetColor(false);
+                setMaterialPreset(swatch.material);
+              }}
+            >
+              <div className="kiosk-swatch-circle" style={{ backgroundColor: swatch.color }} />
+              <span className="text-[10px] tracking-wider uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>{swatch.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Exhibit mode: floating action buttons */}
+      {isExhibitMode && objectType !== 'plotter' && (
+        <div className="fixed bottom-24 right-6 z-30 flex flex-col gap-3">
+          <button
+            onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
+            className="kiosk-action h-14 px-8 text-lg flex items-center gap-3"
+          >
+            <Shuffle className="w-5 h-5" />
+            Randomize
+          </button>
+          <button
+            onClick={() => setShowExhibitDialog(true)}
+            className="kiosk-action-primary h-14 px-8 text-lg flex items-center gap-3"
+          >
+            <Printer className="w-5 h-5" />
+            Print This!
+          </button>
+        </div>
       )}
 
       {/* Dimensions overlay - hidden in exhibit mode */}
