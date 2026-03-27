@@ -1,48 +1,45 @@
+# Limit Kiosk Object Size for Faster Printing
+
+## Current State
+
+The exhibit safety clamp already caps `height` at 180mm and `baseRadius` at 60mm. At those sizes, a spiral-vase print can still take 45–60+ minutes.
+
+## Proposal
+
+Tighten the size constraints and add a `topRadius` cap so kiosk prints finish in ~15–20 minutes:
 
 
-# Kiosk UI Design Upgrade
+| Parameter    | Current Limit | New Limit | Rationale                                            |
+| ------------ | ------------- | --------- | ---------------------------------------------------- |
+| `height`     | 180mm         | 100mm     | Halves print time roughly proportionally             |
+| `baseRadius` | 60mm          | 40mm      | Smaller footprint, faster perimeters                 |
+| `topRadius`  | uncapped      | 45mm      | Prevent wide flared tops that slow down upper layers |
 
-## Problem
-The dark `.kiosk-panel` overrides CSS variables, but:
-1. `--muted-foreground: 220 10% 60%` is too dim — slider labels are barely readable
-2. `text-text-secondary` used on section headers isn't a valid Tailwind token tied to the CSS variable system, so it renders unpredictably on dark backgrounds
-3. The overall kiosk still feels like a "dark-themed developer panel" rather than a curated exhibit experience
 
-## Proposed Fixes + Design Upgrades
+## Changes
 
-### 1. Fix readability in kiosk panel (`src/index.css`)
-- Brighten `--muted-foreground` to `220 10% 72%` (readable on dark)
-- Add `--text-secondary` override or map `text-text-secondary` to the foreground variable
-- Brighten `--foreground` slightly to `0 0% 95%`
-- Add explicit styling for section headers inside `.kiosk-panel`: lighter color, slightly larger text
+### `src/pages/Index.tsx`
 
-### 2. Polish the left panel for exhibit use (`src/index.css` + `src/pages/Index.tsx`)
-- Add subtle section dividers with a faint glow line instead of plain `border-border/50`
-- Increase slider thumb size inside kiosk-panel to 20px (more touchable)
-- Increase slider track height to `h-1.5` inside kiosk-panel
-- Add a subtle gradient at the top/bottom of the scrollable area for visual polish (fade-to-panel-bg)
+In `exhibitSafeParams`, update the three clamps:
 
-### 3. Upgrade the bottom swatch strip (`src/pages/Index.tsx`)
-- Make swatches larger (56px circles instead of 48px)
-- Add the currently-selected swatch's label as a floating text indicator above the strip
-- Add a subtle glow ring around the active swatch (not just a white border)
+```
+height: Math.min(p.height, 100),
+baseRadius: Math.min(p.baseRadius, 40),
+topRadius: Math.min(p.topRadius, 45),
+```
 
-### 4. Upgrade floating action buttons (`src/index.css` + `src/pages/Index.tsx`)
-- Make "Print This!" larger (h-16, text-xl) with a pulsing glow animation when idle
-- Add a subtle icon animation on "Randomize" (dice spin on tap)
-- Round the buttons more (rounded-full pill shape)
+### `src/lib/random-generator.ts`
 
-### 5. Refine the header (`src/pages/Index.tsx`)
-- Add a subtle bottom-edge gradient fade instead of a hard border
-- Slightly increase letter-spacing for the subtitle
+In `generateExhibitRandomParams`, tighten the random ranges to match:
 
-## Files
+- Height: random between 60–100 (was likely up to 180)
+- Base radius: random between 20–40
+- Top radius: random between 15–45
 
-| File | Change |
-|------|--------|
-| `src/index.css` | Fix kiosk-panel color variables, add slider/thumb size overrides, add glow animation for Print button, section divider styling |
-| `src/pages/Index.tsx` | Larger swatches with active label, bigger Print button, header gradient fade |
+### `src/components/controls/ParameterControls.tsx`
+
+In exhibit mode, cap the slider `max` values for height, baseRadius, and topRadius so visitors can't drag past the limits.
 
 ## Result
-Slider labels become clearly readable. The panel feels intentionally dark and premium rather than broken. Touch targets are generous. The floating buttons invite interaction.
 
+Objects stay compact (roughly palm-sized) and print in ~15–20 minutes on a standard printer with spiral vase mode.
