@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Scene3D from '@/components/3d/Scene3D';
 import ParameterControls from '@/components/controls/ParameterControls';
@@ -43,6 +43,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useGallery } from '@/hooks/useGallery';
 import AddToGalleryDialog from '@/components/AddToGalleryDialog';
+import ExhibitSubmitDialog from '@/components/exhibit/ExhibitSubmitDialog';
+import { generateRandomParams } from '@/lib/random-generator';
 import {
   Select,
   SelectContent,
