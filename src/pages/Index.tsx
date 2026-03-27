@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Scene3D from '@/components/3d/Scene3D';
 import ParameterControls from '@/components/controls/ParameterControls';
@@ -34,7 +34,7 @@ import { downloadBodySTL, downloadLegsWithBaseSTL, downloadAllParts, downloadGCo
 import { ExportType } from '@/config/export-pricing';
 import { downloadMoldSTL, downloadMultiPartMoldSTL, generateMoldGeometry, generateMultiPartMoldGeometry, exportMoldHalfToSTL } from '@/lib/mold-generator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info, PackageCheck, Share2 } from 'lucide-react';
+import { Settings2, Layers, Package, Download, Eye, Play, Pause, FileCode, RotateCcw, Palette, Archive, FlaskConical, ChevronLeft, ChevronRight, Info, PackageCheck, Share2, Printer } from 'lucide-react';
 import JSZip from 'jszip';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -43,6 +43,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useGallery } from '@/hooks/useGallery';
 import AddToGalleryDialog from '@/components/AddToGalleryDialog';
+import ExhibitSubmitDialog from '@/components/exhibit/ExhibitSubmitDialog';
+import { generateRandomParams } from '@/lib/random-generator';
 import {
   Select,
   SelectContent,
@@ -78,6 +80,39 @@ const Index = () => {
   const gallery = useGallery();
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   
+  // Exhibit mode
+  const isExhibitMode = useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('exhibit') === 'true';
+  }, []);
+  const [showExhibitDialog, setShowExhibitDialog] = useState(false);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Attract mode: randomize after 30s idle in exhibit mode
+  useEffect(() => {
+    if (!isExhibitMode) return;
+    
+    const resetIdle = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setParams(generateRandomParams(params));
+      }, 30000);
+    };
+    
+    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel'];
+    events.forEach(e => window.addEventListener(e, resetIdle));
+    resetIdle();
+    
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdle));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [isExhibitMode, params]);
+  
+  const handleExhibitSubmitted = useCallback(() => {
+    setParams(generateRandomParams(params));
+  }, [params]);
+
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
     return gallery.addDesign(name, params, objectType, description);
   }, [gallery, params, objectType]);
@@ -821,108 +856,122 @@ const Index = () => {
 
           <div className="w-px h-6 bg-border/50" />
 
-          {/* Keep button - always visible */}
-          <KeepButton
-            params={params}
-            objectType={objectType}
-            onKeep={handleKeepToDrawer}
-          />
-          
-          {/* Add to Gallery button */}
-          <Button
-            onClick={() => setShowGalleryDialog(true)}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 h-8 rounded-lg"
-            title="Showcase your design in the community gallery"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            Showcase
-          </Button>
-
-          <div className="w-px h-6 bg-border/50" />
-
-          {/* Export buttons */}
-          {params.moldEnabled ? (
+          {isExhibitMode ? (
+            /* Exhibit mode: single Print button */
+            <Button
+              onClick={() => setShowExhibitDialog(true)}
+              size="sm"
+              className="gap-2 h-10 px-6 rounded-lg text-base font-semibold"
+            >
+              <Printer className="w-4 h-4" />
+              Print This!
+            </Button>
+          ) : (
             <>
-              <Button 
-                onClick={handleExportBody} 
-                disabled={!analysis.isValid}
-                variant="secondary"
-                size="sm" 
+              {/* Keep button - always visible */}
+              <KeepButton
+                params={params}
+                objectType={objectType}
+                onKeep={handleKeepToDrawer}
+              />
+              
+              {/* Add to Gallery button */}
+              <Button
+                onClick={() => setShowGalleryDialog(true)}
+                variant="outline"
+                size="sm"
                 className="gap-1.5 h-8 rounded-lg"
+                title="Showcase your design in the community gallery"
               >
-                <Download className="w-3.5 h-3.5" />
-                Body
+                <Share2 className="w-3.5 h-3.5" />
+                Showcase
               </Button>
-              <Button onClick={handleExportMoldA} size="sm" className="gap-1.5 h-8 rounded-lg">
-                <FlaskConical className="w-3.5 h-3.5" />
-                Mold A
-              </Button>
-              <Button onClick={handleExportMoldB} variant="secondary" size="sm" className="gap-1.5 h-8 rounded-lg">
-                <FlaskConical className="w-3.5 h-3.5" />
-                Mold B
-              </Button>
-              {/* Dynamic multi-part mold buttons (C, D, E...) */}
-              {params.moldPartCount > 2 && (
+
+              <div className="w-px h-6 bg-border/50" />
+
+              {/* Export buttons */}
+              {params.moldEnabled ? (
                 <>
-                  {Array.from({ length: params.moldPartCount - 2 }, (_, i) => (
+                  <Button 
+                    onClick={handleExportBody} 
+                    disabled={!analysis.isValid}
+                    variant="secondary"
+                    size="sm" 
+                    className="gap-1.5 h-8 rounded-lg"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Body
+                  </Button>
+                  <Button onClick={handleExportMoldA} size="sm" className="gap-1.5 h-8 rounded-lg">
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    Mold A
+                  </Button>
+                  <Button onClick={handleExportMoldB} variant="secondary" size="sm" className="gap-1.5 h-8 rounded-lg">
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    Mold B
+                  </Button>
+                  {/* Dynamic multi-part mold buttons (C, D, E...) */}
+                  {params.moldPartCount > 2 && (
+                    <>
+                      {Array.from({ length: params.moldPartCount - 2 }, (_, i) => (
+                        <Button 
+                          key={i + 2}
+                          onClick={() => handleExportMoldPart(i + 2)} 
+                          variant="secondary" 
+                          size="sm"
+                          className="gap-1.5 h-8 rounded-lg"
+                        >
+                          <FlaskConical className="w-3.5 h-3.5" />
+                          Mold {String.fromCharCode(67 + i)}
+                        </Button>
+                      ))}
+                    </>
+                  )}
+                  <Button 
+                    onClick={handleExportAllMoldsZip} 
+                    variant="default"
+                    size="sm"
+                    className="gap-1.5 h-8 rounded-lg"
+                  >
+                    <PackageCheck className="w-3.5 h-3.5" />
+                    All ZIP
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    onClick={handleExportBody} 
+                    disabled={!analysis.isValid}
+                    size="sm"
+                    className="gap-1.5 h-8 rounded-lg"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    STL
+                  </Button>
+                  {params.addLegs && (
                     <Button 
-                      key={i + 2}
-                      onClick={() => handleExportMoldPart(i + 2)} 
-                      variant="secondary" 
+                      onClick={handleExportLegsBase} 
+                      disabled={!analysis.isValid}
+                      variant="secondary"
                       size="sm"
                       className="gap-1.5 h-8 rounded-lg"
                     >
-                      <FlaskConical className="w-3.5 h-3.5" />
-                      Mold {String.fromCharCode(67 + i)}
+                      <Download className="w-3.5 h-3.5" />
+                      Base
                     </Button>
-                  ))}
+                  )}
+                  <Button 
+                    onClick={handleExportGCode} 
+                    disabled={!analysis.isValid}
+                    variant="secondary"
+                    size="sm"
+                    className="gap-1.5 h-8 rounded-lg"
+                  >
+                    <FileCode className="w-3.5 h-3.5" />
+                    G-code
+                  </Button>
                 </>
               )}
-              <Button 
-                onClick={handleExportAllMoldsZip} 
-                variant="default"
-                size="sm"
-                className="gap-1.5 h-8 rounded-lg"
-              >
-                <PackageCheck className="w-3.5 h-3.5" />
-                All ZIP
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button 
-                onClick={handleExportBody} 
-                disabled={!analysis.isValid}
-                size="sm"
-                className="gap-1.5 h-8 rounded-lg"
-              >
-                <Download className="w-3.5 h-3.5" />
-                STL
-              </Button>
-              {params.addLegs && (
-                <Button 
-                  onClick={handleExportLegsBase} 
-                  disabled={!analysis.isValid}
-                  variant="secondary"
-                  size="sm"
-                  className="gap-1.5 h-8 rounded-lg"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Base
-                </Button>
-              )}
-              <Button 
-                onClick={handleExportGCode} 
-                disabled={!analysis.isValid}
-                variant="secondary"
-                size="sm"
-                className="gap-1.5 h-8 rounded-lg"
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                G-code
-              </Button>
             </>
           )}
         </motion.div>
@@ -995,6 +1044,15 @@ const Index = () => {
         onClose={() => setShowGalleryDialog(false)}
         onSubmit={handleAddToGallery}
         saving={gallery.saving}
+      />
+      
+      {/* Exhibit Submit Dialog */}
+      <ExhibitSubmitDialog
+        open={showExhibitDialog}
+        onClose={() => setShowExhibitDialog(false)}
+        params={params}
+        objectType={objectType}
+        onSubmitted={handleExhibitSubmitted}
       />
     </div>
   );
