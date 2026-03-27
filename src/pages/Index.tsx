@@ -80,6 +80,39 @@ const Index = () => {
   const gallery = useGallery();
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   
+  // Exhibit mode
+  const isExhibitMode = useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('exhibit') === 'true';
+  }, []);
+  const [showExhibitDialog, setShowExhibitDialog] = useState(false);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Attract mode: randomize after 30s idle in exhibit mode
+  useEffect(() => {
+    if (!isExhibitMode) return;
+    
+    const resetIdle = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setParams(generateRandomParams(params));
+      }, 30000);
+    };
+    
+    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel'];
+    events.forEach(e => window.addEventListener(e, resetIdle));
+    resetIdle();
+    
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdle));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [isExhibitMode, params]);
+  
+  const handleExhibitSubmitted = useCallback(() => {
+    setParams(generateRandomParams(params));
+  }, [params]);
+
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
     return gallery.addDesign(name, params, objectType, description);
   }, [gallery, params, objectType]);
