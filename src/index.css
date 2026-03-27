@@ -353,20 +353,20 @@
   }
 
   .kiosk-swatch.active .kiosk-swatch-circle {
-    box-shadow: 0 0 0 3px hsla(0, 0%, 100%, 0.6);
+    box-shadow: 0 0 0 3px hsla(0, 0%, 100%, 0.6), 0 0 16px hsla(210, 60%, 50%, 0.3);
     transform: scale(1.1);
   }
 
   .kiosk-swatch-circle {
-    @apply w-12 h-12 rounded-full transition-all duration-200;
+    @apply w-14 h-14 rounded-full transition-all duration-200;
     box-shadow: 0 2px 8px hsla(220, 20%, 5%, 0.3), inset 0 1px 2px hsla(0, 0%, 100%, 0.15);
   }
 
   .kiosk-header {
     @apply fixed top-0 left-0 right-0 z-50 flex items-center justify-center;
-    background: hsla(230, 20%, 8%, 0.85);
+    background: linear-gradient(to bottom, hsla(230, 20%, 8%, 0.9), hsla(230, 20%, 8%, 0.6), transparent);
     backdrop-filter: blur(20px);
-    border-bottom: 1px solid hsla(220, 15%, 25%, 0.3);
+    padding-bottom: 12px;
   }
 }
 
@@ -390,5 +390,14 @@
   }
   50% {
     transform: translateY(-4px);
+  }
+}
+
+@keyframes print-glow {
+  0%, 100% {
+    box-shadow: 0 4px 20px hsla(210, 60%, 50%, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 30px hsla(210, 60%, 50%, 0.5), 0 0 40px hsla(210, 60%, 50%, 0.15);
   }
 }
