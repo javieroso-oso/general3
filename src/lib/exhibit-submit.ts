@@ -57,5 +57,5 @@ export async function submitToExhibitQueue(submission: ExhibitSubmission): Promi
     .select('id', { count: 'exact', head: true })
     .in('status', ['pending', 'printing']);
 
-  return { queuePosition: count || 1, id: data.id };
+  return { queuePosition: count || 1, id: entryId };
 }
