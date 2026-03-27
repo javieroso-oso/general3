@@ -99,6 +99,26 @@ const Index = () => {
   const [showExhibitDialog, setShowExhibitDialog] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Force vase-safe params when entering exhibit mode
+  useEffect(() => {
+    if (isExhibitMode) {
+      setParams(prev => ({
+        ...prev,
+        wallThickness: 1.6,
+        baseThickness: 0,
+        addLegs: false,
+        cordHoleEnabled: false,
+        wireframeMode: false,
+        lightPatternEnabled: false,
+        moldEnabled: false,
+        basePlateEnabled: false,
+        supportFreeMode: false,
+        surfaceStrokes: [],
+        surfaceStrokesVisible: false,
+      }));
+    }
+  }, [isExhibitMode]);
+  
   // Attract mode: randomize after 30s idle in exhibit mode
   useEffect(() => {
     if (!isExhibitMode) return;
@@ -106,7 +126,7 @@ const Index = () => {
     const resetIdle = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(() => {
-        setParams(generateRandomParams(params));
+        setParams(prev => generateRandomParams(prev));
       }, 30000);
     };
     
@@ -118,11 +138,11 @@ const Index = () => {
       events.forEach(e => window.removeEventListener(e, resetIdle));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [isExhibitMode, params]);
+  }, [isExhibitMode]);
   
   const handleExhibitSubmitted = useCallback(() => {
-    setParams(generateRandomParams(params));
-  }, [params]);
+    setParams(prev => generateRandomParams(prev));
+  }, []);
 
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
     return gallery.addDesign(name, params, objectType, description);
