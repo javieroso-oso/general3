@@ -742,27 +742,29 @@ const Index = () => {
           animate={{ y: 0, opacity: 1 }}
           className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center gap-3 overflow-x-auto"
         >
-          {/* View mode */}
-          <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
-            <Button
-              variant={viewMode === 'model' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('model')}
-              className="gap-1.5 rounded-md h-8"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Model
-            </Button>
-            <Button
-              variant={viewMode === 'gcode' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('gcode')}
-              className="gap-1.5 rounded-md h-8"
-            >
-              <FileCode className="w-3.5 h-3.5" />
-              G-code
-            </Button>
-          </div>
+          {/* View mode - hidden in exhibit mode */}
+          {!isExhibitMode && (
+            <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
+              <Button
+                variant={viewMode === 'model' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('model')}
+                className="gap-1.5 rounded-md h-8"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Model
+              </Button>
+              <Button
+                variant={viewMode === 'gcode' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('gcode')}
+                className="gap-1.5 rounded-md h-8"
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                G-code
+              </Button>
+            </div>
+          )}
 
           <div className="w-px h-6 bg-border/50" />
 
