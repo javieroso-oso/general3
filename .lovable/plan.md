@@ -1,68 +1,122 @@
 
 
-# Export Base Plate + LED Puck Light Recess
+# Exhibit Mode: Live Print Queue for Bambu Lab
 
-## Overview
+## Concept
 
-Add a new exportable **Base Plate** component: a flat disc matching the bottom cross-section of the shape, with an optional circular recess for LED puck lights. This lets the shade print in spiral vase mode while the base prints separately with regular infill.
+Visitors interact with the generator on a kiosk, enter their name/email, and tap "Send to Print." Their design enters a queue visible on a separate operator screen. The operator reviews and sends to the Bambu Lab printer.
 
 ```text
-  Side view:
-  ╭───────────╮  ← shade (spiral vase, open bottom)
-  │           │
-  │    LED↑   │
-  ├═══════════╤  ← base plate (regular print)
-  │  ○ recess │  ← puck light pocket
-  └───────────┘
+  ┌─────────────┐     ┌──────────────┐     ┌───────────┐
+  │  KIOSK      │────▶│  PRINT QUEUE │────▶│  PRINTER  │
+  │  (visitor)  │     │  (database)  │     │  (Bambu)  │
+  │             │     │              │     │           │
+  │ Design →    │     │ Operator     │     │ X1C/P1S   │
+  │ Name/email  │     │ dashboard    │     │           │
+  │ "Print!"    │     │ approve/send │     │           │
+  └─────────────┘     └──────────────┘     └───────────┘
 ```
 
-## Changes
+## What to Build
 
-### 1. Add base plate params to `src/types/parametric.ts`
-Add to `ParametricParams` interface and `createDefaultParams`:
-- `basePlateEnabled: boolean` (default false)
-- `basePlatePuckDiameter: number` (default 70mm)
-- `basePlatePuckDepth: number` (default 10mm)
-- `basePlateThickness: number` (default 15mm)
+### 1. Print Queue Database
+- `print_queue` table: id, visitor_name, visitor_email, params (jsonb), object_type, stl_url (stored in Supabase storage), thumbnail_url, status (pending/printing/done/failed), printer_id, created_at, started_at, completed_at
+- RLS: public can INSERT (submit), only authenticated admin can UPDATE/SELECT all
 
-### 2. Create `src/lib/base-plate-generator.ts` (new file)
-- Generate a solid disc geometry matching `getBodyRadius(params, 0, angle)` around 360 degrees
-- Cut a centered circular pocket for the puck light (configurable diameter/depth)
-- Add a small lip/ridge on the top edge (2mm inset, 3mm tall) so the shade sits snugly
-- Uses Three.js BufferGeometry with proper normals
-- Apply Y-up to Z-up rotation and build plate normalization (matching existing STL convention)
+### 2. STL Upload to Storage
+- New storage bucket `print-files` for STL files
+- When visitor taps "Print", generate STL blob client-side, upload to storage, create queue entry
 
-### 3. Add export function in `src/lib/stl-export.ts`
-- Add `exportBasePlateToSTL(params)` function that calls the generator and exports via STLExporter
-- Same rotation/normalization pattern as other exports
+### 3. Visitor Submit Flow (Kiosk Side)
+- New `ExhibitSubmitDialog` component: name + email fields, "Send to Print" button
+- Replaces the export/payment flow in exhibit mode
+- After submit: show confirmation with queue position, auto-reset after 10 seconds
+- New URL param `?exhibit=true` activates exhibit mode (hides export/payment, shows "Print" button instead)
 
-### 4. Update `src/types/export-options.ts`
-- Add `includeBasePlate: boolean` to `ExportOptions` interface and `DEFAULT_EXPORT_OPTIONS`
+### 4. Operator Dashboard (`/exhibit-admin`)
+- Protected page (simple password or Supabase auth)
+- Live queue list with realtime updates (Supabase realtime on print_queue)
+- Each entry shows: thumbnail, visitor name, time submitted, status
+- Actions per entry: "Download STL", "Mark Printing", "Mark Done", "Reject"
+- Stats: items in queue, average wait, completed today
 
-### 5. Update `src/components/ExportOptionsDialog.tsx`
-- Add "Base Plate" checkbox (enabled when `basePlateEnabled` is true on any item)
-- Show `base_plate.stl` in file preview
+### 5. Bambu Lab Integration (Phase 2 — manual first)
+- Initially: operator downloads STL from dashboard and loads into Bambu Studio manually
+- Future: Bambu Cloud API integration via edge function (requires Bambu access token + printer serial)
+- The queue + storage architecture supports both workflows
 
-### 6. Update `src/lib/batch-export.ts`
-- Add `hasBasePlate` to `analyzeDrawerItems`
-- Include `base_plate.stl` in ZIP when enabled
+### 6. Exhibit Mode UI Tweaks
+- When `?exhibit=true`: hide header nav links, hide export/payment buttons, hide drawer
+- Show large "Print This!" button instead of export
+- Auto-randomize after 30s idle (attract mode)
+- Auto-reset form after successful submission
 
-### 7. Update `src/components/controls/ParameterControls.tsx`
-- Add "Base Plate" section (between Cord Hole and Legs sections, around line 1529) with:
-  - Enable toggle
-  - Puck light diameter slider (30-120mm)
-  - Recess depth slider (5-25mm)
-  - Plate thickness slider (8-25mm)
-
-## Files Summary
+## Files
 
 | File | Change |
 |------|--------|
-| `src/types/parametric.ts` | Add 4 base plate params + defaults |
-| `src/lib/base-plate-generator.ts` | **New** - disc mesh with puck recess |
-| `src/lib/stl-export.ts` | Add `exportBasePlateToSTL` |
-| `src/types/export-options.ts` | Add `includeBasePlate` |
-| `src/components/ExportOptionsDialog.tsx` | Add checkbox + file preview |
-| `src/lib/batch-export.ts` | Include base plate in ZIP |
-| `src/components/controls/ParameterControls.tsx` | Add Base Plate UI section |
+| `supabase/migrations/` | New migration: `print_queue` table + RLS |
+| `src/components/exhibit/ExhibitSubmitDialog.tsx` | **New** — visitor name/email + submit |
+| `src/components/exhibit/ExhibitQueueStatus.tsx` | **New** — confirmation + queue position |
+| `src/pages/ExhibitAdmin.tsx` | **New** — operator dashboard with live queue |
+| `src/lib/exhibit-submit.ts` | **New** — generate STL, upload, create queue entry |
+| `src/pages/Index.tsx` | Detect `?exhibit=true`, swap export for print flow |
+| `src/App.tsx` | Add `/exhibit-admin` route |
+
+## Database Schema
+
+```sql
+CREATE TABLE print_queue (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  visitor_name text NOT NULL,
+  visitor_email text,
+  params jsonb NOT NULL,
+  object_type text NOT NULL,
+  stl_url text,
+  thumbnail_url text,
+  status text NOT NULL DEFAULT 'pending',
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  started_at timestamptz,
+  completed_at timestamptz
+);
+
+ALTER TABLE print_queue ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can submit
+CREATE POLICY "Public can submit prints"
+  ON print_queue FOR INSERT TO anon WITH CHECK (true);
+
+-- Only authenticated users (operator) can view/manage
+CREATE POLICY "Authenticated can view queue"
+  ON print_queue FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Authenticated can update queue"
+  ON print_queue FOR UPDATE TO authenticated USING (true);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE print_queue;
+```
+
+## Visitor Flow
+
+1. Visitor designs shape on kiosk (exhibit mode)
+2. Taps "Print This!" → dialog asks name + optional email
+3. STL generates client-side, uploads to storage
+4. Queue entry created → visitor sees "You're #3 in line!"
+5. Screen resets to fresh shape after 10 seconds
+
+## Operator Flow
+
+1. Opens `/exhibit-admin` on tablet/laptop, logs in
+2. Sees live queue updating in realtime
+3. Downloads STL → loads into Bambu Studio → starts print
+4. Marks entry as "Printing" then "Done"
+5. If visitor left email, they get notified (future enhancement)
+
+## Technical Notes
+
+- Exhibit mode is toggled by URL parameter, no code fork — same app, different UI surface
+- STL generation reuses existing `exportBodyToSTL()` function
+- Realtime subscription on `print_queue` keeps operator dashboard live
+- Storage bucket `print-files` with public read access so operator can download
+- Admin auth: simple Supabase email/password login on the admin page
 
