@@ -1,46 +1,41 @@
 
 
-# Kiosk Mode UI Improvements
+# Kiosk Mode: "Bold Exhibition" Design (Option C)
 
-## Current State
-The kiosk UI works but still looks like a developer tool with constraints, not a polished public exhibit experience. Key issues:
+## Vision
+Transform the kiosk into a statement art-gallery experience: dark-tinted control panel, full-width material strip at bottom, floating semi-transparent action buttons over the 3D viewport, refined serif/geometric header.
 
-1. **Kiosk toggle pill visible to visitors** — the "Kiosk" switch in the top-right should be hidden in kiosk mode (only shown in normal mode for operators)
-2. **Dimensions overlay** (top-right "180mm x Ø120mm") — technical, meaningless to visitors
-3. **Left panel toggle chevron** — the collapsed-panel toggle arrow looks unfinished; in kiosk mode the panel should always be visible (no hide/show)
-4. **Bottom bar clutter** — material picker, background selector, wireframe toggle, auto-rotate, color picker are all power-user tools. Visitors just need the "Print This!" button and a "Randomize" button
-5. **No branding/title** — with the header hidden, there's no exhibit identity. A simple title like "Design Your Own" would orient visitors
-6. **"Print This!" button size** — it's decent but could be bigger and more inviting for a touchscreen kiosk
-7. **No Randomize button visible** — visitors might not realize they can randomize; a prominent shuffle/dice button next to "Print This!" would help
-8. **Left panel width** — 340px is fine on desktop but on a kiosk tablet/touchscreen the sliders could be larger for finger use
+## Changes
 
-## Proposed Changes
+### 1. Bottom bar → Full-width material strip + floating buttons (`src/pages/Index.tsx`)
+- Remove the current glass-panel bottom bar in exhibit mode
+- Replace with a **full-width horizontal scroll strip** of 10-12 large color/material swatches at the very bottom of the screen (no border-radius, edge-to-edge, ~64px tall). Each swatch shows a colored circle + material name below ("Ceramic", "Coral", "Midnight", etc.)
+- **"Randomize" and "Print This!"** become large, semi-transparent floating pill buttons positioned **bottom-right corner**, stacked vertically or side-by-side, directly over the 3D viewport (not in a bar)
+- Remove the `<input type="color">` entirely — colors come from the curated swatches
 
-### 1. Hide kiosk toggle in kiosk mode (`src/pages/Index.tsx`)
-Only render the toggle pill when `!isExhibitMode`. Operators enable it via URL (`?exhibit=true`) or before going live.
+### 2. Curated exhibit colors + materials (`src/types/materials.ts`)
+- Add `EXHIBIT_SWATCHES` array: ~12 entries, each with `{ color: string, label: string, material: MaterialPreset }` — curated for PLA printing (e.g., "Arctic White" #f5f5f5/ceramic, "Coral" #e8735a/matte-clay, "Midnight" #2a2a3a/glossy-plastic, "Sage" #8fae8b/matte-clay, "Terracotta" #c4725c/terracotta, etc.)
 
-### 2. Hide dimensions overlay in kiosk mode (`src/pages/Index.tsx`)
-Remove the "180mm x Ø120mm" badge — visitors don't need it.
+### 3. Dark-tinted left panel in exhibit mode (`src/pages/Index.tsx` + `src/index.css`)
+- In exhibit mode, swap the left panel's `glass-panel` class for a new `.kiosk-panel` class: darker background (`bg-[#1a1a24]/92`), lighter text, high-contrast slider tracks — gives a "control room" aesthetic without looking like a developer tool
+- Widen to 380px, increase slider track height to `h-2` for touch
 
-### 3. Simplify bottom bar in kiosk mode (`src/pages/Index.tsx`)
-In exhibit mode, the bottom bar shows only:
-- A large "Randomize" button (dice icon)
-- Material color picker (keep — it's fun and tactile)
-- A large "Print This!" button
-- Remove: view mode toggle, wireframe, auto-rotate, background preset, export buttons
+### 4. Exhibition header (`src/pages/Index.tsx`)
+- Replace "Design Your Own" with a refined geometric sans treatment: larger text (`text-2xl`), letter-spaced, with an optional subtle exhibit subtitle line (e.g., "Interactive Sculpture Generator")
+- Semi-transparent dark background to match the panel aesthetic
 
-### 4. Add exhibit branding header (`src/pages/Index.tsx`)
-When in kiosk mode, show a minimal top bar with "Design Your Own" (or configurable text) centered, replacing the hidden Header.
-
-### 5. Always show left panel in kiosk mode (`src/pages/Index.tsx`)
-Remove the collapse chevron in exhibit mode — the controls panel is always visible.
-
-### 6. Larger touch-friendly "Print This!" button
-Increase to `h-14 px-8 text-xl` for touchscreen usability.
+### 5. Floating action buttons (`src/index.css`)
+- New `.kiosk-action` class: large rounded pill, semi-transparent dark background with white text, backdrop-blur, subtle border, scale-up on tap
+- "Print This!" gets a warm accent glow (subtle box-shadow in primary color)
 
 ## Files
 
 | File | Change |
 |------|--------|
-| `src/pages/Index.tsx` | Hide kiosk toggle when active, hide dimensions overlay, simplify bottom bar, add branding header, remove panel toggle, enlarge Print button |
+| `src/pages/Index.tsx` | Dark panel class in exhibit mode, full-width swatch strip replacing bottom bar, floating action buttons over viewport, refined header |
+| `src/index.css` | Add `.kiosk-panel`, `.kiosk-action`, `.kiosk-swatch` component classes |
+| `src/types/materials.ts` | Add `EXHIBIT_SWATCHES` array with 12 curated color/material combos |
+
+## Result
+The kiosk feels like a MoMA digital exhibit — dark control panel, curated color palette as a tactile strip, floating translucent action buttons, refined typography. No developer UI elements visible.
 
