@@ -624,7 +624,7 @@ const Index = () => {
       <motion.aside
         initial={{ x: -20, opacity: 0 }}
         animate={{ 
-          x: showLeftPanel ? 0 : -360,
+          x: showLeftPanel ? 0 : (isExhibitMode ? -400 : -360),
           opacity: showLeftPanel ? 1 : 0 
         }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
