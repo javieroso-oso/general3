@@ -551,20 +551,36 @@ const Index = () => {
     }
   }, [analysis.isValid, isUnlocked, doExportAllMoldsZip]);
 
+  // Force left panel visible in exhibit mode
+  useEffect(() => {
+    if (isExhibitMode) setShowLeftPanel(true);
+  }, [isExhibitMode]);
+
   return (
     <div className="min-h-screen bg-background">
       {!isExhibitMode && <Header />}
       
-      {/* Exhibit mode toggle - floating pill */}
-      <div className="fixed top-3 right-4 z-50 flex items-center gap-2 bg-card/90 backdrop-blur-lg border border-border/50 rounded-full px-3 py-1.5 shadow-sm">
-        <Printer className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">Kiosk</span>
-        <Switch
-          checked={isExhibitMode}
-          onCheckedChange={toggleExhibitMode}
-          className="scale-75"
-        />
-      </div>
+      {/* Exhibit branding header */}
+      {isExhibitMode && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-center bg-background/80 backdrop-blur-xl border-b border-border/50">
+          <h1 className="text-lg font-medium tracking-tight text-foreground">
+            Design Your Own
+          </h1>
+        </div>
+      )}
+      
+      {/* Exhibit mode toggle - only visible when NOT in kiosk mode */}
+      {!isExhibitMode && (
+        <div className="fixed top-3 right-4 z-50 flex items-center gap-2 bg-card/90 backdrop-blur-lg border border-border/50 rounded-full px-3 py-1.5 shadow-sm">
+          <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Kiosk</span>
+          <Switch
+            checked={isExhibitMode}
+            onCheckedChange={toggleExhibitMode}
+            className="scale-75"
+          />
+        </div>
+      )}
       
       {/* Full bleed viewer - 3D for objects, 2D for plotter */}
       <div className="fixed inset-0 pt-14">
@@ -736,16 +752,18 @@ const Index = () => {
         )}
       </motion.aside>
 
-      {/* Left panel toggle */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setShowLeftPanel(!showLeftPanel)}
-        className="fixed left-4 top-1/2 -translate-y-1/2 z-30 w-6 h-12 rounded-r-lg bg-card/80 backdrop-blur-sm border border-border/50 hover:bg-card"
-        style={{ left: showLeftPanel ? '356px' : '4px' }}
-      >
-        {showLeftPanel ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-      </Button>
+      {/* Left panel toggle - hidden in exhibit mode */}
+      {!isExhibitMode && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowLeftPanel(!showLeftPanel)}
+          className="fixed left-4 top-1/2 -translate-y-1/2 z-30 w-6 h-12 rounded-r-lg bg-card/80 backdrop-blur-sm border border-border/50 hover:bg-card"
+          style={{ left: showLeftPanel ? '356px' : '4px' }}
+        >
+          {showLeftPanel ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </Button>
+      )}
 
       {/* Bottom floating bar for Plotter mode */}
       {objectType === 'plotter' && (
@@ -774,50 +792,20 @@ const Index = () => {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center gap-3 overflow-x-auto"
+          className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center justify-center gap-3 overflow-x-auto"
         >
-          {/* View mode - hidden in exhibit mode */}
-          {!isExhibitMode && (
-            <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
+          {isExhibitMode ? (
+            /* Exhibit mode: Randomize + Color + Print */
+            <div className="flex items-center gap-4">
               <Button
-                variant={viewMode === 'model' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('model')}
-                className="gap-1.5 rounded-md h-8"
+                onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
+                variant="secondary"
+                className="gap-2 h-14 px-8 rounded-xl text-lg font-semibold"
               >
-                <Eye className="w-3.5 h-3.5" />
-                Model
+                <Shuffle className="w-5 h-5" />
+                Randomize
               </Button>
-              <Button
-                variant={viewMode === 'gcode' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('gcode')}
-                className="gap-1.5 rounded-md h-8"
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                G-code
-              </Button>
-            </div>
-          )}
 
-          <div className="w-px h-6 bg-border/50" />
-
-          {/* Material & appearance */}
-          {viewMode === 'model' && (
-            <>
-              <Select value={materialPreset} onValueChange={(v) => setMaterialPreset(v as MaterialPreset)}>
-                <SelectTrigger className="w-[110px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
-                  <SelectValue placeholder="Material" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border rounded-lg">
-                  {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
-                    <SelectItem key={preset} value={preset} className="text-xs">
-                      {MATERIAL_LABELS[preset]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
               <input
                 type="color"
                 value={customColor || MATERIAL_PRESETS[materialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
@@ -825,134 +813,183 @@ const Index = () => {
                   setCustomColor(e.target.value);
                   setUsePresetColor(false);
                 }}
-                className="w-8 h-8 rounded-lg cursor-pointer border border-border/50"
-                title="Body color"
+                className="w-12 h-12 rounded-xl cursor-pointer border-2 border-border/50"
+                title="Pick a color"
               />
 
-              {/* Leg/Base material sync toggle */}
-              {params.addLegs && (
-                <>
-                  <div className="w-px h-6 bg-border/50" />
-                  <div className="flex items-center gap-1">
-                    <Switch
-                      checked={syncLegMaterial}
-                      onCheckedChange={setSyncLegMaterial}
-                      className="scale-75"
-                    />
-                    <span className="text-xs text-muted-foreground">Sync</span>
-                  </div>
+              <Button
+                onClick={() => setShowExhibitDialog(true)}
+                className="gap-2 h-14 px-8 rounded-xl text-lg font-semibold"
+              >
+                <Printer className="w-5 h-5" />
+                Print This!
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* View mode */}
+              <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
+                <Button
+                  variant={viewMode === 'model' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('model')}
+                  className="gap-1.5 rounded-md h-8"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Model
+                </Button>
+                <Button
+                  variant={viewMode === 'gcode' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('gcode')}
+                  className="gap-1.5 rounded-md h-8"
+                >
+                  <FileCode className="w-3.5 h-3.5" />
+                  G-code
+                </Button>
+              </div>
 
-                  {/* Separate leg material controls (when not synced) */}
-                  {!syncLegMaterial && (
+              <div className="w-px h-6 bg-border/50" />
+
+              {/* Material & appearance */}
+              {viewMode === 'model' && (
+                <>
+                  <Select value={materialPreset} onValueChange={(v) => setMaterialPreset(v as MaterialPreset)}>
+                    <SelectTrigger className="w-[110px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
+                      <SelectValue placeholder="Material" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border rounded-lg">
+                      {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
+                        <SelectItem key={preset} value={preset} className="text-xs">
+                          {MATERIAL_LABELS[preset]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <input
+                    type="color"
+                    value={customColor || MATERIAL_PRESETS[materialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
+                    onChange={(e) => {
+                      setCustomColor(e.target.value);
+                      setUsePresetColor(false);
+                    }}
+                    className="w-8 h-8 rounded-lg cursor-pointer border border-border/50"
+                    title="Body color"
+                  />
+
+                  {/* Leg/Base material sync toggle */}
+                  {params.addLegs && (
                     <>
-                      <Select value={legMaterialPreset} onValueChange={(v) => setLegMaterialPreset(v as MaterialPreset)}>
-                        <SelectTrigger className="w-[90px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
-                          <SelectValue placeholder="Legs" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border rounded-lg">
-                          {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
-                            <SelectItem key={preset} value={preset} className="text-xs">
-                              {MATERIAL_LABELS[preset]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      
-                      <input
-                        type="color"
-                        value={legCustomColor || MATERIAL_PRESETS[legMaterialPreset]?.color || '#8B4513'}
-                        onChange={(e) => {
-                          setLegCustomColor(e.target.value);
-                          setUseLegPresetColor(false);
-                        }}
-                        className="w-8 h-8 rounded-lg cursor-pointer border border-border/50"
-                        title="Leg/Base color"
-                      />
+                      <div className="w-px h-6 bg-border/50" />
+                      <div className="flex items-center gap-1">
+                        <Switch
+                          checked={syncLegMaterial}
+                          onCheckedChange={setSyncLegMaterial}
+                          className="scale-75"
+                        />
+                        <span className="text-xs text-muted-foreground">Sync</span>
+                      </div>
+
+                      {/* Separate leg material controls (when not synced) */}
+                      {!syncLegMaterial && (
+                        <>
+                          <Select value={legMaterialPreset} onValueChange={(v) => setLegMaterialPreset(v as MaterialPreset)}>
+                            <SelectTrigger className="w-[90px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
+                              <SelectValue placeholder="Legs" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border rounded-lg">
+                              {(Object.keys(MATERIAL_LABELS) as MaterialPreset[]).map((preset) => (
+                                <SelectItem key={preset} value={preset} className="text-xs">
+                                  {MATERIAL_LABELS[preset]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          <input
+                            type="color"
+                            value={legCustomColor || MATERIAL_PRESETS[legMaterialPreset]?.color || '#8B4513'}
+                            onChange={(e) => {
+                              setLegCustomColor(e.target.value);
+                              setUseLegPresetColor(false);
+                            }}
+                            className="w-8 h-8 rounded-lg cursor-pointer border border-border/50"
+                            title="Leg/Base color"
+                          />
+                        </>
+                      )}
                     </>
                   )}
+
+                  <Select value={backgroundPreset} onValueChange={(v) => setBackgroundPreset(v as BackgroundPreset)}>
+                    <SelectTrigger className="w-[90px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
+                      <Palette className="w-3 h-3 mr-1" />
+                      <SelectValue placeholder="BG" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border rounded-lg">
+                      {(Object.keys(BACKGROUND_PRESETS) as BackgroundPreset[]).map((preset) => (
+                        <SelectItem key={preset} value={preset} className="text-xs">
+                          {BACKGROUND_PRESETS[preset].label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button
+                    variant={autoRotate ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => setAutoRotate(!autoRotate)}
+                    className="h-8 w-8 rounded-lg"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
+                  </Button>
+                  
+                  <Button
+                    variant={showWireframe ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setShowWireframe(!showWireframe)}
+                    className="h-8 rounded-lg text-xs"
+                  >
+                    Wire
+                  </Button>
                 </>
               )}
 
-              <Select value={backgroundPreset} onValueChange={(v) => setBackgroundPreset(v as BackgroundPreset)}>
-                <SelectTrigger className="w-[90px] h-8 text-xs bg-card/50 border-border/50 rounded-lg">
-                  <Palette className="w-3 h-3 mr-1" />
-                  <SelectValue placeholder="BG" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border rounded-lg">
-                  {(Object.keys(BACKGROUND_PRESETS) as BackgroundPreset[]).map((preset) => (
-                    <SelectItem key={preset} value={preset} className="text-xs">
-                      {BACKGROUND_PRESETS[preset].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Button
-                variant={autoRotate ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => setAutoRotate(!autoRotate)}
-                className="h-8 w-8 rounded-lg"
-              >
-                <RotateCcw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
-              </Button>
-              
-              <Button
-                variant={showWireframe ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setShowWireframe(!showWireframe)}
-                className="h-8 rounded-lg text-xs"
-              >
-                Wire
-              </Button>
-            </>
-          )}
+              {/* G-code controls */}
+              {viewMode === 'gcode' && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Layer</span>
+                    <div className="w-32">
+                      <Slider
+                        value={[gcodeLayer]}
+                        min={0}
+                        max={totalLayers - 1}
+                        step={1}
+                        onValueChange={([v]) => setGcodeLayer(v)}
+                        disabled={gcodeAnimate}
+                      />
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground w-16">
+                      {gcodeLayer + 1}/{totalLayers}
+                    </span>
+                  </div>
+                  
+                  <Button
+                    variant={gcodeAnimate ? 'default' : 'secondary'}
+                    size="sm"
+                    onClick={() => setGcodeAnimate(!gcodeAnimate)}
+                    className="gap-1.5 h-8 rounded-lg"
+                  >
+                    {gcodeAnimate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    {gcodeAnimate ? 'Pause' : 'Play'}
+                  </Button>
+                </>
+              )}
 
-          {/* G-code controls */}
-          {viewMode === 'gcode' && (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Layer</span>
-                <div className="w-32">
-                  <Slider
-                    value={[gcodeLayer]}
-                    min={0}
-                    max={totalLayers - 1}
-                    step={1}
-                    onValueChange={([v]) => setGcodeLayer(v)}
-                    disabled={gcodeAnimate}
-                  />
-                </div>
-                <span className="text-xs font-mono text-muted-foreground w-16">
-                  {gcodeLayer + 1}/{totalLayers}
-                </span>
-              </div>
-              
-              <Button
-                variant={gcodeAnimate ? 'default' : 'secondary'}
-                size="sm"
-                onClick={() => setGcodeAnimate(!gcodeAnimate)}
-                className="gap-1.5 h-8 rounded-lg"
-              >
-                {gcodeAnimate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                {gcodeAnimate ? 'Pause' : 'Play'}
-              </Button>
-            </>
-          )}
+              <div className="w-px h-6 bg-border/50" />
 
-          <div className="w-px h-6 bg-border/50" />
-
-          {isExhibitMode ? (
-            /* Exhibit mode: single Print button */
-            <Button
-              onClick={() => setShowExhibitDialog(true)}
-              size="sm"
-              className="gap-2 h-10 px-6 rounded-lg text-base font-semibold"
-            >
-              <Printer className="w-4 h-4" />
-              Print This!
-            </Button>
-          ) : (
-            <>
               {/* Keep button - always visible */}
               <KeepButton
                 params={params}
@@ -995,7 +1032,6 @@ const Index = () => {
                     <FlaskConical className="w-3.5 h-3.5" />
                     Mold B
                   </Button>
-                  {/* Dynamic multi-part mold buttons (C, D, E...) */}
                   {params.moldPartCount > 2 && (
                     <>
                       {Array.from({ length: params.moldPartCount - 2 }, (_, i) => (
@@ -1062,28 +1098,30 @@ const Index = () => {
         </motion.div>
       )}
 
-      {/* Dimensions overlay - different for plotter vs 3D */}
-      <div className="fixed top-20 right-4 z-20 glass-panel px-3 py-2 text-xs font-mono">
-        {objectType === 'plotter' ? (
-          <div className="text-muted-foreground">
-            {plotterParams.orientation === 'landscape' 
-              ? `${plotterParams.paperSize.toUpperCase()} Landscape`
-              : `${plotterParams.paperSize.toUpperCase()} Portrait`
-            }
-          </div>
-        ) : (
-          <>
+      {/* Dimensions overlay - hidden in exhibit mode */}
+      {!isExhibitMode && (
+        <div className="fixed top-20 right-4 z-20 glass-panel px-3 py-2 text-xs font-mono">
+          {objectType === 'plotter' ? (
             <div className="text-muted-foreground">
-              {params.height}mm × Ø{params.baseRadius * 2}mm
+              {plotterParams.orientation === 'landscape' 
+                ? `${plotterParams.paperSize.toUpperCase()} Landscape`
+                : `${plotterParams.paperSize.toUpperCase()} Portrait`
+              }
             </div>
-            {params.addLegs && (
-              <div className="text-primary/80 mt-0.5">
-                + {params.legHeight}mm legs
+          ) : (
+            <>
+              <div className="text-muted-foreground">
+                {params.height}mm × Ø{params.baseRadius * 2}mm
               </div>
-            )}
-          </>
-        )}
-      </div>
+              {params.addLegs && (
+                <div className="text-primary/80 mt-0.5">
+                  + {params.legHeight}mm legs
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Right panel toggle & Analysis - hidden for plotter & exhibit mode */}
       {objectType !== 'plotter' && !isExhibitMode && (
