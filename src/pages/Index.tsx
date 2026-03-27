@@ -631,7 +631,7 @@ const Index = () => {
           opacity: showLeftPanel ? 1 : 0 
         }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className={`fixed left-4 top-20 z-20 overflow-hidden flex flex-col ${isExhibitMode ? 'kiosk-panel w-[380px] bottom-[120px]' : 'glass-panel w-[340px] bottom-4'}`}
+        className={`fixed left-4 top-20 z-20 overflow-hidden flex flex-col ${isExhibitMode ? 'kiosk-panel w-[380px] bottom-[170px]' : 'glass-panel w-[340px] bottom-4'}`}
       >
         {/* Object Type */}
         {!isExhibitMode && (

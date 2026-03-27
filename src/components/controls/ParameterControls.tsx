@@ -647,11 +647,27 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
     >
       {/* Randomize / Reset */}
       <div className="flex gap-2 items-center">
-        <Button variant="outline" size="sm" onClick={handleRandomize} className="flex-1 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRandomize}
+          className={cn(
+            "flex-1 gap-2",
+            exhibitMode && "bg-secondary text-secondary-foreground border-border hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
           <Shuffle className="w-4 h-4" />
           Randomize
         </Button>
-        <Button variant="outline" size="sm" onClick={handleReset} className="flex-1 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReset}
+          className={cn(
+            "flex-1 gap-2",
+            exhibitMode && "bg-secondary text-secondary-foreground border-border hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
           <RotateCcw className="w-4 h-4" />
           Reset
         </Button>
@@ -708,17 +724,17 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
             onChange={handleChange('baseThickness')}
           />
         )}
-        
+
         {/* Profile Curve - moved here from Surface Patterns */}
         <div className="space-y-2 pt-3 border-t border-border/50">
           <Label className="text-xs text-muted-foreground">Profile Curve</Label>
-          <Select 
-            value={params.profileCurve} 
+          <Select
+            value={params.profileCurve}
             onValueChange={(value: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave') => {
               onParamsChange({ ...params, profileCurve: value });
             }}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className={cn("h-8 text-xs", exhibitMode && "bg-secondary text-secondary-foreground border-border")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

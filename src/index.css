@@ -253,6 +253,7 @@
   }
 
   .kiosk-panel, .kiosk-panel * {
+    --background: 230 18% 12%;
     --foreground: 0 0% 95%;
     --muted-foreground: 220 10% 75%;
     --border: 220 15% 22%;
@@ -264,6 +265,8 @@
     --accent: 230 15% 20%;
     --accent-foreground: 0 0% 92%;
     --secondary-foreground: 0 0% 88%;
+    --popover: 230 18% 14%;
+    --popover-foreground: 0 0% 92%;
   }
 
   /* All text inside kiosk panel should be light */
