@@ -1073,7 +1073,7 @@ const Index = () => {
 
       {/* Exhibit mode: full-width swatch strip */}
       {isExhibitMode && objectType !== 'plotter' && (
-        <div className="fixed bottom-0 left-0 right-0 z-20" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
+        <div className="fixed bottom-0 left-0 right-0 z-10" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
           {/* Active swatch label */}
           {(() => {
             const activeSwatch = EXHIBIT_SWATCHES.find(s => s.color === customColor && s.material === materialPreset);

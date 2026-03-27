@@ -653,7 +653,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           onClick={handleRandomize}
           className={cn(
             "flex-1 gap-2",
-            exhibitMode && "bg-secondary text-secondary-foreground border-border hover:bg-accent hover:text-accent-foreground"
+            exhibitMode && "bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground"
           )}
         >
           <Shuffle className="w-4 h-4" />
@@ -665,7 +665,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           onClick={handleReset}
           className={cn(
             "flex-1 gap-2",
-            exhibitMode && "bg-secondary text-secondary-foreground border-border hover:bg-accent hover:text-accent-foreground"
+            exhibitMode && "bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground"
           )}
         >
           <RotateCcw className="w-4 h-4" />
