@@ -565,12 +565,12 @@ const Index = () => {
       
       {/* Exhibit branding header */}
       {isExhibitMode && (
-        <div className="kiosk-header h-20">
+        <div className="fixed top-6 left-0 right-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <h1 className="text-3xl font-medium tracking-[0.2em] uppercase" style={{ color: 'hsla(0,0%,95%,1)' }}>
+            <h1 className="text-3xl font-medium tracking-[0.2em] uppercase" style={{ color: 'hsla(0,0%,95%,0.85)' }}>
               Design Your Own
             </h1>
-            <p className="text-xs tracking-[0.4em] uppercase mt-1" style={{ color: 'hsla(220,10%,55%,1)' }}>
+            <p className="text-xs tracking-[0.4em] uppercase mt-1" style={{ color: 'hsla(220,10%,55%,0.7)' }}>
               Interactive Sculpture Generator
             </p>
           </div>
