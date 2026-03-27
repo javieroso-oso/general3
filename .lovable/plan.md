@@ -1,41 +1,48 @@
 
 
-# Kiosk Mode: "Bold Exhibition" Design (Option C)
+# Kiosk UI Design Upgrade
 
-## Vision
-Transform the kiosk into a statement art-gallery experience: dark-tinted control panel, full-width material strip at bottom, floating semi-transparent action buttons over the 3D viewport, refined serif/geometric header.
+## Problem
+The dark `.kiosk-panel` overrides CSS variables, but:
+1. `--muted-foreground: 220 10% 60%` is too dim — slider labels are barely readable
+2. `text-text-secondary` used on section headers isn't a valid Tailwind token tied to the CSS variable system, so it renders unpredictably on dark backgrounds
+3. The overall kiosk still feels like a "dark-themed developer panel" rather than a curated exhibit experience
 
-## Changes
+## Proposed Fixes + Design Upgrades
 
-### 1. Bottom bar → Full-width material strip + floating buttons (`src/pages/Index.tsx`)
-- Remove the current glass-panel bottom bar in exhibit mode
-- Replace with a **full-width horizontal scroll strip** of 10-12 large color/material swatches at the very bottom of the screen (no border-radius, edge-to-edge, ~64px tall). Each swatch shows a colored circle + material name below ("Ceramic", "Coral", "Midnight", etc.)
-- **"Randomize" and "Print This!"** become large, semi-transparent floating pill buttons positioned **bottom-right corner**, stacked vertically or side-by-side, directly over the 3D viewport (not in a bar)
-- Remove the `<input type="color">` entirely — colors come from the curated swatches
+### 1. Fix readability in kiosk panel (`src/index.css`)
+- Brighten `--muted-foreground` to `220 10% 72%` (readable on dark)
+- Add `--text-secondary` override or map `text-text-secondary` to the foreground variable
+- Brighten `--foreground` slightly to `0 0% 95%`
+- Add explicit styling for section headers inside `.kiosk-panel`: lighter color, slightly larger text
 
-### 2. Curated exhibit colors + materials (`src/types/materials.ts`)
-- Add `EXHIBIT_SWATCHES` array: ~12 entries, each with `{ color: string, label: string, material: MaterialPreset }` — curated for PLA printing (e.g., "Arctic White" #f5f5f5/ceramic, "Coral" #e8735a/matte-clay, "Midnight" #2a2a3a/glossy-plastic, "Sage" #8fae8b/matte-clay, "Terracotta" #c4725c/terracotta, etc.)
+### 2. Polish the left panel for exhibit use (`src/index.css` + `src/pages/Index.tsx`)
+- Add subtle section dividers with a faint glow line instead of plain `border-border/50`
+- Increase slider thumb size inside kiosk-panel to 20px (more touchable)
+- Increase slider track height to `h-1.5` inside kiosk-panel
+- Add a subtle gradient at the top/bottom of the scrollable area for visual polish (fade-to-panel-bg)
 
-### 3. Dark-tinted left panel in exhibit mode (`src/pages/Index.tsx` + `src/index.css`)
-- In exhibit mode, swap the left panel's `glass-panel` class for a new `.kiosk-panel` class: darker background (`bg-[#1a1a24]/92`), lighter text, high-contrast slider tracks — gives a "control room" aesthetic without looking like a developer tool
-- Widen to 380px, increase slider track height to `h-2` for touch
+### 3. Upgrade the bottom swatch strip (`src/pages/Index.tsx`)
+- Make swatches larger (56px circles instead of 48px)
+- Add the currently-selected swatch's label as a floating text indicator above the strip
+- Add a subtle glow ring around the active swatch (not just a white border)
 
-### 4. Exhibition header (`src/pages/Index.tsx`)
-- Replace "Design Your Own" with a refined geometric sans treatment: larger text (`text-2xl`), letter-spaced, with an optional subtle exhibit subtitle line (e.g., "Interactive Sculpture Generator")
-- Semi-transparent dark background to match the panel aesthetic
+### 4. Upgrade floating action buttons (`src/index.css` + `src/pages/Index.tsx`)
+- Make "Print This!" larger (h-16, text-xl) with a pulsing glow animation when idle
+- Add a subtle icon animation on "Randomize" (dice spin on tap)
+- Round the buttons more (rounded-full pill shape)
 
-### 5. Floating action buttons (`src/index.css`)
-- New `.kiosk-action` class: large rounded pill, semi-transparent dark background with white text, backdrop-blur, subtle border, scale-up on tap
-- "Print This!" gets a warm accent glow (subtle box-shadow in primary color)
+### 5. Refine the header (`src/pages/Index.tsx`)
+- Add a subtle bottom-edge gradient fade instead of a hard border
+- Slightly increase letter-spacing for the subtitle
 
 ## Files
 
 | File | Change |
 |------|--------|
-| `src/pages/Index.tsx` | Dark panel class in exhibit mode, full-width swatch strip replacing bottom bar, floating action buttons over viewport, refined header |
-| `src/index.css` | Add `.kiosk-panel`, `.kiosk-action`, `.kiosk-swatch` component classes |
-| `src/types/materials.ts` | Add `EXHIBIT_SWATCHES` array with 12 curated color/material combos |
+| `src/index.css` | Fix kiosk-panel color variables, add slider/thumb size overrides, add glow animation for Print button, section divider styling |
+| `src/pages/Index.tsx` | Larger swatches with active label, bigger Print button, header gradient fade |
 
 ## Result
-The kiosk feels like a MoMA digital exhibit — dark control panel, curated color palette as a tactile strip, floating translucent action buttons, refined typography. No developer UI elements visible.
+Slider labels become clearly readable. The panel feels intentionally dark and premium rather than broken. Touch targets are generous. The floating buttons invite interaction.
 
