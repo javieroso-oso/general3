@@ -1,33 +1,43 @@
 
 
-# Add Exhibit/Kiosk Mode Toggle
+# Kiosk Mode: Simplified Controls for Spiral Vase Printing
 
-## Problem
-Currently you can only enter kiosk mode by manually adding `?exhibit=true` to the URL. There's no way to toggle it from within the app or easily preview it.
+## Concept
 
-## Solution
-Add an "Exhibit Mode" toggle button to the Header navigation (visible only on the main generator page). When toggled on, it updates the URL parameter and activates kiosk mode without a page reload.
+In exhibit/kiosk mode, visitors only see controls that affect the shape's form — no construction, no accessories, no advanced print features. The shape is always configured for spiral vase mode (single wall, no infill, no supports), so everything prints without errors.
 
-## Changes
+## What Changes
 
-### 1. `src/pages/Index.tsx`
-- Change `isExhibitMode` from a static `useMemo` to a `useState` so it can be toggled dynamically
-- Pass `isExhibitMode` and `setIsExhibitMode` as props or use URL search params with `useSearchParams` from react-router
-- Still respect the URL param on initial load
+### 1. `src/components/controls/ParameterControls.tsx`
+- Accept new prop `exhibitMode?: boolean`
+- When `exhibitMode` is true, **only show** these sections:
+  - **Dimensions**: height, baseRadius, topRadius (hide wallThickness or lock it to 1.6mm)
+  - **Shape**: bulge, pinch, asymmetry, twist, profile curve + Advanced Shape subsection (wobble, spine, melt)
+  - **Textures**: faceting, spiral grooves, horizontal ribs, fluting (hide organic noise subsection to keep it simple)
+  - **Lip & Rim**: lip flare, lip height, rim waves
+  - **Randomize button** (keep it — visitors love it)
+- **Hide entirely**: Shade Frame, Light Patterns, Cord Hole, Legs/Stand, Base Plate, Surface Art, Ceramic Mold, Support-Free toggle, Base settings
 
-### 2. `src/components/layout/Header.tsx`
-- Add an "Exhibit Mode" toggle switch (only shown on the `/` route)
-- When toggled, update the URL search param `exhibit=true/false` and trigger a state change
-- Use a small `Monitor` or `Tv` icon + switch for the toggle
+### 2. `src/pages/Index.tsx`
+- Pass `exhibitMode={isExhibitMode}` to `ParameterControls`
+- When exhibit mode is on:
+  - Force spiral-vase-compatible params on load: `wallThickness: 1.6`, `addLegs: false`, `cordHoleEnabled: false`, `wireframeMode: false`, `lightPatternEnabled: false`, `moldEnabled: false`, `basePlateEnabled: false`, `supportFreeMode: false`, `surfaceStrokes: []`
+  - Hide the Print, Batch, Presets, Drawer tabs — only show the Design tab
+  - Hide G-code view mode toggle in bottom bar
+  - Keep material/color picker and auto-rotate in bottom bar (visual only, fun for visitors)
 
-### 3. Alternative: Simpler approach
-- Add a small "Kiosk" toggle button directly in the generator toolbar (next to existing controls)
-- This avoids needing to pass state through the Header
+### 3. Wall Thickness Constraint
+- In exhibit mode, wall thickness is fixed at 1.6mm (good for spiral vase with 0.4mm nozzle)
+- Not shown as a slider — just set internally
+- baseThickness set to 0 (spiral vase handles the base)
 
-## Recommended: Toolbar toggle approach
-Add a small toggle in the top toolbar of the Index page itself — keeps it self-contained, no cross-component state needed.
+## Files
 
 | File | Change |
 |------|--------|
-| `src/pages/Index.tsx` | Convert `isExhibitMode` to state, add toggle button in toolbar, sync with URL param |
+| `src/components/controls/ParameterControls.tsx` | Add `exhibitMode` prop, conditionally render sections |
+| `src/pages/Index.tsx` | Pass prop, force vase-safe defaults, simplify tabs & bottom bar in exhibit mode |
+
+## Result
+Visitor sees: Dimensions + Shape + Textures + Lip/Rim + Randomize button. That's it. Every shape they create will print successfully in spiral vase mode.
 
