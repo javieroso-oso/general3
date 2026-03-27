@@ -1124,28 +1124,30 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           onChange={handleChange('lipHeight')}
         />
         
-        {/* Rim Waves - moved here */}
-        <div className="pt-3 border-t border-border/50 space-y-3">
-          <Label className="text-xs text-muted-foreground font-semibold">Rim Waves</Label>
-          <ParameterSlider
-            label="Count"
-            value={params.rimWaveCount}
-            min={0}
-            max={12}
-            step={1}
-            onChange={handleChange('rimWaveCount')}
-          />
-          {params.rimWaveCount > 0 && (
+        {/* Rim Waves - hidden in exhibit mode (breaks spiral vase) */}
+        {!exhibitMode && (
+          <div className="pt-3 border-t border-border/50 space-y-3">
+            <Label className="text-xs text-muted-foreground font-semibold">Rim Waves</Label>
             <ParameterSlider
-              label="Depth"
-              value={params.rimWaveDepth}
+              label="Count"
+              value={params.rimWaveCount}
               min={0}
-              max={0.3}
-              step={0.02}
-              onChange={handleChange('rimWaveDepth')}
+              max={12}
+              step={1}
+              onChange={handleChange('rimWaveCount')}
             />
-          )}
-        </div>
+            {params.rimWaveCount > 0 && (
+              <ParameterSlider
+                label="Depth"
+                value={params.rimWaveDepth}
+                min={0}
+                max={0.3}
+                step={0.02}
+                onChange={handleChange('rimWaveDepth')}
+              />
+            )}
+          </div>
+        )}
       </Section>
 
       {/* Wireframe Shade Frame */}
