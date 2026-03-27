@@ -624,31 +624,33 @@ const Index = () => {
           </Tabs>
         ) : (
           <Tabs defaultValue="design" className="flex flex-col flex-1 overflow-hidden">
-            <TabsList className="mx-4 mt-3 grid grid-cols-5 bg-secondary/50 p-1 rounded-lg">
-              <TabsTrigger value="design" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Layers className="w-3 h-3" />
-                Design
-              </TabsTrigger>
-              <TabsTrigger value="print" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Settings2 className="w-3 h-3" />
-                Print
-              </TabsTrigger>
-              <TabsTrigger value="batch" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Package className="w-3 h-3" />
-                Batch
-              </TabsTrigger>
-              <TabsTrigger value="presets" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                Presets
-              </TabsTrigger>
-              <TabsTrigger value="drawer" className="text-xs gap-1 relative rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Archive className="w-3 h-3" />
-                {drawer.count > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
-                    {drawer.count}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            {!isExhibitMode && (
+              <TabsList className="mx-4 mt-3 grid grid-cols-5 bg-secondary/50 p-1 rounded-lg">
+                <TabsTrigger value="design" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Layers className="w-3 h-3" />
+                  Design
+                </TabsTrigger>
+                <TabsTrigger value="print" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Settings2 className="w-3 h-3" />
+                  Print
+                </TabsTrigger>
+                <TabsTrigger value="batch" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Package className="w-3 h-3" />
+                  Batch
+                </TabsTrigger>
+                <TabsTrigger value="presets" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  Presets
+                </TabsTrigger>
+                <TabsTrigger value="drawer" className="text-xs gap-1 relative rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Archive className="w-3 h-3" />
+                  {drawer.count > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                      {drawer.count}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            )}
 
             <div className="p-4 flex-1 overflow-y-auto">
               <TabsContent value="design" className="mt-0 space-y-4">
@@ -657,39 +659,44 @@ const Index = () => {
                   type={objectType}
                   onParamsChange={setParams}
                   onSurfaceHover={setSurfaceHover}
+                  exhibitMode={isExhibitMode}
                 />
               </TabsContent>
 
-              <TabsContent value="print" className="mt-0 space-y-4">
-                <PrintSettingsPanel
-                  settings={printSettings}
-                  onSettingsChange={setPrintSettings}
-                />
-              </TabsContent>
+              {!isExhibitMode && (
+                <>
+                  <TabsContent value="print" className="mt-0 space-y-4">
+                    <PrintSettingsPanel
+                      settings={printSettings}
+                      onSettingsChange={setPrintSettings}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="batch" className="mt-0">
-                <BatchGenerator
-                  baseParams={params}
-                  printSettings={printSettings}
-                  onSelectVariation={setParams}
-                />
-              </TabsContent>
+                  <TabsContent value="batch" className="mt-0">
+                    <BatchGenerator
+                      baseParams={params}
+                      printSettings={printSettings}
+                      onSelectVariation={setParams}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="presets" className="mt-0">
-                <PresetGallery
-                  currentParams={params}
-                  onSelect={setParams}
-                />
-              </TabsContent>
+                  <TabsContent value="presets" className="mt-0">
+                    <PresetGallery
+                      currentParams={params}
+                      onSelect={setParams}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="drawer" className="mt-0">
-                <DrawerPanel
-                  items={drawer.items}
-                  onLoad={handleLoadFromDrawer}
-                  onLoadPlotter={handleLoadPlotterFromDrawer}
-                  onRemove={drawer.removeItem}
-                />
-              </TabsContent>
+                  <TabsContent value="drawer" className="mt-0">
+                    <DrawerPanel
+                      items={drawer.items}
+                      onLoad={handleLoadFromDrawer}
+                      onLoadPlotter={handleLoadPlotterFromDrawer}
+                      onRemove={drawer.removeItem}
+                    />
+                  </TabsContent>
+                </>
+              )}
             </div>
           </Tabs>
         )}
