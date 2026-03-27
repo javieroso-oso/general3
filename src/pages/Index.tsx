@@ -793,45 +793,12 @@ const Index = () => {
       )}
 
       {/* Bottom floating bar - View controls & Export (hidden for plotter mode) */}
-      {objectType !== 'plotter' && (
+      {objectType !== 'plotter' && !isExhibitMode && (
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center justify-center gap-3 overflow-x-auto"
         >
-          {isExhibitMode ? (
-            /* Exhibit mode: Randomize + Color + Print */
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
-                variant="secondary"
-                className="gap-2 h-14 px-8 rounded-xl text-lg font-semibold"
-              >
-                <Shuffle className="w-5 h-5" />
-                Randomize
-              </Button>
-
-              <input
-                type="color"
-                value={customColor || MATERIAL_PRESETS[materialPreset as keyof typeof MATERIAL_PRESETS]?.color || '#888888'}
-                onChange={(e) => {
-                  setCustomColor(e.target.value);
-                  setUsePresetColor(false);
-                }}
-                className="w-12 h-12 rounded-xl cursor-pointer border-2 border-border/50"
-                title="Pick a color"
-              />
-
-              <Button
-                onClick={() => setShowExhibitDialog(true)}
-                className="gap-2 h-14 px-8 rounded-xl text-lg font-semibold"
-              >
-                <Printer className="w-5 h-5" />
-                Print This!
-              </Button>
-            </div>
-          ) : (
-            <>
               {/* View mode */}
               <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
                 <Button
