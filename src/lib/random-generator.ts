@@ -207,7 +207,7 @@ export function generateExhibitRandomParams(currentParams: ParametricParams): Pa
   newParams.organicNoise = 0;
   newParams.noiseScale = 1;
 
-  // Surface features (0-2, excluding rim/ripple to avoid melt-like silhouettes)
+  // Surface features (0-2, excluding rimWaves/ripples — rim waves break spiral vase Z monotonicity)
   const surfaceFeatures = ['facets', 'spiralGrooves', 'horizontalRibs', 'fluting'] as const;
   const enabledFeatures = new Set<string>();
   const featureCount = randomInt(0, 2);

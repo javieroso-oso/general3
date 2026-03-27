@@ -120,6 +120,9 @@ const Index = () => {
     spineAmplitudeX: 0,
     spineAmplitudeZ: 0,
     organicNoise: 0,
+    // Disable rim waves (non-monotonic Z breaks spiral vase)
+    rimWaveCount: 0,
+    rimWaveDepth: 0,
     // Clamp risky values
     wobbleAmplitude: Math.min(p.wobbleAmplitude, 0.05),
     asymmetry: Math.min(p.asymmetry, 0.08),
