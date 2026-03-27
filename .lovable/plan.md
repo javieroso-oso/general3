@@ -1,73 +1,50 @@
 
 
-# Kiosk Mode: Spiral Vase Safety Audit
+# Remove "(limited)" Indicators + Exhibit Readiness Assessment
 
-## Problems Found
+## The "(limited)" Problem
 
-1. **Melt effect** shifts vertices downward — breaks spiral vase's monotonic Z requirement
-2. **Lateral drag** shifts vertices sideways — creates extreme overhangs
-3. **Spine curve** bends shape off-center — overhangs on one side
-4. **Randomizer** can re-enable all three after the vase-safe `useEffect` runs
-5. **Wobble/asymmetry** sliders have no exhibit-mode limits — visitors can push them to overhang-inducing extremes
-6. **Organic noise** is hidden in UI but not forced to 0 — randomizer can set it (20% chance)
+In exhibit mode, sliders for bulge, asymmetry, wobble, and lip flare show amber-colored labels with "(limited)" text, plus reduced opacity. Visitors shouldn't know constraints exist — the UI should feel intentionally designed, not restricted.
 
-## Solution
+## Fix
 
-### 1. Force-disable dangerous features on every param change in exhibit mode
+### `src/components/controls/ParameterSlider.tsx`
+- Remove the `constrained` prop entirely (or stop passing it in exhibit mode)
+- No amber color, no "(limited)" text, no opacity reduction
+- The slider still has its capped `max` value — it just doesn't advertise it
 
-**`src/pages/Index.tsx`** — Update the exhibit mode `useEffect` to also zero out:
-- `meltAmount: 0`, `meltDragAmount: 0`
-- `spineEnabled: false`, `spineAmplitudeX: 0`, `spineAmplitudeZ: 0`
-- `organicNoise: 0`
+### `src/components/controls/ParameterControls.tsx`
+- Stop passing `constrained={... || exhibitMode}` on the 4 affected sliders (bulge, asymmetry, wobble, lip flare)
+- Keep `constrained` for `supportFreeMode` only (that's a different context where the user opted in and should know)
 
-### 2. Hide dangerous controls in exhibit mode
+## Can You Run the Exhibit Today?
 
-**`src/components/controls/ParameterControls.tsx`** — In the "Advanced Shape" subsection:
-- Hide Melt Effect entirely when `exhibitMode`
-- Hide Lateral Drag entirely when `exhibitMode`
-- Hide Spine Curve entirely when `exhibitMode`
-- Keep Wobble but cap max amplitude to 0.05
+**Yes, mostly.** Here's the status:
 
-### 3. Create exhibit-safe randomizer
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Kiosk toggle | Done | `?exhibit=true` or toolbar pill |
+| Simplified controls | Done | Only shape/texture/lip visible |
+| Spiral vase safety | Done | Melt/drag/spine/noise disabled, params capped |
+| Safe randomizer | Done | `generateExhibitRandomParams()` in use |
+| Print queue (submit) | Done | "Print This" button → name/email → queue entry |
+| STL upload to storage | Done | Uploads to `print-files` bucket |
+| Operator admin page | Done | `/exhibit-admin` with queue management |
+| Header hidden in kiosk | Done | Clean fullscreen feel |
 
-**`src/lib/random-generator.ts`** — Add `generateExhibitRandomParams()` function:
-- No melt, no drag, no spine, no organic noise
-- Cap wobble amplitude to 0.05
-- Cap asymmetry to 0.08
-- Cap lipFlare to 0.10
-- Cap bulge to 0.15
-- Ensure height isn't extreme (60–180mm)
-- Ensure radii ratio stays reasonable (top/base between 0.5–1.2)
-- Force wallThickness: 1.6, baseThickness: 0
+**What's missing for a polished exhibit:**
+1. **Attract screen** — no idle timeout / "Touch to Start" screen yet. After someone submits, the kiosk just resets but there's no attract loop.
+2. **Auto-reset timer** — after submission, the 10s countdown resets the dialog but doesn't randomize the shape for the next visitor.
+3. **Fullscreen mode** — no F11/fullscreen API trigger; you'd need to manually fullscreen the browser.
+4. **Direct printer integration** — currently operator manually downloads STL; no Bambu API connection yet.
+5. **Queue position display** — works in the dialog but no persistent "your print is #X" screen.
 
-### 4. Use exhibit-safe randomizer in kiosk mode
-
-**`src/pages/Index.tsx`** — When randomize is called in exhibit mode, use `generateExhibitRandomParams()` instead of `generateRandomParams()`
-
-### 5. Continuous enforcement
-
-**`src/pages/Index.tsx`** — Add a guard in `setParams` wrapper: when in exhibit mode, clamp/zero dangerous values on *every* param update, not just on mode entry. This prevents any path (randomizer, undo, etc.) from setting unsafe values.
+**For today**: You can absolutely run it. Open `/?exhibit=true` in a fullscreen browser on the kiosk device, and `/exhibit-admin` on your phone/laptop. Visitors design → tap Print → you download STLs from admin and send to the Bambu slicer.
 
 ## Files
 
 | File | Change |
 |------|--------|
-| `src/pages/Index.tsx` | Expanded force-reset, exhibit-safe randomizer call, continuous param clamping |
-| `src/components/controls/ParameterControls.tsx` | Hide melt/drag/spine in exhibit mode, cap wobble/asymmetry sliders |
-| `src/lib/random-generator.ts` | Add `generateExhibitRandomParams()` with safe limits |
-
-## Safe Parameter Limits for Exhibit Mode
-
-| Parameter | Normal Max | Exhibit Max | Reason |
-|-----------|-----------|-------------|--------|
-| meltAmount | 30 | **0 (disabled)** | Breaks monotonic Z |
-| meltDragAmount | 30 | **0 (disabled)** | Extreme overhangs |
-| spineEnabled | true | **false** | Off-center overhangs |
-| organicNoise | 0.1 | **0 (disabled)** | Surface irregularities |
-| wobbleAmplitude | 0.15 | **0.05** | Mild overhangs at high values |
-| asymmetry | 0.35 | **0.08** | Overhangs on one side |
-| lipFlare | 0.5 | **0.10** | Top overhang |
-| bulgeAmount | 0.5 | **0.15** | Mid-body overhang |
-| height | 300 | **180** | Practical print time |
-| baseRadius | 80 | **60** | Bed size constraint |
+| `src/components/controls/ParameterControls.tsx` | Remove `exhibitMode` from `constrained` prop on 4 sliders |
+| `src/components/controls/ParameterSlider.tsx` | No changes needed (constrained prop stays for supportFreeMode use) |
 
