@@ -94,7 +94,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_queue_position: { Args: never; Returns: number }
     }
     Enums: {
       [_ in never]: never
