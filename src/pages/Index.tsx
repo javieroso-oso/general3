@@ -578,9 +578,11 @@ const Index = () => {
         className="fixed left-4 top-20 bottom-4 w-[340px] z-20 glass-panel overflow-hidden flex flex-col"
       >
         {/* Object Type */}
-        <div className="p-4 border-b border-border/50">
-          <ObjectTypeTabs activeType={objectType} onTypeChange={handleTypeChange} />
-        </div>
+        {!isExhibitMode && (
+          <div className="p-4 border-b border-border/50">
+            <ObjectTypeTabs activeType={objectType} onTypeChange={handleTypeChange} />
+          </div>
+        )}
 
         {/* Tabbed Controls - Different for plotter vs 3D */}
         {objectType === 'plotter' ? (
