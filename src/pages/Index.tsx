@@ -1068,6 +1068,46 @@ const Index = () => {
         </motion.div>
       )}
 
+      {/* Exhibit mode: full-width swatch strip */}
+      {isExhibitMode && objectType !== 'plotter' && (
+        <div className="fixed bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-5 px-6 py-3" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
+          {EXHIBIT_SWATCHES.map((swatch) => (
+            <button
+              key={swatch.label}
+              className={`kiosk-swatch ${customColor === swatch.color && materialPreset === swatch.material ? 'active' : ''}`}
+              onClick={() => {
+                setCustomColor(swatch.color);
+                setUsePresetColor(false);
+                setMaterialPreset(swatch.material);
+              }}
+            >
+              <div className="kiosk-swatch-circle" style={{ backgroundColor: swatch.color }} />
+              <span className="text-[10px] tracking-wider uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>{swatch.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Exhibit mode: floating action buttons */}
+      {isExhibitMode && objectType !== 'plotter' && (
+        <div className="fixed bottom-24 right-6 z-30 flex flex-col gap-3">
+          <button
+            onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
+            className="kiosk-action h-14 px-8 text-lg flex items-center gap-3"
+          >
+            <Shuffle className="w-5 h-5" />
+            Randomize
+          </button>
+          <button
+            onClick={() => setShowExhibitDialog(true)}
+            className="kiosk-action-primary h-14 px-8 text-lg flex items-center gap-3"
+          >
+            <Printer className="w-5 h-5" />
+            Print This!
+          </button>
+        </div>
+      )}
+
       {/* Dimensions overlay - hidden in exhibit mode */}
       {!isExhibitMode && (
         <div className="fixed top-20 right-4 z-20 glass-panel px-3 py-2 text-xs font-mono">
