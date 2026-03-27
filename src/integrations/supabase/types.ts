@@ -44,6 +44,51 @@ export type Database = {
         }
         Relationships: []
       }
+      print_queue: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          object_type: string
+          params: Json
+          started_at: string | null
+          status: string
+          stl_url: string | null
+          thumbnail_url: string | null
+          visitor_email: string | null
+          visitor_name: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          object_type: string
+          params: Json
+          started_at?: string | null
+          status?: string
+          stl_url?: string | null
+          thumbnail_url?: string | null
+          visitor_email?: string | null
+          visitor_name: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          object_type?: string
+          params?: Json
+          started_at?: string | null
+          status?: string
+          stl_url?: string | null
+          thumbnail_url?: string | null
+          visitor_email?: string | null
+          visitor_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
