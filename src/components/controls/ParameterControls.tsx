@@ -750,7 +750,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           max={exhibitMode ? 0.15 : (params.supportFreeMode ? constraints.bulgeAmount.max : 0.5)}
           step={0.02}
           onChange={handleChange('bulgeAmount')}
-          constrained={params.supportFreeMode || exhibitMode}
+          constrained={params.supportFreeMode && !exhibitMode}
         />
         <ParameterSlider
           label="Pinch"
@@ -799,7 +799,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
               max={exhibitMode ? 0.05 : (params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15)}
               step={0.01}
               onChange={handleChange('wobbleAmplitude')}
-              constrained={params.supportFreeMode || exhibitMode}
+              constrained={params.supportFreeMode && !exhibitMode}
             />
           </div>
 
@@ -1113,7 +1113,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           max={exhibitMode ? 0.10 : (params.supportFreeMode ? constraints.lipFlare.max : 0.25)}
           step={0.02}
           onChange={handleChange('lipFlare')}
-          constrained={params.supportFreeMode || exhibitMode}
+          constrained={params.supportFreeMode && !exhibitMode}
         />
         <ParameterSlider
           label="Lip Height"
