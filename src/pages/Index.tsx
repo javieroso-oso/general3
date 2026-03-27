@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Scene3D from '@/components/3d/Scene3D';
 import ParameterControls from '@/components/controls/ParameterControls';
@@ -80,11 +81,21 @@ const Index = () => {
   const gallery = useGallery();
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   
-  // Exhibit mode
-  const isExhibitMode = useMemo(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('exhibit') === 'true';
-  }, []);
+  // Exhibit mode - synced with URL param
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isExhibitMode = searchParams.get('exhibit') === 'true';
+  
+  const toggleExhibitMode = useCallback(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (isExhibitMode) {
+        next.delete('exhibit');
+      } else {
+        next.set('exhibit', 'true');
+      }
+      return next;
+    });
+  }, [isExhibitMode, setSearchParams]);
   const [showExhibitDialog, setShowExhibitDialog] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -490,7 +501,18 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      {!isExhibitMode && <Header />}
+      
+      {/* Exhibit mode toggle - floating pill */}
+      <div className="fixed top-3 right-4 z-50 flex items-center gap-2 bg-card/90 backdrop-blur-lg border border-border/50 rounded-full px-3 py-1.5 shadow-sm">
+        <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">Kiosk</span>
+        <Switch
+          checked={isExhibitMode}
+          onCheckedChange={toggleExhibitMode}
+          className="scale-75"
+        />
+      </div>
       
       {/* Full bleed viewer - 3D for objects, 2D for plotter */}
       <div className="fixed inset-0 pt-14">
