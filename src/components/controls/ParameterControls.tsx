@@ -1964,10 +1964,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
             )}
           </div>
         )}
-      </div>
+      </div>}
       
       {/* 7. Support-Free Mode */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className={cn("w-4 h-4", params.supportFreeMode ? "text-emerald-500" : "text-muted-foreground")} />
@@ -2005,10 +2005,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
             onCheckedChange={handleOverhangMapToggle}
           />
         </div>
-      </div>
+      </div>}
       
       {/* 8. Mold Generation */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FlaskConical className={cn("w-4 h-4", params.moldEnabled ? "text-amber-500" : "text-muted-foreground")} />
@@ -2029,10 +2029,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         {params.moldEnabled && (
           <MoldControls params={params} type={type} onParamsChange={onParamsChange} handleChange={handleChange} />
         )}
-      </div>
+      </div>}
       
       {/* 9. Surface Art */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PenTool className={cn("w-4 h-4", params.surfaceStrokes?.length > 0 ? "text-primary" : "text-muted-foreground")} />
@@ -2055,7 +2055,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           onSurfaceHover={onSurfaceHover}
         />
 
-      </div>
+      </div>}
     </motion.div>
   );
 };
