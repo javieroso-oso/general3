@@ -631,7 +631,7 @@ const Index = () => {
           opacity: showLeftPanel ? 1 : 0 
         }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className={`fixed left-4 top-20 z-20 overflow-hidden flex flex-col ${isExhibitMode ? 'kiosk-panel w-[380px] bottom-[170px]' : 'glass-panel w-[340px] bottom-4'}`}
+        className={`fixed left-4 top-20 z-20 overflow-hidden flex flex-col ${isExhibitMode ? 'kiosk-panel w-[380px] bottom-[100px]' : 'glass-panel w-[340px] bottom-4'}`}
       >
         {/* Object Type */}
         {!isExhibitMode && (
@@ -1073,17 +1073,17 @@ const Index = () => {
 
       {/* Exhibit mode: full-width swatch strip */}
       {isExhibitMode && objectType !== 'plotter' && (
-        <div className="fixed bottom-0 left-0 right-0 z-10" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
+        <div className="fixed bottom-6 left-0 right-0 z-10 pointer-events-none">
           {/* Active swatch label */}
           {(() => {
             const activeSwatch = EXHIBIT_SWATCHES.find(s => s.color === customColor && s.material === materialPreset);
             return activeSwatch ? (
-              <div className="text-center pt-2 pb-1">
-                <span className="text-xs tracking-[0.3em] uppercase font-medium" style={{ color: 'hsla(0,0%,85%,1)' }}>{activeSwatch.label}</span>
+              <div className="text-center mb-2">
+                <span className="text-xs tracking-[0.3em] uppercase font-medium" style={{ color: 'hsla(0,0%,85%,0.8)' }}>{activeSwatch.label}</span>
               </div>
             ) : null;
           })()}
-          <div className="flex items-center justify-center gap-5 px-6 py-3">
+          <div className="flex items-center justify-center gap-5 px-6 pointer-events-auto">
             {EXHIBIT_SWATCHES.map((swatch) => (
               <button
                 key={swatch.label}
@@ -1095,7 +1095,6 @@ const Index = () => {
                 }}
               >
                 <div className="kiosk-swatch-circle" style={{ backgroundColor: swatch.color }} />
-                <span className="text-[10px] tracking-wider uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>{swatch.label}</span>
               </button>
             ))}
           </div>
