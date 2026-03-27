@@ -776,7 +776,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           max={exhibitMode ? 0.08 : (params.supportFreeMode ? constraints.asymmetry.max : 0.35)}
           step={0.01}
           onChange={handleChange('asymmetry')}
-          constrained={params.supportFreeMode || exhibitMode}
+          constrained={params.supportFreeMode && !exhibitMode}
         />
 
         {/* Advanced Shape - Wobble (+ Spine & Melt when not in exhibit mode) */}
