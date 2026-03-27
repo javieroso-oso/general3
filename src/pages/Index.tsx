@@ -155,7 +155,7 @@ const Index = () => {
     const resetIdle = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(() => {
-        setParams(prev => generateExhibitRandomParams(prev));
+        safeSetParams(prev => generateExhibitRandomParams(prev));
       }, 30000);
     };
     
@@ -170,7 +170,7 @@ const Index = () => {
   }, [isExhibitMode]);
   
   const handleExhibitSubmitted = useCallback(() => {
-    setParams(prev => generateExhibitRandomParams(prev));
+    safeSetParams(prev => generateExhibitRandomParams(prev));
   }, []);
 
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
