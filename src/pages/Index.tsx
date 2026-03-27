@@ -45,7 +45,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useGallery } from '@/hooks/useGallery';
 import AddToGalleryDialog from '@/components/AddToGalleryDialog';
 import ExhibitSubmitDialog from '@/components/exhibit/ExhibitSubmitDialog';
-import { generateRandomParams } from '@/lib/random-generator';
+import { generateRandomParams, generateExhibitRandomParams } from '@/lib/random-generator';
 import {
   Select,
   SelectContent,
@@ -99,25 +99,54 @@ const Index = () => {
   const [showExhibitDialog, setShowExhibitDialog] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Exhibit mode: clamp/zero dangerous params on EVERY param update
+  const exhibitSafeParams = useCallback((p: ParametricParams): ParametricParams => ({
+    ...p,
+    wallThickness: 1.6,
+    baseThickness: 0,
+    addLegs: false,
+    cordHoleEnabled: false,
+    wireframeMode: false,
+    lightPatternEnabled: false,
+    moldEnabled: false,
+    basePlateEnabled: false,
+    supportFreeMode: false,
+    surfaceStrokes: [],
+    surfaceStrokesVisible: false,
+    // Dangerous for spiral vase
+    meltAmount: 0,
+    meltDragAmount: 0,
+    spineEnabled: false,
+    spineAmplitudeX: 0,
+    spineAmplitudeZ: 0,
+    organicNoise: 0,
+    // Clamp risky values
+    wobbleAmplitude: Math.min(p.wobbleAmplitude, 0.05),
+    asymmetry: Math.min(p.asymmetry, 0.08),
+    lipFlare: Math.min(p.lipFlare, 0.10),
+    bulgeAmount: Math.min(p.bulgeAmount, 0.15),
+    height: Math.min(p.height, 180),
+    baseRadius: Math.min(p.baseRadius, 60),
+  }), []);
+
+  // Wrap setParams to enforce exhibit constraints on every update
+  const safeSetParams = useCallback((updater: ParametricParams | ((prev: ParametricParams) => ParametricParams)) => {
+    if (isExhibitMode) {
+      setParams(prev => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        return exhibitSafeParams(next);
+      });
+    } else {
+      setParams(updater as any);
+    }
+  }, [isExhibitMode, exhibitSafeParams]);
+
   // Force vase-safe params when entering exhibit mode
   useEffect(() => {
     if (isExhibitMode) {
-      setParams(prev => ({
-        ...prev,
-        wallThickness: 1.6,
-        baseThickness: 0,
-        addLegs: false,
-        cordHoleEnabled: false,
-        wireframeMode: false,
-        lightPatternEnabled: false,
-        moldEnabled: false,
-        basePlateEnabled: false,
-        supportFreeMode: false,
-        surfaceStrokes: [],
-        surfaceStrokesVisible: false,
-      }));
+      setParams(prev => exhibitSafeParams(prev));
     }
-  }, [isExhibitMode]);
+  }, [isExhibitMode, exhibitSafeParams]);
   
   // Attract mode: randomize after 30s idle in exhibit mode
   useEffect(() => {
@@ -126,7 +155,7 @@ const Index = () => {
     const resetIdle = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(() => {
-        setParams(prev => generateRandomParams(prev));
+        setParams(prev => generateExhibitRandomParams(prev));
       }, 30000);
     };
     
@@ -141,7 +170,7 @@ const Index = () => {
   }, [isExhibitMode]);
   
   const handleExhibitSubmitted = useCallback(() => {
-    setParams(prev => generateRandomParams(prev));
+    setParams(prev => generateExhibitRandomParams(prev));
   }, []);
 
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
@@ -150,7 +179,7 @@ const Index = () => {
   
   const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
     setObjectType(drawerType);
-    setParams(drawerParams);
+    safeSetParams(drawerParams);
   }, []);
   
   const handleLoadPlotterFromDrawer = useCallback((drawerPlotterParams: PlotterParams, _drawing: PlotterDrawing) => {
@@ -659,7 +688,7 @@ const Index = () => {
                 <ParameterControls
                   params={params}
                   type={objectType}
-                  onParamsChange={setParams}
+                  onParamsChange={safeSetParams}
                   onSurfaceHover={setSurfaceHover}
                   exhibitMode={isExhibitMode}
                 />
@@ -678,14 +707,14 @@ const Index = () => {
                     <BatchGenerator
                       baseParams={params}
                       printSettings={printSettings}
-                      onSelectVariation={setParams}
+                      onSelectVariation={safeSetParams}
                     />
                   </TabsContent>
 
                   <TabsContent value="presets" className="mt-0">
                     <PresetGallery
                       currentParams={params}
-                      onSelect={setParams}
+                      onSelect={safeSetParams}
                     />
                   </TabsContent>
 
