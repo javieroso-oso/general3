@@ -565,12 +565,12 @@ const Index = () => {
       
       {/* Exhibit branding header */}
       {isExhibitMode && (
-        <div className="kiosk-header h-16">
+        <div className="kiosk-header h-20">
           <div className="text-center">
-            <h1 className="text-2xl font-medium tracking-[0.15em] uppercase" style={{ color: 'hsla(0,0%,92%,1)' }}>
+            <h1 className="text-3xl font-medium tracking-[0.2em] uppercase" style={{ color: 'hsla(0,0%,95%,1)' }}>
               Design Your Own
             </h1>
-            <p className="text-xs tracking-[0.3em] uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>
+            <p className="text-xs tracking-[0.4em] uppercase mt-1" style={{ color: 'hsla(220,10%,55%,1)' }}>
               Interactive Sculpture Generator
             </p>
           </div>
@@ -1073,39 +1073,50 @@ const Index = () => {
 
       {/* Exhibit mode: full-width swatch strip */}
       {isExhibitMode && objectType !== 'plotter' && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-5 px-6 py-3" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
-          {EXHIBIT_SWATCHES.map((swatch) => (
-            <button
-              key={swatch.label}
-              className={`kiosk-swatch ${customColor === swatch.color && materialPreset === swatch.material ? 'active' : ''}`}
-              onClick={() => {
-                setCustomColor(swatch.color);
-                setUsePresetColor(false);
-                setMaterialPreset(swatch.material);
-              }}
-            >
-              <div className="kiosk-swatch-circle" style={{ backgroundColor: swatch.color }} />
-              <span className="text-[10px] tracking-wider uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>{swatch.label}</span>
-            </button>
-          ))}
+        <div className="fixed bottom-0 left-0 right-0 z-20" style={{ background: 'hsla(230,20%,8%,0.88)', backdropFilter: 'blur(20px)', borderTop: '1px solid hsla(220,15%,25%,0.3)' }}>
+          {/* Active swatch label */}
+          {(() => {
+            const activeSwatch = EXHIBIT_SWATCHES.find(s => s.color === customColor && s.material === materialPreset);
+            return activeSwatch ? (
+              <div className="text-center pt-2 pb-1">
+                <span className="text-xs tracking-[0.3em] uppercase font-medium" style={{ color: 'hsla(0,0%,85%,1)' }}>{activeSwatch.label}</span>
+              </div>
+            ) : null;
+          })()}
+          <div className="flex items-center justify-center gap-5 px-6 py-3">
+            {EXHIBIT_SWATCHES.map((swatch) => (
+              <button
+                key={swatch.label}
+                className={`kiosk-swatch ${customColor === swatch.color && materialPreset === swatch.material ? 'active' : ''}`}
+                onClick={() => {
+                  setCustomColor(swatch.color);
+                  setUsePresetColor(false);
+                  setMaterialPreset(swatch.material);
+                }}
+              >
+                <div className="kiosk-swatch-circle" style={{ backgroundColor: swatch.color }} />
+                <span className="text-[10px] tracking-wider uppercase" style={{ color: 'hsla(220,10%,55%,1)' }}>{swatch.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Exhibit mode: floating action buttons */}
       {isExhibitMode && objectType !== 'plotter' && (
-        <div className="fixed bottom-24 right-6 z-30 flex flex-col gap-3">
+        <div className="fixed bottom-28 right-6 z-30 flex flex-col gap-3">
           <button
             onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
-            className="kiosk-action h-14 px-8 text-lg flex items-center gap-3"
+            className="kiosk-action h-16 px-10 text-xl flex items-center gap-3"
           >
-            <Shuffle className="w-5 h-5" />
+            <Shuffle className="w-6 h-6" />
             Randomize
           </button>
           <button
             onClick={() => setShowExhibitDialog(true)}
-            className="kiosk-action-primary h-14 px-8 text-lg flex items-center gap-3"
+            className="kiosk-action-primary h-16 px-10 text-xl flex items-center gap-3"
           >
-            <Printer className="w-5 h-5" />
+            <Printer className="w-6 h-6" />
             Print This!
           </button>
         </div>
