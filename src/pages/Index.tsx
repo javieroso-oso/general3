@@ -1053,8 +1053,8 @@ const Index = () => {
         )}
       </div>
 
-      {/* Right panel toggle & Analysis - hidden for plotter mode */}
-      {objectType !== 'plotter' && (
+      {/* Right panel toggle & Analysis - hidden for plotter & exhibit mode */}
+      {objectType !== 'plotter' && !isExhibitMode && (
         <>
           <Button
             variant="ghost"
