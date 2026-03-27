@@ -179,7 +179,7 @@ const Index = () => {
   
   const handleLoadFromDrawer = useCallback((drawerParams: ParametricParams, drawerType: ObjectType) => {
     setObjectType(drawerType);
-    setParams(drawerParams);
+    safeSetParams(drawerParams);
   }, []);
   
   const handleLoadPlotterFromDrawer = useCallback((drawerPlotterParams: PlotterParams, _drawing: PlotterDrawing) => {
@@ -688,7 +688,7 @@ const Index = () => {
                 <ParameterControls
                   params={params}
                   type={objectType}
-                  onParamsChange={setParams}
+                  onParamsChange={safeSetParams}
                   onSurfaceHover={setSurfaceHover}
                   exhibitMode={isExhibitMode}
                 />
@@ -707,14 +707,14 @@ const Index = () => {
                     <BatchGenerator
                       baseParams={params}
                       printSettings={printSettings}
-                      onSelectVariation={setParams}
+                      onSelectVariation={safeSetParams}
                     />
                   </TabsContent>
 
                   <TabsContent value="presets" className="mt-0">
                     <PresetGallery
                       currentParams={params}
-                      onSelect={setParams}
+                      onSelect={safeSetParams}
                     />
                   </TabsContent>
 
