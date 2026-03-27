@@ -35,9 +35,11 @@ export async function submitToExhibitQueue(submission: ExhibitSubmission): Promi
   }
 
   // 4. Insert queue entry
-  const { data, error } = await supabase
+  const entryId = crypto.randomUUID();
+  const { error } = await supabase
     .from('print_queue')
     .insert({
+      id: entryId,
       visitor_name: submission.visitorName,
       visitor_email: submission.visitorEmail || null,
       params: submission.params as any,
@@ -45,9 +47,7 @@ export async function submitToExhibitQueue(submission: ExhibitSubmission): Promi
       stl_url: urlData.publicUrl,
       thumbnail_url: thumbnailUrl,
       status: 'pending',
-    })
-    .select('id')
-    .single();
+    });
 
   if (error) throw new Error(`Queue submission failed: ${error.message}`);
 
@@ -57,5 +57,5 @@ export async function submitToExhibitQueue(submission: ExhibitSubmission): Promi
     .select('id', { count: 'exact', head: true })
     .in('status', ['pending', 'printing']);
 
-  return { queuePosition: count || 1, id: data.id };
+  return { queuePosition: count || 1, id: entryId };
 }

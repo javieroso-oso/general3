@@ -1,0 +1,1 @@
+CREATE POLICY "Anon can read own insert" ON public.print_queue FOR SELECT TO anon USING (true);
