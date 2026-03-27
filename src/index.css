@@ -252,9 +252,9 @@
     box-shadow: 0 8px 40px hsla(220, 30%, 5%, 0.4);
   }
 
-  .kiosk-panel * {
+  .kiosk-panel, .kiosk-panel * {
     --foreground: 0 0% 95%;
-    --muted-foreground: 220 10% 72%;
+    --muted-foreground: 220 10% 75%;
     --border: 220 15% 22%;
     --secondary: 230 15% 18%;
     --card: 230 18% 14%;
@@ -264,28 +264,32 @@
     --accent: 230 15% 20%;
     --accent-foreground: 0 0% 92%;
     --secondary-foreground: 0 0% 88%;
+  }
+
+  /* All text inside kiosk panel should be light */
+  .kiosk-panel {
     color: hsl(0 0% 92%);
   }
 
-  /* Force tab trigger text visible in kiosk */
-  .kiosk-panel [data-state="active"] {
-    background: hsla(230, 18%, 20%, 1) !important;
-    color: hsl(0 0% 95%) !important;
+  .kiosk-panel .text-muted-foreground,
+  .kiosk-panel .text-text-secondary,
+  .kiosk-panel .label-text {
+    color: hsl(220 10% 70%) !important;
   }
 
-  .kiosk-panel [data-state="inactive"] {
-    color: hsl(220 10% 65%) !important;
-  }
-
-  .kiosk-panel button {
+  .kiosk-panel h3,
+  .kiosk-panel h4,
+  .kiosk-panel label,
+  .kiosk-panel span {
     color: hsl(0 0% 90%);
   }
 
-  .kiosk-panel .text-text-secondary,
-  .kiosk-panel .label-text,
-  .kiosk-panel h3,
-  .kiosk-panel h4 {
-    color: hsl(220 10% 78%) !important;
+  .kiosk-panel .text-foreground {
+    color: hsl(0 0% 95%) !important;
+  }
+
+  .kiosk-panel .text-amber-600 {
+    color: hsl(35 80% 60%) !important;
   }
 
   /* Larger touch-friendly sliders inside kiosk panel */
