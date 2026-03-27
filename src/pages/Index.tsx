@@ -256,7 +256,7 @@ const Index = () => {
       try {
         const parsedParams = JSON.parse(decodeURIComponent(galleryParams)) as ParametricParams;
         if (galleryType) setObjectType(galleryType);
-        setParams(parsedParams);
+        safeSetParams(parsedParams);
         toast.success('Gallery design loaded!');
         window.history.replaceState({}, '', window.location.pathname);
       } catch (e) {
