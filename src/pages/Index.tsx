@@ -99,6 +99,26 @@ const Index = () => {
   const [showExhibitDialog, setShowExhibitDialog] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Force vase-safe params when entering exhibit mode
+  useEffect(() => {
+    if (isExhibitMode) {
+      setParams(prev => ({
+        ...prev,
+        wallThickness: 1.6,
+        baseThickness: 0,
+        addLegs: false,
+        cordHoleEnabled: false,
+        wireframeMode: false,
+        lightPatternEnabled: false,
+        moldEnabled: false,
+        basePlateEnabled: false,
+        supportFreeMode: false,
+        surfaceStrokes: [],
+        surfaceStrokesVisible: false,
+      }));
+    }
+  }, [isExhibitMode]);
+  
   // Attract mode: randomize after 30s idle in exhibit mode
   useEffect(() => {
     if (!isExhibitMode) return;
@@ -106,7 +126,7 @@ const Index = () => {
     const resetIdle = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(() => {
-        setParams(generateRandomParams(params));
+        setParams(prev => generateRandomParams(prev));
       }, 30000);
     };
     
@@ -118,11 +138,11 @@ const Index = () => {
       events.forEach(e => window.removeEventListener(e, resetIdle));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [isExhibitMode, params]);
+  }, [isExhibitMode]);
   
   const handleExhibitSubmitted = useCallback(() => {
-    setParams(generateRandomParams(params));
-  }, [params]);
+    setParams(prev => generateRandomParams(prev));
+  }, []);
 
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
     return gallery.addDesign(name, params, objectType, description);
@@ -558,9 +578,11 @@ const Index = () => {
         className="fixed left-4 top-20 bottom-4 w-[340px] z-20 glass-panel overflow-hidden flex flex-col"
       >
         {/* Object Type */}
-        <div className="p-4 border-b border-border/50">
-          <ObjectTypeTabs activeType={objectType} onTypeChange={handleTypeChange} />
-        </div>
+        {!isExhibitMode && (
+          <div className="p-4 border-b border-border/50">
+            <ObjectTypeTabs activeType={objectType} onTypeChange={handleTypeChange} />
+          </div>
+        )}
 
         {/* Tabbed Controls - Different for plotter vs 3D */}
         {objectType === 'plotter' ? (
@@ -604,31 +626,33 @@ const Index = () => {
           </Tabs>
         ) : (
           <Tabs defaultValue="design" className="flex flex-col flex-1 overflow-hidden">
-            <TabsList className="mx-4 mt-3 grid grid-cols-5 bg-secondary/50 p-1 rounded-lg">
-              <TabsTrigger value="design" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Layers className="w-3 h-3" />
-                Design
-              </TabsTrigger>
-              <TabsTrigger value="print" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Settings2 className="w-3 h-3" />
-                Print
-              </TabsTrigger>
-              <TabsTrigger value="batch" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Package className="w-3 h-3" />
-                Batch
-              </TabsTrigger>
-              <TabsTrigger value="presets" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                Presets
-              </TabsTrigger>
-              <TabsTrigger value="drawer" className="text-xs gap-1 relative rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
-                <Archive className="w-3 h-3" />
-                {drawer.count > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
-                    {drawer.count}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            {!isExhibitMode && (
+              <TabsList className="mx-4 mt-3 grid grid-cols-5 bg-secondary/50 p-1 rounded-lg">
+                <TabsTrigger value="design" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Layers className="w-3 h-3" />
+                  Design
+                </TabsTrigger>
+                <TabsTrigger value="print" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Settings2 className="w-3 h-3" />
+                  Print
+                </TabsTrigger>
+                <TabsTrigger value="batch" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Package className="w-3 h-3" />
+                  Batch
+                </TabsTrigger>
+                <TabsTrigger value="presets" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  Presets
+                </TabsTrigger>
+                <TabsTrigger value="drawer" className="text-xs gap-1 relative rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
+                  <Archive className="w-3 h-3" />
+                  {drawer.count > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                      {drawer.count}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            )}
 
             <div className="p-4 flex-1 overflow-y-auto">
               <TabsContent value="design" className="mt-0 space-y-4">
@@ -637,39 +661,44 @@ const Index = () => {
                   type={objectType}
                   onParamsChange={setParams}
                   onSurfaceHover={setSurfaceHover}
+                  exhibitMode={isExhibitMode}
                 />
               </TabsContent>
 
-              <TabsContent value="print" className="mt-0 space-y-4">
-                <PrintSettingsPanel
-                  settings={printSettings}
-                  onSettingsChange={setPrintSettings}
-                />
-              </TabsContent>
+              {!isExhibitMode && (
+                <>
+                  <TabsContent value="print" className="mt-0 space-y-4">
+                    <PrintSettingsPanel
+                      settings={printSettings}
+                      onSettingsChange={setPrintSettings}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="batch" className="mt-0">
-                <BatchGenerator
-                  baseParams={params}
-                  printSettings={printSettings}
-                  onSelectVariation={setParams}
-                />
-              </TabsContent>
+                  <TabsContent value="batch" className="mt-0">
+                    <BatchGenerator
+                      baseParams={params}
+                      printSettings={printSettings}
+                      onSelectVariation={setParams}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="presets" className="mt-0">
-                <PresetGallery
-                  currentParams={params}
-                  onSelect={setParams}
-                />
-              </TabsContent>
+                  <TabsContent value="presets" className="mt-0">
+                    <PresetGallery
+                      currentParams={params}
+                      onSelect={setParams}
+                    />
+                  </TabsContent>
 
-              <TabsContent value="drawer" className="mt-0">
-                <DrawerPanel
-                  items={drawer.items}
-                  onLoad={handleLoadFromDrawer}
-                  onLoadPlotter={handleLoadPlotterFromDrawer}
-                  onRemove={drawer.removeItem}
-                />
-              </TabsContent>
+                  <TabsContent value="drawer" className="mt-0">
+                    <DrawerPanel
+                      items={drawer.items}
+                      onLoad={handleLoadFromDrawer}
+                      onLoadPlotter={handleLoadPlotterFromDrawer}
+                      onRemove={drawer.removeItem}
+                    />
+                  </TabsContent>
+                </>
+              )}
             </div>
           </Tabs>
         )}
@@ -715,27 +744,29 @@ const Index = () => {
           animate={{ y: 0, opacity: 1 }}
           className="fixed bottom-4 left-4 right-4 lg:left-[380px] lg:right-4 z-20 glass-panel px-4 py-3 flex items-center gap-3 overflow-x-auto"
         >
-          {/* View mode */}
-          <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
-            <Button
-              variant={viewMode === 'model' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('model')}
-              className="gap-1.5 rounded-md h-8"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Model
-            </Button>
-            <Button
-              variant={viewMode === 'gcode' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('gcode')}
-              className="gap-1.5 rounded-md h-8"
-            >
-              <FileCode className="w-3.5 h-3.5" />
-              G-code
-            </Button>
-          </div>
+          {/* View mode - hidden in exhibit mode */}
+          {!isExhibitMode && (
+            <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
+              <Button
+                variant={viewMode === 'model' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('model')}
+                className="gap-1.5 rounded-md h-8"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Model
+              </Button>
+              <Button
+                variant={viewMode === 'gcode' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('gcode')}
+                className="gap-1.5 rounded-md h-8"
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                G-code
+              </Button>
+            </div>
+          )}
 
           <div className="w-px h-6 bg-border/50" />
 
@@ -1022,8 +1053,8 @@ const Index = () => {
         )}
       </div>
 
-      {/* Right panel toggle & Analysis - hidden for plotter mode */}
-      {objectType !== 'plotter' && (
+      {/* Right panel toggle & Analysis - hidden for plotter & exhibit mode */}
+      {objectType !== 'plotter' && !isExhibitMode && (
         <>
           <Button
             variant="ghost"

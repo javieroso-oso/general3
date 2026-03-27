@@ -22,6 +22,7 @@ interface ParameterControlsProps {
   type: ObjectType;
   onParamsChange: (params: ParametricParams) => void;
   onSurfaceHover?: (pos: SurfaceHoverPosition | null) => void;
+  exhibitMode?: boolean;
 }
 
 interface SectionProps {
@@ -545,7 +546,7 @@ const SurfaceArtTabs = ({ params, onParamsChange, onSurfaceHover }: SurfaceArtTa
   );
 };
 
-const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: ParameterControlsProps) => {
+const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhibitMode = false }: ParameterControlsProps) => {
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
     let newParams = { ...params, [key]: value };
     
@@ -683,24 +684,28 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
           unit="mm"
           onChange={handleChange('topRadius')}
         />
-        <ParameterSlider
-          label="Wall Thickness"
-          value={params.wallThickness}
-          min={printConstraints.minWallThickness}
-          max={printConstraints.maxWallThickness}
-          step={0.2}
-          unit="mm"
-          onChange={handleChange('wallThickness')}
-        />
-        <ParameterSlider
-          label="Base Thickness"
-          value={params.baseThickness}
-          min={printConstraints.minBaseThickness}
-          max={5}
-          step={0.2}
-          unit="mm"
-          onChange={handleChange('baseThickness')}
-        />
+        {!exhibitMode && (
+          <ParameterSlider
+            label="Wall Thickness"
+            value={params.wallThickness}
+            min={printConstraints.minWallThickness}
+            max={printConstraints.maxWallThickness}
+            step={0.2}
+            unit="mm"
+            onChange={handleChange('wallThickness')}
+          />
+        )}
+        {!exhibitMode && (
+          <ParameterSlider
+            label="Base Thickness"
+            value={params.baseThickness}
+            min={printConstraints.minBaseThickness}
+            max={5}
+            step={0.2}
+            unit="mm"
+            onChange={handleChange('baseThickness')}
+          />
+        )}
         
         {/* Profile Curve - moved here from Surface Patterns */}
         <div className="space-y-2 pt-3 border-t border-border/50">
@@ -1136,7 +1141,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
       </Section>
 
       {/* Wireframe Shade Frame */}
-      {(
+      {!exhibitMode && (
         <Section title="Shade Frame" defaultOpen={false}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1329,7 +1334,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
       )}
 
       {/* Light Patterns */}
-      {(
+      {!exhibitMode && (
         <Section title="Light Patterns" defaultOpen={false}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1448,7 +1453,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
       )}
 
       {/* 5. Cord Hole */}
-      <Section title="Cord Hole" defaultOpen={false}>
+      {!exhibitMode && <Section title="Cord Hole" defaultOpen={false}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Cable className={cn("w-4 h-4", params.cordHoleEnabled ? "text-primary" : "text-muted-foreground")} />
@@ -1525,10 +1530,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
             )}
           </>
         )}
-      </Section>
+      </Section>}
 
       {/* Base Plate (for spiral vase mode + LED puck) */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Box className={cn("w-4 h-4", params.basePlateEnabled ? "text-primary" : "text-muted-foreground")} />
@@ -1572,10 +1577,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
             />
           </div>
         )}
-      </div>
+      </div>}
 
       {/* 6. Legs/Stand */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Footprints className={cn("w-4 h-4", params.addLegs ? "text-primary" : "text-muted-foreground")} />
@@ -1959,10 +1964,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
             )}
           </div>
         )}
-      </div>
+      </div>}
       
       {/* 7. Support-Free Mode */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className={cn("w-4 h-4", params.supportFreeMode ? "text-emerald-500" : "text-muted-foreground")} />
@@ -2000,10 +2005,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
             onCheckedChange={handleOverhangMapToggle}
           />
         </div>
-      </div>
+      </div>}
       
       {/* 8. Mold Generation */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FlaskConical className={cn("w-4 h-4", params.moldEnabled ? "text-amber-500" : "text-muted-foreground")} />
@@ -2024,10 +2029,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
         {params.moldEnabled && (
           <MoldControls params={params} type={type} onParamsChange={onParamsChange} handleChange={handleChange} />
         )}
-      </div>
+      </div>}
       
       {/* 9. Surface Art */}
-      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PenTool className={cn("w-4 h-4", params.surfaceStrokes?.length > 0 ? "text-primary" : "text-muted-foreground")} />
@@ -2050,7 +2055,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover }: Par
           onSurfaceHover={onSurfaceHover}
         />
 
-      </div>
+      </div>}
     </motion.div>
   );
 };
