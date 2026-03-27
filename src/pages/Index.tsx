@@ -1045,6 +1045,15 @@ const Index = () => {
         onSubmit={handleAddToGallery}
         saving={gallery.saving}
       />
+      
+      {/* Exhibit Submit Dialog */}
+      <ExhibitSubmitDialog
+        open={showExhibitDialog}
+        onClose={() => setShowExhibitDialog(false)}
+        params={params}
+        objectType={objectType}
+        onSubmitted={handleExhibitSubmitted}
+      />
     </div>
   );
 };
