@@ -163,3 +163,103 @@ export function generateRandomParams(currentParams: ParametricParams): Parametri
 
   return newParams;
 }
+
+/**
+ * Generate random params safe for spiral vase printing in exhibit/kiosk mode.
+ * No melt, no drag, no spine, no organic noise. Capped overhangs.
+ */
+export function generateExhibitRandomParams(currentParams: ParametricParams): ParametricParams {
+  const newParams = { ...currentParams };
+
+  // Dimensions — capped for bed size & print time
+  newParams.baseRadius = randomInRange(20, 60);
+  newParams.topRadius = newParams.baseRadius * randomInRange(0.5, 1.2);
+  newParams.height = randomInRange(60, 180);
+  newParams.profileCurve = randomChoice(profileCurves);
+
+  // Fixed for spiral vase
+  newParams.wallThickness = 1.6;
+  newParams.baseThickness = 0;
+
+  // Shape — capped
+  newParams.bulgePosition = randomInRange(0.2, 0.8);
+  newParams.bulgeAmount = randomInRange(0, 0.15);
+  newParams.pinchAmount = randomInRange(0, 0.15);
+  newParams.asymmetry = randomInRange(0, 0.08);
+  newParams.twistAngle = randomInRange(0, 45);
+
+  // Wobble — capped amplitude
+  newParams.wobbleFrequency = randomInt(0, 4);
+  newParams.wobbleAmplitude = randomInRange(0, 0.05);
+
+  // Dangerous features — disabled
+  newParams.spineEnabled = false;
+  newParams.spineAmplitudeX = 0;
+  newParams.spineAmplitudeZ = 0;
+  newParams.meltAmount = 0;
+  newParams.meltDragAmount = 0;
+  newParams.organicNoise = 0;
+  newParams.noiseScale = 1;
+
+  // Surface features (0-2, same logic but safe)
+  const surfaceFeatures = ['facets', 'spiralGrooves', 'horizontalRibs', 'fluting', 'rimWaves', 'ripples'] as const;
+  const enabledFeatures = new Set<string>();
+  const featureCount = randomInt(0, 2);
+  while (enabledFeatures.size < featureCount) {
+    enabledFeatures.add(randomChoice([...surfaceFeatures]));
+  }
+
+  newParams.facetCount = 0;
+  newParams.spiralGrooveCount = 0;
+  newParams.spiralGrooveDepth = 0;
+  newParams.horizontalRibCount = 0;
+  newParams.horizontalRibDepth = 0;
+  newParams.flutingCount = 0;
+  newParams.flutingDepth = 0;
+  newParams.rimWaveCount = 0;
+  newParams.rimWaveDepth = 0;
+  newParams.rippleCount = 0;
+  newParams.rippleDepth = 0;
+
+  if (enabledFeatures.has('facets')) {
+    newParams.facetCount = randomInt(5, 10);
+    newParams.facetSharpness = randomInRange(0.3, 0.9);
+  }
+  if (enabledFeatures.has('spiralGrooves')) {
+    newParams.spiralGrooveCount = randomInt(2, 6);
+    newParams.spiralGrooveDepth = randomInRange(0.02, 0.1);
+    newParams.spiralGrooveTwist = randomInRange(1, 5);
+  }
+  if (enabledFeatures.has('horizontalRibs')) {
+    newParams.horizontalRibCount = randomInt(3, 10);
+    newParams.horizontalRibDepth = randomInRange(0.01, 0.06);
+    newParams.horizontalRibWidth = randomInRange(0.2, 0.4);
+  }
+  if (enabledFeatures.has('fluting')) {
+    newParams.flutingCount = randomInt(5, 16);
+    newParams.flutingDepth = randomInRange(0.02, 0.1);
+  }
+  if (enabledFeatures.has('rimWaves')) {
+    newParams.rimWaveCount = randomInt(4, 8);
+    newParams.rimWaveDepth = randomInRange(0.03, 0.10);
+  }
+  if (enabledFeatures.has('ripples')) {
+    newParams.rippleCount = randomInt(3, 10);
+    newParams.rippleDepth = randomInRange(0.02, 0.06);
+  }
+
+  // Lip & rim — capped
+  newParams.lipFlare = randomInRange(0, 0.10);
+  newParams.lipHeight = newParams.height * randomInRange(0, 0.05);
+
+  // Disabled accessories
+  newParams.addLegs = false;
+  newParams.cordHoleEnabled = false;
+  newParams.wireframeMode = false;
+  newParams.lightPatternEnabled = false;
+  newParams.moldEnabled = false;
+  newParams.basePlateEnabled = false;
+  newParams.supportFreeMode = false;
+
+  return newParams;
+}

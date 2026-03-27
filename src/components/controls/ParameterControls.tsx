@@ -11,7 +11,7 @@ import { ParametricParams, ObjectType, defaultParams, printConstraints, StandTyp
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
-import { generateRandomParams } from '@/lib/random-generator';
+import { generateRandomParams, generateExhibitRandomParams } from '@/lib/random-generator';
 import { analyzeUndercuts, calculateMoldMaterialEstimate, calculateOptimalSplits } from '@/lib/mold-undercut-detector';
 import { toast } from 'sonner';
 import { useState, useMemo, useCallback } from 'react';
@@ -563,8 +563,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
   };
 
   const handleRandomize = () => {
-    let newParams = generateRandomParams(params);
-    if (params.supportFreeMode) {
+    let newParams = exhibitMode 
+      ? generateExhibitRandomParams(params)
+      : generateRandomParams(params);
+    if (params.supportFreeMode && !exhibitMode) {
       newParams = applySupportFreeConstraints(newParams);
     }
     onParamsChange(newParams);
@@ -745,10 +747,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           label="Bulge Amount"
           value={params.bulgeAmount}
           min={0}
-          max={params.supportFreeMode ? constraints.bulgeAmount.max : 0.5}
+          max={exhibitMode ? 0.15 : (params.supportFreeMode ? constraints.bulgeAmount.max : 0.5)}
           step={0.02}
           onChange={handleChange('bulgeAmount')}
-          constrained={params.supportFreeMode}
+          constrained={params.supportFreeMode || exhibitMode}
         />
         <ParameterSlider
           label="Pinch"
@@ -771,13 +773,13 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           label="Asymmetry"
           value={params.asymmetry}
           min={0}
-          max={params.supportFreeMode ? constraints.asymmetry.max : 0.35}
+          max={exhibitMode ? 0.08 : (params.supportFreeMode ? constraints.asymmetry.max : 0.35)}
           step={0.01}
           onChange={handleChange('asymmetry')}
-          constrained={params.supportFreeMode}
+          constrained={params.supportFreeMode || exhibitMode}
         />
 
-        {/* Advanced Shape - Wobble, Spine, Melt */}
+        {/* Advanced Shape - Wobble (+ Spine & Melt when not in exhibit mode) */}
         <Subsection title="Advanced Shape">
           {/* Wobble */}
           <div className="space-y-3">
@@ -794,145 +796,149 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
               label="Amount"
               value={params.wobbleAmplitude}
               min={0}
-              max={params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15}
+              max={exhibitMode ? 0.05 : (params.supportFreeMode ? constraints.wobbleAmplitude.max : 0.15)}
               step={0.01}
               onChange={handleChange('wobbleAmplitude')}
-              constrained={params.supportFreeMode}
+              constrained={params.supportFreeMode || exhibitMode}
             />
           </div>
 
-          {/* Spine Curve */}
-          <div className="space-y-3 pt-3 border-t border-border/30">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground font-semibold">Spine Curve</Label>
-              <Switch
-                checked={params.spineEnabled}
-                onCheckedChange={(enabled) => onParamsChange({ ...params, spineEnabled: enabled })}
-              />
-            </div>
-            
-            {params.spineEnabled && (
-              <>
-                <div className="text-xs text-muted-foreground">X-Axis</div>
+          {!exhibitMode && (
+            <>
+              {/* Spine Curve */}
+              <div className="space-y-3 pt-3 border-t border-border/30">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground font-semibold">Spine Curve</Label>
+                  <Switch
+                    checked={params.spineEnabled}
+                    onCheckedChange={(enabled) => onParamsChange({ ...params, spineEnabled: enabled })}
+                  />
+                </div>
+                
+                {params.spineEnabled && (
+                  <>
+                    <div className="text-xs text-muted-foreground">X-Axis</div>
+                    <ParameterSlider
+                      label="Amplitude"
+                      value={params.spineAmplitudeX}
+                      min={0}
+                      max={25}
+                      step={1}
+                      unit="mm"
+                      onChange={handleChange('spineAmplitudeX')}
+                    />
+                    <ParameterSlider
+                      label="Frequency"
+                      value={params.spineFrequencyX}
+                      min={0}
+                      max={4}
+                      step={0.5}
+                      onChange={handleChange('spineFrequencyX')}
+                    />
+                    <ParameterSlider
+                      label="Phase"
+                      value={params.spinePhaseX}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={handleChange('spinePhaseX')}
+                    />
+                    
+                    <div className="text-xs text-muted-foreground mt-2">Z-Axis</div>
+                    <ParameterSlider
+                      label="Amplitude"
+                      value={params.spineAmplitudeZ}
+                      min={0}
+                      max={25}
+                      step={1}
+                      unit="mm"
+                      onChange={handleChange('spineAmplitudeZ')}
+                    />
+                    <ParameterSlider
+                      label="Frequency"
+                      value={params.spineFrequencyZ}
+                      min={0}
+                      max={4}
+                      step={0.5}
+                      onChange={handleChange('spineFrequencyZ')}
+                    />
+                    <ParameterSlider
+                      label="Phase"
+                      value={params.spinePhaseZ}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={handleChange('spinePhaseZ')}
+                    />
+                  </>
+                )}
+              </div>
+
+              {/* Melt Effect */}
+              <div className="space-y-3 pt-3 border-t border-border/30">
+                <Label className="text-xs text-muted-foreground font-semibold">Melt Effect</Label>
                 <ParameterSlider
-                  label="Amplitude"
-                  value={params.spineAmplitudeX}
+                  label="Amount"
+                  value={params.meltAmount}
                   min={0}
-                  max={25}
+                  max={30}
                   step={1}
                   unit="mm"
-                  onChange={handleChange('spineAmplitudeX')}
-                />
-                <ParameterSlider
-                  label="Frequency"
-                  value={params.spineFrequencyX}
-                  min={0}
-                  max={4}
-                  step={0.5}
-                  onChange={handleChange('spineFrequencyX')}
-                />
-                <ParameterSlider
-                  label="Phase"
-                  value={params.spinePhaseX}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  onChange={handleChange('spinePhaseX')}
+                  onChange={handleChange('meltAmount')}
                 />
                 
-                <div className="text-xs text-muted-foreground mt-2">Z-Axis</div>
+                {params.meltAmount > 0 && (
+                  <>
+                    <ParameterSlider
+                      label="Lobes"
+                      value={params.meltLobes}
+                      min={0}
+                      max={8}
+                      step={1}
+                      onChange={handleChange('meltLobes')}
+                    />
+                    <ParameterSlider
+                      label="Variation"
+                      value={params.meltVariation}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={handleChange('meltVariation')}
+                    />
+                    <ParameterSlider
+                      label="Delay"
+                      value={params.meltDelay}
+                      min={0}
+                      max={0.8}
+                      step={0.05}
+                      onChange={handleChange('meltDelay')}
+                    />
+                  </>
+                )}
+                
                 <ParameterSlider
-                  label="Amplitude"
-                  value={params.spineAmplitudeZ}
+                  label="Lateral Drag"
+                  value={params.meltDragAmount}
                   min={0}
-                  max={25}
+                  max={30}
                   step={1}
                   unit="mm"
-                  onChange={handleChange('spineAmplitudeZ')}
+                  onChange={handleChange('meltDragAmount')}
                 />
-                <ParameterSlider
-                  label="Frequency"
-                  value={params.spineFrequencyZ}
-                  min={0}
-                  max={4}
-                  step={0.5}
-                  onChange={handleChange('spineFrequencyZ')}
-                />
-                <ParameterSlider
-                  label="Phase"
-                  value={params.spinePhaseZ}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  onChange={handleChange('spinePhaseZ')}
-                />
-              </>
-            )}
-          </div>
-
-          {/* Melt Effect */}
-          <div className="space-y-3 pt-3 border-t border-border/30">
-            <Label className="text-xs text-muted-foreground font-semibold">Melt Effect</Label>
-            <ParameterSlider
-              label="Amount"
-              value={params.meltAmount}
-              min={0}
-              max={30}
-              step={1}
-              unit="mm"
-              onChange={handleChange('meltAmount')}
-            />
-            
-            {params.meltAmount > 0 && (
-              <>
-                <ParameterSlider
-                  label="Lobes"
-                  value={params.meltLobes}
-                  min={0}
-                  max={8}
-                  step={1}
-                  onChange={handleChange('meltLobes')}
-                />
-                <ParameterSlider
-                  label="Variation"
-                  value={params.meltVariation}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  onChange={handleChange('meltVariation')}
-                />
-                <ParameterSlider
-                  label="Delay"
-                  value={params.meltDelay}
-                  min={0}
-                  max={0.8}
-                  step={0.05}
-                  onChange={handleChange('meltDelay')}
-                />
-              </>
-            )}
-            
-            <ParameterSlider
-              label="Lateral Drag"
-              value={params.meltDragAmount}
-              min={0}
-              max={30}
-              step={1}
-              unit="mm"
-              onChange={handleChange('meltDragAmount')}
-            />
-            
-            {params.meltDragAmount > 0 && (
-              <ParameterSlider
-                label="Drag Direction"
-                value={params.meltDragAngle}
-                min={0}
-                max={1}
-                step={0.05}
-                onChange={handleChange('meltDragAngle')}
-              />
-            )}
-          </div>
+                
+                {params.meltDragAmount > 0 && (
+                  <ParameterSlider
+                    label="Drag Direction"
+                    value={params.meltDragAngle}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={handleChange('meltDragAngle')}
+                  />
+                )}
+              </div>
+            </>
+          )}
         </Subsection>
       </Section>
 
@@ -1073,27 +1079,29 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           )}
         </div>
 
-        {/* Organic Noise */}
-        <Subsection title="Organic Noise">
-          <ParameterSlider
-            label="Amount"
-            value={params.organicNoise}
-            min={0}
-            max={0.1}
-            step={0.005}
-            onChange={handleChange('organicNoise')}
-          />
-          {params.organicNoise > 0 && (
+        {/* Organic Noise - hidden in exhibit mode */}
+        {!exhibitMode && (
+          <Subsection title="Organic Noise">
             <ParameterSlider
-              label="Scale"
-              value={params.noiseScale}
-              min={0.5}
-              max={4}
-              step={0.25}
-              onChange={handleChange('noiseScale')}
+              label="Amount"
+              value={params.organicNoise}
+              min={0}
+              max={0.1}
+              step={0.005}
+              onChange={handleChange('organicNoise')}
             />
-          )}
-        </Subsection>
+            {params.organicNoise > 0 && (
+              <ParameterSlider
+                label="Scale"
+                value={params.noiseScale}
+                min={0.5}
+                max={4}
+                step={0.25}
+                onChange={handleChange('noiseScale')}
+              />
+            )}
+          </Subsection>
+        )}
       </Section>
 
       {/* 4. Lip & Rim (now includes Rim Waves) */}
@@ -1102,10 +1110,10 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           label="Lip Flare"
           value={params.lipFlare}
           min={0}
-          max={params.supportFreeMode ? constraints.lipFlare.max : 0.25}
+          max={exhibitMode ? 0.10 : (params.supportFreeMode ? constraints.lipFlare.max : 0.25)}
           step={0.02}
           onChange={handleChange('lipFlare')}
-          constrained={params.supportFreeMode}
+          constrained={params.supportFreeMode || exhibitMode}
         />
         <ParameterSlider
           label="Lip Height"
