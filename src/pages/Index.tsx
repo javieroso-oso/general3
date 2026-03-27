@@ -591,7 +591,7 @@ const Index = () => {
       )}
       
       {/* Full bleed viewer - 3D for objects, 2D for plotter */}
-      <div className="fixed inset-0 pt-14">
+      <div className={`fixed inset-0 ${isExhibitMode ? '' : 'pt-14'}`}>
         {objectType === 'plotter' ? (
           <div className="w-full h-full p-8 flex items-center justify-center">
             <div className="w-full max-w-4xl" style={{ height: 'calc(100vh - 10rem)' }}>
