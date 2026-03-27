@@ -111,6 +111,27 @@ export const MATERIAL_LABELS: Record<MaterialPreset, string> = {
   'custom': 'Custom Color',
 };
 
+export interface ExhibitSwatch {
+  color: string;
+  label: string;
+  material: Exclude<MaterialPreset, 'custom'>;
+}
+
+export const EXHIBIT_SWATCHES: ExhibitSwatch[] = [
+  { color: '#f5f5f5', label: 'Arctic White', material: 'ceramic' },
+  { color: '#e8735a', label: 'Coral', material: 'matte-clay' },
+  { color: '#c4725c', label: 'Terracotta', material: 'terracotta' },
+  { color: '#8fae8b', label: 'Sage', material: 'matte-clay' },
+  { color: '#5b8fa8', label: 'Ocean', material: 'glossy-plastic' },
+  { color: '#2a2a3a', label: 'Midnight', material: 'glossy-plastic' },
+  { color: '#d4a574', label: 'Sandstone', material: 'matte-clay' },
+  { color: '#b8a9c9', label: 'Lavender', material: 'glossy-plastic' },
+  { color: '#e8d5c4', label: 'Blush', material: 'ceramic' },
+  { color: '#3d5a3e', label: 'Forest', material: 'matte-clay' },
+  { color: '#c9b458', label: 'Brass', material: 'brushed-metal' },
+  { color: '#1a1a1a', label: 'Obsidian', material: 'glossy-plastic' },
+];
+
 export type BackgroundPreset = 'white' | 'light-gray' | 'warm' | 'cool' | 'studio' | 'minimal';
 
 export const BACKGROUND_PRESETS: Record<BackgroundPreset, { from: string; to: string; label: string }> = {
