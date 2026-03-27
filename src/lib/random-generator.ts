@@ -2,6 +2,7 @@ import { ParametricParams } from '@/types/parametric';
 
 type ProfileCurveType = 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave';
 const profileCurves: ProfileCurveType[] = ['linear', 'convex', 'concave', 'hourglass', 'wave'];
+const exhibitProfileCurves: ProfileCurveType[] = ['linear', 'convex'];
 
 function randomInRange(min: number, max: number): number {
   return Math.random() * (max - min) + min;
@@ -175,34 +176,39 @@ export function generateExhibitRandomParams(currentParams: ParametricParams): Pa
   newParams.baseRadius = randomInRange(20, 60);
   newParams.topRadius = newParams.baseRadius * randomInRange(0.5, 1.2);
   newParams.height = randomInRange(60, 180);
-  newParams.profileCurve = randomChoice(profileCurves);
+  newParams.profileCurve = randomChoice(exhibitProfileCurves);
 
   // Fixed for spiral vase
   newParams.wallThickness = 1.6;
   newParams.baseThickness = 0;
 
   // Shape — capped
-  newParams.bulgePosition = randomInRange(0.2, 0.8);
-  newParams.bulgeAmount = randomInRange(0, 0.15);
-  newParams.pinchAmount = randomInRange(0, 0.15);
+  newParams.bulgePosition = randomInRange(0.25, 0.75);
+  newParams.bulgeAmount = randomInRange(0, 0.12);
+  newParams.pinchAmount = randomInRange(0, 0.08);
   newParams.asymmetry = randomInRange(0, 0.08);
-  newParams.twistAngle = randomInRange(0, 45);
+  newParams.twistAngle = randomInRange(0, 35);
 
   // Wobble — capped amplitude
   newParams.wobbleFrequency = randomInt(0, 4);
   newParams.wobbleAmplitude = randomInRange(0, 0.05);
 
-  // Dangerous features — disabled
+  // Dangerous features — fully disabled
   newParams.spineEnabled = false;
   newParams.spineAmplitudeX = 0;
   newParams.spineAmplitudeZ = 0;
   newParams.meltAmount = 0;
+  newParams.meltLobes = 0;
+  newParams.meltVariation = 0;
+  newParams.meltPhase = 0;
+  newParams.meltDelay = 0;
   newParams.meltDragAmount = 0;
+  newParams.meltDragAngle = 0;
   newParams.organicNoise = 0;
   newParams.noiseScale = 1;
 
-  // Surface features (0-2, same logic but safe)
-  const surfaceFeatures = ['facets', 'spiralGrooves', 'horizontalRibs', 'fluting', 'rimWaves', 'ripples'] as const;
+  // Surface features (0-2, excluding rim/ripple to avoid melt-like silhouettes)
+  const surfaceFeatures = ['facets', 'spiralGrooves', 'horizontalRibs', 'fluting'] as const;
   const enabledFeatures = new Set<string>();
   const featureCount = randomInt(0, 2);
   while (enabledFeatures.size < featureCount) {

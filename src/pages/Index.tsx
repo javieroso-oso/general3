@@ -167,11 +167,11 @@ const Index = () => {
       events.forEach(e => window.removeEventListener(e, resetIdle));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [isExhibitMode]);
+  }, [isExhibitMode, safeSetParams]);
   
   const handleExhibitSubmitted = useCallback(() => {
     safeSetParams(prev => generateExhibitRandomParams(prev));
-  }, []);
+  }, [safeSetParams]);
 
   const handleAddToGallery = useCallback(async (name: string, description?: string) => {
     return gallery.addDesign(name, params, objectType, description);
@@ -256,7 +256,7 @@ const Index = () => {
       try {
         const parsedParams = JSON.parse(decodeURIComponent(galleryParams)) as ParametricParams;
         if (galleryType) setObjectType(galleryType);
-        setParams(parsedParams);
+        safeSetParams(parsedParams);
         toast.success('Gallery design loaded!');
         window.history.replaceState({}, '', window.location.pathname);
       } catch (e) {
