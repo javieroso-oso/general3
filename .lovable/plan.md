@@ -1,50 +1,27 @@
 
 
-# Remove "(limited)" Indicators + Exhibit Readiness Assessment
+# Fix: Disable Rim Waves in Exhibit Mode
 
-## The "(limited)" Problem
-
-In exhibit mode, sliders for bulge, asymmetry, wobble, and lip flare show amber-colored labels with "(limited)" text, plus reduced opacity. Visitors shouldn't know constraints exist — the UI should feel intentionally designed, not restricted.
+## Problem
+Rim waves create a non-monotonic Z top edge, which breaks spiral vase printing. Currently:
+1. The exhibit-safe randomizer can randomly enable rim waves
+2. The rim wave sliders are visible in kiosk mode UI
+3. The safety enforcement function doesn't zero out `rimWaveCount`/`rimWaveDepth`
 
 ## Fix
 
-### `src/components/controls/ParameterSlider.tsx`
-- Remove the `constrained` prop entirely (or stop passing it in exhibit mode)
-- No amber color, no "(limited)" text, no opacity reduction
-- The slider still has its capped `max` value — it just doesn't advertise it
+### 1. `src/lib/random-generator.ts`
+Remove `'rimWaves'` from the exhibit feature pool so the randomizer never picks it.
 
-### `src/components/controls/ParameterControls.tsx`
-- Stop passing `constrained={... || exhibitMode}` on the 4 affected sliders (bulge, asymmetry, wobble, lip flare)
-- Keep `constrained` for `supportFreeMode` only (that's a different context where the user opted in and should know)
+### 2. `src/pages/Index.tsx`
+Add `rimWaveCount: 0, rimWaveDepth: 0` to the `exhibitSafeParams` enforcement function.
 
-## Can You Run the Exhibit Today?
-
-**Yes, mostly.** Here's the status:
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Kiosk toggle | Done | `?exhibit=true` or toolbar pill |
-| Simplified controls | Done | Only shape/texture/lip visible |
-| Spiral vase safety | Done | Melt/drag/spine/noise disabled, params capped |
-| Safe randomizer | Done | `generateExhibitRandomParams()` in use |
-| Print queue (submit) | Done | "Print This" button → name/email → queue entry |
-| STL upload to storage | Done | Uploads to `print-files` bucket |
-| Operator admin page | Done | `/exhibit-admin` with queue management |
-| Header hidden in kiosk | Done | Clean fullscreen feel |
-
-**What's missing for a polished exhibit:**
-1. **Attract screen** — no idle timeout / "Touch to Start" screen yet. After someone submits, the kiosk just resets but there's no attract loop.
-2. **Auto-reset timer** — after submission, the 10s countdown resets the dialog but doesn't randomize the shape for the next visitor.
-3. **Fullscreen mode** — no F11/fullscreen API trigger; you'd need to manually fullscreen the browser.
-4. **Direct printer integration** — currently operator manually downloads STL; no Bambu API connection yet.
-5. **Queue position display** — works in the dialog but no persistent "your print is #X" screen.
-
-**For today**: You can absolutely run it. Open `/?exhibit=true` in a fullscreen browser on the kiosk device, and `/exhibit-admin` on your phone/laptop. Visitors design → tap Print → you download STLs from admin and send to the Bambu slicer.
-
-## Files
+### 3. `src/components/controls/ParameterControls.tsx`
+Hide the "Rim Waves" subsection when `exhibitMode` is active.
 
 | File | Change |
 |------|--------|
-| `src/components/controls/ParameterControls.tsx` | Remove `exhibitMode` from `constrained` prop on 4 sliders |
-| `src/components/controls/ParameterSlider.tsx` | No changes needed (constrained prop stays for supportFreeMode use) |
+| `src/lib/random-generator.ts` | Remove `rimWaves` from exhibit feature pool |
+| `src/pages/Index.tsx` | Zero `rimWaveCount`/`rimWaveDepth` in safety clamp |
+| `src/components/controls/ParameterControls.tsx` | Hide rim wave controls in exhibit mode |
 
