@@ -551,9 +551,12 @@ const Index = () => {
     }
   }, [analysis.isValid, isUnlocked, doExportAllMoldsZip]);
 
-  // Force left panel visible in exhibit mode
+  // Force left panel visible + studio background in exhibit mode
   useEffect(() => {
-    if (isExhibitMode) setShowLeftPanel(true);
+    if (isExhibitMode) {
+      setShowLeftPanel(true);
+      setBackgroundPreset('studio');
+    }
   }, [isExhibitMode]);
 
   return (
