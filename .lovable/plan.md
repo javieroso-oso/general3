@@ -1,43 +1,73 @@
 
 
-# Kiosk Mode: Simplified Controls for Spiral Vase Printing
+# Kiosk Mode: Spiral Vase Safety Audit
 
-## Concept
+## Problems Found
 
-In exhibit/kiosk mode, visitors only see controls that affect the shape's form — no construction, no accessories, no advanced print features. The shape is always configured for spiral vase mode (single wall, no infill, no supports), so everything prints without errors.
+1. **Melt effect** shifts vertices downward — breaks spiral vase's monotonic Z requirement
+2. **Lateral drag** shifts vertices sideways — creates extreme overhangs
+3. **Spine curve** bends shape off-center — overhangs on one side
+4. **Randomizer** can re-enable all three after the vase-safe `useEffect` runs
+5. **Wobble/asymmetry** sliders have no exhibit-mode limits — visitors can push them to overhang-inducing extremes
+6. **Organic noise** is hidden in UI but not forced to 0 — randomizer can set it (20% chance)
 
-## What Changes
+## Solution
 
-### 1. `src/components/controls/ParameterControls.tsx`
-- Accept new prop `exhibitMode?: boolean`
-- When `exhibitMode` is true, **only show** these sections:
-  - **Dimensions**: height, baseRadius, topRadius (hide wallThickness or lock it to 1.6mm)
-  - **Shape**: bulge, pinch, asymmetry, twist, profile curve + Advanced Shape subsection (wobble, spine, melt)
-  - **Textures**: faceting, spiral grooves, horizontal ribs, fluting (hide organic noise subsection to keep it simple)
-  - **Lip & Rim**: lip flare, lip height, rim waves
-  - **Randomize button** (keep it — visitors love it)
-- **Hide entirely**: Shade Frame, Light Patterns, Cord Hole, Legs/Stand, Base Plate, Surface Art, Ceramic Mold, Support-Free toggle, Base settings
+### 1. Force-disable dangerous features on every param change in exhibit mode
 
-### 2. `src/pages/Index.tsx`
-- Pass `exhibitMode={isExhibitMode}` to `ParameterControls`
-- When exhibit mode is on:
-  - Force spiral-vase-compatible params on load: `wallThickness: 1.6`, `addLegs: false`, `cordHoleEnabled: false`, `wireframeMode: false`, `lightPatternEnabled: false`, `moldEnabled: false`, `basePlateEnabled: false`, `supportFreeMode: false`, `surfaceStrokes: []`
-  - Hide the Print, Batch, Presets, Drawer tabs — only show the Design tab
-  - Hide G-code view mode toggle in bottom bar
-  - Keep material/color picker and auto-rotate in bottom bar (visual only, fun for visitors)
+**`src/pages/Index.tsx`** — Update the exhibit mode `useEffect` to also zero out:
+- `meltAmount: 0`, `meltDragAmount: 0`
+- `spineEnabled: false`, `spineAmplitudeX: 0`, `spineAmplitudeZ: 0`
+- `organicNoise: 0`
 
-### 3. Wall Thickness Constraint
-- In exhibit mode, wall thickness is fixed at 1.6mm (good for spiral vase with 0.4mm nozzle)
-- Not shown as a slider — just set internally
-- baseThickness set to 0 (spiral vase handles the base)
+### 2. Hide dangerous controls in exhibit mode
+
+**`src/components/controls/ParameterControls.tsx`** — In the "Advanced Shape" subsection:
+- Hide Melt Effect entirely when `exhibitMode`
+- Hide Lateral Drag entirely when `exhibitMode`
+- Hide Spine Curve entirely when `exhibitMode`
+- Keep Wobble but cap max amplitude to 0.05
+
+### 3. Create exhibit-safe randomizer
+
+**`src/lib/random-generator.ts`** — Add `generateExhibitRandomParams()` function:
+- No melt, no drag, no spine, no organic noise
+- Cap wobble amplitude to 0.05
+- Cap asymmetry to 0.08
+- Cap lipFlare to 0.10
+- Cap bulge to 0.15
+- Ensure height isn't extreme (60–180mm)
+- Ensure radii ratio stays reasonable (top/base between 0.5–1.2)
+- Force wallThickness: 1.6, baseThickness: 0
+
+### 4. Use exhibit-safe randomizer in kiosk mode
+
+**`src/pages/Index.tsx`** — When randomize is called in exhibit mode, use `generateExhibitRandomParams()` instead of `generateRandomParams()`
+
+### 5. Continuous enforcement
+
+**`src/pages/Index.tsx`** — Add a guard in `setParams` wrapper: when in exhibit mode, clamp/zero dangerous values on *every* param update, not just on mode entry. This prevents any path (randomizer, undo, etc.) from setting unsafe values.
 
 ## Files
 
 | File | Change |
 |------|--------|
-| `src/components/controls/ParameterControls.tsx` | Add `exhibitMode` prop, conditionally render sections |
-| `src/pages/Index.tsx` | Pass prop, force vase-safe defaults, simplify tabs & bottom bar in exhibit mode |
+| `src/pages/Index.tsx` | Expanded force-reset, exhibit-safe randomizer call, continuous param clamping |
+| `src/components/controls/ParameterControls.tsx` | Hide melt/drag/spine in exhibit mode, cap wobble/asymmetry sliders |
+| `src/lib/random-generator.ts` | Add `generateExhibitRandomParams()` with safe limits |
 
-## Result
-Visitor sees: Dimensions + Shape + Textures + Lip/Rim + Randomize button. That's it. Every shape they create will print successfully in spiral vase mode.
+## Safe Parameter Limits for Exhibit Mode
+
+| Parameter | Normal Max | Exhibit Max | Reason |
+|-----------|-----------|-------------|--------|
+| meltAmount | 30 | **0 (disabled)** | Breaks monotonic Z |
+| meltDragAmount | 30 | **0 (disabled)** | Extreme overhangs |
+| spineEnabled | true | **false** | Off-center overhangs |
+| organicNoise | 0.1 | **0 (disabled)** | Surface irregularities |
+| wobbleAmplitude | 0.15 | **0.05** | Mild overhangs at high values |
+| asymmetry | 0.35 | **0.08** | Overhangs on one side |
+| lipFlare | 0.5 | **0.10** | Top overhang |
+| bulgeAmount | 0.5 | **0.15** | Mid-body overhang |
+| height | 300 | **180** | Practical print time |
+| baseRadius | 80 | **60** | Bed size constraint |
 
