@@ -1,45 +1,27 @@
-# Limit Kiosk Object Size for Faster Printing
-
-## Current State
-
-The exhibit safety clamp already caps `height` at 180mm and `baseRadius` at 60mm. At those sizes, a spiral-vase print can still take 45–60+ minutes.
-
-## Proposal
-
-Tighten the size constraints and add a `topRadius` cap so kiosk prints finish in ~15–20 minutes:
 
 
-| Parameter    | Current Limit | New Limit | Rationale                                            |
-| ------------ | ------------- | --------- | ---------------------------------------------------- |
-| `height`     | 180mm         | 100mm     | Halves print time roughly proportionally             |
-| `baseRadius` | 60mm          | 40mm      | Smaller footprint, faster perimeters                 |
-| `topRadius`  | uncapped      | 45mm      | Prevent wide flared tops that slow down upper layers |
+# Fix: STL Upload RLS Policy
 
+## Problem
+The storage INSERT policy `Anyone can upload print files` on `storage.objects` is restricted to the `anon` role only. This causes "new row violates row-level security policy" when uploading STL files.
 
-## Changes
+## Fix
+Drop the existing policy and recreate it targeting both `anon` and `authenticated` roles.
 
-### `src/pages/Index.tsx`
+### Database Migration
+```sql
+DROP POLICY IF EXISTS "Anyone can upload print files" ON storage.objects;
 
-In `exhibitSafeParams`, update the three clamps:
-
-```
-height: Math.min(p.height, 100),
-baseRadius: Math.min(p.baseRadius, 40),
-topRadius: Math.min(p.topRadius, 45),
+CREATE POLICY "Anyone can upload print files"
+ON storage.objects FOR INSERT
+TO anon, authenticated
+WITH CHECK (bucket_id = 'print-files');
 ```
 
-### `src/lib/random-generator.ts`
+## Files
+| File | Change |
+|------|--------|
+| New migration | Update storage INSERT policy to allow both `anon` and `authenticated` roles |
 
-In `generateExhibitRandomParams`, tighten the random ranges to match:
+One migration, no code file changes needed.
 
-- Height: random between 60–100 (was likely up to 180)
-- Base radius: random between 20–40
-- Top radius: random between 15–45
-
-### `src/components/controls/ParameterControls.tsx`
-
-In exhibit mode, cap the slider `max` values for height, baseRadius, and topRadius so visitors can't drag past the limits.
-
-## Result
-
-Objects stay compact (roughly palm-sized) and print in ~15–20 minutes on a standard printer with spiral vase mode.
