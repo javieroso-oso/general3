@@ -314,7 +314,8 @@ export function getBodyRadius(
     r += noise3D(nx * 10, ny * 10, nz * 10, noiseScale) * maxNoise * bRad;
   }
 
-  r = Math.max(r, wall * 2);
+  // Wall-thickness floor also relaxes with local roundness so tips can close fully.
+  r = Math.max(r, wall * 2 * (1 - localRoundness));
 
   return r;
 }
