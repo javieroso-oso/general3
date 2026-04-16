@@ -167,14 +167,15 @@ export function getBodyRadius(
   const baselineRadius = radius;
 
   // Roundness — superellipse envelope blended with the linear profile.
-  // Interpolates the body shape between cylinder (0) and pill/sphere (1).
-  if (roundness > 0) {
+  // Per-half: bottom half (t<0.5) uses roundnessBottom, top half (t>0.5) uses roundnessTop.
+  if (roundnessTop > 0 || roundnessBottom > 0) {
     const u = Math.abs(2 * t - 1);
     const n = 2;
     const envelope = Math.pow(Math.max(0, 1 - Math.pow(u, n)), 1 / n);
     const avgRad = (bRad + tRad) * 0.5;
     const sphereRadius = avgRad * envelope;
-    radius = radius * (1 - roundness) + sphereRadius * roundness;
+    const halfRoundness = t < 0.5 ? roundnessBottom : roundnessTop;
+    radius = radius * (1 - halfRoundness) + sphereRadius * halfRoundness;
   }
 
   // Smooth-blended lobes — stack `lobeCount` ellipsoid radial fields along the
