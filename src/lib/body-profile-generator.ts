@@ -242,7 +242,11 @@ export function getBodyRadius(
     radius += ribModifier * horizontalRibDepth * bRad;
   }
 
-  radius = Math.max(radius, printConstraints.minBaseRadius * scale * 0.5);
+  // Roundness-aware floor: when local roundness is high, allow radius to pinch to 0
+  // so the body can fully close into a sphere/dome. At roundness=0, full floor applies.
+  const localRoundness = t < 0.5 ? roundnessBottom : roundnessTop;
+  const minFloor = printConstraints.minBaseRadius * scale * 0.5 * (1 - localRoundness);
+  radius = Math.max(radius, minFloor);
 
   // Apply twist to theta if enabled
   const twistRad = includeTwist ? (twistAngle * Math.PI / 180) * t : 0;
