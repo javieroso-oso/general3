@@ -118,6 +118,8 @@ export function getBodyRadius(
   const lobeBlend = (params as any).lobeBlend ?? 0.5;
   const lobeSizeVariation = (params as any).lobeSizeVariation ?? 0;
   const lobeHeightVariation = (params as any).lobeHeightVariation ?? 0;
+  const flatBottom = (params as any).flatBottom ?? true;
+  const flatBottomHeight = Math.max(0, Math.min(0.25, (params as any).flatBottomHeight ?? 0.08));
 
   const bRad = baseRadius * scale;
   const tRad = topRadius * scale;
