@@ -521,6 +521,8 @@ export const defaultLampParams: LampParams = {
   lobeBlend: 0.5,
   lobeSizeVariation: 0.2,
   lobeHeightVariation: 0,
+  flatBottom: true,
+  flatBottomHeight: 0.08,
   baseThickness: 0,
   baseSizeMode: 'auto',
   standBaseRadius: 50,
