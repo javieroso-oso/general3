@@ -113,7 +113,10 @@ export function getBodyRadius(
     profileCurve,
   } = params;
 
-  const roundness = (params as any).roundness ?? 0;
+  const roundnessLegacy = (params as any).roundness ?? 0;
+  const roundnessTop = (params as any).roundnessTop ?? roundnessLegacy;
+  const roundnessBottom = (params as any).roundnessBottom ?? roundnessLegacy;
+  const roundness = Math.max(roundnessTop, roundnessBottom);
   const lobeCount = Math.max(1, Math.floor((params as any).lobeCount ?? 1));
   const lobeBlend = (params as any).lobeBlend ?? 0.5;
   const lobeSizeVariation = (params as any).lobeSizeVariation ?? 0;
