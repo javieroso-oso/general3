@@ -857,7 +857,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
             <Switch
               id="flat-bottom"
               checked={params.flatBottom ?? true}
-              onCheckedChange={(checked) => handleChange('flatBottom')(checked)}
+              onCheckedChange={(v) => onParamsChange({ ...params, flatBottom: v })}
             />
           </div>
           {(params.flatBottom ?? true) && (
