@@ -147,6 +147,11 @@ export interface ParametricParams {
   lobeBlend: number;          // 0..1 — higher = smoother fusion between lobes
   lobeSizeVariation: number;  // 0..1 — random size offset per lobe (deterministic)
   lobeHeightVariation: number; // 0..1 — random height offset per lobe
+
+  // Flat bottom — keeps the base flat for printability when roundness/lobes
+  // would otherwise curve the body inward at t=0.
+  flatBottom: boolean;
+  flatBottomHeight: number;   // 0..0.25 — fraction of total height held flat
   
   // Base for printing
   baseThickness: number;
@@ -459,6 +464,8 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     lobeBlend: 0.5,
     lobeSizeVariation: 0.2,
     lobeHeightVariation: 0,
+    flatBottom: true,
+    flatBottomHeight: 0.08,
     baseThickness: 2.0,
     baseSizeMode: 'auto',
     standBaseRadius: 50,
