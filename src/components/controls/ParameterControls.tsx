@@ -845,6 +845,31 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
               />
             </>
           )}
+
+          {/* Flat bottom — keeps base printable when roundness/lobes curve under */}
+          <div className="flex items-center justify-between pt-2">
+            <Label htmlFor="flat-bottom" className="text-xs cursor-pointer">
+              Flat Bottom
+              <span className="block text-[10px] text-muted-foreground font-normal">
+                Keeps base flat for printing
+              </span>
+            </Label>
+            <Switch
+              id="flat-bottom"
+              checked={params.flatBottom ?? true}
+              onCheckedChange={(checked) => handleChange('flatBottom')(checked)}
+            />
+          </div>
+          {(params.flatBottom ?? true) && (
+            <ParameterSlider
+              label="Flat Base Height"
+              value={params.flatBottomHeight ?? 0.08}
+              min={0}
+              max={0.25}
+              step={0.01}
+              onChange={handleChange('flatBottomHeight')}
+            />
+          )}
         </div>
 
         {/* Advanced Shape - Wobble (+ Spine & Melt when not in exhibit mode) */}
