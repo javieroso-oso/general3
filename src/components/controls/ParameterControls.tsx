@@ -799,15 +799,23 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         <div className="space-y-3 pt-3 border-t border-border/30">
           <Label className="text-xs text-muted-foreground font-semibold">Roundness & Lobes</Label>
           <ParameterSlider
-            label="Roundness"
-            value={params.roundness ?? 0}
+            label="Roundness Top"
+            value={params.roundnessTop ?? params.roundness ?? 0}
             min={0}
             max={1}
             step={0.05}
-            onChange={handleChange('roundness')}
+            onChange={handleChange('roundnessTop')}
+          />
+          <ParameterSlider
+            label="Roundness Bottom"
+            value={params.roundnessBottom ?? params.roundness ?? 0}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={handleChange('roundnessBottom')}
           />
           <div className="text-xs text-muted-foreground -mt-1">
-            0 = cylinder, 1 = sphere/pill
+            Round each half independently (0 = cylinder, 1 = dome)
           </div>
           <ParameterSlider
             label="Lobes"

@@ -517,6 +517,8 @@ export const defaultLampParams: LampParams = {
   rimWaveDepth: 0,
   profileCurve: 'linear',
   roundness: 0,
+  roundnessTop: 0,
+  roundnessBottom: 0,
   lobeCount: 1,
   lobeBlend: 0.5,
   lobeSizeVariation: 0.2,
