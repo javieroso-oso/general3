@@ -1,32 +1,15 @@
 
-The user is asking an open design question about making shapes feel rounder or fold into each other smoothly. Let me think about what this means in the context of the existing parametric generator.
+The user wants the new roundness/lobes features to optionally keep a flat bottom so the object still sits on the print bed. Right now `roundness=1` produces a sphere (curved bottom = unprintable, won't sit flat) and lobes can also curve under at the base.
 
-Looking at `body-profile-generator.ts`, the current shape system is based on:
-- A radial profile (radius as function of height + angle)
-- Profile curves: linear, convex, concave, hourglass, wave
-- Surface modifiers: ribs, fluting, ripples, facets, spiral grooves
-- Organic modifiers: bulge, pinch, asymmetry, wobble, noise
+Looking at `body-profile-generator.ts`:
+- Roundness uses `envelope = (1 - |2t-1|^n)^(1/n)` — symmetric, so radius goes to zero at both t=0 and t=1
+- Lobes use `dy = (t - center) / halfHeight` then `sqrt(1 - dy²)` — also pinches to zero near base if a lobe sits low
 
-Right now everything is **single-axis** (cylindrical around Y) and modifiers are **additive bumps**. There's no real way to get:
-- True spherical/blob shapes
-- Two lobes that merge smoothly
-- A "folded" form where the surface tucks back into itself
+The fix is to add a "Flat Bottom" toggle (default ON for printability) that:
+1. Clamps the roundness envelope so it doesn't shrink the radius below the linear baseline within a small bottom band (e.g. t < 0.05–0.15)
+2. Same for lobes — blend the lobe radius back toward the linear baseline near t=0
+3. Optionally exposes a "Flat Bottom Height" slider (0–0.2) to control how much of the base stays flat
 
-Let me think about good approaches:
+Implementation is small and localized — one new boolean param, one optional slider, ~10 lines in `getBodyRadius`. Stays compatible with mold/STL/slicing.
 
-**Approach 1: Smooth-min (metaball) blending**
-Combine multiple radial fields with a smooth-minimum function (`smin`). Each "lobe" is its own ellipsoid/sphere with center + radii, and `smin(a, b, k)` blends them into a single continuous skin — exactly the "fold into each other" effect, like blob sculptures. This is the standard SDF technique used in Blender/MagicaCSG.
-
-**Approach 2: Superquadric / superellipsoid profile**
-Replace the linear height profile with `r(t) = R * (1 - |2t-1|^n)^(1/n)` where n controls roundness. n=2 → sphere, n=1 → diamond, n=large → cylinder. Adds a single "Roundness" slider that morphs vase ↔ sphere ↔ pill.
-
-**Approach 3: Folded profile (turn-and-tuck)**
-Allow the radius profile to fold inward — i.e., let the surface have multiple radii at the same height by parameterizing along arc length instead of height. This gives mushroom caps, tucked rims, donut-like folds.
-
-I think the most impactful + cohesive answer is to offer all three as a layered set, but lead with smooth-min blending (lobes) because that's literally "shapes folding into each other." The superquadric roundness slider is the cheapest win for "make it round."
-
-Let me also consider: this needs to stay compatible with `getBodyRadius(t, theta)` so mold generation, STL export, and slicing all keep working. Smooth-min still returns a single radius per (t, theta) as long as lobes are arranged radially around the Y axis — good. Folded profiles would break that contract (multi-valued radius), so I'll flag that as a bigger architectural change.
-
-I should ask the user which direction appeals before building, since these are quite different aesthetics.
-
-Keep the plan short — this is a brainstorm/direction question, not a fully-spec'd task.
+Keep plan short — single focused feature.
