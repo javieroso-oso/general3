@@ -136,6 +136,17 @@ export interface ParametricParams {
   
   // Profile curve type
   profileCurve: 'linear' | 'convex' | 'concave' | 'hourglass' | 'wave';
+
+  // Roundness (superellipse exponent on height profile)
+  // 0 = cylinder (default), 0.5 = soft pill, 1 = full sphere/ellipsoid
+  roundness: number;
+
+  // Smooth-blended lobes ("metaball" stack along the height axis)
+  // 0 or 1 disables the effect; 2-4 stacks lobes that fuse into one continuous skin
+  lobeCount: number;
+  lobeBlend: number;          // 0..1 — higher = smoother fusion between lobes
+  lobeSizeVariation: number;  // 0..1 — random size offset per lobe (deterministic)
+  lobeHeightVariation: number; // 0..1 — random height offset per lobe
   
   // Base for printing
   baseThickness: number;
@@ -443,6 +454,11 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     rimWaveCount: 0,
     rimWaveDepth: 0,
     profileCurve: 'linear',
+    roundness: 0,
+    lobeCount: 1,
+    lobeBlend: 0.5,
+    lobeSizeVariation: 0.2,
+    lobeHeightVariation: 0,
     baseThickness: 2.0,
     baseSizeMode: 'auto',
     standBaseRadius: 50,
