@@ -159,6 +159,10 @@ export function getBodyRadius(
       break;
   }
 
+  // Capture the linear/profile-curve baseline BEFORE roundness/lobes shaping.
+  // Used by the flat-bottom blend to keep the base printable.
+  const baselineRadius = radius;
+
   // Roundness — superellipse envelope blended with the linear profile.
   // Interpolates the body shape between cylinder (0) and pill/sphere (1).
   if (roundness > 0) {
@@ -199,6 +203,15 @@ export function getBodyRadius(
     }
     const lobeWeight = Math.min(1, 0.4 + lobeBlend * 0.6);
     radius = radius * (1 - lobeWeight) + Math.max(combined, bRad * 0.3) * lobeWeight;
+  }
+
+  // Flat bottom — blend the shaped radius back to the linear baseline near t=0
+  // so the object sits flat on the print bed even with high roundness/low lobes.
+  if (flatBottom && flatBottomHeight > 0 && t < flatBottomHeight) {
+    const x = t / flatBottomHeight;
+    // smoothstep: 1 at t=0 → 0 at t=flatBottomHeight
+    const w = 1 - (x * x * (3 - 2 * x));
+    radius = radius * (1 - w) + baselineRadius * w;
   }
 
   // Organic bulge
