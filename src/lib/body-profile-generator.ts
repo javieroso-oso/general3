@@ -113,6 +113,12 @@ export function getBodyRadius(
     profileCurve,
   } = params;
 
+  const roundness = (params as any).roundness ?? 0;
+  const lobeCount = Math.max(1, Math.floor((params as any).lobeCount ?? 1));
+  const lobeBlend = (params as any).lobeBlend ?? 0.5;
+  const lobeSizeVariation = (params as any).lobeSizeVariation ?? 0;
+  const lobeHeightVariation = (params as any).lobeHeightVariation ?? 0;
+
   const bRad = baseRadius * scale;
   const tRad = topRadius * scale;
   const wall = wallThickness * scale;
