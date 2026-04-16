@@ -113,6 +113,12 @@ export function getBodyRadius(
     profileCurve,
   } = params;
 
+  const roundness = (params as any).roundness ?? 0;
+  const lobeCount = Math.max(1, Math.floor((params as any).lobeCount ?? 1));
+  const lobeBlend = (params as any).lobeBlend ?? 0.5;
+  const lobeSizeVariation = (params as any).lobeSizeVariation ?? 0;
+  const lobeHeightVariation = (params as any).lobeHeightVariation ?? 0;
+
   const bRad = baseRadius * scale;
   const tRad = topRadius * scale;
   const wall = wallThickness * scale;
@@ -149,6 +155,48 @@ export function getBodyRadius(
         radius = bRad * (1 - t * 0.4) + tRad * t * 0.6 + curve * bRad * 0.12;
       }
       break;
+  }
+
+  // Roundness — superellipse envelope blended with the linear profile.
+  // Interpolates the body shape between cylinder (0) and pill/sphere (1).
+  if (roundness > 0) {
+    const u = Math.abs(2 * t - 1);
+    const n = 2;
+    const envelope = Math.pow(Math.max(0, 1 - Math.pow(u, n)), 1 / n);
+    const avgRad = (bRad + tRad) * 0.5;
+    const sphereRadius = avgRad * envelope;
+    radius = radius * (1 - roundness) + sphereRadius * roundness;
+  }
+
+  // Smooth-blended lobes — stack `lobeCount` ellipsoid radial fields along the
+  // height and combine with a quadratic smooth-max so neighbors fuse smoothly.
+  if (lobeCount >= 2) {
+    const avgRad = (bRad + tRad) * 0.5;
+    const smax = (a: number, b: number, k: number): number => {
+      if (k <= 0.0001) return Math.max(a, b);
+      const h = Math.max(k - Math.abs(a - b), 0) / k;
+      return Math.max(a, b) + h * h * k * 0.25;
+    };
+    const jitter = (i: number) => {
+      const s = Math.sin(i * 12.9898 + 4.1414) * 43758.5453;
+      return (s - Math.floor(s)) * 2 - 1;
+    };
+    const k = Math.max(0.05, lobeBlend) * avgRad * 1.2;
+    let combined = -Infinity;
+    for (let i = 0; i < lobeCount; i++) {
+      const baseCenter = (i + 0.5) / lobeCount;
+      const center = Math.min(0.95, Math.max(0.05,
+        baseCenter + jitter(i + 1) * lobeHeightVariation * (0.5 / lobeCount)
+      ));
+      const sizeJ = 1 + jitter(i + 7) * lobeSizeVariation * 0.4;
+      const halfHeight = (0.5 / lobeCount) * 1.4;
+      const dy = (t - center) / halfHeight;
+      const inside = 1 - dy * dy;
+      const lobeR = inside > 0 ? avgRad * sizeJ * Math.sqrt(inside) : -avgRad * 0.5;
+      combined = smax(combined, lobeR, k);
+    }
+    const lobeWeight = Math.min(1, 0.4 + lobeBlend * 0.6);
+    radius = radius * (1 - lobeWeight) + Math.max(combined, bRad * 0.3) * lobeWeight;
   }
 
   // Organic bulge

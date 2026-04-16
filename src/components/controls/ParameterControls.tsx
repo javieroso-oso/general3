@@ -795,6 +795,58 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           constrained={params.supportFreeMode && !exhibitMode}
         />
 
+        {/* Roundness & Lobes — superellipse + smooth-blended metaball lobes */}
+        <div className="space-y-3 pt-3 border-t border-border/30">
+          <Label className="text-xs text-muted-foreground font-semibold">Roundness & Lobes</Label>
+          <ParameterSlider
+            label="Roundness"
+            value={params.roundness ?? 0}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={handleChange('roundness')}
+          />
+          <div className="text-xs text-muted-foreground -mt-1">
+            0 = cylinder, 1 = sphere/pill
+          </div>
+          <ParameterSlider
+            label="Lobes"
+            value={params.lobeCount ?? 1}
+            min={1}
+            max={5}
+            step={1}
+            onChange={handleChange('lobeCount')}
+          />
+          {(params.lobeCount ?? 1) >= 2 && (
+            <>
+              <ParameterSlider
+                label="Blend Smoothness"
+                value={params.lobeBlend ?? 0.5}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={handleChange('lobeBlend')}
+              />
+              <ParameterSlider
+                label="Size Variation"
+                value={params.lobeSizeVariation ?? 0}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={handleChange('lobeSizeVariation')}
+              />
+              <ParameterSlider
+                label="Height Variation"
+                value={params.lobeHeightVariation ?? 0}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={handleChange('lobeHeightVariation')}
+              />
+            </>
+          )}
+        </div>
+
         {/* Advanced Shape - Wobble (+ Spine & Melt when not in exhibit mode) */}
         <Subsection title="Advanced Shape">
           {/* Wobble */}
