@@ -167,14 +167,19 @@ export function getBodyRadius(
   const baselineRadius = radius;
 
   // Roundness — superellipse envelope blended with the linear profile.
-  // Per-half: bottom half (t<0.5) uses roundnessBottom, top half (t>0.5) uses roundnessTop.
+  // Per-half: bottom half uses roundnessBottom, top half uses roundnessTop.
+  // Smoothly interpolate around t=0.5 to avoid a visible kink/seam at the equator.
   if (roundnessTop > 0 || roundnessBottom > 0) {
     const u = Math.abs(2 * t - 1);
     const n = 2;
     const envelope = Math.pow(Math.max(0, 1 - Math.pow(u, n)), 1 / n);
     const avgRad = (bRad + tRad) * 0.5;
     const sphereRadius = avgRad * envelope;
-    const halfRoundness = t < 0.5 ? roundnessBottom : roundnessTop;
+    // smoothstep blend from bottom→top across a band around the equator
+    const blendBand = 0.25; // half-width of blend zone (covers t in [0.25, 0.75])
+    const bx = Math.min(1, Math.max(0, (t - (0.5 - blendBand)) / (2 * blendBand)));
+    const blend = bx * bx * (3 - 2 * bx);
+    const halfRoundness = roundnessBottom * (1 - blend) + roundnessTop * blend;
     radius = radius * (1 - halfRoundness) + sphereRadius * halfRoundness;
   }
 
