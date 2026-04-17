@@ -249,7 +249,11 @@ export function getBodyRadius(
 
   // Roundness-aware floor: when local roundness is high, allow radius to pinch to 0
   // so the body can fully close into a sphere/dome. At roundness=0, full floor applies.
-  const localRoundness = t < 0.5 ? roundnessBottom : roundnessTop;
+  // Use the same smooth blend as above to avoid a discontinuity at t=0.5.
+  const _blendBand = 0.25;
+  const _bx = Math.min(1, Math.max(0, (t - (0.5 - _blendBand)) / (2 * _blendBand)));
+  const _blend = _bx * _bx * (3 - _bx - _bx);
+  const localRoundness = roundnessBottom * (1 - _blend) + roundnessTop * _blend;
   const minFloor = printConstraints.minBaseRadius * scale * 0.5 * (1 - localRoundness);
   radius = Math.max(radius, minFloor);
 
