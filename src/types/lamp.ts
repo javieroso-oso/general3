@@ -594,6 +594,13 @@ export const defaultLampParams: LampParams = {
   wireframeOrganic: 0,
   wireframeOrganicSeed: 42,
   wireframeThicknessVariation: 0,
+  skinTextureMode: 'off',
+  skinTextureAmplitude: 0.3,
+  skinTextureDensity: 1,
+  skinTextureDirection: 'both',
+  skinTextureStartHeightPct: 0.05,
+  skinTextureEndHeightPct: 0.05,
+  skinTextureSeed: 1337,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
