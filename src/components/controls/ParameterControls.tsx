@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ParameterSlider from './ParameterSlider';
 import { Slider } from '@/components/ui/slider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
+import SkinTextureControls from './SkinTextureControls';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
@@ -1201,6 +1202,13 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
                 onChange={handleChange('noiseScale')}
               />
             )}
+          </Subsection>
+        )}
+
+        {/* Funky Skin — XY-only surface texture (Bambu A1 safe) */}
+        {!exhibitMode && (
+          <Subsection title="Funky Skin">
+            <SkinTextureControls params={params} onParamsChange={onParamsChange} />
           </Subsection>
         )}
       </Section>
