@@ -21,6 +21,8 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'ribs', label: 'Ribs' },
   { id: 'brushed', label: 'Brushed' },
   { id: 'pixel', label: 'Pixel' },
+  { id: 'hammered', label: 'Hammered' },
+  { id: 'threads', label: 'Threads' },
 ];
 
 const DENSITY_LABELS: Record<Mode, string> = {
@@ -31,6 +33,8 @@ const DENSITY_LABELS: Record<Mode, string> = {
   ribs: 'Rib Count',
   brushed: 'Grain Scale',
   pixel: 'Pixel Size',
+  hammered: 'Dimple Count',
+  threads: 'Thread Sharpness',
 };
 
 const MiniPreview = ({ params }: { params: ParametricParams }) => {

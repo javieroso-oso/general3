@@ -601,6 +601,8 @@ export const defaultLampParams: LampParams = {
   skinTextureStartHeightPct: 0.05,
   skinTextureEndHeightPct: 0.05,
   skinTextureSeed: 1337,
+  skinTextureCrispness: 0.7,
+  skinTextureThreadPitch: 8,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
