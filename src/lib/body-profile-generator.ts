@@ -7,6 +7,7 @@
  */
 
 import { ParametricParams, printConstraints } from '@/types/parametric';
+import { getSkinPerturbation, skinSettingsFromParams } from '@/lib/skin-texture-generator';
 
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
@@ -325,6 +326,21 @@ export function getBodyRadius(
 
   // Wall-thickness floor also relaxes with local roundness so tips can close fully.
   r = Math.max(r, wall * 2 * (1 - localRoundness));
+
+  // Funky Skin — XY-only surface texture (added last, after all geometry).
+  // Skipped if the body is in its flat-bottom safety zone.
+  const skin = skinSettingsFromParams(params);
+  if (skin.mode !== 'off' && skin.amplitude > 0) {
+    const inFlatZone = flatBottom && t < flatBottomHeight;
+    if (!inFlatZone) {
+      const deltaMm = getSkinPerturbation(t, effectiveTheta, skin, {
+        heightMm: params.height,
+        layerHeightMm: 0.2,
+      });
+      // Convert mm delta to current scale and clamp so the wall can never collapse
+      r = Math.max(wall * 0.5, r + deltaMm * scale);
+    }
+  }
 
   return r;
 }
