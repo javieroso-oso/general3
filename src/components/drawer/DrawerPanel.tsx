@@ -38,7 +38,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onLoadPlotter, onR
     [items, selectedIds]
   );
   
-  const { hasLegs, hasMolds, hasLampShade, hasPlotter } = useMemo(() => 
+  const { hasLegs, hasMolds, hasLampShade, hasBasePlate, hasPlotter } = useMemo(() => 
     analyzeDrawerItems(selectedItems), 
     [selectedItems]
   );
@@ -285,6 +285,7 @@ const DrawerPanel = ({ items, onLoadParametric, onLoadCustom, onLoadPlotter, onR
         hasLegs={hasLegs}
         hasMolds={hasMolds}
         hasLampShade={hasLampShade}
+        hasBasePlate={hasBasePlate}
         itemCount={selectedItems.length}
       />
 
