@@ -5,9 +5,10 @@
  * (theta, t, layerIdx, seed). All Z stays untouched, so output prints safely
  * on any planar FDM printer including the Bambu A1.
  *
- * Six modes share the same shape: `f(theta, t, seed) -> mm`. The output is
- * added to the radius at the end of `getBodyRadius`, so viewport, STL, and
- * G-code all pick it up automatically.
+ * Each mode returns a value in [-1, 1], multiplied by amplitude (mm) and
+ * shaped by `crispness` (0=smooth, 1=razor sharp) before being added to the
+ * radius at the end of `getBodyRadius`. Viewport, STL, and G-code all pick
+ * it up automatically through the same chokepoint.
  */
 
 import type { ParametricParams } from '@/types/parametric';
@@ -20,7 +21,15 @@ const hash3 = (a: number, b: number, c: number) => {
   return ((Math.sin(dot) * 43758.5453) % 1) * 2 - 1;
 };
 
-// 2D value noise on (u, v) with smoothstep interpolation, returns [-1, 1]
+const hash3pos = (a: number, b: number, c: number) => (hash3(a, b, c) + 1) * 0.5; // [0,1]
+
+// Triangle wave in [-1, 1] — sharper than sine
+const tri = (x: number) => {
+  const p = ((x / TAU) % 1 + 1) % 1; // [0,1)
+  return 1 - 4 * Math.abs(p - 0.5);
+};
+
+// 2D value noise (kept for brushed mode), returns [-1, 1]
 const valueNoise2D = (u: number, v: number, seed: number) => {
   const iu = Math.floor(u);
   const iv = Math.floor(v);
@@ -28,12 +37,10 @@ const valueNoise2D = (u: number, v: number, seed: number) => {
   const fv = v - iv;
   const su = fu * fu * (3 - 2 * fu);
   const sv = fv * fv * (3 - 2 * fv);
-
   const n00 = hash3(iu, iv, seed);
   const n10 = hash3(iu + 1, iv, seed);
   const n01 = hash3(iu, iv + 1, seed);
   const n11 = hash3(iu + 1, iv + 1, seed);
-
   const nx0 = n00 * (1 - su) + n10 * su;
   const nx1 = n01 * (1 - su) + n11 * su;
   return nx0 * (1 - sv) + nx1 * sv;
@@ -47,71 +54,135 @@ export interface SkinTextureSettings {
   startHeightPct: number;
   endHeightPct: number;
   seed: number;
+  crispness: number;     // 0..1
+  threadPitch: number;   // turns over full height (threads mode)
 }
 
 export interface SkinTextureContext {
-  /** Layer index — optional. If omitted, derived from t and a default layer height. */
   layerIdx?: number;
-  /** Approximate vertical resolution to use when layerIdx is missing (mm). */
   layerHeightMm?: number;
-  /** Total body height in mm — used to map t back to a layer index. */
   heightMm?: number;
 }
 
-const AMP_HARD_CAP_MM = 0.8;
+const AMP_HARD_CAP_MM = 1.2;
 
-// === Per-mode pure functions: return delta in [-1, 1], scaled by amplitude later ===
+/**
+ * Apply crispness to a value in [-1, 1].
+ * crispness=0 -> identity (smooth). crispness=1 -> sign step (binary).
+ * In between: signed power curve sharpens edges by raising magnitude exponent.
+ */
+const sharpen = (v: number, crispness: number) => {
+  const c = Math.max(0, Math.min(1, crispness));
+  if (c <= 0) return v;
+  if (c >= 0.999) return Math.sign(v);
+  const exp = 1 - c * 0.92;          // 1 -> ~0.08
+  return Math.sign(v) * Math.pow(Math.abs(v), exp);
+};
 
-const fuzzDelta = (theta: number, t: number, layerIdx: number, settings: SkinTextureSettings) => {
-  // High-frequency hash; density acts as angular sample multiplier
-  const angularBuckets = Math.max(8, Math.floor(64 * settings.density));
-  const tBucket = Math.floor(theta / TAU * angularBuckets);
-  return hash3(tBucket, layerIdx, settings.seed);
+// === Per-mode pure functions: return delta in [-1, 1], pre-sharpen ===
+
+const fuzzDelta = (theta: number, _t: number, layerIdx: number, settings: SkinTextureSettings) => {
+  // Per-(layer, angular bucket) hash — true sandpaper. 512 buckets at density=1.
+  const angularBuckets = Math.max(32, Math.round(512 * settings.density));
+  const bucket = Math.floor((((theta / TAU) % 1) + 1) % 1 * angularBuckets);
+  return hash3(bucket, layerIdx, settings.seed);
 };
 
 const knurlDelta = (theta: number, t: number, _layerIdx: number, settings: SkinTextureSettings) => {
-  const count = Math.max(1, Math.round(8 * settings.density));
-  const pitch = count * 0.6;
-  const a = Math.sin(theta * count + t * Math.PI * pitch);
-  const b = Math.sin(theta * count - t * Math.PI * pitch);
-  return a * b; // diamond pattern, [-1, 1]
+  // Two interfering triangle waves -> sharp diamond pyramids
+  const N = Math.max(4, Math.round(32 * settings.density));
+  const pitch = N * 0.5;
+  const a = tri(theta * N + t * Math.PI * pitch);
+  const b = tri(theta * N - t * Math.PI * pitch);
+  // Multiply: peaks where both crests align; flatten valleys
+  const v = a * b; // already [-1, 1]-ish
+  return Math.max(-1, Math.min(1, v));
 };
 
 const scalesDelta = (theta: number, t: number, _layerIdx: number, settings: SkinTextureSettings) => {
-  // Hex cell distance field in (theta, t) space
-  const cellsAround = Math.max(4, Math.round(12 * settings.density));
-  const cellsTall = Math.max(4, Math.round(20 * settings.density));
-  const u = (theta / TAU) * cellsAround;
-  const v = t * cellsTall + (Math.floor(u) % 2 === 0 ? 0 : 0.5); // brick offset
-  const cu = u - Math.floor(u) - 0.5;
-  const cv = v - Math.floor(v) - 0.5;
-  const dist = Math.sqrt(cu * cu + cv * cv);
-  // Cell center bumps outward, fades to zero at edge (radius ~0.5)
-  const bump = Math.max(0, 1 - dist * 2);
-  return bump * 2 - 1; // remap [0,1] -> [-1,1] so amplitude direction reads cleanly
+  // Brick-offset hex-ish grid with arc-clipped half-circle shingles
+  const around = Math.max(8, Math.round(40 * settings.density));
+  const tall = Math.max(8, Math.round(60 * settings.density));
+  const u = (theta / TAU) * around;
+  const v = t * tall;
+  const row = Math.floor(v);
+  const offset = (row % 2) * 0.5;
+  const cu = u + offset;
+  const fcu = cu - Math.floor(cu) - 0.5;       // [-0.5, 0.5]
+  const fv = v - row;                            // [0, 1]
+  // Half-circle shingle: bump near bottom of cell, fade upward
+  const shingleY = fv;                           // 0 = bottom (visible edge)
+  const dist = Math.sqrt(fcu * fcu * 4 + (shingleY - 0.0) * (shingleY - 0.0));
+  const inside = Math.max(0, 1 - dist);          // [0,1]
+  // Map [0,1] -> [-1, 1] but bias outward (positive)
+  return inside * 2 - 0.6;
 };
 
 const ribsDelta = (theta: number, _t: number, _layerIdx: number, settings: SkinTextureSettings) => {
-  const count = Math.max(2, Math.round(20 * settings.density));
-  return Math.cos(theta * count);
+  // True triangle wave around theta -> sharp vertical flutes
+  const N = Math.max(4, Math.round(48 * settings.density));
+  return tri(theta * N);
 };
 
-const brushedDelta = (theta: number, t: number, layerIdx: number, settings: SkinTextureSettings) => {
-  // Anisotropic noise: high freq on Z, low on theta -> brushed grain
-  const u = theta * 4 * settings.density;
-  const v = layerIdx * 0.6 * settings.density;
-  return valueNoise2D(u, v, settings.seed);
+const brushedDelta = (theta: number, _t: number, layerIdx: number, settings: SkinTextureSettings) => {
+  // Anisotropic noise — long horizontal streaks (low theta freq, high z freq)
+  const u = theta * 3 * settings.density;
+  const v = layerIdx * 1.4 * settings.density;
+  // Layer two octaves for fibrous look
+  const a = valueNoise2D(u, v, settings.seed);
+  const b = valueNoise2D(u * 2.1, v * 2.3, settings.seed + 11) * 0.5;
+  return Math.max(-1, Math.min(1, a + b));
 };
 
-const pixelDelta = (theta: number, t: number, layerIdx: number, settings: SkinTextureSettings) => {
-  const cellsAround = Math.max(4, Math.round(24 * settings.density));
-  const layerStride = Math.max(1, Math.round(4 / Math.max(0.25, settings.density)));
-  const tCell = Math.floor(theta / TAU * cellsAround);
+const pixelDelta = (theta: number, _t: number, layerIdx: number, settings: SkinTextureSettings) => {
+  // Hard binary voxels — true Minecraft look
+  const around = Math.max(8, Math.round(80 * settings.density));
+  const layerStride = Math.max(1, Math.round(3 / Math.max(0.25, settings.density)));
+  const tCell = Math.floor((((theta / TAU) % 1) + 1) % 1 * around);
   const lCell = Math.floor(layerIdx / layerStride);
-  const h = hash3(tCell, lCell, settings.seed);
-  // Quantize to {0, 0.5, 1} then remap to [-1, 1]
-  const q = h < -0.33 ? 0 : h < 0.33 ? 0.5 : 1;
-  return q * 2 - 1;
+  return hash3(tCell, lCell, settings.seed) > 0 ? 1 : -1;
+};
+
+const hammeredDelta = (theta: number, t: number, _layerIdx: number, settings: SkinTextureSettings) => {
+  // Jittered grid of concave dimples — beaten copper
+  const around = Math.max(6, Math.round(24 * settings.density));
+  const tall = Math.max(6, Math.round(36 * settings.density));
+  const u = (theta / TAU) * around;
+  const v = t * tall;
+  const iu = Math.floor(u);
+  const iv = Math.floor(v);
+  // Find the closest jittered cell center across 3x3 neighbors
+  let best = 1e9;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const cx = iu + dx;
+      const cy = iv + dy;
+      const jx = hash3pos(cx, cy, settings.seed) * 0.7 + 0.15;
+      const jy = hash3pos(cx, cy, settings.seed + 31) * 0.7 + 0.15;
+      const px = cx + jx;
+      const py = cy + jy;
+      const ddx = (u - px);
+      const ddy = (v - py);
+      const d = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (d < best) best = d;
+    }
+  }
+  // Concave dimples: closer to center -> deeper inward
+  const radius = 0.55;
+  if (best > radius) return 0;
+  const inside = 1 - best / radius;       // [0,1]
+  // Smooth concave bowl, biased inward
+  return -(inside * inside);              // [-1, 0]
+};
+
+const threadsDelta = (theta: number, t: number, _layerIdx: number, settings: SkinTextureSettings) => {
+  // Single helical groove — looks like a screw thread
+  const turns = Math.max(1, settings.threadPitch || 8);
+  const phase = theta + t * turns * TAU;
+  // Asymmetric thread profile: sharp negative groove, flat crest
+  const tw = tri(phase);
+  // Map so peaks are flat (~+0.4) and grooves dip hard
+  return tw < 0 ? tw : tw * 0.4;
 };
 
 /**
@@ -129,11 +200,9 @@ export function getSkinPerturbation(
   const amp = Math.min(Math.max(settings.amplitude, 0), AMP_HARD_CAP_MM);
   if (amp <= 0) return 0;
 
-  // Range gate (skip top / bottom)
   if (t < settings.startHeightPct) return 0;
   if (t > 1 - settings.endHeightPct) return 0;
 
-  // Resolve layer index for vertical patterns
   const layerHeight = ctx.layerHeightMm ?? 0.2;
   const heightMm = ctx.heightMm ?? 100;
   const layerIdx = ctx.layerIdx ?? Math.floor((t * heightMm) / layerHeight);
@@ -146,13 +215,20 @@ export function getSkinPerturbation(
     case 'ribs':     raw = ribsDelta(theta, t, layerIdx, settings); break;
     case 'brushed':  raw = brushedDelta(theta, t, layerIdx, settings); break;
     case 'pixel':    raw = pixelDelta(theta, t, layerIdx, settings); break;
+    case 'hammered': raw = hammeredDelta(theta, t, layerIdx, settings); break;
+    case 'threads':  raw = threadsDelta(theta, t, layerIdx, settings); break;
     default: return 0;
   }
 
-  // Apply directional bias for modes where it makes sense
+  // Sharpen (skip for hammered/scales which are already shaped, and pixel which is already binary)
+  if (settings.mode !== 'pixel' && settings.mode !== 'hammered' && settings.mode !== 'scales') {
+    raw = sharpen(raw, settings.crispness);
+  }
+
+  // Directional bias for fuzz / pixel
   if (settings.mode === 'fuzz' || settings.mode === 'pixel') {
-    if (settings.direction === 'outward') raw = (raw + 1) * 0.5;       // [0, 1]
-    else if (settings.direction === 'inward') raw = (raw - 1) * 0.5;   // [-1, 0]
+    if (settings.direction === 'outward') raw = (raw + 1) * 0.5;
+    else if (settings.direction === 'inward') raw = (raw - 1) * 0.5;
   }
 
   return raw * amp;
@@ -168,5 +244,7 @@ export function skinSettingsFromParams(params: ParametricParams): SkinTextureSet
     startHeightPct: params.skinTextureStartHeightPct ?? 0,
     endHeightPct: params.skinTextureEndHeightPct ?? 0,
     seed: params.skinTextureSeed ?? 1337,
+    crispness: params.skinTextureCrispness ?? 0.7,
+    threadPitch: params.skinTextureThreadPitch ?? 8,
   };
 }
