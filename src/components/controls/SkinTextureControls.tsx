@@ -131,7 +131,7 @@ const SkinTextureControls = ({ params, onParamsChange }: SkinTextureControlsProp
             label="Amplitude"
             value={params.skinTextureAmplitude}
             min={0}
-            max={0.8}
+            max={1.2}
             step={0.02}
             unit="mm"
             onChange={(v) => set('skinTextureAmplitude', v)}
@@ -151,6 +151,28 @@ const SkinTextureControls = ({ params, onParamsChange }: SkinTextureControlsProp
             step={0.05}
             onChange={(v) => set('skinTextureDensity', v)}
           />
+
+          {/* Crispness — sharpens edges across all modes */}
+          <ParameterSlider
+            label="Crispness"
+            value={params.skinTextureCrispness}
+            min={0}
+            max={1}
+            step={0.02}
+            onChange={(v) => set('skinTextureCrispness', v)}
+          />
+
+          {/* Threads-only: pitch */}
+          {params.skinTextureMode === 'threads' && (
+            <ParameterSlider
+              label="Thread Turns"
+              value={params.skinTextureThreadPitch}
+              min={1}
+              max={40}
+              step={1}
+              onChange={(v) => set('skinTextureThreadPitch', v)}
+            />
+          )}
 
           {/* Direction (fuzz / pixel) */}
           {(params.skinTextureMode === 'fuzz' || params.skinTextureMode === 'pixel') && (
@@ -215,7 +237,10 @@ const SkinTextureControls = ({ params, onParamsChange }: SkinTextureControlsProp
 
           <div className="flex items-start gap-1.5 text-[11px] text-text-secondary">
             <Sparkles className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
-            <span>XY-only — safe on Bambu A1 and any planar FDM printer.</span>
+            <span>
+              XY-only — safe on Bambu A1 and any planar FDM printer. Preview switches
+              to high-detail mesh while skin is on.
+            </span>
           </div>
         </>
       )}
