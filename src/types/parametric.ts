@@ -268,6 +268,15 @@ export interface ParametricParams {
   basePlatePuckDepth: number;
   basePlateThickness: number;
 
+  // Funky Skin — XY-only surface texture (Bambu A1 safe)
+  skinTextureMode: 'off' | 'fuzz' | 'knurl' | 'scales' | 'ribs' | 'brushed' | 'pixel';
+  skinTextureAmplitude: number;       // 0..0.8 mm
+  skinTextureDensity: number;         // pattern-specific (count / cell size / freq)
+  skinTextureDirection: 'outward' | 'inward' | 'both'; // fuzz / pixel only
+  skinTextureStartHeightPct: number;  // 0..0.3 — skip first N% (brim safety)
+  skinTextureEndHeightPct: number;    // 0..0.3 — skip last N% (rim safety)
+  skinTextureSeed: number;
+
   // Preview mode
   showBaseOnly: boolean;
   previewColor: string;
@@ -548,6 +557,13 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     surfaceGlobalOffsetU: 0,
     surfaceGlobalOffsetV: 0,
     surfaceGlobalScale: 1,
+    skinTextureMode: 'off',
+    skinTextureAmplitude: 0.3,
+    skinTextureDensity: 1,
+    skinTextureDirection: 'both',
+    skinTextureStartHeightPct: 0.05,
+    skinTextureEndHeightPct: 0.05,
+    skinTextureSeed: 1337,
     showBaseOnly: false,
     previewColor: '#e8e8e8',
   };
