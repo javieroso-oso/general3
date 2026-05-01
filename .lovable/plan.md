@@ -1,89 +1,72 @@
-# Funky Skin — XY Surface Texturing
+# Make Funky Skin actually look like skin
 
-A1-safe surface textures via XY-only path perturbation. Same primitive as Bambu's fuzzy skin: jitter the wall outward/inward, never touch Z. Six modes, baked into the mesh so it appears in the viewport, the STL export, and the G-code automatically.
+The current textures look like organic noise because (a) the mesh samples at 64×64 — way too coarse to resolve a real texture, (b) default frequencies are organic-shape low, and (c) every mode uses smooth math (sines, value-noise, soft bumps) instead of crisp edges.
 
-## How it plugs in (one injection point)
+## What changes
 
-`getBodyRadius(params, t, theta)` in `src/lib/body-profile-generator.ts` is the single source of truth. The 3D mesh, the profile generator, and the G-code generator all call it. Adding the texture there means **viewport, STL, and G-code stay in lockstep with no extra wiring**.
+### 1. Sharpen the per-mode math (`src/lib/skin-texture-generator.ts`)
 
-New function `getSkinPerturbation(t, theta, layerIdx, settings) → mm` is added to the end of `getBodyRadius`, multiplied by `scale`, and added to the final radius. Returns 0 when mode is `off` so existing prints are unchanged.
+Rewrite all six mode functions for crisp output, and add a `crispness` parameter (0=current soft, 1=razor sharp) that biases each mode's curve via `sign(x) * pow(abs(x), 1 - crispness*0.9)`.
 
-## The six modes
+| Mode | New shape |
+|---|---|
+| Fuzz | Per-(layer, angular-bucket) hash, 512 buckets at density=1, no smoothing — true sandpaper |
+| Knurl | `tri(theta*N + t*pitch) * tri(theta*N - t*pitch)` (triangle waves, not sines) → pyramid tips |
+| Scales | Hex grid + arc-clipped half-circle shingle profile, fades outward edge to zero → fish/pinecone |
+| Ribs | Triangle wave `(2/π) * asin(sin(theta*N))` → sharp flutes, not sine ripples |
+| Brushed | Anisotropic noise kept, but with horizon streaks (long u, short v) |
+| Pixel | Hard binary on/off (no 3-level quantize), 80 cells around at density=1, true voxel grid |
 
-All operate as `radialDelta = f(theta, t, seed) * amplitude`, with optional layer-index input for vertical patterns.
+Default counts cranked up:
+- Fuzz: 64 → 512 buckets
+- Knurl: 8 → 32 diamonds
+- Scales: 12×20 → 40×60 cells
+- Ribs: 20 → 48 flutes
+- Pixel: 24 → 80 cells
 
-1. **Fuzz** — pseudo-random jitter via hashed `(theta, layerIdx, seed)`. Direction bias control: outward / inward / both. Our take on fuzzy skin.
-2. **Knurl** — `sin(theta * countA + t * pitchA) * sin(theta * countB - t * pitchB)`. Diamond grip pattern.
-3. **Scales** — hex-cell distance field in `(theta, t)` space. Each cell bumps out, fading toward edges. Reptile / pinecone look.
-4. **Ribs** — `cos(theta * count)`. Pure vertical fluting, but path-time so it stacks with everything else cleanly.
-5. **Brushed** — anisotropic 2D value noise: high frequency on Z axis, low on theta. Brushed-metal grain.
-6. **Pixel** — quantize `(theta, t)` to a grid; each cell hashes to a discrete bump (0 / amp / 2×amp). 8-bit voxel look.
+### 2. Two new modes
 
-## Settings (one shared block)
+- **Hammered** — Poisson-ish dimple field via jittered grid hash. Each cell gets a circular concave dimple → beaten-copper look.
+- **Threads** — Single helical groove: `tri(theta + t * pitchTurns * 2π)`. Looks like a literal screw thread; great for grippy lamp stems.
 
-Stored on `ParametricParams` as `skinTexture`:
+### 3. Adaptive preview mesh (`src/components/3d/ParametricMesh.tsx`)
 
-```
-mode: 'off' | 'fuzz' | 'knurl' | 'scales' | 'ribs' | 'brushed' | 'pixel'
-amplitude: number      // 0..0.8 mm (hard cap)
-density: number        // pattern-specific frequency / cell count
-direction: 'outward' | 'inward' | 'both'   // fuzz/pixel only
-startHeightPct: number // 0..0.3, skip first N% so brim/first-layer stays clean
-endHeightPct: number   // 0..0.3, skip last N% so rim stays clean
-seed: number
-```
+When `skinTextureMode !== 'off'`, bump the main body lathe from `segments=64, heightSegments=64` to:
+- `segments = 256` (or 384 for pixel/knurl/scales/threads)
+- `heightSegments = max(64, round(height_mm / 0.3))` — roughly one ring per 0.3mm, matching layer height
 
-Defaults: `mode: 'off'`, all zero. Existing designs unaffected.
+Gate behind the skin-on check so the rest of the app stays fast. Add a small "High-detail preview" badge in `SkinTextureControls` when active so the user knows why the viewport got heavier.
 
-## Safety rails
+### 4. UI updates (`src/components/controls/SkinTextureControls.tsx`)
 
-- Hard cap amplitude at **0.8 mm** in the slider.
-- Warning toast if `amplitude > wallThickness * 0.5` (risks perforating the wall).
-- Auto-disable inside the `flatBottomHeight` zone (don't disturb first-layer adhesion).
-- Auto-disable in the top 5% if `lipFlare > 0` (preserve clean rims).
-- For Fuzz mode, sample density is rate-limited so we never emit G-code points closer than 0.2 mm apart (Bambu firmware planner stays smooth).
+- Add **Crispness** slider (0..1, default 0.7).
+- Add the two new modes to the mode picker with mini-preview thumbnails.
+- Raise amplitude cap from 0.8mm to **1.2mm** in both UI and `AMP_HARD_CAP_MM`.
+- Update the canvas mini-preview to render at higher resolution (it currently smooths the same way the 3D mesh does).
 
-## UI
+### 5. Type + defaults (`src/types/parametric.ts`, `src/types/lamp.ts`)
 
-New collapsible **"Funky Skin"** section in `ParameterControls.tsx`, placed under the existing organic-deformations group (this is a *design* choice, not a print setting). Contains:
-
-- Mode tabs (Off / Fuzz / Knurl / Scales / Ribs / Brushed / Pixel) with small SVG icons
-- Amplitude slider (0–0.8 mm) with the wall-thickness warning live
-- Density slider (label changes per mode: "Jitter rate" / "Diamond count" / "Cell size" / "Rib count" / "Grain scale" / "Pixel size")
-- Direction segmented control (only shown for Fuzz / Pixel)
-- Range sliders: Start height %, End height %
-- Seed input + dice button (re-randomize)
-- Mini live preview swatch showing a strip of the texture at the current settings (rendered to a small canvas)
-
-Standard slider components from `ParameterSlider`. Electric-pop colors per memory.
-
-## Where the math lives
-
-New file `src/lib/skin-texture-generator.ts`:
-
-- `getSkinPerturbation(t, theta, layerIdx, settings, options) → number` — main entry point, returns radial delta in mm
-- One pure function per mode (`fuzzDelta`, `knurlDelta`, `scalesDelta`, `ribsDelta`, `brushedDelta`, `pixelDelta`)
-- Reuses the existing seeded `noise3D` from `body-profile-generator.ts` for Fuzz / Brushed
-- Pure, no Three.js / DOM dependencies → cheap to call from G-code generator
+- Extend `skinTextureMode` union with `'hammered' | 'threads'`.
+- Add `skinTextureCrispness: number` (default 0.7).
+- Add `skinTextureThreadPitch: number` (turns over full height, default 8) for Threads mode only.
 
 ## Files touched
 
-- `src/types/parametric.ts` — add `SkinTextureSettings` interface, extend `ParametricParams`, add defaults.
-- `src/lib/skin-texture-generator.ts` — NEW. All six modes + entry point.
-- `src/lib/body-profile-generator.ts` — call `getSkinPerturbation` at the end of `getBodyRadius`, add scaled delta to final radius.
-- `src/components/controls/ParameterControls.tsx` — new "Funky Skin" collapsible panel.
-- `src/components/controls/SkinTextureControls.tsx` — NEW. The panel itself with mode tabs, sliders, mini preview swatch.
+- `src/lib/skin-texture-generator.ts` — rewrite all mode functions, add hammered + threads, add crispness, raise cap
+- `src/types/parametric.ts` — extend mode union, add crispness + thread pitch, raise default amplitude headroom
+- `src/types/lamp.ts` — same
+- `src/components/3d/ParametricMesh.tsx` — adaptive segments when skin is on
+- `src/components/controls/SkinTextureControls.tsx` — crispness slider, new modes, raised cap, sharper canvas preview
+- `src/lib/body-profile-generator.ts` — no changes (chokepoint already injects perturbation)
 
-## Out of scope (call-outs for later)
+## What it'll look like after
 
-- Stacking two textures with a blend slider (mentioned earlier — feasible since modes are pure functions, but adds UI complexity; do as v2 once we know which combos people want).
-- Per-region masking ("only fuzz the upper half of one side").
-- Texture export as a separate displacement map for use in other tools.
-- Applying skin to inner wall (currently outer-only; inner stays smooth for now).
+- Fuzz reads as **felt/sandpaper** instead of bumps
+- Knurl reads as a **tool grip**
+- Scales reads as a **pinecone/dragon hide**
+- Ribs reads as a **Greek column**
+- Pixel reads as **Minecraft**
+- Hammered reads as **artisan copper**
+- Threads reads as a **screw**
 
-## Why this is the right move (short version)
-
-- Zero risk on Bambu A1 — it's just XY moves, every printer handles this.
-- Slices normally in Bambu Studio because it's baked into the STL geometry.
-- One injection point in `getBodyRadius` keeps viewport, STL, and G-code automatically consistent — no parity bugs.
-- Six modes ship in one PR because they're all the same shape: `f(theta, t, seed) → mm`.
+Print integrity stays intact: still XY-only, still wall-thickness clamped, still respects start/end height safety zones, still A1-safe.
