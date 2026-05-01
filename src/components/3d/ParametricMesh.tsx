@@ -239,8 +239,21 @@ const ParametricMesh = ({
     const tRad = topRadius * SCALE;
     const wall = wallThickness * SCALE;
 
-    const segments = 64;
-    const heightSegments = 64;
+    // Adaptive resolution: skin textures need high tessellation to read crisply.
+    // Without this, the 64×64 base mesh aliases sharp patterns into noise.
+    const skinOn = params.skinTextureMode && params.skinTextureMode !== 'off' && params.skinTextureAmplitude > 0;
+    const skinNeedsHighRes =
+      skinOn &&
+      (params.skinTextureMode === 'pixel' ||
+        params.skinTextureMode === 'knurl' ||
+        params.skinTextureMode === 'scales' ||
+        params.skinTextureMode === 'threads' ||
+        params.skinTextureMode === 'fuzz' ||
+        params.skinTextureMode === 'hammered');
+    const segments = skinOn ? (skinNeedsHighRes ? 384 : 256) : 64;
+    const heightSegments = skinOn
+      ? Math.min(600, Math.max(120, Math.round(height / 0.3)))
+      : 64;
     
     // For wall mount with BACK style, we generate FULL 360° object then slice with a plane
     const isWallMount = addLegs && params.standType === 'wall_mount' && params.wallMountStyle === 'back';

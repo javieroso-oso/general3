@@ -21,6 +21,8 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'ribs', label: 'Ribs' },
   { id: 'brushed', label: 'Brushed' },
   { id: 'pixel', label: 'Pixel' },
+  { id: 'hammered', label: 'Hammered' },
+  { id: 'threads', label: 'Threads' },
 ];
 
 const DENSITY_LABELS: Record<Mode, string> = {
@@ -31,6 +33,8 @@ const DENSITY_LABELS: Record<Mode, string> = {
   ribs: 'Rib Count',
   brushed: 'Grain Scale',
   pixel: 'Pixel Size',
+  hammered: 'Dimple Count',
+  threads: 'Thread Sharpness',
 };
 
 const MiniPreview = ({ params }: { params: ParametricParams }) => {
@@ -55,9 +59,9 @@ const MiniPreview = ({ params }: { params: ParametricParams }) => {
       return;
     }
 
-    // Render a strip: theta across X, height across Y. Color = perturbation magnitude.
-    const cellW = 2;
-    const cellH = 2;
+    // Render strip: theta across X, height across Y. Sample at 1px to show real fidelity.
+    const cellW = 1;
+    const cellH = 1;
     for (let y = 0; y < H; y += cellH) {
       const t = y / H;
       for (let x = 0; x < W; x += cellW) {
@@ -66,7 +70,6 @@ const MiniPreview = ({ params }: { params: ParametricParams }) => {
           heightMm: params.height,
           layerHeightMm: 0.2,
         });
-        // Map [-amp, +amp] to grayscale around mid-gray
         const norm = Math.max(-1, Math.min(1, d / Math.max(0.01, settings.amplitude)));
         const v = Math.round(180 + norm * 70);
         ctx.fillStyle = `rgb(${v}, ${v}, ${v})`;
@@ -78,8 +81,8 @@ const MiniPreview = ({ params }: { params: ParametricParams }) => {
   return (
     <canvas
       ref={canvasRef}
-      width={220}
-      height={64}
+      width={320}
+      height={120}
       className="w-full rounded-md border border-border"
       style={{ imageRendering: 'pixelated' }}
     />
@@ -128,7 +131,7 @@ const SkinTextureControls = ({ params, onParamsChange }: SkinTextureControlsProp
             label="Amplitude"
             value={params.skinTextureAmplitude}
             min={0}
-            max={0.8}
+            max={1.2}
             step={0.02}
             unit="mm"
             onChange={(v) => set('skinTextureAmplitude', v)}
@@ -148,6 +151,28 @@ const SkinTextureControls = ({ params, onParamsChange }: SkinTextureControlsProp
             step={0.05}
             onChange={(v) => set('skinTextureDensity', v)}
           />
+
+          {/* Crispness — sharpens edges across all modes */}
+          <ParameterSlider
+            label="Crispness"
+            value={params.skinTextureCrispness}
+            min={0}
+            max={1}
+            step={0.02}
+            onChange={(v) => set('skinTextureCrispness', v)}
+          />
+
+          {/* Threads-only: pitch */}
+          {params.skinTextureMode === 'threads' && (
+            <ParameterSlider
+              label="Thread Turns"
+              value={params.skinTextureThreadPitch}
+              min={1}
+              max={40}
+              step={1}
+              onChange={(v) => set('skinTextureThreadPitch', v)}
+            />
+          )}
 
           {/* Direction (fuzz / pixel) */}
           {(params.skinTextureMode === 'fuzz' || params.skinTextureMode === 'pixel') && (
@@ -212,7 +237,10 @@ const SkinTextureControls = ({ params, onParamsChange }: SkinTextureControlsProp
 
           <div className="flex items-start gap-1.5 text-[11px] text-text-secondary">
             <Sparkles className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
-            <span>XY-only — safe on Bambu A1 and any planar FDM printer.</span>
+            <span>
+              XY-only — safe on Bambu A1 and any planar FDM printer. Preview switches
+              to high-detail mesh while skin is on.
+            </span>
           </div>
         </>
       )}
