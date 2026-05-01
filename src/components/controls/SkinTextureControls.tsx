@@ -81,8 +81,8 @@ const MiniPreview = ({ params }: { params: ParametricParams }) => {
   return (
     <canvas
       ref={canvasRef}
-      width={220}
-      height={64}
+      width={320}
+      height={120}
       className="w-full rounded-md border border-border"
       style={{ imageRendering: 'pixelated' }}
     />
