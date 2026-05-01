@@ -59,9 +59,9 @@ const MiniPreview = ({ params }: { params: ParametricParams }) => {
       return;
     }
 
-    // Render a strip: theta across X, height across Y. Color = perturbation magnitude.
-    const cellW = 2;
-    const cellH = 2;
+    // Render strip: theta across X, height across Y. Sample at 1px to show real fidelity.
+    const cellW = 1;
+    const cellH = 1;
     for (let y = 0; y < H; y += cellH) {
       const t = y / H;
       for (let x = 0; x < W; x += cellW) {
@@ -70,7 +70,6 @@ const MiniPreview = ({ params }: { params: ParametricParams }) => {
           heightMm: params.height,
           layerHeightMm: 0.2,
         });
-        // Map [-amp, +amp] to grayscale around mid-gray
         const norm = Math.max(-1, Math.min(1, d / Math.max(0.01, settings.amplitude)));
         const v = Math.round(180 + norm * 70);
         ctx.fillStyle = `rgb(${v}, ${v}, ${v})`;
