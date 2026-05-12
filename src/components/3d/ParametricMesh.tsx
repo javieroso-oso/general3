@@ -1120,15 +1120,16 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
   const getMaterial = (effect: SurfaceStroke['effect']) => {
     switch (effect) {
       case 'engraved':
-        return { color: materialConfig.color, opacity: 1, transparent: false, side: THREE.DoubleSide };
+        // High-contrast preview color so the carving is clearly visible against the body.
+        return { color: '#f97316', opacity: 1, transparent: false, side: THREE.DoubleSide };
       case 'cut':
-        return { color: '#ef4444', opacity: 0.4, transparent: true, side: THREE.DoubleSide };
+        return { color: '#ef4444', opacity: 0.5, transparent: true, side: THREE.DoubleSide };
       case 'texture':
-        return { color: '#4ade80', opacity: 0.9, transparent: false, side: THREE.FrontSide };
+        return { color: '#4ade80', opacity: 0.95, transparent: false, side: THREE.FrontSide };
       case 'ribbon':
-        return { color: materialConfig.color, opacity: 1, transparent: false, side: THREE.DoubleSide };
+        return { color: '#a78bfa', opacity: 1, transparent: false, side: THREE.DoubleSide };
       default: // raised
-        return { color: materialConfig.color, opacity: 1, transparent: false, side: THREE.FrontSide };
+        return { color: '#60a5fa', opacity: 1, transparent: false, side: THREE.FrontSide };
     }
   };
   

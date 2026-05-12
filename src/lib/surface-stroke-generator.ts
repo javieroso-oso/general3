@@ -115,29 +115,57 @@ function resampleStroke(points: { u: number; v: number }[], count: number): { u:
  * Convert stroke points to 3D with tangents computed.
  */
 /**
- * Apply offset and scale transforms to stroke points before 3D projection.
+ * Apply per-stroke + global offset/scale transforms AND unwrap compensation.
+ *
+ * Ordering matches the on-screen SurfaceBoundsIndicator:
+ *   1. Compute centroid of all strokes (so global scale pivots around the drawing's center).
+ *   2. For each point, scale around centroid by (strokeScale * globalScale), then add (per-stroke + global) offset.
+ *   3. Convert canvas-space U to real circumference U via unwrap width fraction.
+ *   4. Wrap U around 0..1 (modulo) so global rotation can spin all the way around the body.
  */
 function applyStrokeTransforms(
   points: { u: number; v: number }[],
-  _stroke: SurfaceStroke,
+  stroke: SurfaceStroke,
   params: ParametricParams,
+  centroid: { u: number; v: number },
 ): { u: number; v: number }[] {
-  // Compensate for the unwrap canvas shape: the canvas U coordinate
-  // is in unwrap-space (wider where radius is larger). Convert back to
-  // real UV (uniform 0..1 around circumference).
   const profile = getUnwrapProfile(params);
+  const globalU = params.surfaceGlobalOffsetU ?? 0;
+  const globalV = params.surfaceGlobalOffsetV ?? 0;
+  const globalScale = params.surfaceGlobalScale ?? 1;
+  const sOffU = (stroke.offsetU ?? 0) + globalU;
+  const sOffV = (stroke.offsetV ?? 0) + globalV;
+  const sScale = (stroke.strokeScale ?? 1) * globalScale;
+
   return points.map((p) => {
-    const v = Math.max(0, Math.min(1, p.v));
+    // 1+2. Scale around centroid, add offsets (still in canvas-space U)
+    let uCanvas = (p.u - centroid.u) * sScale + centroid.u + sOffU;
+    let v = (p.v - centroid.v) * sScale + centroid.v + sOffV;
+    v = Math.max(0, Math.min(1, v));
+
+    // 3. Unwrap compensation
     const wf = interpolateWidthFraction(profile, v);
-    const u = canvasUToRealU(p.u, wf);
+    let u = canvasUToRealU(uCanvas, wf);
+
+    // 4. Wrap horizontally (allow full 360° rotation via globalOffsetU)
+    u = ((u % 1) + 1) % 1;
+
     return { u, v };
   });
 }
 
-function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams): StrokePoint3D[] {
+function computeAllStrokesCentroid(strokes: SurfaceStroke[]): { u: number; v: number } {
+  let su = 0, sv = 0, n = 0;
+  for (const s of strokes) {
+    for (const p of s.points) { su += p.u; sv += p.v; n++; }
+  }
+  return n > 0 ? { u: su / n, v: sv / n } : { u: 0.5, v: 0.5 };
+}
+
+function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams, centroid: { u: number; v: number }): StrokePoint3D[] {
   const sampleCount = Math.max(stroke.points.length, 24);
   const resampled = resampleStroke(stroke.points, sampleCount);
-  const transformed = applyStrokeTransforms(resampled, stroke, params);
+  const transformed = applyStrokeTransforms(resampled, stroke, params, centroid);
 
   const points3D: StrokePoint3D[] = [];
   for (let i = 0; i < transformed.length; i++) {
@@ -176,14 +204,22 @@ function generateSweptGeometry(
   const scaledDepth = depth * SCALE;
   const scaledThickness = thickness * SCALE;
 
+  // Tiny lift so that engraved/ribbon strokes are not perfectly co-planar with the body
+  // (otherwise z-fighting hides them entirely in the preview).
+  const PREVIEW_LIFT = 0.0008; // ~0.08mm in scene units
+
   for (let i = 0; i < points3D.length; i++) {
     const { position, normal: surfaceNormal, tangent } = points3D[i];
 
-    const offset = isEngraved ? -scaledDepth : scaledDepth;
-    const center = position.clone().addScaledVector(surfaceNormal, offset * 0.5);
+    // Engraved: half-sunken so the user can still see the groove silhouette in the preview.
+    // Raised: fully outside the body.
+    const centerOffset = isEngraved ? PREVIEW_LIFT : scaledDepth * 0.5 + PREVIEW_LIFT;
+    const center = position.clone().addScaledVector(surfaceNormal, centerOffset);
 
+    // Build a stable local frame from the surface normal (don't recompute via double cross —
+    // it can flip sign on twisted bodies and invert the ribbon).
     const binormal = new THREE.Vector3().crossVectors(tangent, surfaceNormal).normalize();
-    const localNormal = new THREE.Vector3().crossVectors(binormal, tangent).normalize();
+    const localNormal = surfaceNormal.clone();
 
     for (let j = 0; j <= crossSegments; j++) {
       const t = j / crossSegments;
@@ -238,13 +274,11 @@ function generateSweptGeometry(
     }
   }
 
-  // Caps
+  // Caps — match the per-ring center offset above so the caps stay attached to the ribbon.
+  const capCenterOffset = isEngraved ? PREVIEW_LIFT : scaledDepth * 0.5 + PREVIEW_LIFT;
   const ringVerts = crossSegments + 1;
   const startCenter = vertices.length / 3;
-  const sc = points3D[0].position.clone().addScaledVector(
-    points3D[0].normal,
-    (isEngraved ? -scaledDepth : scaledDepth) * 0.5,
-  );
+  const sc = points3D[0].position.clone().addScaledVector(points3D[0].normal, capCenterOffset);
   vertices.push(sc.x, sc.y, sc.z);
   const startNorm = points3D[0].tangent.clone().negate();
   normals.push(startNorm.x, startNorm.y, startNorm.z);
@@ -254,10 +288,7 @@ function generateSweptGeometry(
 
   const endCenter = vertices.length / 3;
   const lastIdx = points3D.length - 1;
-  const ec = points3D[lastIdx].position.clone().addScaledVector(
-    points3D[lastIdx].normal,
-    (isEngraved ? -scaledDepth : scaledDepth) * 0.5,
-  );
+  const ec = points3D[lastIdx].position.clone().addScaledVector(points3D[lastIdx].normal, capCenterOffset);
   vertices.push(ec.x, ec.y, ec.z);
   const endNorm = points3D[lastIdx].tangent.clone();
   normals.push(endNorm.x, endNorm.y, endNorm.z);
@@ -401,10 +432,11 @@ function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.Buffer
 function generateStrokeGeometry(
   stroke: SurfaceStroke,
   params: ParametricParams,
+  centroid: { u: number; v: number },
 ): THREE.BufferGeometry | null {
   if (stroke.points.length < 2) return null;
 
-  const points3D = strokeTo3D(stroke, params);
+  const points3D = strokeTo3D(stroke, params, centroid);
   if (points3D.length < 2) return null;
 
   if (stroke.effect === 'texture') {
@@ -416,9 +448,9 @@ function generateStrokeGeometry(
     );
   }
 
-  // Simplified behavior for consistency: non-texture strokes become engraved grooves.
-  const isEngraved = true;
-  const isRibbon = true;
+  // Honour the stroke's effect (engraved is default).
+  const isEngraved = stroke.effect === 'engraved' || stroke.effect === 'cut';
+  const isRibbon = stroke.effect !== 'raised';
 
   return generateSweptGeometry(
     points3D,
@@ -438,13 +470,15 @@ export function generateSurfaceStrokeGeometries(
   if (!params.surfaceStrokes || params.surfaceStrokes.length === 0) return [];
 
   const results: { geometry: THREE.BufferGeometry; effect: SurfaceStroke['effect'] }[] = [];
+  const centroid = computeAllStrokesCentroid(params.surfaceStrokes);
 
   for (const stroke of params.surfaceStrokes) {
-    const geo = generateStrokeGeometry(stroke, params);
+    const geo = generateStrokeGeometry(stroke, params, centroid);
     if (geo) {
-      results.push({ geometry: geo, effect: stroke.effect === 'texture' ? 'texture' : 'engraved' });
+      results.push({ geometry: geo, effect: stroke.effect ?? 'engraved' });
     }
   }
 
   return results;
 }
+
