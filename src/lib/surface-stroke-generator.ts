@@ -204,14 +204,22 @@ function generateSweptGeometry(
   const scaledDepth = depth * SCALE;
   const scaledThickness = thickness * SCALE;
 
+  // Tiny lift so that engraved/ribbon strokes are not perfectly co-planar with the body
+  // (otherwise z-fighting hides them entirely in the preview).
+  const PREVIEW_LIFT = 0.0008; // ~0.08mm in scene units
+
   for (let i = 0; i < points3D.length; i++) {
     const { position, normal: surfaceNormal, tangent } = points3D[i];
 
-    const offset = isEngraved ? -scaledDepth : scaledDepth;
-    const center = position.clone().addScaledVector(surfaceNormal, offset * 0.5);
+    // Engraved: half-sunken so the user can still see the groove silhouette in the preview.
+    // Raised: fully outside the body.
+    const centerOffset = isEngraved ? PREVIEW_LIFT : scaledDepth * 0.5 + PREVIEW_LIFT;
+    const center = position.clone().addScaledVector(surfaceNormal, centerOffset);
 
+    // Build a stable local frame from the surface normal (don't recompute via double cross —
+    // it can flip sign on twisted bodies and invert the ribbon).
     const binormal = new THREE.Vector3().crossVectors(tangent, surfaceNormal).normalize();
-    const localNormal = new THREE.Vector3().crossVectors(binormal, tangent).normalize();
+    const localNormal = surfaceNormal.clone();
 
     for (let j = 0; j <= crossSegments; j++) {
       const t = j / crossSegments;
