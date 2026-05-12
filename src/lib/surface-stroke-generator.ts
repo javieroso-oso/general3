@@ -115,29 +115,57 @@ function resampleStroke(points: { u: number; v: number }[], count: number): { u:
  * Convert stroke points to 3D with tangents computed.
  */
 /**
- * Apply offset and scale transforms to stroke points before 3D projection.
+ * Apply per-stroke + global offset/scale transforms AND unwrap compensation.
+ *
+ * Ordering matches the on-screen SurfaceBoundsIndicator:
+ *   1. Compute centroid of all strokes (so global scale pivots around the drawing's center).
+ *   2. For each point, scale around centroid by (strokeScale * globalScale), then add (per-stroke + global) offset.
+ *   3. Convert canvas-space U to real circumference U via unwrap width fraction.
+ *   4. Wrap U around 0..1 (modulo) so global rotation can spin all the way around the body.
  */
 function applyStrokeTransforms(
   points: { u: number; v: number }[],
-  _stroke: SurfaceStroke,
+  stroke: SurfaceStroke,
   params: ParametricParams,
+  centroid: { u: number; v: number },
 ): { u: number; v: number }[] {
-  // Compensate for the unwrap canvas shape: the canvas U coordinate
-  // is in unwrap-space (wider where radius is larger). Convert back to
-  // real UV (uniform 0..1 around circumference).
   const profile = getUnwrapProfile(params);
+  const globalU = params.surfaceGlobalOffsetU ?? 0;
+  const globalV = params.surfaceGlobalOffsetV ?? 0;
+  const globalScale = params.surfaceGlobalScale ?? 1;
+  const sOffU = (stroke.offsetU ?? 0) + globalU;
+  const sOffV = (stroke.offsetV ?? 0) + globalV;
+  const sScale = (stroke.strokeScale ?? 1) * globalScale;
+
   return points.map((p) => {
-    const v = Math.max(0, Math.min(1, p.v));
+    // 1+2. Scale around centroid, add offsets (still in canvas-space U)
+    let uCanvas = (p.u - centroid.u) * sScale + centroid.u + sOffU;
+    let v = (p.v - centroid.v) * sScale + centroid.v + sOffV;
+    v = Math.max(0, Math.min(1, v));
+
+    // 3. Unwrap compensation
     const wf = interpolateWidthFraction(profile, v);
-    const u = canvasUToRealU(p.u, wf);
+    let u = canvasUToRealU(uCanvas, wf);
+
+    // 4. Wrap horizontally (allow full 360° rotation via globalOffsetU)
+    u = ((u % 1) + 1) % 1;
+
     return { u, v };
   });
 }
 
-function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams): StrokePoint3D[] {
+function computeAllStrokesCentroid(strokes: SurfaceStroke[]): { u: number; v: number } {
+  let su = 0, sv = 0, n = 0;
+  for (const s of strokes) {
+    for (const p of s.points) { su += p.u; sv += p.v; n++; }
+  }
+  return n > 0 ? { u: su / n, v: sv / n } : { u: 0.5, v: 0.5 };
+}
+
+function strokeTo3D(stroke: SurfaceStroke, params: ParametricParams, centroid: { u: number; v: number }): StrokePoint3D[] {
   const sampleCount = Math.max(stroke.points.length, 24);
   const resampled = resampleStroke(stroke.points, sampleCount);
-  const transformed = applyStrokeTransforms(resampled, stroke, params);
+  const transformed = applyStrokeTransforms(resampled, stroke, params, centroid);
 
   const points3D: StrokePoint3D[] = [];
   for (let i = 0; i < transformed.length; i++) {
