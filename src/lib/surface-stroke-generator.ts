@@ -429,10 +429,11 @@ function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.Buffer
 function generateStrokeGeometry(
   stroke: SurfaceStroke,
   params: ParametricParams,
+  centroid: { u: number; v: number },
 ): THREE.BufferGeometry | null {
   if (stroke.points.length < 2) return null;
 
-  const points3D = strokeTo3D(stroke, params);
+  const points3D = strokeTo3D(stroke, params, centroid);
   if (points3D.length < 2) return null;
 
   if (stroke.effect === 'texture') {
@@ -444,9 +445,9 @@ function generateStrokeGeometry(
     );
   }
 
-  // Simplified behavior for consistency: non-texture strokes become engraved grooves.
-  const isEngraved = true;
-  const isRibbon = true;
+  // Honour the stroke's effect (engraved is default).
+  const isEngraved = stroke.effect === 'engraved' || stroke.effect === 'cut';
+  const isRibbon = stroke.effect !== 'raised';
 
   return generateSweptGeometry(
     points3D,
@@ -466,13 +467,15 @@ export function generateSurfaceStrokeGeometries(
   if (!params.surfaceStrokes || params.surfaceStrokes.length === 0) return [];
 
   const results: { geometry: THREE.BufferGeometry; effect: SurfaceStroke['effect'] }[] = [];
+  const centroid = computeAllStrokesCentroid(params.surfaceStrokes);
 
   for (const stroke of params.surfaceStrokes) {
-    const geo = generateStrokeGeometry(stroke, params);
+    const geo = generateStrokeGeometry(stroke, params, centroid);
     if (geo) {
-      results.push({ geometry: geo, effect: stroke.effect === 'texture' ? 'texture' : 'engraved' });
+      results.push({ geometry: geo, effect: stroke.effect ?? 'engraved' });
     }
   }
 
   return results;
 }
+
