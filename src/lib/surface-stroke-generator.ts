@@ -274,13 +274,11 @@ function generateSweptGeometry(
     }
   }
 
-  // Caps
+  // Caps — match the per-ring center offset above so the caps stay attached to the ribbon.
+  const capCenterOffset = isEngraved ? PREVIEW_LIFT : scaledDepth * 0.5 + PREVIEW_LIFT;
   const ringVerts = crossSegments + 1;
   const startCenter = vertices.length / 3;
-  const sc = points3D[0].position.clone().addScaledVector(
-    points3D[0].normal,
-    (isEngraved ? -scaledDepth : scaledDepth) * 0.5,
-  );
+  const sc = points3D[0].position.clone().addScaledVector(points3D[0].normal, capCenterOffset);
   vertices.push(sc.x, sc.y, sc.z);
   const startNorm = points3D[0].tangent.clone().negate();
   normals.push(startNorm.x, startNorm.y, startNorm.z);
@@ -290,10 +288,7 @@ function generateSweptGeometry(
 
   const endCenter = vertices.length / 3;
   const lastIdx = points3D.length - 1;
-  const ec = points3D[lastIdx].position.clone().addScaledVector(
-    points3D[lastIdx].normal,
-    (isEngraved ? -scaledDepth : scaledDepth) * 0.5,
-  );
+  const ec = points3D[lastIdx].position.clone().addScaledVector(points3D[lastIdx].normal, capCenterOffset);
   vertices.push(ec.x, ec.y, ec.z);
   const endNorm = points3D[lastIdx].tangent.clone();
   normals.push(endNorm.x, endNorm.y, endNorm.z);
