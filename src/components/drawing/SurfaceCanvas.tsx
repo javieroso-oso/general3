@@ -232,11 +232,16 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
 
       const points: { u: number; v: number }[] = [];
       const matrix = obj.calcTransformMatrix();
+      // Fabric Path renders points relative to pathOffset (bbox center in path-local space).
+      // calcTransformMatrix() does NOT include pathOffset, so we must subtract it manually
+      // or all captured points will be shifted by the bbox half-extents.
+      const pOffX = (obj as any).pathOffset?.x ?? 0;
+      const pOffY = (obj as any).pathOffset?.y ?? 0;
 
       pathData.forEach((cmd: any) => {
         if (cmd[0] === 'M' || cmd[0] === 'L' || cmd[0] === 'Q') {
-          let px = cmd[cmd.length - 2];
-          let py = cmd[cmd.length - 1];
+          const px = cmd[cmd.length - 2] - pOffX;
+          const py = cmd[cmd.length - 1] - pOffY;
 
           const transformed = {
             x: matrix[0] * px + matrix[2] * py + matrix[4],
