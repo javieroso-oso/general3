@@ -425,6 +425,10 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
           <Trash2 className="w-3 h-3 mr-1" />
           Clear
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setExpanded((e) => !e)} title={expanded ? 'Shrink' : 'Expand to large editor'}>
+          {expanded ? <Minimize2 className="w-3 h-3 mr-1" /> : <Maximize2 className="w-3 h-3 mr-1" />}
+          {expanded ? 'Shrink' : 'Expand'}
+        </Button>
         <div className="flex items-center gap-1.5 ml-auto">
           <FlipHorizontal className="w-3 h-3 text-muted-foreground" />
           <Label className="text-xs text-muted-foreground">Symmetry</Label>
