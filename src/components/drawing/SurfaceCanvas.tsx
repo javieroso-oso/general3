@@ -160,7 +160,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
 
     canvas.freeDrawingBrush = new PencilBrush(canvas);
     canvas.freeDrawingBrush.color = EFFECT_COLORS.engraved;
-    canvas.freeDrawingBrush.width = brushWidth;
+    canvas.freeDrawingBrush.width = brushThicknessMm * 3;
 
     setFabricCanvas(canvas);
 
