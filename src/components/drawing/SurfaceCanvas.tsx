@@ -206,16 +206,12 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
     }
   }, [onHover, width, height, unwrapProfile]);
 
-  // Update brush on effect/opacity change
+  // Update brush color & width whenever effect or thickness changes.
   useEffect(() => {
     if (!fabricCanvas?.freeDrawingBrush) return;
-    fabricCanvas.freeDrawingBrush.width = brushWidth;
-    const hex = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.engraved;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    fabricCanvas.freeDrawingBrush.color = `rgba(${r},${g},${b},${brushOpacity})`;
-  }, [brushWidth, currentEffect, fabricCanvas, brushOpacity]);
+    fabricCanvas.freeDrawingBrush.width = brushThicknessMm * 3;
+    fabricCanvas.freeDrawingBrush.color = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.engraved;
+  }, [brushThicknessMm, currentEffect, fabricCanvas]);
 
   // Extract strokes from canvas paths (with unwrap UV compensation)
   const extractStrokes = useCallback(() => {
