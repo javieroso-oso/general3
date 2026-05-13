@@ -8,6 +8,7 @@
 
 import { ParametricParams, printConstraints } from '@/types/parametric';
 import { getSkinPerturbation, skinSettingsFromParams } from '@/lib/skin-texture-generator';
+import { getStrokeField, sampleStrokeField } from '@/lib/stroke-field';
 
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
