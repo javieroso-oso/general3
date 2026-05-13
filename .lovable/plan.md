@@ -1,113 +1,91 @@
-# How drawings interact with Spiral Vase printing — and why today they don't
+# Drawing canvas: audit + add Raised support
 
-## The short answer
+## What works today
 
-**In spiral vase mode today, your drawings are not printed at all.** They show up in the 3D preview as separate floating ribbon/groove meshes, but the spiral toolpath never sees them. The printer just extrudes a smooth helix around the bare body shape.
+- Unwrap silhouette renders correctly with grid lines and height labels.
+- Hover position with unwrap compensation is good.
+- Pencil brush + symmetry mirror + undo/redo + clear all work.
+- After the recent pathOffset fix, strokes land where you draw them.
+- After the spiral-vase bake, engraved strokes physically carve the wall.
 
-Here's why, and what we'd need to do to make it real.
+## What's broken or misleading
 
-## What spiral vase actually is
+1. **Raised is unreachable.** The `Modo` (Mode) dropdown only lists `engraved`. The state `currentEffect` exists, `EFFECT_COLORS` defines all 5, but the `<SelectContent>` has only the one item. Then `extractStrokes()` hardcodes `effect: 'engraved'` anyway, ignoring whatever `currentEffect` is.
+2. **Texture pattern dropdown is dead code.** It only renders when `currentEffect === 'texture'`, but you can't pick texture.
+3. **Mixed ES / EN labels** — "Modo / Grabado / Trazo / dibuja dentro de la forma" beside English "Depth / Brush / Opacity / Symmetry / Clear". Pick one.
+4. **Brush opacity does nothing useful.** It modulates the on-canvas stroke color alpha but never maps to per-point depth. Visually misleading — strokes look "lighter" but print at full depth.
+5. **Per-stroke depth/thickness is locked to whatever the slider was at the moment of drawing.** No way to retune a stroke after the fact (only delete it).
+6. **Stroke list shows effect but not depth/thickness.** No edit affordance.
+7. **No print-safety hint.** If you set engraved depth ≥ wallThickness, the bake clamps silently — the user has no idea their 6mm engrave on a 1.6mm wall got squashed to 1.2mm.
+8. **Brush thickness in mm is hidden.** Slider says "4 px" but the actual stroke geometry uses `brushWidth * 0.5` mm. Confusing.
 
-A spiral vase print is **one continuous extrusion**:
+## Plan
 
-```text
-          ↑ Z climbs continuously
-       __/
-      /
-     /   ← single-wall perimeter, ~0.4mm thick
-    /
-   /__   ← one ring per revolution, no top, no bottom, no infill
-```
+### 1. Wire up the Mode dropdown for Raised + Engraved
 
-The nozzle never lifts, never retracts, just spirals up. Each revolution is ~one layer-height taller than the one below. The toolpath at every point is determined by exactly two things:
+Cut to the two effects we actually support after the spiral-vase bake:
 
-- `θ` (angle around the axis)
-- `z` (height)
+- `engraved` — wall pulled inward (orange swatch)
+- `raised` — wall pushed outward (blue swatch)
 
-…fed into a single function `getRadiusAtHeight(t, theta)` that returns how far out the nozzle should be. That's it. There is no "second pass" to add detail later.
+Drop `cut`, `ribbon`, `texture` from the Mode picker entirely (they were unreachable / not vase-printable). The types stay so existing saved strokes don't break, but the UI only offers the two that work.
 
-## What that means for surface drawings
+`extractStrokes()` now reads `currentEffect` instead of hardcoding `'engraved'`.
 
-For a stroke to physically exist on a spiral-vase print, the spiral itself has to **detour inward or outward at the right θ and z**. Three cases:
+### 2. Per-stroke editing in the stroke list
 
-| Effect today | What it'd need in spiral mode | Possible? |
-|---|---|---|
-| **Engraved / cut** | Spiral pulls slightly *inward* (smaller radius) where the stroke passes | Yes — perimeter dips |
-| **Raised** | Spiral pushes slightly *outward* (larger radius) where the stroke passes | Yes — perimeter bumps |
-| **Ribbon (floating tube)** | Would need a separate wall + travel moves | **No** — breaks vase mode |
-| **Texture (dots, cones, crosshatch)** | Same — needs detached extrusions | **No** — breaks vase mode |
-
-So in spiral mode only **engraved** and **raised** can ever survive. Ribbon and texture are inherently incompatible with single-wall continuous extrusion — they'd require the nozzle to lift, travel, and re-extrude, which is exactly what spiral mode forbids.
-
-## Where the bug lives in the codebase
+Replace the read-only list rows with editable rows:
 
 ```text
-SurfaceCanvas → params.surfaceStrokes  (the user's UV polylines)
-         │
-         ├── PREVIEW: generateSurfaceStrokeGeometries() → separate THREE.BufferGeometry
-         │   shown as floating ribbons in ParametricMesh   ✓ visible
-         │
-         └── PRINT: ......... (nothing) ............      ✗ not connected
-                              │
-                              ▼
-                    getBodyRadius(t, θ)   ← never sees strokes
-                              │
-                              ▼
-                    generateSpiralVaseLayers()
-                              │
-                              ▼
-                       smooth helix ✗
+[●] Stroke 1   [Engraved ▾]   Depth ▭▭▭▭▭ 2.0mm   Thick ▭▭ 2mm   [×]
+[●] Stroke 2   [Raised   ▾]   Depth ▭▭ 0.8mm      Thick ▭ 1mm    [×]
 ```
 
-`src/lib/body-profile-generator.ts` has zero references to `surfaceStrokes`. `src/lib/stl-export.ts` builds the spiral toolpath purely from `getRadiusAtHeight()`, which only knows about profile curves, twist, rim waves, organic deformations, etc. The strokes live in their own world.
+Each control writes back to that stroke's `effect` / `depth` / `thickness` and triggers `onChange`. The bake recomputes automatically (cache invalidates on stroke fingerprint change).
 
-## What it would take to make drawings actually print
+### 3. Clearer brush controls
 
-The fix is a single new concept: a **radial-offset field** `Δr(θ, t)` that summarises all engraved/raised strokes as "how much should the wall move in or out at this point on the surface?". Then `getBodyRadius` consults it once at the end:
+- Rename "Brush 4px" → "Thickness 2.0mm" (show real mm).
+- Slider range: 0.5–6mm in 0.5mm steps. Internally still drives `freeDrawingBrush.width` for visual feedback (mm × ~3 px).
+- Drop the Opacity slider — replace with a small "Hold Shift to draw straight line" hint (keeps the toolbar lean and removes the misleading control).
 
-```text
-finalRadius = baseRadius(profile + organic + …) + Δr_strokes(θ, t)
-                                                  └─ negative = engraved
-                                                     positive = raised
-```
+### 4. Print-safety badge per stroke
 
-Mechanically:
+Compute on render: 
+- engraved depth > `wallThickness − 0.4` → red badge "clamped to Xmm"
+- raised depth > 1.2 → red badge "clamped to 1.2mm"
 
-1. **Bake strokes into a 2D field once per param change.** Walk every stroke, rasterise into a low-res `θ × t` grid (say 256 × heightLayers), with falloff = brush thickness, peak = ±depth (clamped to safe limits).
-2. **Inject into `getBodyRadius`.** One extra term added at the end of the function. Now both the smooth STL body *and* the spiral G-code automatically carve/bump along the spiral. Preview parity stays intact (memory: scale 0.01, spine = lateral offset).
-3. **Replace the floating-ribbon preview with a deformed body preview.** When strokes exist, the lathe mesh in `ParametricMesh.tsx` will already show the dips and bumps because it shares `getBodyRadius`. Drop the orange floating ribbons — they'd be misleading.
-4. **Print-safety clamps.**
-   - Engraved depth must stay below `wallThickness - 0.4mm` so the spiral doesn't punch through (single wall = no margin for error).
-   - Raised height capped at ~1mm so overhangs stay printable as the spiral climbs.
-   - In spiral mode, force-disable `ribbon` and `texture` effects in the UI with a tooltip explaining why.
-5. **Spiral-aware angular smoothing.** Sharp θ-jumps become extrusion-width spikes (the nozzle can't teleport). Run a small 1D blur along θ proportional to nozzle diameter so engraved edges become printable ramps, not vertical cliffs.
+Tooltip explains why. This matches the clamps in `stroke-field.ts` so the UI tells the truth.
 
-## What changes in the print
+### 5. Localization cleanup
 
-```text
-Today:                       After fix (engraved heart on side):
-  ___                          ___
- /   \                        /   \
-|     |                      |     |
-|     |                      |  ❤  |   ← spiral genuinely dips inward
-|     |                      |     |
- \___/                        \___/
-```
+Pick **English** consistently (it's what the app's other panels use). Update labels in `SurfaceCanvas.tsx`:
+- "Modo" → "Mode"
+- "Grabado" → "Engraved"
+- new: "Raised"
+- "Trazo" → "Stroke"
+- "dibuja dentro de la forma" → "Draw inside the silhouette"
+- The shape-explainer subtitle → "Drawing maps proportionally to the body's surface."
 
-The heart isn't a sticker. The wall itself thins inward where the heart is, so light shines through differently and you can feel it with your finger.
+### 6. Live in-canvas effect indication
 
-## Files we'd touch
+Make the brush color follow `currentEffect` (it already does for engraved-orange, just enable it for raised-blue). So while you draw, the on-canvas line shows whether you're engraving (orange) or raising (blue).
 
-- `src/lib/surface-stroke-generator.ts` — add `bakeStrokeOffsetField(params) → (θ, t) ⇒ Δr`
-- `src/lib/body-profile-generator.ts` — accept optional `strokeField` and add it to the final radius
-- `src/lib/stl-export.ts` — pass the baked field into `getRadiusAtHeight` for spiral + planar paths
-- `src/components/3d/ParametricMesh.tsx` — drop floating ribbons when strokes are baked into the wall, keep them only for `texture` / `ribbon` (non-vase modes)
-- `src/components/drawing/SurfaceCanvas.tsx` — disable ribbon/texture options when print mode = spiral vase
+## Out of scope on purpose
 
-## Open questions for you
+- Re-introducing ribbon/texture: they don't print as a vase mode wall, so the current "drop them" decision stands.
+- Variable per-point depth driven by drawing pressure: nice but a bigger change. Note for later.
+- Boolean image-stamp / icon stamps: separate feature.
 
-1. **Drop ribbon + texture from spiral mode entirely, or keep them as "preview only" with a warning?** I'd vote drop — they fundamentally can't print as a single-wall vase.
-2. **Default engraved depth in spiral mode** — right now you can pick 0.5–8mm. With a 1.6mm wall (typical vase) and 0.4mm nozzle, the safe max is ~1.2mm. Should I auto-clamp the slider when spiral mode is on?
-3. **Do you want raised at all?** Bumps on a spiraling single wall print OK up to ~0.8mm but anything bigger sags. Worth keeping as a separate effect or fold it into "engraved with negative depth"?
+## Files touched
 
-Once you answer those I can scope the actual implementation tightly. The bake-the-field architecture is the right move regardless.
+- `src/components/drawing/SurfaceCanvas.tsx` — Mode dropdown (engraved + raised), `extractStrokes` honours `currentEffect`, brush color follows effect, mm-based thickness slider, drop opacity, English labels, editable stroke-list rows with safety badge.
+
+No changes needed to:
+- `src/lib/stroke-field.ts` — already handles engraved + raised correctly
+- `src/lib/surface-stroke-generator.ts` — only used for ribbon/texture floating preview now
+- `src/lib/body-profile-generator.ts` — already wired up
+
+## After this
+
+You'll be able to draw any combination of engraved + raised strokes, see them in the right color while drawing, retune any stroke later, and get a clear warning when a depth was clamped for printability — all printing correctly through the spiral-vase G-code.
