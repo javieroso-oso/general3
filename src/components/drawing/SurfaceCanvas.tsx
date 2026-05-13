@@ -256,18 +256,18 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         newStrokes.push({
           id: existing?.id || `stroke-${Date.now()}-${idx}`,
           points,
-          thickness: existing?.thickness || brushWidth * 0.5,
-          effect: 'engraved',
-          depth: existing?.depth || currentDepth,
-          offsetU: 0,
-          offsetV: 0,
-          strokeScale: 1,
+          thickness: existing?.thickness ?? brushThicknessMm,
+          effect: existing?.effect ?? currentEffect,
+          depth: existing?.depth ?? currentDepth,
+          offsetU: existing?.offsetU ?? 0,
+          offsetV: existing?.offsetV ?? 0,
+          strokeScale: existing?.strokeScale ?? 1,
         });
       }
     });
 
     onChange(newStrokes);
-  }, [fabricCanvas, width, height, onChange, currentDepth, brushWidth]);
+  }, [fabricCanvas, width, height, onChange, currentDepth, brushThicknessMm, currentEffect]);
 
   // Mirror stroke points horizontally for symmetry
   const mirrorPath = useCallback((path: Path): Path | null => {
