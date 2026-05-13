@@ -32,42 +32,42 @@ const EFFECT_COLORS: Record<SurfaceStroke['effect'], string> = {
   texture: '#4ade80',
 };
 
-const CANVAS_W = 400;
-const CANVAS_H = 300;
-
-// Bounds for auto-sized canvas (px)
-const MIN_W = 320;
-const MAX_W = 900;
-const MIN_H = 240;
+const FALLBACK_W = 320;
+const MIN_H = 200;
 const MAX_H = 700;
-const BASE_AREA = 400 * 300; // keep similar visual weight to old default
 
 const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, height: heightProp }: SurfaceCanvasProps) => {
-  // Auto-size canvas to match the body's real circumference:height aspect ratio
-  // so the unwrap silhouette actually fills the drawing area.
+  // Measure the actual container width so the canvas always fits the sidebar
+  // (no horizontal clipping) while keeping the body's circumference:height aspect.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(FALLBACK_W);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    const update = () => {
+      const w = el.clientWidth;
+      if (w > 0) setContainerWidth(w);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const autoSize = useMemo(() => {
-    if (!params) return { width: CANVAS_W, height: CANVAS_H };
-    // Sample max radius from a quick unwrap
+    const w = Math.max(FALLBACK_W, Math.round(containerWidth));
+    if (!params) return { width: w, height: Math.round(w * 0.75) };
     const profile = getUnwrapProfile(params, 40);
     let rMax = 0;
     for (const s of profile) if (s.radius > rMax) rMax = s.radius;
     const circumference = 2 * Math.PI * rMax;
     const h = params.height;
-    if (!circumference || !h) return { width: CANVAS_W, height: CANVAS_H };
+    if (!circumference || !h) return { width: w, height: Math.round(w * 0.75) };
     const aspect = circumference / h; // width/height
-    // Pick dims preserving roughly the old visual area, then clamp.
-    let hPx = Math.sqrt(BASE_AREA / aspect);
-    let wPx = hPx * aspect;
-    // Clamp width first, recompute height
-    if (wPx > MAX_W) { wPx = MAX_W; hPx = wPx / aspect; }
-    if (wPx < MIN_W) { wPx = MIN_W; hPx = wPx / aspect; }
-    if (hPx > MAX_H) { hPx = MAX_H; wPx = hPx * aspect; }
-    if (hPx < MIN_H) { hPx = MIN_H; wPx = hPx * aspect; }
-    // Final hard clamp on both
-    wPx = Math.max(MIN_W, Math.min(MAX_W, wPx));
-    hPx = Math.max(MIN_H, Math.min(MAX_H, hPx));
-    return { width: Math.round(wPx), height: Math.round(hPx) };
-  }, [params]);
+    const hPx = Math.max(MIN_H, Math.min(MAX_H, Math.round(w / aspect)));
+    return { width: w, height: hPx };
+  }, [params, containerWidth]);
 
   const width = widthProp ?? autoSize.width;
   const height = heightProp ?? autoSize.height;
