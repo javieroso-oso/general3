@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { ParametricParams, SurfaceStroke, TexturePattern } from '@/types/parametric';
 import { getBodyRadius } from '@/lib/body-profile-generator';
-import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU } from '@/lib/surface-unwrap';
+// Stroke U is the real circumference U; no unwrap compensation needed here.
 
 const SCALE = 0.01;
 
@@ -129,7 +129,6 @@ function applyStrokeTransforms(
   params: ParametricParams,
   centroid: { u: number; v: number },
 ): { u: number; v: number }[] {
-  const profile = getUnwrapProfile(params);
   const globalU = params.surfaceGlobalOffsetU ?? 0;
   const globalV = params.surfaceGlobalOffsetV ?? 0;
   const globalScale = params.surfaceGlobalScale ?? 1;
@@ -138,18 +137,11 @@ function applyStrokeTransforms(
   const sScale = (stroke.strokeScale ?? 1) * globalScale;
 
   return points.map((p) => {
-    // 1+2. Scale around centroid, add offsets (still in canvas-space U)
-    let uCanvas = (p.u - centroid.u) * sScale + centroid.u + sOffU;
+    // Canvas U == real circumference U (full canvas width = 360°).
+    let u = (p.u - centroid.u) * sScale + centroid.u + sOffU;
     let v = (p.v - centroid.v) * sScale + centroid.v + sOffV;
     v = Math.max(0, Math.min(1, v));
-
-    // 3. Unwrap compensation
-    const wf = interpolateWidthFraction(profile, v);
-    let u = canvasUToRealU(uCanvas, wf);
-
-    // 4. Wrap horizontally (allow full 360° rotation via globalOffsetU)
     u = ((u % 1) + 1) % 1;
-
     return { u, v };
   });
 }

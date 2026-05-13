@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Pencil, Trash2, Undo, Redo, FlipHorizontal, ChevronDown, ChevronRight } from 'lucide-react';
 import { SurfaceStroke, TexturePattern, ParametricParams } from '@/types/parametric';
-import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU, getUnwrapClipPath } from '@/lib/surface-unwrap';
+import { getUnwrapProfile, interpolateWidthFraction, getUnwrapClipPath } from '@/lib/surface-unwrap';
 import { cn } from '@/lib/utils';
 
 export interface SurfaceHoverPosition {
@@ -105,21 +105,9 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
     const clipPoints = getUnwrapClipPath(unwrapProfile, width, height);
     if (clipPoints.length < 4) return;
 
-    // Fill entire canvas with dark overlay (outside area)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(0, 0, width, height);
-
-    // Cut out the unwrap shape (clear it)
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.moveTo(clipPoints[0].x, clipPoints[0].y);
-    for (let i = 1; i < clipPoints.length; i++) {
-      ctx.lineTo(clipPoints[i].x, clipPoints[i].y);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    // Silhouette is now a visual guide only — the entire canvas width
+    // represents the full 0°–360° circumference, so we don't shade out
+    // the area outside the unwrap shape anymore.
 
     // Draw the unwrap shape border
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
@@ -218,14 +206,8 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       const uCanvas = Math.max(0, Math.min(1, x / width));
       const v = Math.max(0, Math.min(1, 1 - y / height));
 
-      // Compensate for unwrap shape
-      if (unwrapProfile) {
-        const wf = interpolateWidthFraction(unwrapProfile, v);
-        const uReal = canvasUToRealU(uCanvas, wf);
-        onHover({ u: uReal, v });
-      } else {
-        onHover({ u: uCanvas, v });
-      }
+      // Canvas X == real circumference U (full width = 360°).
+      onHover({ u: uCanvas, v });
     };
 
     const handleMouseLeave = () => { onHover(null); };
@@ -515,11 +497,11 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       {/* Labels */}
       <div className="flex justify-between text-[10px] text-muted-foreground -mt-1 px-1">
         <span>0°</span>
-        <span>← Draw inside the silhouette →</span>
+        <span>← Full canvas width = full wrap around the body →</span>
         <span>360°</span>
       </div>
       <p className="text-[10px] text-muted-foreground/60 text-center -mt-0.5">
-        The silhouette is the real unwrap of the body. Engraved & raised strokes physically modify the wall.
+        The outline shows the body's real proportions as a guide. Engraved & raised strokes physically modify the wall.
       </p>
 
       {/* Stroke list — editable */}

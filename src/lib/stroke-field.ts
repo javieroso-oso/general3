@@ -16,7 +16,8 @@
  */
 
 import type { ParametricParams, SurfaceStroke } from '@/types/parametric';
-import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU } from '@/lib/surface-unwrap';
+// Stroke U is the real circumference U (canvas width = full 360°),
+// so unwrap compensation is no longer applied during the bake.
 
 // Grid resolution targets ~0.5mm/cell so the wall actually carries the
 // drawing's pixel-level detail into the printed object. Capped to keep the
@@ -132,7 +133,6 @@ function applyTransforms(
   stroke: SurfaceStroke,
   params: ParametricParams,
   centroid: { u: number; v: number },
-  unwrapProfile: ReturnType<typeof getUnwrapProfile>,
 ): { u: number; v: number }[] {
   const globalU = params.surfaceGlobalOffsetU ?? 0;
   const globalV = params.surfaceGlobalOffsetV ?? 0;
@@ -142,17 +142,10 @@ function applyTransforms(
   const sScale = (stroke.strokeScale ?? 1) * globalScale;
 
   return points.map((p) => {
-    // 1+2. Scale around centroid, add offsets (still in canvas-space U)
-    let uCanvas = (p.u - centroid.u) * sScale + centroid.u + sOffU;
+    // Scale around centroid + apply offsets. Canvas U == real circumference U.
+    let u = (p.u - centroid.u) * sScale + centroid.u + sOffU;
     let v = (p.v - centroid.v) * sScale + centroid.v + sOffV;
     v = Math.max(0, Math.min(1, v));
-
-    // 3. Unwrap compensation — must match the preview surface-stroke-generator
-    //    so baked-into-wall strokes land at the same theta as the floating preview.
-    const wf = interpolateWidthFraction(unwrapProfile, v);
-    let u = canvasUToRealU(uCanvas, wf);
-
-    // 4. Wrap horizontally
     u = ((u % 1) + 1) % 1;
     return { u, v };
   });
@@ -184,16 +177,12 @@ function bake(strokes: SurfaceStroke[], params: ParametricParams): StrokeField {
   for (const st of strokes) for (const p of st.points) { su += p.u; sv += p.v; n++; }
   const centroid = n > 0 ? { u: su / n, v: sv / n } : { u: 0.5, v: 0.5 };
 
-  // Unwrap profile — same source the preview uses, so positions agree.
-  // Strip surfaceStrokes to prevent recursion (getBodyRadius → getStrokeField → bake).
-  const unwrapProfile = getUnwrapProfile({ ...params, surfaceStrokes: [] } as ParametricParams);
-
   // Safety clamps — keep wall printable
   const maxEngrave = Math.max(0.2, params.wallThickness - 0.4);
   const maxRaise = 1.2;
 
   for (const stroke of strokes) {
-    const pts = applyTransforms(stroke.points, stroke, params, centroid, unwrapProfile);
+    const pts = applyTransforms(stroke.points, stroke, params, centroid);
     if (pts.length < 2) continue;
 
     const sign = stroke.effect === 'raised' ? 1 : -1;

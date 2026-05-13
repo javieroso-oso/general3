@@ -1,32 +1,34 @@
 ## Problem
 
-The surface drawing canvas is hard-coded to 400×300 px in `SurfaceCanvas.tsx`, regardless of the shape it is supposed to wrap. The unwrap silhouette is then squeezed into that fixed box, so:
+The unwrap silhouette currently acts as a *clipping* shape: anything drawn outside it is visually shaded out, and `canvasUToRealU` re-stretches the silhouette's local width to a full 0..1 around the body. With the new auto-sized canvas, the silhouette often occupies only a fraction of the canvas width, so:
 
-- For tall/narrow shapes the silhouette is short and stubby, and strokes get crammed into a tiny pixel area before being baked back onto a much larger 3D circumference.
-- For wide/short shapes the silhouette runs out of horizontal room and the wrap looks like it does not cover the full 360°.
-- Either way, the canvas pixel density per real millimetre of surface is wrong, which is the visual "the drawing doesn't fully wrap the shape" symptom.
+- Strokes drawn outside the silhouette get clamped to U=0 or U=1 and pile up on a single seam.
+- The user perceives the canvas as "only accepting strokes on half of the shape", because the dark area visually disqualifies the rest of the canvas.
+
+The whole canvas should always represent the full 0°–360° circumference, with the silhouette shown as a *guide* only.
 
 ## Plan
 
-1. **Size the canvas from the shape's real proportions**
-   - In `SurfaceCanvas.tsx`, compute the body's max circumference `C_max = 2π · r_max` and total height `H` from `params` / `unwrapProfile`.
-   - Pick canvas dimensions whose aspect ratio matches `C_max : H` so the silhouette naturally fills the canvas width at the widest height and uses the full vertical space.
-   - Clamp to a sensible pixel range (e.g. min 320, max ~900 wide; min 240, max ~700 tall) so the panel still fits the sidebar.
+1. **Treat the entire canvas as the full circumference**
+   - In `SurfaceCanvas.tsx`, drop the unwrap compensation when capturing strokes: store `u = transformed.x / width` directly (no `canvasUToRealU`). Same for the hover handler.
+   - In `surface-stroke-generator.ts` (`applyStrokeTransforms`), remove the `canvasUToRealU` step and use the canvas-space U directly. Keep the `((u % 1) + 1) % 1` wrap so global U offset still rotates around the body.
+   - In `stroke-field.ts` (`bake`), do the same: stop calling `canvasUToRealU` / `interpolateWidthFraction` on stroke points. The stored U is already real circumference U.
 
-2. **Make width/height reactive to the shape**
-   - Replace the fixed `CANVAS_W = 400 / CANVAS_H = 300` defaults with values derived from `params` via `useMemo`.
-   - Re-init Fabric and the overlay canvas when those dimensions change (the existing init effect already depends on `width`/`height`).
-   - Keep the optional `width` / `height` props as overrides so any caller passing explicit sizes keeps working.
+2. **Demote the silhouette to a visual guide**
+   - Stop filling the area outside the silhouette with the dark shaded overlay.
+   - Keep the silhouette outline (white stroke) so the user still sees the body's real proportions, plus the existing height markers and vertical guide lines.
+   - Add a subtle hint that the full canvas width = 0°–360°.
 
-3. **Keep stroke data shape-agnostic**
-   - Strokes are stored in normalised UV (`u`, `v` ∈ 0..1) and unwrap compensation already runs through `canvasUToRealU` + `interpolateWidthFraction`, so resizing the canvas does not invalidate existing drawings.
-   - No changes needed to `stroke-field.ts`, `body-profile-generator.ts`, or `stl-export.ts`.
+3. **Keep the canvas auto-sized to circumference:height**
+   - The previous resize change is correct in principle (canvas aspect = `2π · r_max : H`), so a stroke spanning the full canvas width corresponds to a full wrap around the widest part of the body. No change to that logic.
 
 4. **Validate**
-   - Visually check tall/narrow and short/wide shapes: silhouette should hug the canvas edges, strokes drawn at the far left/right should map to ~0° / ~360° on the 3D body, and the export should look the same as the preview.
+   - Draw a horizontal line across the full canvas width and confirm it wraps fully around the 3D body (meets back at the seam).
+   - Draw a stroke entirely outside the old silhouette; it should still appear on the 3D body at the correct angle.
+   - Confirm previously-saved drawings still render correctly (stored UV stays normalised 0..1).
 
 ## Technical notes
 
-- `getUnwrapProfile(params)` already gives `r(t)` and `widthFraction = r(t) / r_max`. Use the max radius from there (or `getMaxBodyRadius`) plus `params.height` for the aspect ratio.
-- Aspect target: `aspect = (2π · r_max) / H`. Then e.g. `width = clamp(round(H_px · aspect), 320, 900)` with `H_px` chosen from a base height (e.g. 360 px) and clamped.
-- No business-logic changes — purely a presentation/sizing fix in `SurfaceCanvas.tsx`.
+- This is a pure presentation/mapping change. No DB or business-logic changes.
+- One subtle migration concern: any strokes saved while the silhouette-clipping logic was active have their U already collapsed to the silhouette range. They will still load and draw, just slightly compressed horizontally on shapes with strong taper. Acceptable trade-off for fixing the active drawing experience.
+- Files touched: `src/components/drawing/SurfaceCanvas.tsx`, `src/lib/surface-stroke-generator.ts`, `src/lib/stroke-field.ts`.
