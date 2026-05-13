@@ -1,72 +1,54 @@
-# Make Funky Skin actually look like skin
+# Fix: Surface drawings land in wrong place (pushed to lower base)
 
-The current textures look like organic noise because (a) the mesh samples at 64×64 — way too coarse to resolve a real texture, (b) default frequencies are organic-shape low, and (c) every mode uses smooth math (sines, value-noise, soft bumps) instead of crisp edges.
+## What's actually wrong
 
-## What changes
+In `src/components/drawing/SurfaceCanvas.tsx`, `extractStrokes()` reads each Fabric `Path` point and multiplies by `obj.calcTransformMatrix()` to get its absolute canvas position.
 
-### 1. Sharpen the per-mode math (`src/lib/skin-texture-generator.ts`)
+Fabric `Path` stores its raw `pathData` in path-local space, then renders with a `pathOffset` (the bbox center of the path) subtracted at draw time. `calcTransformMatrix()` does **not** include that offset.
 
-Rewrite all six mode functions for crisp output, and add a `crispness` parameter (0=current soft, 1=razor sharp) that biases each mode's curve via `sign(x) * pow(abs(x), 1 - crispness*0.9)`.
+So today:
+```
+absolute = matrix * pathLocal             ← wrong (what we do)
+absolute = matrix * (pathLocal - pathOffset)  ← correct (what Fabric actually renders)
+```
 
-| Mode | New shape |
-|---|---|
-| Fuzz | Per-(layer, angular-bucket) hash, 512 buckets at density=1, no smoothing — true sandpaper |
-| Knurl | `tri(theta*N + t*pitch) * tri(theta*N - t*pitch)` (triangle waves, not sines) → pyramid tips |
-| Scales | Hex grid + arc-clipped half-circle shingle profile, fades outward edge to zero → fish/pinecone |
-| Ribs | Triangle wave `(2/π) * asin(sin(theta*N))` → sharp flutes, not sine ripples |
-| Brushed | Anisotropic noise kept, but with horizon streaks (long u, short v) |
-| Pixel | Hard binary on/off (no 3-level quantize), 80 cells around at density=1, true voxel grid |
+The result: every stroke is captured shifted by `(pathOffset.x, pathOffset.y)`. For freehand strokes drawn anywhere on the canvas, the bbox center is roughly in the middle of the stroke, so all points get pulled diagonally — typically downward and to one side. That matches exactly the "drawing falls onto the lower base / off the silhouette" symptom.
 
-Default counts cranked up:
-- Fuzz: 64 → 512 buckets
-- Knurl: 8 → 32 diamonds
-- Scales: 12×20 → 40×60 cells
-- Ribs: 20 → 48 flutes
-- Pixel: 24 → 80 cells
+This also explains why straight lines drawn near the top still appear correctly proportioned but **anchored too low** on the 3D body.
 
-### 2. Two new modes
+## The fix (one file)
 
-- **Hammered** — Poisson-ish dimple field via jittered grid hash. Each cell gets a circular concave dimple → beaten-copper look.
-- **Threads** — Single helical groove: `tri(theta + t * pitchTurns * 2π)`. Looks like a literal screw thread; great for grippy lamp stems.
+`src/components/drawing/SurfaceCanvas.tsx` — `extractStrokes()` only:
 
-### 3. Adaptive preview mesh (`src/components/3d/ParametricMesh.tsx`)
+1. Read `obj.pathOffset` once per path (Fabric exposes it as `{x, y}`).
+2. Subtract it from `px, py` *before* multiplying by the matrix:
+   ```ts
+   const lx = px - (obj.pathOffset?.x ?? 0);
+   const ly = py - (obj.pathOffset?.y ?? 0);
+   const transformed = {
+     x: matrix[0] * lx + matrix[2] * ly + matrix[4],
+     y: matrix[1] * lx + matrix[3] * ly + matrix[5],
+   };
+   ```
+3. Then the existing `u = x/width`, `v = 1 - y/height` mapping works correctly.
 
-When `skinTextureMode !== 'off'`, bump the main body lathe from `segments=64, heightSegments=64` to:
-- `segments = 256` (or 384 for pixel/knurl/scales/threads)
-- `heightSegments = max(64, round(height_mm / 0.3))` — roughly one ring per 0.3mm, matching layer height
+That's the whole fix for the placement bug.
 
-Gate behind the skin-on check so the rest of the app stays fast. Add a small "High-detail preview" badge in `SkinTextureControls` when active so the user knows why the viewport got heavier.
+## Sanity-check pass while we're in there
 
-### 4. UI updates (`src/components/controls/SkinTextureControls.tsx`)
+Two small follow-ups to harden things, only if you want them in the same change:
 
-- Add **Crispness** slider (0..1, default 0.7).
-- Add the two new modes to the mode picker with mini-preview thumbnails.
-- Raise amplitude cap from 0.8mm to **1.2mm** in both UI and `AMP_HARD_CAP_MM`.
-- Update the canvas mini-preview to render at higher resolution (it currently smooths the same way the 3D mesh does).
+- **Symmetry mirror also needs pathOffset awareness** — `mirrorPath()` rebuilds a new Path from mirrored raw commands; the new Path will compute its own pathOffset, so the mirror is already self-consistent. No change needed, just confirming.
+- **Re-extract after undo/redo** — already done, will benefit automatically from the fix.
 
-### 5. Type + defaults (`src/types/parametric.ts`, `src/types/lamp.ts`)
+## What it should look like after
 
-- Extend `skinTextureMode` union with `'hammered' | 'threads'`.
-- Add `skinTextureCrispness: number` (default 0.7).
-- Add `skinTextureThreadPitch: number` (turns over full height, default 8) for Threads mode only.
+- Draw a small circle near the top of the unwrap silhouette → it appears near the **rim** of the 3D body, not on the base.
+- Draw a horizontal line across the middle → it wraps around the body's belly, not the foot.
+- Strokes near the edge of the silhouette stay inside the silhouette in 3D instead of clipping off.
 
 ## Files touched
 
-- `src/lib/skin-texture-generator.ts` — rewrite all mode functions, add hammered + threads, add crispness, raise cap
-- `src/types/parametric.ts` — extend mode union, add crispness + thread pitch, raise default amplitude headroom
-- `src/types/lamp.ts` — same
-- `src/components/3d/ParametricMesh.tsx` — adaptive segments when skin is on
-- `src/components/controls/SkinTextureControls.tsx` — crispness slider, new modes, raised cap, sharper canvas preview
-- `src/lib/body-profile-generator.ts` — no changes (chokepoint already injects perturbation)
+- `src/components/drawing/SurfaceCanvas.tsx` — `extractStrokes()` only (~3 lines changed).
 
-## What it'll look like after
-
-- Fuzz reads as **felt/sandpaper** instead of bumps
-- Knurl reads as a **tool grip**
-- Scales reads as a **pinecone/dragon hide**
-- Ribs reads as a **Greek column**
-- Pixel reads as **Minecraft**
-- Hammered reads as **artisan copper**
-- Threads reads as a **screw**
-
-Print integrity stays intact: still XY-only, still wall-thickness clamped, still respects start/end height safety zones, still A1-safe.
+No changes to `surface-stroke-generator.ts`, `surface-unwrap.ts`, or the 3D mesh.
