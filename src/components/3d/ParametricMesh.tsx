@@ -1133,9 +1133,14 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
     }
   };
   
+  // Engraved / raised / cut are now baked into the body radius (so they appear
+  // in the spiral-vase G-code too). Only render floating preview meshes for
+  // ribbon and texture effects, which can't be expressed as a radial offset.
+  const floatingGeos = strokeGeos.filter((sg) => sg.effect === 'ribbon' || sg.effect === 'texture');
+
   return (
     <>
-      {strokeGeos.map((sg, idx) => {
+      {floatingGeos.map((sg, idx) => {
         const mat = getMaterial(sg.effect);
         return (
           <mesh key={idx} geometry={sg.geometry} castShadow={!mat.transparent} receiveShadow>
