@@ -483,7 +483,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       </div>
 
       {/* Canvas with unwrap overlay */}
-      <div className="border border-border rounded-lg overflow-hidden relative">
+      <div ref={containerRef} className="border border-border rounded-lg overflow-hidden relative w-full">
         <canvas ref={canvasRef} />
         <canvas
           ref={overlayRef}
