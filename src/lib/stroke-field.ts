@@ -16,7 +16,8 @@
  */
 
 import type { ParametricParams, SurfaceStroke } from '@/types/parametric';
-import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU } from '@/lib/surface-unwrap';
+// Stroke U is the real circumference U (canvas width = full 360°),
+// so unwrap compensation is no longer applied during the bake.
 
 // Grid resolution targets ~0.5mm/cell so the wall actually carries the
 // drawing's pixel-level detail into the printed object. Capped to keep the
