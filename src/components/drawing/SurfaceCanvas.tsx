@@ -604,6 +604,18 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       )}
     </div>
   );
+
+  if (expanded) {
+    return (
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto">
+          {content}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return content;
 };
 
 export default SurfaceCanvas;
