@@ -411,7 +411,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
     }
   };
 
-  return (
+  const content = (
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
