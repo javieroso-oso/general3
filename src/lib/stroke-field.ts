@@ -184,8 +184,9 @@ function bake(strokes: SurfaceStroke[], params: ParametricParams): StrokeField {
   for (const st of strokes) for (const p of st.points) { su += p.u; sv += p.v; n++; }
   const centroid = n > 0 ? { u: su / n, v: sv / n } : { u: 0.5, v: 0.5 };
 
-  // Unwrap profile — same source the preview uses, so positions agree
-  const unwrapProfile = getUnwrapProfile(params);
+  // Unwrap profile — same source the preview uses, so positions agree.
+  // Strip surfaceStrokes to prevent recursion (getBodyRadius → getStrokeField → bake).
+  const unwrapProfile = getUnwrapProfile({ ...params, surfaceStrokes: [] } as ParametricParams);
 
   // Safety clamps — keep wall printable
   const maxEngrave = Math.max(0.2, params.wallThickness - 0.4);
