@@ -5,7 +5,8 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Trash2, Undo, Redo, FlipHorizontal, ChevronDown, ChevronRight } from 'lucide-react';
+import { Pencil, Trash2, Undo, Redo, FlipHorizontal, ChevronDown, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { SurfaceStroke, TexturePattern, ParametricParams } from '@/types/parametric';
 import { getUnwrapProfile, interpolateWidthFraction, getUnwrapClipPath } from '@/lib/surface-unwrap';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showStrokeList, setShowStrokeList] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const isLoadingRef = useRef(false);
   const strokesRef = useRef<SurfaceStroke[]>(strokes);
 
@@ -409,7 +411,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
     }
   };
 
-  return (
+  const content = (
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -422,6 +424,10 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
         <Button variant="outline" size="sm" onClick={handleClear}>
           <Trash2 className="w-3 h-3 mr-1" />
           Clear
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setExpanded((e) => !e)} title={expanded ? 'Shrink' : 'Expand to large editor'}>
+          {expanded ? <Minimize2 className="w-3 h-3 mr-1" /> : <Maximize2 className="w-3 h-3 mr-1" />}
+          {expanded ? 'Shrink' : 'Expand'}
         </Button>
         <div className="flex items-center gap-1.5 ml-auto">
           <FlipHorizontal className="w-3 h-3 text-muted-foreground" />
@@ -598,6 +604,18 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       )}
     </div>
   );
+
+  if (expanded) {
+    return (
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto">
+          {content}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return content;
 };
 
 export default SurfaceCanvas;
