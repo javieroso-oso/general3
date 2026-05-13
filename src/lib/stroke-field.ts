@@ -16,12 +16,19 @@
  */
 
 import type { ParametricParams, SurfaceStroke } from '@/types/parametric';
+import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU } from '@/lib/surface-unwrap';
 
-const GRID_U = 256; // angular cells (wraps)
-const GRID_V = 128; // height cells (clamped)
+// Grid resolution targets ~0.5mm/cell so the wall actually carries the
+// drawing's pixel-level detail into the printed object. Capped to keep the
+// bake fast and bounded.
+const MIN_GRID_U = 512;
+const MAX_GRID_U = 2048;
+const MIN_GRID_V = 256;
+const MAX_GRID_V = 1024;
+const TARGET_MM_PER_CELL = 0.5;
 
 export interface StrokeField {
-  data: Float32Array; // length = GRID_U * GRID_V, value = Δr in mm
+  data: Float32Array; // length = width * height, value = Δr in mm
   width: number;
   height: number;
 }
@@ -125,6 +132,7 @@ function applyTransforms(
   stroke: SurfaceStroke,
   params: ParametricParams,
   centroid: { u: number; v: number },
+  unwrapProfile: ReturnType<typeof getUnwrapProfile>,
 ): { u: number; v: number }[] {
   const globalU = params.surfaceGlobalOffsetU ?? 0;
   const globalV = params.surfaceGlobalOffsetV ?? 0;
@@ -134,37 +142,57 @@ function applyTransforms(
   const sScale = (stroke.strokeScale ?? 1) * globalScale;
 
   return points.map((p) => {
-    let u = (p.u - centroid.u) * sScale + centroid.u + sOffU;
+    // 1+2. Scale around centroid, add offsets (still in canvas-space U)
+    let uCanvas = (p.u - centroid.u) * sScale + centroid.u + sOffU;
     let v = (p.v - centroid.v) * sScale + centroid.v + sOffV;
     v = Math.max(0, Math.min(1, v));
+
+    // 3. Unwrap compensation — must match the preview surface-stroke-generator
+    //    so baked-into-wall strokes land at the same theta as the floating preview.
+    const wf = interpolateWidthFraction(unwrapProfile, v);
+    let u = canvasUToRealU(uCanvas, wf);
+
+    // 4. Wrap horizontally
     u = ((u % 1) + 1) % 1;
     return { u, v };
   });
 }
 
 function bake(strokes: SurfaceStroke[], params: ParametricParams): StrokeField {
-  const data = new Float32Array(GRID_U * GRID_V);
-
-  // mm-per-cell scale so brush thickness/depth in mm map to a sensible footprint
+  // Adaptive grid: aim for ~TARGET_MM_PER_CELL across both axes so the bake
+  // resolution actually matches the printed resolution rather than an
+  // arbitrary 256×128 raster.
   const avgRadius = (params.baseRadius + params.topRadius) * 0.5;
   const circumferenceMm = Math.max(1, 2 * Math.PI * avgRadius);
   const heightMm = Math.max(1, params.height);
-  const mmPerCellU = circumferenceMm / GRID_U;
-  const mmPerCellV = heightMm / GRID_V;
 
-  // Drawing centroid (must match preview generator so transforms agree)
+  const gridU = Math.min(
+    MAX_GRID_U,
+    Math.max(MIN_GRID_U, Math.ceil(circumferenceMm / TARGET_MM_PER_CELL)),
+  );
+  const gridV = Math.min(
+    MAX_GRID_V,
+    Math.max(MIN_GRID_V, Math.ceil(heightMm / TARGET_MM_PER_CELL)),
+  );
+
+  const data = new Float32Array(gridU * gridV);
+  const mmPerCellU = circumferenceMm / gridU;
+  const mmPerCellV = heightMm / gridV;
+
+  // Drawing centroid in canvas-space (must match preview generator)
   let su = 0, sv = 0, n = 0;
   for (const st of strokes) for (const p of st.points) { su += p.u; sv += p.v; n++; }
   const centroid = n > 0 ? { u: su / n, v: sv / n } : { u: 0.5, v: 0.5 };
 
+  // Unwrap profile — same source the preview uses, so positions agree
+  const unwrapProfile = getUnwrapProfile(params);
+
   // Safety clamps — keep wall printable
-  // Engraved: must not exceed wallThickness - 0.4mm (one nozzle of margin)
   const maxEngrave = Math.max(0.2, params.wallThickness - 0.4);
-  // Raised: keep modest so spiral-mode overhangs stay sane
   const maxRaise = 1.2;
 
   for (const stroke of strokes) {
-    const pts = applyTransforms(stroke.points, stroke, params, centroid);
+    const pts = applyTransforms(stroke.points, stroke, params, centroid, unwrapProfile);
     if (pts.length < 2) continue;
 
     const sign = stroke.effect === 'raised' ? 1 : -1;
@@ -174,10 +202,11 @@ function bake(strokes: SurfaceStroke[], params: ParametricParams): StrokeField {
         : Math.min(stroke.depth, maxEngrave);
     const radiusMm = Math.max(0.4, stroke.thickness * 0.5);
 
-    // Walk segments
     for (let i = 0; i < pts.length - 1; i++) {
       stampSegment(
         data,
+        gridU,
+        gridV,
         pts[i],
         pts[i + 1],
         radiusMm,
@@ -188,7 +217,7 @@ function bake(strokes: SurfaceStroke[], params: ParametricParams): StrokeField {
     }
   }
 
-  return { data, width: GRID_U, height: GRID_V };
+  return { data, width: gridU, height: gridV };
 }
 
 /**
@@ -198,47 +227,45 @@ function bake(strokes: SurfaceStroke[], params: ParametricParams): StrokeField {
  */
 function stampSegment(
   data: Float32Array,
+  gridU: number,
+  gridV: number,
   a: { u: number; v: number },
   b: { u: number; v: number },
   radiusMm: number,
-  peakMm: number, // signed
+  peakMm: number,
   mmPerCellU: number,
   mmPerCellV: number,
 ) {
-  // Convert radius to grid cells along each axis
   const radCellsU = Math.max(1, Math.ceil(radiusMm / mmPerCellU));
   const radCellsV = Math.max(1, Math.ceil(radiusMm / mmPerCellV));
 
   // Handle u wrap — if segment crosses seam, split into two
   const du = b.u - a.u;
   if (Math.abs(du) > 0.5) {
-    // crosses 0/1 boundary — duplicate one endpoint on the other side
     if (du > 0) {
-      stampSegment(data, { u: a.u + 1, v: a.v }, b, radiusMm, peakMm, mmPerCellU, mmPerCellV);
-      stampSegment(data, a, { u: b.u - 1, v: b.v }, radiusMm, peakMm, mmPerCellU, mmPerCellV);
+      stampSegment(data, gridU, gridV, { u: a.u + 1, v: a.v }, b, radiusMm, peakMm, mmPerCellU, mmPerCellV);
+      stampSegment(data, gridU, gridV, a, { u: b.u - 1, v: b.v }, radiusMm, peakMm, mmPerCellU, mmPerCellV);
     } else {
-      stampSegment(data, a, { u: b.u + 1, v: b.v }, radiusMm, peakMm, mmPerCellU, mmPerCellV);
-      stampSegment(data, { u: a.u - 1, v: a.v }, b, radiusMm, peakMm, mmPerCellU, mmPerCellV);
+      stampSegment(data, gridU, gridV, a, { u: b.u + 1, v: b.v }, radiusMm, peakMm, mmPerCellU, mmPerCellV);
+      stampSegment(data, gridU, gridV, { u: a.u - 1, v: a.v }, b, radiusMm, peakMm, mmPerCellU, mmPerCellV);
     }
     return;
   }
 
-  // Compute bounding box in cells
-  const minU = Math.min(a.u, b.u) - radCellsU / GRID_U;
-  const maxU = Math.max(a.u, b.u) + radCellsU / GRID_U;
-  const minV = Math.min(a.v, b.v) - radCellsV / GRID_V;
-  const maxV = Math.max(a.v, b.v) + radCellsV / GRID_V;
+  const minU = Math.min(a.u, b.u) - radCellsU / gridU;
+  const maxU = Math.max(a.u, b.u) + radCellsU / gridU;
+  const minV = Math.min(a.v, b.v) - radCellsV / gridV;
+  const maxV = Math.max(a.v, b.v) + radCellsV / gridV;
 
-  const x0 = Math.floor(minU * GRID_U);
-  const x1 = Math.ceil(maxU * GRID_U);
-  const y0 = Math.max(0, Math.floor(minV * GRID_V));
-  const y1 = Math.min(GRID_V - 1, Math.ceil(maxV * GRID_V));
+  const x0 = Math.floor(minU * gridU);
+  const x1 = Math.ceil(maxU * gridU);
+  const y0 = Math.max(0, Math.floor(minV * gridV));
+  const y1 = Math.min(gridV - 1, Math.ceil(maxV * gridV));
 
-  // Segment in mm space
-  const ax = a.u * GRID_U * mmPerCellU;
-  const ay = a.v * GRID_V * mmPerCellV;
-  const bx = b.u * GRID_U * mmPerCellU;
-  const by = b.v * GRID_V * mmPerCellV;
+  const ax = a.u * gridU * mmPerCellU;
+  const ay = a.v * gridV * mmPerCellV;
+  const bx = b.u * gridU * mmPerCellU;
+  const by = b.v * gridV * mmPerCellV;
   const dx = bx - ax;
   const dy = by - ay;
   const segLenSq = dx * dx + dy * dy;
@@ -247,7 +274,6 @@ function stampSegment(
     for (let xx = x0; xx <= x1; xx++) {
       const px = xx * mmPerCellU;
       const py = y * mmPerCellV;
-      // Distance from (px,py) to segment a-b
       let d2: number;
       if (segLenSq === 0) {
         const ddx = px - ax;
@@ -265,15 +291,12 @@ function stampSegment(
       const dist = Math.sqrt(d2);
       if (dist > radiusMm) continue;
 
-      // Smooth falloff (cosine ramp) so the wall transitions printably
       const f = 0.5 * (1 + Math.cos((dist / radiusMm) * Math.PI));
       const value = peakMm * f;
 
-      // Wrap u into grid index
-      const ux = ((xx % GRID_U) + GRID_U) % GRID_U;
-      const idx = y * GRID_U + ux;
+      const ux = ((xx % gridU) + gridU) % gridU;
+      const idx = y * gridU + ux;
 
-      // Take larger-magnitude (signed-aware): keep value with the bigger |v|
       const cur = data[idx];
       if (Math.abs(value) > Math.abs(cur)) data[idx] = value;
     }

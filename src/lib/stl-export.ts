@@ -240,9 +240,15 @@ export function generateBodyMesh(
   const hasStrokes = (params.surfaceStrokes ?? []).some(
     s => s.effect === 'engraved' || s.effect === 'raised' || s.effect === 'cut'
   );
-  const segments = hasStrokes ? 256 : 64;
+  // When the wall carries a baked drawing, sample dense enough that
+  // ~0.5mm of circumferential detail is preserved (matches stroke-field bake).
+  const avgRadiusForSeg = (params.baseRadius + params.topRadius) * 0.5;
+  const circumferenceForSeg = Math.max(1, 2 * Math.PI * avgRadiusForSeg);
+  const segments = hasStrokes
+    ? Math.min(1024, Math.max(384, Math.ceil(circumferenceForSeg / 0.5)))
+    : 64;
   const heightSegments = hasStrokes
-    ? Math.min(800, Math.max(300, Math.ceil(height / 0.4)))
+    ? Math.min(1200, Math.max(400, Math.ceil(height / 0.3)))
     : Math.ceil(height / 2);
 
   // Determine if using spine-based generation
@@ -1408,7 +1414,13 @@ export function generateSpiralVaseLayers(
   const hasStrokes = (params.surfaceStrokes ?? []).some(
     s => s.effect === 'engraved' || s.effect === 'raised' || s.effect === 'cut'
   );
-  const segments = hasStrokes ? 256 : 64; // Points per revolution
+  // Match the STL body sampling so the spiral G-code carries the same
+  // drawing detail (~0.5mm of circumferential resolution).
+  const avgRadiusForSeg = (params.baseRadius + params.topRadius) * 0.5;
+  const circumferenceForSeg = Math.max(1, 2 * Math.PI * avgRadiusForSeg);
+  const segments = hasStrokes
+    ? Math.min(1024, Math.max(384, Math.ceil(circumferenceForSeg / 0.5)))
+    : 64;
   const totalPoints = totalLayers * segments;
   
   // Pre-compute drift offsets (drift removed, using 0)
