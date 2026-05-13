@@ -233,21 +233,46 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       const pOffX = (obj as any).pathOffset?.x ?? 0;
       const pOffY = (obj as any).pathOffset?.y ?? 0;
 
+      // Walk the path. For Q (quadratic) commands, sample multiple points along
+      // the curve so the captured stroke matches the smoothness drawn by the user
+      // (Fabric's PencilBrush emits curves; storing only endpoints lost detail
+      // and made exports look pixelated/jagged).
+      let prevX: number | null = null;
+      let prevY: number | null = null;
+
+      const pushPoint = (px: number, py: number) => {
+        const transformed = {
+          x: matrix[0] * px + matrix[2] * py + matrix[4],
+          y: matrix[1] * px + matrix[3] * py + matrix[5],
+        };
+        const u = Math.max(0, Math.min(1, transformed.x / width));
+        const v = Math.max(0, Math.min(1, 1 - transformed.y / height));
+        points.push({ u, v });
+      };
+
       pathData.forEach((cmd: any) => {
-        if (cmd[0] === 'M' || cmd[0] === 'L' || cmd[0] === 'Q') {
+        if (cmd[0] === 'M' || cmd[0] === 'L') {
           const px = cmd[cmd.length - 2] - pOffX;
           const py = cmd[cmd.length - 1] - pOffY;
-
-          const transformed = {
-            x: matrix[0] * px + matrix[2] * py + matrix[4],
-            y: matrix[1] * px + matrix[3] * py + matrix[5],
-          };
-
-          // Store raw canvas-space UV — the stroke generator will compensate for unwrap
-          const u = Math.max(0, Math.min(1, transformed.x / width));
-          const v = Math.max(0, Math.min(1, 1 - transformed.y / height));
-
-          points.push({ u, v });
+          pushPoint(px, py);
+          prevX = px; prevY = py;
+        } else if (cmd[0] === 'Q') {
+          const cx = cmd[1] - pOffX;
+          const cy = cmd[2] - pOffY;
+          const ex = cmd[3] - pOffX;
+          const ey = cmd[4] - pOffY;
+          const sx = prevX ?? ex;
+          const sy = prevY ?? ey;
+          // Sample 6 intermediate points along the quadratic Bezier
+          const STEPS = 6;
+          for (let s = 1; s <= STEPS; s++) {
+            const t = s / STEPS;
+            const omt = 1 - t;
+            const qx = omt * omt * sx + 2 * omt * t * cx + t * t * ex;
+            const qy = omt * omt * sy + 2 * omt * t * cy + t * t * ey;
+            pushPoint(qx, qy);
+          }
+          prevX = ex; prevY = ey;
         }
       });
 
