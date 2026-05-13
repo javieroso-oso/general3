@@ -218,14 +218,8 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       const uCanvas = Math.max(0, Math.min(1, x / width));
       const v = Math.max(0, Math.min(1, 1 - y / height));
 
-      // Compensate for unwrap shape
-      if (unwrapProfile) {
-        const wf = interpolateWidthFraction(unwrapProfile, v);
-        const uReal = canvasUToRealU(uCanvas, wf);
-        onHover({ u: uReal, v });
-      } else {
-        onHover({ u: uCanvas, v });
-      }
+      // Canvas X == real circumference U (full width = 360°).
+      onHover({ u: uCanvas, v });
     };
 
     const handleMouseLeave = () => { onHover(null); };
