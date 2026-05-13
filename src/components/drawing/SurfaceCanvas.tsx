@@ -39,12 +39,11 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
-  const [brushWidth, setBrushWidth] = useState(4);
+  // Brush thickness in millimetres (matches what gets baked into the wall).
+  const [brushThicknessMm, setBrushThicknessMm] = useState(2);
   const [currentEffect, setCurrentEffect] = useState<SurfaceStroke['effect']>('engraved');
   const [currentDepth, setCurrentDepth] = useState(2);
-  const [currentTexturePattern, setCurrentTexturePattern] = useState<TexturePattern>('dots');
   const [symmetry, setSymmetry] = useState(false);
-  const [brushOpacity, setBrushOpacity] = useState(1);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showStrokeList, setShowStrokeList] = useState(false);
@@ -161,7 +160,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
 
     canvas.freeDrawingBrush = new PencilBrush(canvas);
     canvas.freeDrawingBrush.color = EFFECT_COLORS.engraved;
-    canvas.freeDrawingBrush.width = brushWidth;
+    canvas.freeDrawingBrush.width = brushThicknessMm * 3;
 
     setFabricCanvas(canvas);
 
@@ -207,16 +206,12 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
     }
   }, [onHover, width, height, unwrapProfile]);
 
-  // Update brush on effect/opacity change
+  // Update brush color & width whenever effect or thickness changes.
   useEffect(() => {
     if (!fabricCanvas?.freeDrawingBrush) return;
-    fabricCanvas.freeDrawingBrush.width = brushWidth;
-    const hex = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.engraved;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    fabricCanvas.freeDrawingBrush.color = `rgba(${r},${g},${b},${brushOpacity})`;
-  }, [brushWidth, currentEffect, fabricCanvas, brushOpacity]);
+    fabricCanvas.freeDrawingBrush.width = brushThicknessMm * 3;
+    fabricCanvas.freeDrawingBrush.color = EFFECT_COLORS[currentEffect] || EFFECT_COLORS.engraved;
+  }, [brushThicknessMm, currentEffect, fabricCanvas]);
 
   // Extract strokes from canvas paths (with unwrap UV compensation)
   const extractStrokes = useCallback(() => {
@@ -261,18 +256,18 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
         newStrokes.push({
           id: existing?.id || `stroke-${Date.now()}-${idx}`,
           points,
-          thickness: existing?.thickness || brushWidth * 0.5,
-          effect: 'engraved',
-          depth: existing?.depth || currentDepth,
-          offsetU: 0,
-          offsetV: 0,
-          strokeScale: 1,
+          thickness: existing?.thickness ?? brushThicknessMm,
+          effect: existing?.effect ?? currentEffect,
+          depth: existing?.depth ?? currentDepth,
+          offsetU: existing?.offsetU ?? 0,
+          offsetV: existing?.offsetV ?? 0,
+          strokeScale: existing?.strokeScale ?? 1,
         });
       }
     });
 
     onChange(newStrokes);
-  }, [fabricCanvas, width, height, onChange, currentDepth, brushWidth]);
+  }, [fabricCanvas, width, height, onChange, currentDepth, brushThicknessMm, currentEffect]);
 
   // Mirror stroke points horizontally for symmetry
   const mirrorPath = useCallback((path: Path): Path | null => {
@@ -396,7 +391,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       {/* Effect & depth controls */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Modo</Label>
+          <Label className="text-xs text-muted-foreground">Mode</Label>
           <Select value={currentEffect} onValueChange={(v) => setCurrentEffect(v as SurfaceStroke['effect'])}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -405,64 +400,44 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
               <SelectItem value="engraved">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.engraved }} />
-                  Grabado
+                  Engraved (carve in)
+                </span>
+              </SelectItem>
+              <SelectItem value="raised">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.raised }} />
+                  Raised (push out)
                 </span>
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Depth: {currentDepth}mm</Label>
+          <Label className="text-xs text-muted-foreground">Depth: {currentDepth.toFixed(1)}mm</Label>
           <Slider
             value={[currentDepth]}
             onValueChange={([v]) => setCurrentDepth(v)}
             min={0.5}
-            max={8}
-            step={0.5}
+            max={currentEffect === 'raised' ? 1.2 : 6}
+            step={0.1}
             className="py-2"
           />
         </div>
       </div>
 
-      {/* Texture pattern selector */}
-      {currentEffect === 'texture' && (
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Texture Pattern</Label>
-          <Select value={currentTexturePattern} onValueChange={(v) => setCurrentTexturePattern(v as TexturePattern)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="dots">Dots</SelectItem>
-              <SelectItem value="crosshatch">Crosshatch</SelectItem>
-              <SelectItem value="zigzag">Zigzag</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Brush size & opacity */}
+      {/* Brush thickness */}
       <div className="flex items-center gap-3 flex-wrap">
         <Pencil className="w-3 h-3 text-muted-foreground" />
-        <Label className="text-xs text-muted-foreground">Brush</Label>
+        <Label className="text-xs text-muted-foreground">Thickness</Label>
         <Slider
-          value={[brushWidth]}
-          onValueChange={([v]) => setBrushWidth(v)}
-          min={2}
-          max={12}
-          step={1}
-          className="w-20 py-2"
+          value={[brushThicknessMm]}
+          onValueChange={([v]) => setBrushThicknessMm(v)}
+          min={0.5}
+          max={6}
+          step={0.5}
+          className="w-32 py-2"
         />
-        <span className="text-xs text-muted-foreground tabular-nums">{brushWidth}px</span>
-        <Label className="text-xs text-muted-foreground ml-2">Opacity</Label>
-        <Slider
-          value={[brushOpacity]}
-          onValueChange={([v]) => setBrushOpacity(v)}
-          min={0.2}
-          max={1}
-          step={0.1}
-          className="w-16 py-2"
-        />
+        <span className="text-xs text-muted-foreground tabular-nums">{brushThicknessMm.toFixed(1)}mm</span>
       </div>
 
       {/* Canvas with unwrap overlay */}
@@ -480,14 +455,14 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       {/* Labels */}
       <div className="flex justify-between text-[10px] text-muted-foreground -mt-1 px-1">
         <span>0°</span>
-        <span>← dibuja dentro de la forma →</span>
+        <span>← Draw inside the silhouette →</span>
         <span>360°</span>
       </div>
       <p className="text-[10px] text-muted-foreground/60 text-center -mt-0.5">
-        La forma muestra el desdoblado real de la pieza. Dibuja dentro de la silueta y se grabará proporcionalmente.
+        The silhouette is the real unwrap of the body. Engraved & raised strokes physically modify the wall.
       </p>
 
-      {/* Stroke list */}
+      {/* Stroke list — editable */}
       {strokes.length > 0 && (
         <div className="space-y-2">
           <button
@@ -495,35 +470,86 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
           >
             {showStrokeList ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            <span>{strokes.length} trazo{strokes.length !== 1 ? 's' : ''}</span>
+            <span>{strokes.length} stroke{strokes.length !== 1 ? 's' : ''}</span>
           </button>
 
           {showStrokeList && (
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {strokes.map((stroke, idx) => (
-                <div key={stroke.id} className="flex items-center justify-between bg-background/50 rounded px-2 py-1 border border-border/50">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: EFFECT_COLORS[stroke.effect] }}
-                    />
-                    <span className="text-xs text-foreground">
-                      Trazo {idx + 1}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      ({stroke.effect})
-                    </span>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {strokes.map((stroke, idx) => {
+                const wallMm = params?.wallThickness ?? 1.6;
+                const maxEngrave = Math.max(0.2, wallMm - 0.4);
+                const maxRaise = 1.2;
+                const maxForEffect = stroke.effect === 'raised' ? maxRaise : maxEngrave;
+                const clamped = (stroke.effect === 'engraved' || stroke.effect === 'cut' || stroke.effect === 'raised')
+                  && stroke.depth > maxForEffect;
+                const updateStroke = (patch: Partial<SurfaceStroke>) => {
+                  const next = strokes.map((s, i) => i === idx ? { ...s, ...patch } : s);
+                  onChange(next);
+                };
+                return (
+                  <div key={stroke.id} className="bg-background/50 rounded px-2 py-1.5 border border-border/50 space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: EFFECT_COLORS[stroke.effect] }}
+                      />
+                      <span className="text-xs text-foreground">Stroke {idx + 1}</span>
+                      {clamped && (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive"
+                          title={`Depth clamped to ${maxForEffect.toFixed(1)}mm for printability${stroke.effect === 'raised' ? '' : ` (wall is ${wallMm}mm)`}.`}
+                        >
+                          clamped → {maxForEffect.toFixed(1)}mm
+                        </span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 ml-auto"
+                        onClick={() => handleRemoveStroke(idx)}
+                      >
+                        <Trash2 className="w-3 h-3 text-muted-foreground" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <Select
+                        value={stroke.effect}
+                        onValueChange={(v) => updateStroke({ effect: v as SurfaceStroke['effect'] })}
+                      >
+                        <SelectTrigger className="h-6 text-[10px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="engraved">Engraved</SelectItem>
+                          <SelectItem value="raised">Raised</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-muted-foreground w-7 shrink-0">D {stroke.depth.toFixed(1)}</span>
+                        <Slider
+                          value={[stroke.depth]}
+                          onValueChange={([v]) => updateStroke({ depth: v })}
+                          min={0.5}
+                          max={stroke.effect === 'raised' ? 1.2 : 6}
+                          step={0.1}
+                          className="py-1.5"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-muted-foreground w-7 shrink-0">T {stroke.thickness.toFixed(1)}</span>
+                        <Slider
+                          value={[stroke.thickness]}
+                          onValueChange={([v]) => updateStroke({ thickness: v })}
+                          min={0.5}
+                          max={6}
+                          step={0.5}
+                          className="py-1.5"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0"
-                    onClick={() => handleRemoveStroke(idx)}
-                  >
-                    <Trash2 className="w-3 h-3 text-muted-foreground" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
