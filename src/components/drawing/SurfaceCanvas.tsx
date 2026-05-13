@@ -105,21 +105,9 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
     const clipPoints = getUnwrapClipPath(unwrapProfile, width, height);
     if (clipPoints.length < 4) return;
 
-    // Fill entire canvas with dark overlay (outside area)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(0, 0, width, height);
-
-    // Cut out the unwrap shape (clear it)
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.moveTo(clipPoints[0].x, clipPoints[0].y);
-    for (let i = 1; i < clipPoints.length; i++) {
-      ctx.lineTo(clipPoints[i].x, clipPoints[i].y);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    // Silhouette is now a visual guide only — the entire canvas width
+    // represents the full 0°–360° circumference, so we don't shade out
+    // the area outside the unwrap shape anymore.
 
     // Draw the unwrap shape border
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
