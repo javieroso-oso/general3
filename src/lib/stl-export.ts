@@ -237,8 +237,13 @@ export function generateBodyMesh(
   // Check if we need to generate a floor with cord hole (when no legs but cord hole enabled)
   const needsCordHoleFloor = cordHoleEnabled && !addLegs;
 
-  const segments = 64;
-  const heightSegments = Math.ceil(height / 2);
+  const hasStrokes = (params.surfaceStrokes ?? []).some(
+    s => s.effect === 'engraved' || s.effect === 'raised' || s.effect === 'cut'
+  );
+  const segments = hasStrokes ? 256 : 64;
+  const heightSegments = hasStrokes
+    ? Math.min(800, Math.max(300, Math.ceil(height / 0.4)))
+    : Math.ceil(height / 2);
 
   // Determine if using spine-based generation
   const useSpine = params.spineEnabled && 
@@ -1400,7 +1405,10 @@ export function generateSpiralVaseLayers(
   const { layerHeight } = settings;
   
   const totalLayers = Math.ceil(height / layerHeight);
-  const segments = 64; // Points per revolution
+  const hasStrokes = (params.surfaceStrokes ?? []).some(
+    s => s.effect === 'engraved' || s.effect === 'raised' || s.effect === 'cut'
+  );
+  const segments = hasStrokes ? 256 : 64; // Points per revolution
   const totalPoints = totalLayers * segments;
   
   // Pre-compute drift offsets (drift removed, using 0)
