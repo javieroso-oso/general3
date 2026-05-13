@@ -39,12 +39,11 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
-  const [brushWidth, setBrushWidth] = useState(4);
+  // Brush thickness in millimetres (matches what gets baked into the wall).
+  const [brushThicknessMm, setBrushThicknessMm] = useState(2);
   const [currentEffect, setCurrentEffect] = useState<SurfaceStroke['effect']>('engraved');
   const [currentDepth, setCurrentDepth] = useState(2);
-  const [currentTexturePattern, setCurrentTexturePattern] = useState<TexturePattern>('dots');
   const [symmetry, setSymmetry] = useState(false);
-  const [brushOpacity, setBrushOpacity] = useState(1);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showStrokeList, setShowStrokeList] = useState(false);
