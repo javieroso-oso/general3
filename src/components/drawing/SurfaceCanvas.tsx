@@ -497,11 +497,11 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
       {/* Labels */}
       <div className="flex justify-between text-[10px] text-muted-foreground -mt-1 px-1">
         <span>0°</span>
-        <span>← Draw inside the silhouette →</span>
+        <span>← Full canvas width = full wrap around the body →</span>
         <span>360°</span>
       </div>
       <p className="text-[10px] text-muted-foreground/60 text-center -mt-0.5">
-        The silhouette is the real unwrap of the body. Engraved & raised strokes physically modify the wall.
+        The outline shows the body's real proportions as a guide. Engraved & raised strokes physically modify the wall.
       </p>
 
       {/* Stroke list — editable */}
