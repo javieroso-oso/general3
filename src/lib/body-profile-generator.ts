@@ -340,6 +340,17 @@ export function getBodyRadius(
     r = Math.max(wall * 0.5, r + deltaMm * scale);
   }
 
+  // Surface-strokes radial offset — engraved/raised drawings physically
+  // modify the wall so they survive into the spiral-vase G-code.
+  // (Ribbon/texture effects stay as separate floating preview meshes.)
+  const strokeField = getStrokeField(params);
+  if (strokeField) {
+    const deltaMm = sampleStrokeField(strokeField, effectiveTheta, t);
+    if (deltaMm !== 0) {
+      r = Math.max(wall * 0.5, r + deltaMm * scale);
+    }
+  }
+
   return r;
 }
 
