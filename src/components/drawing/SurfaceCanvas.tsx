@@ -391,7 +391,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
       {/* Effect & depth controls */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Modo</Label>
+          <Label className="text-xs text-muted-foreground">Mode</Label>
           <Select value={currentEffect} onValueChange={(v) => setCurrentEffect(v as SurfaceStroke['effect'])}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -400,64 +400,44 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, h
               <SelectItem value="engraved">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.engraved }} />
-                  Grabado
+                  Engraved (carve in)
+                </span>
+              </SelectItem>
+              <SelectItem value="raised">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: EFFECT_COLORS.raised }} />
+                  Raised (push out)
                 </span>
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Depth: {currentDepth}mm</Label>
+          <Label className="text-xs text-muted-foreground">Depth: {currentDepth.toFixed(1)}mm</Label>
           <Slider
             value={[currentDepth]}
             onValueChange={([v]) => setCurrentDepth(v)}
             min={0.5}
-            max={8}
-            step={0.5}
+            max={currentEffect === 'raised' ? 1.2 : 6}
+            step={0.1}
             className="py-2"
           />
         </div>
       </div>
 
-      {/* Texture pattern selector */}
-      {currentEffect === 'texture' && (
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Texture Pattern</Label>
-          <Select value={currentTexturePattern} onValueChange={(v) => setCurrentTexturePattern(v as TexturePattern)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="dots">Dots</SelectItem>
-              <SelectItem value="crosshatch">Crosshatch</SelectItem>
-              <SelectItem value="zigzag">Zigzag</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Brush size & opacity */}
+      {/* Brush thickness */}
       <div className="flex items-center gap-3 flex-wrap">
         <Pencil className="w-3 h-3 text-muted-foreground" />
-        <Label className="text-xs text-muted-foreground">Brush</Label>
+        <Label className="text-xs text-muted-foreground">Thickness</Label>
         <Slider
-          value={[brushWidth]}
-          onValueChange={([v]) => setBrushWidth(v)}
-          min={2}
-          max={12}
-          step={1}
-          className="w-20 py-2"
+          value={[brushThicknessMm]}
+          onValueChange={([v]) => setBrushThicknessMm(v)}
+          min={0.5}
+          max={6}
+          step={0.5}
+          className="w-32 py-2"
         />
-        <span className="text-xs text-muted-foreground tabular-nums">{brushWidth}px</span>
-        <Label className="text-xs text-muted-foreground ml-2">Opacity</Label>
-        <Slider
-          value={[brushOpacity]}
-          onValueChange={([v]) => setBrushOpacity(v)}
-          min={0.2}
-          max={1}
-          step={0.1}
-          className="w-16 py-2"
-        />
+        <span className="text-xs text-muted-foreground tabular-nums">{brushThicknessMm.toFixed(1)}mm</span>
       </div>
 
       {/* Canvas with unwrap overlay */}
