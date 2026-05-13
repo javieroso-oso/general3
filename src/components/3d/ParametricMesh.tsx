@@ -250,8 +250,14 @@ const ParametricMesh = ({
         params.skinTextureMode === 'threads' ||
         params.skinTextureMode === 'fuzz' ||
         params.skinTextureMode === 'hammered');
-    const segments = skinOn ? (skinNeedsHighRes ? 384 : 256) : 64;
-    const heightSegments = skinOn
+    // Bake-into-wall strokes (engraved/raised/cut) need a high-res mesh to be
+    // visible in the preview, just like skin texture does.
+    const hasBakedStrokes = (params.surfaceStrokes ?? []).some(
+      (s) => s.effect === 'engraved' || s.effect === 'cut' || s.effect === 'raised',
+    );
+    const needsHighRes = skinOn || hasBakedStrokes;
+    const segments = needsHighRes ? (skinNeedsHighRes ? 384 : 256) : 64;
+    const heightSegments = needsHighRes
       ? Math.min(600, Math.max(120, Math.round(height / 0.3)))
       : 64;
     
