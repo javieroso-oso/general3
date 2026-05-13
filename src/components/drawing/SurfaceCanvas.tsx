@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Pencil, Trash2, Undo, Redo, FlipHorizontal, ChevronDown, ChevronRight } from 'lucide-react';
 import { SurfaceStroke, TexturePattern, ParametricParams } from '@/types/parametric';
-import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU, getUnwrapClipPath } from '@/lib/surface-unwrap';
+import { getUnwrapProfile, interpolateWidthFraction, getUnwrapClipPath } from '@/lib/surface-unwrap';
 import { cn } from '@/lib/utils';
 
 export interface SurfaceHoverPosition {
