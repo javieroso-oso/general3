@@ -16,12 +16,19 @@
  */
 
 import type { ParametricParams, SurfaceStroke } from '@/types/parametric';
+import { getUnwrapProfile, interpolateWidthFraction, canvasUToRealU } from '@/lib/surface-unwrap';
 
-const GRID_U = 256; // angular cells (wraps)
-const GRID_V = 128; // height cells (clamped)
+// Grid resolution targets ~0.5mm/cell so the wall actually carries the
+// drawing's pixel-level detail into the printed object. Capped to keep the
+// bake fast and bounded.
+const MIN_GRID_U = 512;
+const MAX_GRID_U = 2048;
+const MIN_GRID_V = 256;
+const MAX_GRID_V = 1024;
+const TARGET_MM_PER_CELL = 0.5;
 
 export interface StrokeField {
-  data: Float32Array; // length = GRID_U * GRID_V, value = Δr in mm
+  data: Float32Array; // length = width * height, value = Δr in mm
   width: number;
   height: number;
 }
