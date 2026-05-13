@@ -83,6 +83,7 @@ const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, h
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showStrokeList, setShowStrokeList] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const isLoadingRef = useRef(false);
   const strokesRef = useRef<SurfaceStroke[]>(strokes);
 
