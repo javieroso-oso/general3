@@ -250,8 +250,14 @@ const ParametricMesh = ({
         params.skinTextureMode === 'threads' ||
         params.skinTextureMode === 'fuzz' ||
         params.skinTextureMode === 'hammered');
-    const segments = skinOn ? (skinNeedsHighRes ? 384 : 256) : 64;
-    const heightSegments = skinOn
+    // Bake-into-wall strokes (engraved/raised/cut) need a high-res mesh to be
+    // visible in the preview, just like skin texture does.
+    const hasBakedStrokes = (params.surfaceStrokes ?? []).some(
+      (s) => s.effect === 'engraved' || s.effect === 'cut' || s.effect === 'raised',
+    );
+    const needsHighRes = skinOn || hasBakedStrokes;
+    const segments = needsHighRes ? (skinNeedsHighRes ? 384 : 256) : 64;
+    const heightSegments = needsHighRes
       ? Math.min(600, Math.max(120, Math.round(height / 0.3)))
       : 64;
     
@@ -1133,9 +1139,14 @@ function SurfaceStrokeMeshes({ params, materialConfig }: { params: ParametricPar
     }
   };
   
+  // Engraved / raised / cut are now baked into the body radius (so they appear
+  // in the spiral-vase G-code too). Only render floating preview meshes for
+  // ribbon and texture effects, which can't be expressed as a radial offset.
+  const floatingGeos = strokeGeos.filter((sg) => sg.effect === 'ribbon' || sg.effect === 'texture');
+
   return (
     <>
-      {strokeGeos.map((sg, idx) => {
+      {floatingGeos.map((sg, idx) => {
         const mat = getMaterial(sg.effect);
         return (
           <mesh key={idx} geometry={sg.geometry} castShadow={!mat.transparent} receiveShadow>

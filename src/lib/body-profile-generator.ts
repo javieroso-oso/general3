@@ -8,6 +8,7 @@
 
 import { ParametricParams, printConstraints } from '@/types/parametric';
 import { getSkinPerturbation, skinSettingsFromParams } from '@/lib/skin-texture-generator';
+import { getStrokeField, sampleStrokeField } from '@/lib/stroke-field';
 
 // Deterministic noise for consistent results
 const seededRandom = (x: number, y: number, z: number) => {
@@ -337,6 +338,17 @@ export function getBodyRadius(
     });
     // Convert mm delta to current scale and clamp so the wall can never collapse
     r = Math.max(wall * 0.5, r + deltaMm * scale);
+  }
+
+  // Surface-strokes radial offset — engraved/raised drawings physically
+  // modify the wall so they survive into the spiral-vase G-code.
+  // (Ribbon/texture effects stay as separate floating preview meshes.)
+  const strokeField = getStrokeField(params);
+  if (strokeField) {
+    const deltaMm = sampleStrokeField(strokeField, effectiveTheta, t);
+    if (deltaMm !== 0) {
+      r = Math.max(wall * 0.5, r + deltaMm * scale);
+    }
   }
 
   return r;
