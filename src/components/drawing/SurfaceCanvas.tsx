@@ -35,7 +35,42 @@ const EFFECT_COLORS: Record<SurfaceStroke['effect'], string> = {
 const CANVAS_W = 400;
 const CANVAS_H = 300;
 
-const SurfaceCanvas = ({ strokes, onChange, onHover, params, width = CANVAS_W, height = CANVAS_H }: SurfaceCanvasProps) => {
+// Bounds for auto-sized canvas (px)
+const MIN_W = 320;
+const MAX_W = 900;
+const MIN_H = 240;
+const MAX_H = 700;
+const BASE_AREA = 400 * 300; // keep similar visual weight to old default
+
+const SurfaceCanvas = ({ strokes, onChange, onHover, params, width: widthProp, height: heightProp }: SurfaceCanvasProps) => {
+  // Auto-size canvas to match the body's real circumference:height aspect ratio
+  // so the unwrap silhouette actually fills the drawing area.
+  const autoSize = useMemo(() => {
+    if (!params) return { width: CANVAS_W, height: CANVAS_H };
+    // Sample max radius from a quick unwrap
+    const profile = getUnwrapProfile(params, 40);
+    let rMax = 0;
+    for (const s of profile) if (s.radius > rMax) rMax = s.radius;
+    const circumference = 2 * Math.PI * rMax;
+    const h = params.height;
+    if (!circumference || !h) return { width: CANVAS_W, height: CANVAS_H };
+    const aspect = circumference / h; // width/height
+    // Pick dims preserving roughly the old visual area, then clamp.
+    let hPx = Math.sqrt(BASE_AREA / aspect);
+    let wPx = hPx * aspect;
+    // Clamp width first, recompute height
+    if (wPx > MAX_W) { wPx = MAX_W; hPx = wPx / aspect; }
+    if (wPx < MIN_W) { wPx = MIN_W; hPx = wPx / aspect; }
+    if (hPx > MAX_H) { hPx = MAX_H; wPx = hPx * aspect; }
+    if (hPx < MIN_H) { hPx = MIN_H; wPx = hPx * aspect; }
+    // Final hard clamp on both
+    wPx = Math.max(MIN_W, Math.min(MAX_W, wPx));
+    hPx = Math.max(MIN_H, Math.min(MAX_H, hPx));
+    return { width: Math.round(wPx), height: Math.round(hPx) };
+  }, [params]);
+
+  const width = widthProp ?? autoSize.width;
+  const height = heightProp ?? autoSize.height;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
