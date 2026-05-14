@@ -9,6 +9,7 @@ import Gallery from "./pages/Gallery";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 import ExhibitAdmin from "./pages/ExhibitAdmin";
+import Plotter from "./pages/Plotter";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/custom" element={<CustomGenerator />} />
+          <Route path="/plotter" element={<Plotter />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/exhibit-admin" element={<ExhibitAdmin />} />
