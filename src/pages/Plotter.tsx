@@ -20,22 +20,22 @@ const examples: Example[] = [
   {
     name: 'Contour Stack',
     description: 'Stacked horizontal slices of a 3D body — perfect for pen plotters.',
-    plotter: { generator: 'contour-stack' as PlotterParams['generator'], lineCount: 30 },
+    plotter: { mode: 'projection', projection: { ...defaultPlotterParams.projection, type: 'contourStack' } },
   },
   {
     name: 'Flow Field',
-    description: 'SDF-driven vector flow that warps lines around the active shape.',
-    plotter: { generator: 'flow-field' as PlotterParams['generator'], lineCount: 80 },
+    description: 'Generative noise-driven flow lines, plotter-ready.',
+    plotter: { mode: 'generative', pattern: 'flowField' },
   },
   {
     name: 'Spiral',
-    description: 'Continuous archimedean spiral, single uninterrupted toolpath.',
-    plotter: { generator: 'spiral' as PlotterParams['generator'] },
+    description: 'Continuous archimedean spiral — single uninterrupted toolpath.',
+    plotter: { mode: 'generative', pattern: 'spiral' },
   },
   {
-    name: 'Waves',
-    description: 'Stacked sine bands; classic Lauren Thorson aesthetic.',
-    plotter: { generator: 'waves' as PlotterParams['generator'], lineCount: 40 },
+    name: 'Line Field',
+    description: 'Parallel lines warped around the active 3D shape.',
+    plotter: { mode: 'projection', projection: { ...defaultPlotterParams.projection, type: 'lineField' } },
   },
 ];
 
