@@ -174,6 +174,67 @@ const tool = {
   },
 };
 
+const clamp = (value: unknown, min: number, max: number, fallback: number) => {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.min(max, Math.max(min, n));
+};
+
+const intClamp = (value: unknown, min: number, max: number, fallback: number) =>
+  Math.round(clamp(value, min, max, fallback));
+
+const normalizeParams = (raw: Partial<ToolParams>) => ({
+  height: clamp(raw.height, 60, 250, 150),
+  baseRadius: clamp(raw.baseRadius, 15, 70, 40),
+  topRadius: clamp(raw.topRadius, 10, 75, 35),
+  profileCurve: ["linear", "convex", "concave", "hourglass", "wave"].includes(raw.profileCurve ?? "") ? raw.profileCurve : "convex",
+  bulgePosition: clamp(raw.bulgePosition, 0, 1, 0.45),
+  bulgeAmount: clamp(raw.bulgeAmount, 0, 0.32, 0),
+  pinchAmount: clamp(raw.pinchAmount, 0, 0.22, 0),
+  asymmetry: clamp(raw.asymmetry, 0, 0.15, 0),
+  twistAngle: clamp(raw.twistAngle, 0, 115, 0),
+  lipFlare: clamp(raw.lipFlare, 0, 0.32, 0),
+  lipHeight: clamp(raw.lipHeight, 0, 0.15, 0),
+  organicNoise: clamp(raw.organicNoise, 0, 0.04, 0),
+  noiseScale: clamp(raw.noiseScale, 0.5, 3, 1),
+  wobbleFrequency: intClamp(raw.wobbleFrequency, 0, 6, 0),
+  wobbleAmplitude: clamp(raw.wobbleAmplitude, 0, 0.12, 0),
+  spineEnabled: Boolean(raw.spineEnabled),
+  spineAmplitudeX: clamp(raw.spineAmplitudeX, 0, 14, 0),
+  spineFrequencyX: clamp(raw.spineFrequencyX, 0.5, 3, 1.4),
+  spinePhaseX: clamp(raw.spinePhaseX, 0, 1, 0),
+  spineAmplitudeZ: clamp(raw.spineAmplitudeZ, 0, 14, 0),
+  spineFrequencyZ: clamp(raw.spineFrequencyZ, 0.5, 3, 1.2),
+  spinePhaseZ: clamp(raw.spinePhaseZ, 0, 1, 0.25),
+  lobeCount: intClamp(raw.lobeCount, 1, 4, 1),
+  lobeBlend: clamp(raw.lobeBlend, 0.25, 0.85, 0.5),
+  lobeSizeVariation: clamp(raw.lobeSizeVariation, 0, 1, 0),
+  lobeHeightVariation: clamp(raw.lobeHeightVariation, 0, 1, 0),
+  roundnessTop: clamp(raw.roundnessTop, 0, 1, 0),
+  roundnessBottom: clamp(raw.roundnessBottom, 0, 1, 0),
+  meltAmount: clamp(raw.meltAmount, 0, 30, 0),
+  meltLobes: intClamp(raw.meltLobes, 0, 8, raw.meltAmount ? 5 : 0),
+  meltVariation: clamp(raw.meltVariation, 0, 0.8, raw.meltAmount ? 0.45 : 0),
+  meltPhase: clamp(raw.meltPhase, 0, 1, 0),
+  meltDelay: clamp(raw.meltDelay, 0, 0.5, 0.18),
+  meltDragAmount: clamp(raw.meltDragAmount, 0, 18, 0),
+  meltDragAngle: clamp(raw.meltDragAngle, 0, 1, 0),
+  facetCount: intClamp(raw.facetCount, 0, 12, 0),
+  facetSharpness: clamp(raw.facetSharpness, 0, 1, raw.facetCount ? 0.85 : 0.5),
+  spiralGrooveCount: intClamp(raw.spiralGrooveCount, 0, 10, 0),
+  spiralGrooveDepth: clamp(raw.spiralGrooveDepth, 0, 0.1, 0),
+  spiralGrooveTwist: clamp(raw.spiralGrooveTwist, 0, 8, 2),
+  horizontalRibCount: intClamp(raw.horizontalRibCount, 0, 18, 0),
+  horizontalRibDepth: clamp(raw.horizontalRibDepth, 0, 0.08, 0),
+  horizontalRibWidth: clamp(raw.horizontalRibWidth, 0.15, 0.55, 0.3),
+  flutingCount: intClamp(raw.flutingCount, 0, 28, 0),
+  flutingDepth: clamp(raw.flutingDepth, 0, 0.08, 0),
+  rimWaveCount: intClamp(raw.rimWaveCount, 0, 12, 0),
+  rimWaveDepth: clamp(raw.rimWaveDepth, 0, 0.15, 0),
+  rippleCount: intClamp(raw.rippleCount, 0, 16, 0),
+  rippleDepth: clamp(raw.rippleDepth, 0, 0.08, 0),
+  rationale: typeof raw.rationale === "string" ? raw.rationale : "Generated a stronger parametric silhouette from your prompt.",
+});
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
