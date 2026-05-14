@@ -581,7 +581,7 @@ const Index = () => {
       
       {/* Top-right toolbar - Describe / Share / Kiosk */}
       {!isExhibitMode && (
-        <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+        <div className="fixed top-16 right-4 z-40 flex items-center gap-2">
           <AIPromptBar currentParams={params} onApply={safeSetParams} />
           <ShareButton params={params} type={objectType} />
           <div className="flex items-center gap-2 bg-card/90 backdrop-blur-lg border border-border/50 rounded-full px-3 py-1.5 shadow-sm">
