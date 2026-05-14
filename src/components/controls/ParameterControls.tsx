@@ -1071,6 +1071,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         </Subsection>
       </Section>
 
+      {(advancedMode || exhibitMode) && <>
       {/* 3. Textures (merged Surface Details + Surface Patterns) */}
       <Section title="Textures" defaultOpen={false}>
         {/* Faceting */}
