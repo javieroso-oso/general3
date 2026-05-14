@@ -13,10 +13,10 @@ interface AIPromptBarProps {
 }
 
 const EXAMPLES = [
-  'tall narrow vase with a flared lip',
-  'fat round belly, pinched neck, organic',
-  'three stacked spheres like a snowman',
-  'twisted hourglass with subtle ridges',
+  'alien coral flower with a wavy opening',
+  'dripping candle tower pulled by wind',
+  'brutalist faceted crystal bowl',
+  'spiraling shell tornado vase',
 ];
 
 const AIPromptBar = ({ currentParams, onApply }: AIPromptBarProps) => {
