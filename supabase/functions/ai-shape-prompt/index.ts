@@ -258,15 +258,18 @@ Deno.serve(async (req) => {
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        "Lovable-API-Key": apiKey,
+        "X-Lovable-AIG-SDK": "general3-parametric-generator",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-3.1-pro-preview",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: prompt },
         ],
+        temperature: 0.95,
+        top_p: 0.95,
         tools: [tool],
         tool_choice: { type: "function", function: { name: "set_shape_parameters" } },
       }),
@@ -298,7 +301,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const params = JSON.parse(toolCall.function.arguments) as ToolParams;
+    const params = normalizeParams(JSON.parse(toolCall.function.arguments) as Partial<ToolParams>);
     return new Response(JSON.stringify({ params }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
