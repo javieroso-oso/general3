@@ -45,6 +45,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useGallery } from '@/hooks/useGallery';
 import AddToGalleryDialog from '@/components/AddToGalleryDialog';
 import ExhibitSubmitDialog from '@/components/exhibit/ExhibitSubmitDialog';
+import AIPromptBar from '@/components/AIPromptBar';
+import ShareButton from '@/components/ShareButton';
 import { generateRandomParams, generateExhibitRandomParams } from '@/lib/random-generator';
 import {
   Select,
@@ -577,16 +579,20 @@ const Index = () => {
         </div>
       )}
       
-      {/* Exhibit mode toggle - only visible when NOT in kiosk mode */}
+      {/* Top-right toolbar - Describe / Share / Kiosk */}
       {!isExhibitMode && (
-        <div className="fixed top-3 right-4 z-50 flex items-center gap-2 bg-card/90 backdrop-blur-lg border border-border/50 rounded-full px-3 py-1.5 shadow-sm">
-          <Printer className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">Kiosk</span>
-          <Switch
-            checked={isExhibitMode}
-            onCheckedChange={toggleExhibitMode}
-            className="scale-75"
-          />
+        <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+          <AIPromptBar currentParams={params} onApply={safeSetParams} />
+          <ShareButton params={params} type={objectType} />
+          <div className="flex items-center gap-2 bg-card/90 backdrop-blur-lg border border-border/50 rounded-full px-3 py-1.5 shadow-sm">
+            <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Kiosk</span>
+            <Switch
+              checked={isExhibitMode}
+              onCheckedChange={toggleExhibitMode}
+              className="scale-75"
+            />
+          </div>
         </div>
       )}
       
