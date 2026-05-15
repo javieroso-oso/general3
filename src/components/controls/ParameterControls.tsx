@@ -2204,6 +2204,28 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         />
 
       </div>}
+
+      {/* 10. Base Drawing — raised ribs on the bottom face */}
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenTool className={cn("w-4 h-4", (params.baseStrokes?.length ?? 0) > 0 ? "text-primary" : "text-muted-foreground")} />
+            <Label className="text-sm font-medium">Base Drawing</Label>
+          </div>
+          <Switch
+            checked={params.baseStrokesVisible ?? true}
+            onCheckedChange={(v) => onParamsChange({ ...params, baseStrokesVisible: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Top-down view of the base. Strokes become raised ribs on the bottom face — printer-friendly, no overhangs.
+        </div>
+        <BaseCanvas
+          strokes={params.baseStrokes ?? []}
+          onChange={(s) => onParamsChange({ ...params, baseStrokes: s })}
+          params={params}
+        />
+      </div>}
       </>}
     </motion.div>
   );
