@@ -655,8 +655,27 @@ const Index = () => {
           </div>
         )}
 
-        {/* Tabbed Controls - Different for plotter vs 3D */}
-        {objectType === 'plotter' ? (
+        {/* Tabbed Controls - Different for plotter / pages / 3D */}
+        {objectType === 'pages' ? (
+          <div className="p-4 flex-1 overflow-y-auto">
+            <BookControls book={bookParams} onChange={setBookParams} />
+            <div className="mt-6">
+              <Button
+                onClick={() => {
+                  const fname = `book_${bookParams.pages.length}p_${Date.now()}.stl`;
+                  downloadBookSTL(bookParams, fname);
+                  toast.success('Book STL exported!', { description: fname });
+                }}
+                className="w-full gap-2"
+              >
+                <Download className="w-4 h-4" /> Export STL
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Print spine-down. Pages stand vertically; relief embedded in walls.
+              </p>
+            </div>
+          </div>
+        ) : objectType === 'plotter' ? (
           <Tabs defaultValue="controls" className="flex flex-col flex-1 overflow-hidden">
             <TabsList className="mx-4 mt-3 grid grid-cols-2 bg-secondary/50 p-1 rounded-lg">
               <TabsTrigger value="controls" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
