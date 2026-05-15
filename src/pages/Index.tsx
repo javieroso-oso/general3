@@ -15,6 +15,10 @@ import Header from '@/components/layout/Header';
 import ExportPaymentDialog from '@/components/ExportPaymentDialog';
 import PlotterPreview from '@/components/plotter/PlotterPreview';
 import PlotterControls from '@/components/plotter/PlotterControls';
+import BookPreview from '@/components/pages/BookPreview';
+import BookControls from '@/components/pages/BookControls';
+import { BookParams, defaultBookParams } from '@/types/pages';
+import { downloadBookSTL } from '@/lib/pages/book-stl-export';
 import { useDrawer } from '@/hooks/useDrawer';
 import { useLicenseKey } from '@/hooks/useLicenseKey';
 import { usePlotterDrawing } from '@/hooks/usePlotterDrawing';
@@ -60,6 +64,7 @@ const Index = () => {
   const [objectType, setObjectType] = useState<ObjectType>('shape');
   const [params, setParams] = useState<ParametricParams>(defaultShapeParams);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
+  const [bookParams, setBookParams] = useState<BookParams>(defaultBookParams);
   
   // Plotter drawing (computed from plotter params + live mesh params)
   const plotterDrawing = usePlotterDrawing({
