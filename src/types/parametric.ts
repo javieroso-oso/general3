@@ -15,6 +15,16 @@ export interface SurfaceStroke {
   strokeScale?: number;  // post-draw scale factor, default 1
 }
 
+// Base art stroke: drawn on a top-down circular view of the base, becomes a
+// raised rib on the bottom face. Coordinates are normalized to [-1..1] within
+// the base radius (0,0 = center). Always raised, always sits on the floor.
+export interface BaseStroke {
+  id: string;
+  points: { x: number; y: number }[]; // -1..1, base-radius normalized
+  thickness: number; // tube diameter in mm
+  height: number;    // how tall the rib stands above the base in mm
+}
+
 // Stand types - different structural support options
 export type StandType = 'tripod' | 'wall_mount' | 'weighted_disc';
 
