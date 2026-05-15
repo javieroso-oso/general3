@@ -1,34 +1,45 @@
-# Draw on the Base (Bottom Face)
+# Bake Base Drawing Into the Shape
 
-Simple addition: a 2D top-down canvas that lets you draw **raised lines on the bottom surface** of the current shape. Works on whatever shape you've already designed — no new "flat mode," no subtypes.
+Confirmed your suspicion: today the base strokes are independent swept tubes glued onto a still-open bottom. They don't fuse with the body. This plan replaces them with **a real floor that is part of the body**, with the strokes lifting that floor upward — one continuous, watertight solid.
 
-## What you get
+## What changes for you
 
-- A new **"Base Drawing"** canvas next to the existing Surface canvas — a circular top-down view sized to the base radius of the current shape.
-- Draw freeform strokes; each stroke becomes a **raised rib** on the bottom face (printer-friendly — no overhangs, no engraving into the floor).
-- Same controls you already know: thickness (mm), height (mm = how tall the rib stands above the base), undo/clear, scale/offset.
-- Strokes rendered live in 3D on the bottom face, exported with the STL.
+- The moment you add a base stroke, the body gets a real bottom face automatically (or reuses an existing one — cord-hole floor, base plate, leg pedestal — when present).
+- Strokes raise that floor where they pass, like pressing letters from underneath into clay. No more floating ribs.
+- Visually you stop seeing a separate blue tube; you see the floor itself swelling to form your drawing.
+- Spiral-vase mode is automatically blocked while base strokes exist (closed bottom + non-monotonic Z aren't compatible) — same UX pattern as the existing "needs floor" guards.
 
-## Why bottom only and raised only
+## Technical plan
 
-- Bottom face is already flat → ribs print cleanly as the first layers.
-- Raised (not engraved) avoids cutting into the floor, which would break spiral-vase mode and add print failures.
-- Whatever silhouette your shape has at `t=0`, the canvas mirrors it so strokes never go past the real edge.
+**Floor field (new lib)** `src/lib/base-stroke-field.ts`
+- Build an SDF over the base disc: for each query point in normalized base-radius coords, return distance to the nearest stroke segment.
+- Convert SDF → height: `h(x,y) = max over strokes of strokeHeight * smoothstep(thickness/2, 0, dist)`. Rounded edges, no z-fighting.
 
-## Technical plan (small)
+**Floor mesh generator (new lib)** `src/lib/base-floor-generator.ts`
+- Triangulate the base silhouette (sample `getBodyRadius(t=0, theta)` around the perimeter) into a fan/grid of vertices at high density (e.g. 1mm cell or ~120 radial × 96 angular).
+- Each vertex's `y = baseFloorThickness + h(x,y)` so the top side carries the drawing relief, the bottom stays flat at `y=0`.
+- Stitch outer ring to body's bottom ring (same theta samples) so they share vertices — truly fused, watertight.
+- Add a flat underside disc + side wall ring connecting top to bottom (only the first vertical mm — relief sits above that).
 
-- **Type** (`src/types/parametric.ts`): add `baseStrokes: BaseStroke[]` where `BaseStroke = { id, points: {x:-1..1, y:-1..1}[], thickness, height }`. Coords are normalized to base radius.
-- **Canvas** (`src/components/drawing/BaseCanvas.tsx`, new): top-down circular canvas, draws current base silhouette as a guide, captures freeform strokes. Mirrors the existing SurfaceCanvas patterns (undo, clear, scale).
-- **Geometry** (`src/lib/base-stroke-generator.ts`, new): for each stroke, build a swept tube of `thickness × height` sitting on top of the bottom face (`y = 0` in scene units, or `Z = 0` in export). Returns `THREE.BufferGeometry` to be merged with the body for export and rendered as a child mesh in preview.
-- **Render**: add a `<BaseStrokesMesh>` inside `ParametricMesh.tsx` (preview only).
-- **Export**: merge base-stroke geometries into the main STL right before the existing rotate -π/2 / Z=0 normalization.
-- **Print mode guard**: if any base stroke exists, force standard print mode (disable spiral-vase) with a small inline notice — same pattern used elsewhere.
-- **UI** (`src/components/controls/ParameterControls.tsx`): add a "Base Drawing" tab/section alongside the Surface drawing one.
+**Hook into body export** `src/lib/stl-export.ts`
+- Replace the current `generateBaseStrokeGeometry` merge in `exportBodyToSTL` with: if `baseStrokes.length > 0` and no existing closed floor, swap the open-bottom mesh for one that calls the new floor generator and welds it to the body's bottom ring.
+- If a floor already exists (`needsCordHoleFloor`, `basePlateEnabled`, leg pedestal), apply the same height field to **its** vertices instead of generating a duplicate floor. For the cord-hole floor case, modify `generateFullBodyWithCordHoleFloor` to displace its floor vertices through the field. For external base plate (`base-plate-generator.ts`), apply the field to the top disc vertices.
+- Force `printMode = 'standard'` (no spiral vase) when base strokes are present.
+
+**Preview parity** `src/components/3d/ParametricMesh.tsx`
+- Drop the standalone `BaseStrokeMesh` (the floating tube preview).
+- Have the main body mesh include the new fused floor at scene scale (0.01) so what you see is exactly what exports.
+
+**Canvas (no change to UX)** `src/components/drawing/BaseCanvas.tsx`
+- Same drawing experience. Internally the strokes now feed the height field instead of the tube generator.
+
+**Cleanup**
+- Delete `src/lib/base-stroke-generator.ts` after the new pipeline is wired (or repurpose its tube code as a fallback debug view).
 
 ## Out of scope
 
-- Engraved/cut into the base.
-- Drawing on the top face.
-- Changing the silhouette of the base.
+- Engraved/cut into the floor (still raised-only, for print integrity).
+- Drawing outside the base silhouette (clamped, as today).
+- Spiral-vase support for base-stroke designs (impossible by definition — needs closed bottom).
 
-Approve and I'll build it.
+Approve to build.
