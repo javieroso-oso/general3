@@ -1,9 +1,10 @@
-import { useMemo, useRef, useEffect } from 'react';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { BookParams } from '@/types/pages';
 import { generateBookGeometry } from '@/lib/pages/book-generator';
+import { onImageDecoded, ensureImageDecoded } from '@/lib/pages/page-height-field';
 
 interface BookMeshProps {
   book: BookParams;
