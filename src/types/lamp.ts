@@ -629,6 +629,8 @@ export const defaultLampParams: LampParams = {
   // Surface art
   surfaceStrokes: [],
   surfaceStrokesVisible: true,
+  baseStrokes: [],
+  baseStrokesVisible: true,
   surfaceGlobalOffsetU: 0,
   surfaceGlobalOffsetV: 0,
   surfaceGlobalScale: 1,
