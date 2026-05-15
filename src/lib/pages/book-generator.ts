@@ -42,6 +42,10 @@ export function generateBookGeometry(
   // ---- Spine bar ----
   const spineGeo = new THREE.BoxGeometry(totalSpineX * scale, spineY * scale, spineZ * scale);
   spineGeo.translate(0, (spineY * 0.5) * scale, 0);
+  // Strip uv attribute so all merged geometries have matching attribute sets
+  // (page slabs only carry position + normal + index).
+  spineGeo.deleteAttribute('uv');
+  // BoxGeometry is non-indexed; convert to indexed-free position+normal only.
   parts.push(spineGeo);
 
   // ---- Page slabs ----
