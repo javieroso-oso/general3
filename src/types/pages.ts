@@ -53,10 +53,10 @@ export interface BookParams {
 export const defaultBookParams: BookParams = {
   pageWidth: 60,
   pageHeight: 90,
-  pageThickness: 1.0,
-  spineThickness: 3.0,
-  spineExtra: 2.0,
-  pageGap: 1.2,
+  pageThickness: 0.42,    // single nozzle wall — vase-mode-thin
+  spineThickness: 0.6,    // derived padding around relief; not user-edited
+  spineExtra: 3.0,
+  pageGap: 1.6,
   defaultReliefHeight: 0.4,
   pages: [
     {
