@@ -40,9 +40,99 @@ export function buildPageHeightField(
     hasAny = rasterizeText(page, opts, W, H, data, relief);
   } else if (page.type === 'drawing' && page.drawing && page.drawing.strokes.length > 0) {
     hasAny = rasterizeStrokes(page.drawing.strokes, opts, W, H, data, relief);
+  } else if (page.type === 'image' && page.imageDataUrl) {
+    hasAny = rasterizeImage(page, opts, W, H, data, relief);
   }
 
   return { width: W, height: H, data, hasAny };
+}
+
+// -------- Image cache (sync decode-or-skip) --------
+const imageCache = new Map<string, HTMLImageElement>();
+const pendingImages = new Set<string>();
+type Listener = () => void;
+const listeners = new Set<Listener>();
+
+export function onImageDecoded(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export function ensureImageDecoded(dataUrl: string): HTMLImageElement | null {
+  const cached = imageCache.get(dataUrl);
+  if (cached && cached.complete && cached.naturalWidth > 0) return cached;
+  if (typeof document === 'undefined') return null;
+  if (pendingImages.has(dataUrl)) return null;
+  pendingImages.add(dataUrl);
+  const img = new Image();
+  img.onload = () => {
+    imageCache.set(dataUrl, img);
+    pendingImages.delete(dataUrl);
+    listeners.forEach(l => l());
+  };
+  img.onerror = () => {
+    pendingImages.delete(dataUrl);
+  };
+  img.src = dataUrl;
+  return null;
+}
+
+function rasterizeImage(
+  page: PageContent,
+  opts: BuildOptions,
+  W: number,
+  H: number,
+  data: Float32Array,
+  relief: number,
+): boolean {
+  if (typeof document === 'undefined' || !page.imageDataUrl) return false;
+  const img = ensureImageDecoded(page.imageDataUrl);
+  if (!img) return false;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Compute draw rect honoring fit
+  const fit = page.imageFit ?? 'contain';
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+  let dw = W, dh = H, dx = 0, dy = 0;
+  if (fit !== 'stretch') {
+    const sPage = W / H;
+    const sImg = iw / ih;
+    if ((fit === 'contain') === (sImg > sPage)) {
+      dw = W; dh = W / sImg;
+    } else {
+      dh = H; dw = H * sImg;
+    }
+    dx = (W - dw) / 2;
+    dy = (H - dh) / 2;
+  }
+  ctx.drawImage(img, dx, dy, dw, dh);
+
+  const px = ctx.getImageData(0, 0, W, H).data;
+  const invert = page.imageInvert ?? false;
+  const threshold = page.imageThreshold ?? 0.15;
+  const gamma = 1 / Math.max(0.1, page.imageContrast ?? 1.2);
+  let any = false;
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+    const lum = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255;
+    let v = invert ? 1 - lum : lum;
+    if (v <= threshold) continue;
+    v = (v - threshold) / (1 - threshold);
+    v = Math.pow(v, gamma);
+    const r = v * relief;
+    if (r > data[j]) {
+      data[j] = r;
+      any = true;
+    }
+  }
+  return any;
 }
 
 function rasterizeText(
