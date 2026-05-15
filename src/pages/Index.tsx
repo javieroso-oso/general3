@@ -613,6 +613,10 @@ const Index = () => {
               />
             </div>
           </div>
+        ) : objectType === 'pages' ? (
+          <div className="w-full h-full">
+            <BookPreview book={bookParams} autoRotate={autoRotate} />
+          </div>
         ) : (
           <Scene3D 
             params={params} 
