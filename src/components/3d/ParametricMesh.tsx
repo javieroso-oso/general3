@@ -1091,6 +1091,11 @@ const ParametricMesh = ({
       {params.surfaceStrokesVisible && params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
         <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
       )}
+
+      {/* Base art strokes (raised ribs on bottom face) */}
+      {params.baseStrokesVisible !== false && params.baseStrokes && params.baseStrokes.length > 0 && (
+        <BaseStrokeMesh params={params} materialConfig={materialConfig} />
+      )}
       
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
