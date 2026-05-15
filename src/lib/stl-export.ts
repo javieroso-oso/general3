@@ -1247,6 +1247,23 @@ export function exportBodyToSTL(
       }
     }
   }
+
+  // Merge raised base ribs (drawn from BaseCanvas) into the body
+  if ((params.baseStrokes ?? []).length > 0) {
+    try {
+      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      if (ribs) {
+        const merged = mergeGeometries([geometry, ribs]);
+        if (merged) {
+          geometry.dispose();
+          ribs.dispose();
+          geometry = merged;
+        }
+      }
+    } catch (e) {
+      console.warn('Base rib merge failed:', e);
+    }
+  }
   
   const mesh = new THREE.Mesh(geometry);
   
