@@ -1350,8 +1350,21 @@ export function exportCombinedToSTL(
   params: ParametricParams,
   type: ObjectType
 ): Blob {
-  const bodyGeometry = generateBodyMesh(params, type);
-  
+  let bodyGeometry = generateBodyMesh(params, type);
+
+  // Merge in raised base ribs
+  if ((params.baseStrokes ?? []).length > 0) {
+    try {
+      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      if (ribs) {
+        const merged = mergeGeometries([bodyGeometry, ribs]);
+        if (merged) { bodyGeometry.dispose(); ribs.dispose(); bodyGeometry = merged; }
+      }
+    } catch (e) {
+      console.warn('Base rib merge failed:', e);
+    }
+  }
+
   if (params.addLegs) {
     const legsGeometry = generateLegsWithBaseMesh(params);
     const combined = mergeGeometries([bodyGeometry, legsGeometry]);
@@ -1360,7 +1373,7 @@ export function exportCombinedToSTL(
     const result = exporter.parse(mesh);
     return new Blob([result], { type: 'application/octet-stream' });
   }
-  
+
   const mesh = new THREE.Mesh(bodyGeometry);
   const exporter = new STLExporter();
   const result = exporter.parse(mesh);
