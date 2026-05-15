@@ -19,6 +19,16 @@ interface PageEditorProps {
 
 const PageEditor = ({ page, pageWidthMm, pageHeightMm, onChange }: PageEditorProps) => {
   const update = (patch: Partial<PageContent>) => onChange({ ...page, ...patch });
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (dataUrl) update({ imageDataUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="space-y-3">
@@ -28,6 +38,7 @@ const PageEditor = ({ page, pageWidthMm, pageHeightMm, onChange }: PageEditorPro
           <SelectContent>
             <SelectItem value="text" className="text-xs">Text</SelectItem>
             <SelectItem value="drawing" className="text-xs">Drawing</SelectItem>
+            <SelectItem value="image" className="text-xs">Image</SelectItem>
           </SelectContent>
         </Select>
         <Select value={page.faces} onValueChange={(v) => update({ faces: v as any })}>
