@@ -1094,7 +1094,7 @@ const ParametricMesh = ({
 
       {/* Base art strokes (raised ribs on bottom face) */}
       {params.baseStrokesVisible !== false && params.baseStrokes && params.baseStrokes.length > 0 && (
-        <BaseStrokeMesh params={params} materialConfig={materialConfig} />
+        <BaseStrokeMesh params={params} materialConfig={materialConfig} customColor={customColor} />
       )}
       
       {showWireframe && (
