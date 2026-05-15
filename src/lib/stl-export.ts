@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { generateBaseStrokeGeometry } from '@/lib/base-stroke-generator';
 import earcut from 'earcut';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
@@ -1247,6 +1248,23 @@ export function exportBodyToSTL(
       }
     }
   }
+
+  // Merge raised base ribs (drawn from BaseCanvas) into the body
+  if ((params.baseStrokes ?? []).length > 0) {
+    try {
+      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      if (ribs) {
+        const merged = mergeGeometries([geometry, ribs]);
+        if (merged) {
+          geometry.dispose();
+          ribs.dispose();
+          geometry = merged;
+        }
+      }
+    } catch (e) {
+      console.warn('Base rib merge failed:', e);
+    }
+  }
   
   const mesh = new THREE.Mesh(geometry);
   
@@ -1332,8 +1350,21 @@ export function exportCombinedToSTL(
   params: ParametricParams,
   type: ObjectType
 ): Blob {
-  const bodyGeometry = generateBodyMesh(params, type);
-  
+  let bodyGeometry = generateBodyMesh(params, type);
+
+  // Merge in raised base ribs
+  if ((params.baseStrokes ?? []).length > 0) {
+    try {
+      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      if (ribs) {
+        const merged = mergeGeometries([bodyGeometry, ribs]);
+        if (merged) { bodyGeometry.dispose(); ribs.dispose(); bodyGeometry = merged; }
+      }
+    } catch (e) {
+      console.warn('Base rib merge failed:', e);
+    }
+  }
+
   if (params.addLegs) {
     const legsGeometry = generateLegsWithBaseMesh(params);
     const combined = mergeGeometries([bodyGeometry, legsGeometry]);
@@ -1342,7 +1373,7 @@ export function exportCombinedToSTL(
     const result = exporter.parse(mesh);
     return new Blob([result], { type: 'application/octet-stream' });
   }
-  
+
   const mesh = new THREE.Mesh(bodyGeometry);
   const exporter = new STLExporter();
   const result = exporter.parse(mesh);

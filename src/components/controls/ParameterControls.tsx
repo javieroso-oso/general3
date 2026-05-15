@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
 import SkinTextureControls from './SkinTextureControls';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
+import BaseCanvas from '@/components/drawing/BaseCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams, generateExhibitRandomParams } from '@/lib/random-generator';
@@ -2202,6 +2203,28 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           onSurfaceHover={onSurfaceHover}
         />
 
+      </div>}
+
+      {/* 10. Base Drawing — raised ribs on the bottom face */}
+      {!exhibitMode && <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenTool className={cn("w-4 h-4", (params.baseStrokes?.length ?? 0) > 0 ? "text-primary" : "text-muted-foreground")} />
+            <Label className="text-sm font-medium">Base Drawing</Label>
+          </div>
+          <Switch
+            checked={params.baseStrokesVisible ?? true}
+            onCheckedChange={(v) => onParamsChange({ ...params, baseStrokesVisible: v })}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Top-down view of the base. Strokes become raised ribs on the bottom face — printer-friendly, no overhangs.
+        </div>
+        <BaseCanvas
+          strokes={params.baseStrokes ?? []}
+          onChange={(s) => onParamsChange({ ...params, baseStrokes: s })}
+          params={params}
+        />
       </div>}
       </>}
     </motion.div>

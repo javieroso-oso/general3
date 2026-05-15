@@ -12,6 +12,7 @@ import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
 import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
+import { generateBaseStrokeGeometry } from '@/lib/base-stroke-generator';
 import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 
 interface ParametricMeshProps {
@@ -1090,6 +1091,11 @@ const ParametricMesh = ({
       {params.surfaceStrokesVisible && params.surfaceStrokes && params.surfaceStrokes.length > 0 && (
         <SurfaceStrokeMeshes params={params} materialConfig={materialConfig} />
       )}
+
+      {/* Base art strokes (raised ribs on bottom face) */}
+      {params.baseStrokesVisible !== false && params.baseStrokes && params.baseStrokes.length > 0 && (
+        <BaseStrokeMesh params={params} materialConfig={materialConfig} />
+      )}
       
       {showWireframe && (
         <lineSegments geometry={wireframeGeo}>
@@ -1275,6 +1281,25 @@ function SurfaceBoundsIndicator({ params }: { params: ParametricParams }) {
         <primitive key={i} object={line} />
       ))}
     </group>
+  );
+}
+
+// Base art strokes — raised ribs on the bottom face.
+function BaseStrokeMesh({ params, materialConfig }: { params: ParametricParams; materialConfig: MaterialConfig }) {
+  const geo = useMemo(
+    () => generateBaseStrokeGeometry(params, { scale: SCALE }),
+    [params],
+  );
+  if (!geo) return null;
+  return (
+    <mesh geometry={geo} castShadow receiveShadow>
+      <meshPhysicalMaterial
+        color="#0066ff"
+        roughness={materialConfig.roughness}
+        metalness={materialConfig.metalness}
+        side={THREE.FrontSide}
+      />
+    </mesh>
   );
 }
 

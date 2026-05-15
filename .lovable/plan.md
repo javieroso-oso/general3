@@ -1,38 +1,34 @@
-## Problem
+# Draw on the Base (Bottom Face)
 
-The Surface Art drawing canvas auto-sizes its pixel width based on the body's circumference-to-height ratio and clamps to a hard range (320–900px). The canvas lives inside the left control sidebar, which is only ~310–340px wide and uses `overflow-hidden`. When the math picks anything larger than the sidebar, the right portion of the canvas is clipped offscreen — that's the "screen not showing the actual full drawing surface" you're seeing. Because Fabric.js still treats the hidden region as drawable, any stroke that crosses into it gets wrapped/clamped at the seam, which is what made it look like half the body wasn't being painted.
+Simple addition: a 2D top-down canvas that lets you draw **raised lines on the bottom surface** of the current shape. Works on whatever shape you've already designed — no new "flat mode," no subtypes.
 
-## Fix
+## What you get
 
-Stop sizing the canvas in absolute pixels. Instead, measure the container and let it drive the canvas width. Keep the circumference:height aspect ratio so the unwrap silhouette stays accurate.
+- A new **"Base Drawing"** canvas next to the existing Surface canvas — a circular top-down view sized to the base radius of the current shape.
+- Draw freeform strokes; each stroke becomes a **raised rib** on the bottom face (printer-friendly — no overhangs, no engraving into the floor).
+- Same controls you already know: thickness (mm), height (mm = how tall the rib stands above the base), undo/clear, scale/offset.
+- Strokes rendered live in 3D on the bottom face, exported with the STL.
 
-### Changes in `src/components/drawing/SurfaceCanvas.tsx`
+## Why bottom only and raised only
 
-1. Add a wrapper `div` ref around the canvas stack and measure its width with a `ResizeObserver`. Store `containerWidth` in state.
-2. Replace the current `autoSize` memo:
-   - `width = containerWidth` (fall back to 320 before first measure).
-   - `aspect = (2π · rMax) / bodyHeight` from the unwrap profile.
-   - `height = clamp(width / aspect, 200, 700)`.
-   - Round both to integers.
-3. Remove the `MIN_W / MAX_W` clamps — width is now whatever fits.
-4. Re-init the Fabric canvas when `width` or `height` changes (already in the deps).
-5. Caption stays "Full canvas width = full wrap around the body".
+- Bottom face is already flat → ribs print cleanly as the first layers.
+- Raised (not engraved) avoids cutting into the floor, which would break spiral-vase mode and add print failures.
+- Whatever silhouette your shape has at `t=0`, the canvas mirrors it so strokes never go past the real edge.
 
-### Why this works
+## Technical plan (small)
 
-- The drawing surface always equals what the user can see and click.
-- The unwrap silhouette outline still reflects the body's true proportions because we only change the *pixel size*, not the UV-to-circumference mapping.
-- "Canvas width = 360°" is preserved, so a stroke from left edge to right edge still wraps the whole body.
+- **Type** (`src/types/parametric.ts`): add `baseStrokes: BaseStroke[]` where `BaseStroke = { id, points: {x:-1..1, y:-1..1}[], thickness, height }`. Coords are normalized to base radius.
+- **Canvas** (`src/components/drawing/BaseCanvas.tsx`, new): top-down circular canvas, draws current base silhouette as a guide, captures freeform strokes. Mirrors the existing SurfaceCanvas patterns (undo, clear, scale).
+- **Geometry** (`src/lib/base-stroke-generator.ts`, new): for each stroke, build a swept tube of `thickness × height` sitting on top of the bottom face (`y = 0` in scene units, or `Z = 0` in export). Returns `THREE.BufferGeometry` to be merged with the body for export and rendered as a child mesh in preview.
+- **Render**: add a `<BaseStrokesMesh>` inside `ParametricMesh.tsx` (preview only).
+- **Export**: merge base-stroke geometries into the main STL right before the existing rotate -π/2 / Z=0 normalization.
+- **Print mode guard**: if any base stroke exists, force standard print mode (disable spiral-vase) with a small inline notice — same pattern used elsewhere.
+- **UI** (`src/components/controls/ParameterControls.tsx`): add a "Base Drawing" tab/section alongside the Surface drawing one.
 
-### Validation
+## Out of scope
 
-- Open Surface Art with default 120×80mm shape. Confirm the full canvas is visible inside the sidebar with no horizontal scroll/clipping.
-- Draw a horizontal line edge-to-edge. Confirm the stroke wraps the entire 3D body (front and back).
-- Resize the sidebar / collapse-expand panels and confirm the canvas re-fits without leaving artifacts.
-- Existing saved strokes (stored as normalized 0..1 UV) should keep rendering correctly because only pixel dimensions change.
+- Engraved/cut into the base.
+- Drawing on the top face.
+- Changing the silhouette of the base.
 
-### Files touched
-
-- `src/components/drawing/SurfaceCanvas.tsx`
-
-No changes needed to `stroke-field.ts`, `surface-stroke-generator.ts`, or any baking/export code.
+Approve and I'll build it.
