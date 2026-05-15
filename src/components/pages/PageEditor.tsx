@@ -1,9 +1,13 @@
+import { useRef } from 'react';
 import { PageContent } from '@/types/pages';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Upload, X } from 'lucide-react';
 import PageDrawCanvas from './PageDrawCanvas';
 
 interface PageEditorProps {
