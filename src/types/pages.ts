@@ -97,6 +97,10 @@ export const createEmptyPage = (type: PageContentType = 'text'): PageContent => 
   fontFamily: 'sans-serif',
   align: 'center',
   drawing: type === 'drawing' ? { strokes: [] } : undefined,
+  imageInvert: false,
+  imageThreshold: 0.15,
+  imageContrast: 1.2,
+  imageFit: 'contain',
   reliefHeight: 0.4,
   faces: 'front',
 });
