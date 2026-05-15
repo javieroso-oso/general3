@@ -1,9 +1,10 @@
-import { useMemo, useRef, useEffect } from 'react';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { BookParams } from '@/types/pages';
 import { generateBookGeometry } from '@/lib/pages/book-generator';
+import { onImageDecoded, ensureImageDecoded } from '@/lib/pages/page-height-field';
 
 interface BookMeshProps {
   book: BookParams;
@@ -13,10 +14,20 @@ interface BookMeshProps {
 
 const BookMesh = ({ book, color = '#dadce8', wireframe = false }: BookMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const [tick, setTick] = useState(0);
+
+  // Pre-warm decode for any image pages, and re-render once they're ready
+  useEffect(() => {
+    book.pages.forEach(p => {
+      if (p.type === 'image' && p.imageDataUrl) ensureImageDecoded(p.imageDataUrl);
+    });
+    return onImageDecoded(() => setTick(t => t + 1));
+  }, [book]);
 
   const geometry = useMemo(() => {
     return generateBookGeometry(book, { scale: 0.01 });
-  }, [book]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, tick]);
 
   useEffect(() => {
     return () => {

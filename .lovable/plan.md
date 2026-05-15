@@ -1,50 +1,62 @@
 ## Goal
 
-Make the book truly printable as a single thin-walled object with a **continuous** solid spine running the full length, and pages that are single-perimeter walls (~0.42 mm) standing up from it. Letters/drawings remain raised relief on those walls.
+Add image support to pages — third content type alongside text and drawing — using the same height-field-to-relief pipeline already used for surface art.
 
 ## Changes
 
-### 1. Continuous spine (book-generator.ts)
+### 1. Type extension (`src/types/pages.ts`)
 
-Today the spine is a `BoxGeometry` and pages sit on top of it as separate slabs that interrupt the visual line. Switch to:
+- Extend `PageContentType` union to `'text' | 'drawing' | 'image'`.
+- Add to `PageContent`:
+  - `imageDataUrl?: string` — uploaded image as base64 data URL (so it persists in book params without external storage).
+  - `imageInvert?: boolean` — flip dark/light mapping.
+  - `imageThreshold?: number` — 0–1, intensities below this contribute zero relief (cleans up noisy backgrounds).
+  - `imageContrast?: number` — 0.5–3, scales the gamma curve.
+  - `imageFit?: 'contain' | 'cover' | 'stretch'` — how it maps onto the page rect.
+- `createEmptyPage('image')` initializes sensible defaults.
 
-- One **solid bar** spanning the full book length, running uninterrupted from end to end.
-- Pages **embedded into** the spine (their bottom edge sinks ~0.6–1.0 mm into the bar) so the spine reads as one continuous element and slicer fuses them as a single contour at every layer near the bed.
-- Spine cross-section: thickness = `pageThickness + 2 × maxRelief` (so it's at least as wide as the widest page+relief), height = `spineExtra` (user-controlled).
-- End caps: spine extends past the first/last page by `spinePadX` so it doesn't end flush with a page edge.
+### 2. Height-field rasterizer (`src/lib/pages/page-height-field.ts`)
 
-### 2. Single-wall page slabs (page-slab-generator.ts)
+- Add `rasterizeImage(page, opts, W, H, data, relief)` branch in `buildPageHeightField`:
+  - Load the image from `imageDataUrl` via `new Image()` — synchronously decode using a cached `HTMLImageElement` keyed by data URL hash (mirrors how surface art handles uploads).
+  - Draw onto an offscreen `W × H` canvas honoring `imageFit` (compute draw rect inside the page rect, fill outside with black).
+  - Convert each pixel to luminance `0.299R + 0.587G + 0.114B`, normalize to 0–1, optionally invert.
+  - Apply `threshold` cutoff and `pow(intensity, 1/contrast)` gamma.
+  - Multiply by `relief` and write to `data` (max-blend so it composites cleanly).
+  - Set `hasAny = true` if any pixel exceeds threshold.
+- Because image decode is async, `buildPageHeightField` must become async OR we pre-decode into a synchronous bitmap cache. Plan: introduce a tiny module-level `imageBitmapCache: Map<string, ImageBitmap>` and a helper `ensureImageDecoded(dataUrl)` returning a promise. Slab generator stays sync, but `BookPreview` and `book-stl-export` await `ensureBookImagesDecoded(book)` before generating geometry. If a page's image isn't decoded yet, that page renders flat (no relief) and the preview re-renders once decode resolves.
 
-Replace the two-sided displaced grid (front face + back face + rim) with **one mid-surface sheet** that is exactly `pageThickness` thick everywhere — no relief displacement of the wall itself. Relief becomes **bumps grown outward from one (or both) faces**:
+### 3. Slab generator (`page-slab-generator.ts`)
 
-- Build the page as a thin extruded rectangle: a flat sheet at `z = 0` extruded to `±pageThickness/2`. With `pageThickness` defaulting to **0.42 mm** (one nozzle), this prints as a single perimeter — the slicer will lay one continuous wall per layer. No infill, no top/bottom layers needed in the slab itself.
-- For relief: where the height field > 0, locally thicken the wall outward on the chosen face(s). Implementation: keep the displaced-grid approach but cap relief to add **on top of** the base wall rather than replacing it, so the wall is never thinner than `pageThickness` anywhere.
+No structural change — it already calls `buildPageHeightField` and `sampleField`. Image relief flows through automatically once the rasterizer branch exists.
 
-### 3. New defaults & controls (types/pages.ts, BookControls.tsx)
+### 4. UI (`src/components/pages/PageEditor.tsx`)
 
-- `pageThickness` default → **0.42 mm**, slider range **0.4–1.6 mm** (was 0.6–3).
-- New "Wall thickness" label in UI (rename from "Page thickness") to make intent clear.
-- `spineThickness` becomes derived (auto from page thickness + relief) — remove from UI to reduce confusion. Keep `spineExtra` (height above bed) and `pageGap`.
-- Add a small info hint: "Pages print as single perimeters — set slicer to 0 top/bottom layers, 0% infill, 1 wall."
+- Add `'image'` option to the content-type Select.
+- When `page.type === 'image'`:
+  - File input button: "Upload image" — accepts PNG/JPG, reads as data URL via `FileReader`, calls `update({ imageDataUrl: ... })`.
+  - Thumbnail preview of the uploaded image.
+  - Sliders: Threshold (0–1), Contrast (0.5–3), Invert toggle, Fit dropdown (contain/cover/stretch).
+  - "Clear image" button.
+- Reuses the same Relief-height + Faces controls already at the bottom of PageEditor.
 
-### 4. Print orientation (book-stl-export.ts)
+### 5. Preview/export wiring
 
-Unchanged — already rotates so spine sits flat on the bed and pages stand vertically. Confirm the normalization still produces `min Z = 0` after the new geometry.
-
-### 5. Validation
-
-- Read the slab + spine merge once with the new defaults to make sure `mergeGeometries` still succeeds (all parts position+normal indexed, matching attribute set).
-- Visual check in BookPreview: spine should look like one continuous bar with pages slotted into it.
+- `BookPreview.tsx`: in the `useMemo` that builds geometry, first call `ensureBookImagesDecoded(book)` and trigger a re-render (via a `useState` tick) when it resolves. Skip image relief if not yet decoded.
+- `book-stl-export.ts`: make `exportBookToSTL` async, await `ensureBookImagesDecoded(book)` before generating geometry, update `downloadBookSTL` accordingly. Index.tsx's STL export branch awaits the result.
 
 ## Out of scope
 
-- Spiral / vase mode G-code path generation (the geometry is the printable artifact; slicer settings live in user's slicer).
-- Curved/round spine rod variant.
-- Page rounding, hinges, or actual page-turning physics.
+- Multi-image collage per page
+- SVG / vector image input (only raster)
+- Edge-detect / Sobel mode (text and drawings already give clean line work)
+- Color-aware relief — luminance only
 
 ## Files touched
 
-- `src/lib/pages/book-generator.ts` — continuous spine, embedded pages
-- `src/lib/pages/page-slab-generator.ts` — guarantee minimum wall thickness, relief always additive outward
-- `src/types/pages.ts` — new defaults (0.42 mm pages)
-- `src/components/pages/BookControls.tsx` — relabel, drop spineThickness slider, add print-settings hint
+- `src/types/pages.ts` — type extensions, defaults
+- `src/lib/pages/page-height-field.ts` — `rasterizeImage`, image bitmap cache, `ensureBookImagesDecoded`
+- `src/components/pages/PageEditor.tsx` — image upload UI + sliders
+- `src/components/pages/BookPreview.tsx` — async decode tick
+- `src/lib/pages/book-stl-export.ts` — async export awaiting decode
+- `src/pages/Index.tsx` — await async export in the pages-mode export branch (only if currently called sync)
