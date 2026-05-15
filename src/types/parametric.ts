@@ -597,6 +597,7 @@ export const defaultShapeParams: ParametricParams = createDefaultParams();
 export const defaultParams: Record<ObjectType, ParametricParams> = {
   shape: defaultShapeParams,
   plotter: createDefaultParams(),
+  pages: createDefaultParams(),
 };
 
 export const presets: Preset[] = [
