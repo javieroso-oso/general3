@@ -88,7 +88,7 @@ const PageEditor = ({ page, pageWidthMm, pageHeightMm, onChange }: PageEditorPro
             </div>
           </div>
         </>
-      ) : (
+      ) : page.type === 'drawing' ? (
         <div>
           <Label className="text-xs mb-1 block">Drawing</Label>
           <PageDrawCanvas
@@ -97,6 +97,79 @@ const PageEditor = ({ page, pageWidthMm, pageHeightMm, onChange }: PageEditorPro
             pageWidthMm={pageWidthMm}
             pageHeightMm={pageHeightMm}
           />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImageUpload(f);
+              e.target.value = '';
+            }}
+          />
+          {page.imageDataUrl ? (
+            <div className="relative rounded-md overflow-hidden border border-border bg-secondary/30">
+              <img src={page.imageDataUrl} alt="" className="w-full h-32 object-contain" />
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute top-1 right-1 h-6 w-6"
+                onClick={() => update({ imageDataUrl: undefined })}
+                title="Remove image"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-20 border-dashed"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="w-4 h-4 mr-2" /> Upload image
+            </Button>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs">Fit</Label>
+              <Select value={page.imageFit ?? 'contain'} onValueChange={(v) => update({ imageFit: v as any })}>
+                <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contain" className="text-xs">Contain</SelectItem>
+                  <SelectItem value="cover" className="text-xs">Cover</SelectItem>
+                  <SelectItem value="stretch" className="text-xs">Stretch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between pt-5">
+              <Label className="text-xs">Invert</Label>
+              <Switch
+                checked={page.imageInvert ?? false}
+                onCheckedChange={(v) => update({ imageInvert: v })}
+              />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between mb-1">
+              <Label className="text-xs">Threshold</Label>
+              <span className="text-xs text-muted-foreground">{(page.imageThreshold ?? 0.15).toFixed(2)}</span>
+            </div>
+            <Slider value={[page.imageThreshold ?? 0.15]} min={0} max={0.9} step={0.01}
+              onValueChange={([v]) => update({ imageThreshold: v })} />
+          </div>
+          <div>
+            <div className="flex justify-between mb-1">
+              <Label className="text-xs">Contrast</Label>
+              <span className="text-xs text-muted-foreground">{(page.imageContrast ?? 1.2).toFixed(2)}</span>
+            </div>
+            <Slider value={[page.imageContrast ?? 1.2]} min={0.5} max={3} step={0.05}
+              onValueChange={([v]) => update({ imageContrast: v })} />
+          </div>
         </div>
       )}
 
