@@ -10,6 +10,7 @@ interface ObjectTypeTabsProps {
 const tabs: { type: ObjectType; label: string }[] = [
   { type: 'shape', label: 'Shape' },
   { type: 'plotter', label: 'Plotter' },
+  { type: 'pages', label: 'Pages' },
 ];
 
 const ObjectTypeTabs = ({ activeType, onTypeChange }: ObjectTypeTabsProps) => {

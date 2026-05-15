@@ -1,4 +1,4 @@
-export type ObjectType = 'shape' | 'plotter';
+export type ObjectType = 'shape' | 'plotter' | 'pages';
 
 // Surface stroke for drawing-to-3D feature
 export type TexturePattern = 'dots' | 'crosshatch' | 'zigzag';
