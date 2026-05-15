@@ -7,7 +7,7 @@
  * layers go up the page height — same trick as the reference Instagram book.
  */
 
-export type PageContentType = 'text' | 'drawing';
+export type PageContentType = 'text' | 'drawing' | 'image';
 
 export interface PageDrawingStroke {
   // Normalized to the page rect: u in [0,1] (left→right), v in [0,1] (top→bottom)
@@ -27,6 +27,13 @@ export interface PageContent {
 
   // Drawing content
   drawing?: { strokes: PageDrawingStroke[] };
+
+  // Image content
+  imageDataUrl?: string;
+  imageInvert?: boolean;
+  imageThreshold?: number;  // 0..1 cutoff
+  imageContrast?: number;   // 0.5..3 gamma
+  imageFit?: 'contain' | 'cover' | 'stretch';
 
   reliefHeight: number;    // mm raised above the page surface
   faces: 'front' | 'back' | 'both'; // which side(s) carry the relief
