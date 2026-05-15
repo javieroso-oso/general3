@@ -830,7 +830,7 @@ const Index = () => {
       )}
 
       {/* Bottom floating bar - View controls & Export (hidden for plotter mode) */}
-      {objectType !== 'plotter' && !isExhibitMode && (
+      {objectType === 'shape' && !isExhibitMode && (
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -1106,7 +1106,7 @@ const Index = () => {
       )}
 
       {/* Exhibit mode: full-width swatch strip */}
-      {isExhibitMode && objectType !== 'plotter' && (
+      {isExhibitMode && objectType === 'shape' && (
         <div className="fixed bottom-6 left-0 right-0 z-10 pointer-events-none">
           {/* Active swatch label */}
           {(() => {
@@ -1136,7 +1136,7 @@ const Index = () => {
       )}
 
       {/* Exhibit mode: floating action buttons */}
-      {isExhibitMode && objectType !== 'plotter' && (
+      {isExhibitMode && objectType === 'shape' && (
         <div className="fixed bottom-28 right-6 z-30 flex flex-col gap-3">
           <button
             onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
@@ -1181,7 +1181,7 @@ const Index = () => {
       )}
 
       {/* Right panel toggle & Analysis - hidden for plotter & exhibit mode */}
-      {objectType !== 'plotter' && !isExhibitMode && (
+      {objectType === 'shape' && !isExhibitMode && (
         <>
           <Button
             variant="ghost"
