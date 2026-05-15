@@ -257,6 +257,10 @@ export interface ParametricParams {
   // Surface art strokes
   surfaceStrokes: SurfaceStroke[];
   surfaceStrokesVisible: boolean;
+
+  // Base art strokes (raised ribs on the bottom face)
+  baseStrokes: BaseStroke[];
+  baseStrokesVisible: boolean;
   // Global placement for all strokes
   surfaceGlobalOffsetU: number;  // rotate all strokes around body (0..1 = 0..360°)
   surfaceGlobalOffsetV: number;  // shift all strokes up/down (fraction of height)
