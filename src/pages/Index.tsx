@@ -15,6 +15,10 @@ import Header from '@/components/layout/Header';
 import ExportPaymentDialog from '@/components/ExportPaymentDialog';
 import PlotterPreview from '@/components/plotter/PlotterPreview';
 import PlotterControls from '@/components/plotter/PlotterControls';
+import BookPreview from '@/components/pages/BookPreview';
+import BookControls from '@/components/pages/BookControls';
+import { BookParams, defaultBookParams } from '@/types/pages';
+import { downloadBookSTL } from '@/lib/pages/book-stl-export';
 import { useDrawer } from '@/hooks/useDrawer';
 import { useLicenseKey } from '@/hooks/useLicenseKey';
 import { usePlotterDrawing } from '@/hooks/usePlotterDrawing';
@@ -60,6 +64,7 @@ const Index = () => {
   const [objectType, setObjectType] = useState<ObjectType>('shape');
   const [params, setParams] = useState<ParametricParams>(defaultShapeParams);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
+  const [bookParams, setBookParams] = useState<BookParams>(defaultBookParams);
   
   // Plotter drawing (computed from plotter params + live mesh params)
   const plotterDrawing = usePlotterDrawing({
@@ -608,6 +613,10 @@ const Index = () => {
               />
             </div>
           </div>
+        ) : objectType === 'pages' ? (
+          <div className="w-full h-full">
+            <BookPreview book={bookParams} autoRotate={autoRotate} />
+          </div>
         ) : (
           <Scene3D 
             params={params} 
@@ -646,8 +655,27 @@ const Index = () => {
           </div>
         )}
 
-        {/* Tabbed Controls - Different for plotter vs 3D */}
-        {objectType === 'plotter' ? (
+        {/* Tabbed Controls - Different for plotter / pages / 3D */}
+        {objectType === 'pages' ? (
+          <div className="p-4 flex-1 overflow-y-auto">
+            <BookControls book={bookParams} onChange={setBookParams} />
+            <div className="mt-6">
+              <Button
+                onClick={() => {
+                  const fname = `book_${bookParams.pages.length}p_${Date.now()}.stl`;
+                  downloadBookSTL(bookParams, fname);
+                  toast.success('Book STL exported!', { description: fname });
+                }}
+                className="w-full gap-2"
+              >
+                <Download className="w-4 h-4" /> Export STL
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Print spine-down. Pages stand vertically; relief embedded in walls.
+              </p>
+            </div>
+          </div>
+        ) : objectType === 'plotter' ? (
           <Tabs defaultValue="controls" className="flex flex-col flex-1 overflow-hidden">
             <TabsList className="mx-4 mt-3 grid grid-cols-2 bg-secondary/50 p-1 rounded-lg">
               <TabsTrigger value="controls" className="text-xs gap-1 rounded-md data-[state=active]:bg-card data-[state=active]:shadow-soft">
@@ -802,7 +830,7 @@ const Index = () => {
       )}
 
       {/* Bottom floating bar - View controls & Export (hidden for plotter mode) */}
-      {objectType !== 'plotter' && !isExhibitMode && (
+      {objectType === 'shape' && !isExhibitMode && (
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -1078,7 +1106,7 @@ const Index = () => {
       )}
 
       {/* Exhibit mode: full-width swatch strip */}
-      {isExhibitMode && objectType !== 'plotter' && (
+      {isExhibitMode && objectType === 'shape' && (
         <div className="fixed bottom-6 left-0 right-0 z-10 pointer-events-none">
           {/* Active swatch label */}
           {(() => {
@@ -1108,7 +1136,7 @@ const Index = () => {
       )}
 
       {/* Exhibit mode: floating action buttons */}
-      {isExhibitMode && objectType !== 'plotter' && (
+      {isExhibitMode && objectType === 'shape' && (
         <div className="fixed bottom-28 right-6 z-30 flex flex-col gap-3">
           <button
             onClick={() => safeSetParams(prev => generateExhibitRandomParams(prev))}
@@ -1153,7 +1181,7 @@ const Index = () => {
       )}
 
       {/* Right panel toggle & Analysis - hidden for plotter & exhibit mode */}
-      {objectType !== 'plotter' && !isExhibitMode && (
+      {objectType === 'shape' && !isExhibitMode && (
         <>
           <Button
             variant="ghost"
