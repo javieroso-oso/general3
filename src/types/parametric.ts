@@ -570,6 +570,8 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
     basePlateThickness: 15,
     surfaceStrokes: [],
     surfaceStrokesVisible: true,
+    baseStrokes: [],
+    baseStrokesVisible: true,
     surfaceGlobalOffsetU: 0,
     surfaceGlobalOffsetV: 0,
     surfaceGlobalScale: 1,
