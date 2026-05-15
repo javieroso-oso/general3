@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { generateBaseStrokeGeometry } from '@/lib/base-stroke-generator';
 import earcut from 'earcut';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
