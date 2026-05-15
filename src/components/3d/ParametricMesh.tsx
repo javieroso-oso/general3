@@ -12,7 +12,7 @@ import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
 import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
-import { generateBaseStrokeGeometry } from '@/lib/base-stroke-generator';
+import { generateBaseFloorGeometry } from '@/lib/base-floor-generator';
 import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 
 interface ParametricMeshProps {
@@ -1094,7 +1094,7 @@ const ParametricMesh = ({
 
       {/* Base art strokes (raised ribs on bottom face) */}
       {params.baseStrokesVisible !== false && params.baseStrokes && params.baseStrokes.length > 0 && (
-        <BaseStrokeMesh params={params} materialConfig={materialConfig} />
+        <BaseStrokeMesh params={params} materialConfig={materialConfig} customColor={customColor} />
       )}
       
       {showWireframe && (
@@ -1284,20 +1284,20 @@ function SurfaceBoundsIndicator({ params }: { params: ParametricParams }) {
   );
 }
 
-// Base art strokes — raised ribs on the bottom face.
-function BaseStrokeMesh({ params, materialConfig }: { params: ParametricParams; materialConfig: MaterialConfig }) {
+// Base art — closed floor disc with raised relief, fused into the body bottom.
+function BaseStrokeMesh({ params, materialConfig, customColor }: { params: ParametricParams; materialConfig: MaterialConfig; customColor?: string }) {
   const geo = useMemo(
-    () => generateBaseStrokeGeometry(params, { scale: SCALE }),
+    () => generateBaseFloorGeometry(params, { scale: SCALE }),
     [params],
   );
   if (!geo) return null;
   return (
     <mesh geometry={geo} castShadow receiveShadow>
       <meshPhysicalMaterial
-        color="#0066ff"
+        color={customColor ?? '#e8e8e8'}
         roughness={materialConfig.roughness}
         metalness={materialConfig.metalness}
-        side={THREE.FrontSide}
+        side={THREE.DoubleSide}
       />
     </mesh>
   );

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { generateBaseStrokeGeometry } from '@/lib/base-stroke-generator';
+import { generateBaseFloorGeometry } from '@/lib/base-floor-generator';
 import earcut from 'earcut';
 import { ParametricParams, ObjectType, PrintSettings, printConstraints } from '@/types/parametric';
 import { generateLegsWithBase } from '@/lib/leg-generator';
@@ -1252,7 +1252,7 @@ export function exportBodyToSTL(
   // Merge raised base ribs (drawn from BaseCanvas) into the body
   if ((params.baseStrokes ?? []).length > 0) {
     try {
-      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      const ribs = generateBaseFloorGeometry(params, { scale: 1 });
       if (ribs) {
         const merged = mergeGeometries([geometry, ribs]);
         if (merged) {
@@ -1355,7 +1355,7 @@ export function exportCombinedToSTL(
   // Merge in raised base ribs
   if ((params.baseStrokes ?? []).length > 0) {
     try {
-      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      const ribs = generateBaseFloorGeometry(params, { scale: 1 });
       if (ribs) {
         const merged = mergeGeometries([bodyGeometry, ribs]);
         if (merged) { bodyGeometry.dispose(); ribs.dispose(); bodyGeometry = merged; }
