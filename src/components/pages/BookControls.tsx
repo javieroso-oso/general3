@@ -62,10 +62,10 @@ const BookControls = ({ book, onChange }: BookControlsProps) => {
         </div>
         <div>
           <div className="flex justify-between mb-1">
-            <Label className="text-xs">Page thickness</Label>
+            <Label className="text-xs">Wall thickness</Label>
             <span className="text-xs text-muted-foreground">{book.pageThickness.toFixed(2)} mm</span>
           </div>
-          <Slider value={[book.pageThickness]} min={0.6} max={3} step={0.1}
+          <Slider value={[book.pageThickness]} min={0.4} max={1.6} step={0.02}
             onValueChange={([v]) => update({ pageThickness: v })} />
         </div>
         <div>
@@ -81,9 +81,12 @@ const BookControls = ({ book, onChange }: BookControlsProps) => {
             <Label className="text-xs">Spine height</Label>
             <span className="text-xs text-muted-foreground">{book.spineExtra.toFixed(1)} mm</span>
           </div>
-          <Slider value={[book.spineExtra]} min={0.6} max={10} step={0.2}
+          <Slider value={[book.spineExtra]} min={1.0} max={10} step={0.2}
             onValueChange={([v]) => update({ spineExtra: v })} />
         </div>
+        <p className="text-[10px] leading-snug text-muted-foreground pt-1 border-t border-border/50">
+          Pages print as single perimeters. In your slicer set <span className="font-medium">1 wall, 0% infill, 0 top/bottom layers</span>, spine flat on the bed.
+        </p>
       </div>
 
       {/* Pages list */}
