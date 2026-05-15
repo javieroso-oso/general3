@@ -1252,7 +1252,7 @@ export function exportBodyToSTL(
   // Merge raised base ribs (drawn from BaseCanvas) into the body
   if ((params.baseStrokes ?? []).length > 0) {
     try {
-      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      const ribs = generateBaseFloorGeometry(params, { scale: 1 });
       if (ribs) {
         const merged = mergeGeometries([geometry, ribs]);
         if (merged) {
@@ -1355,7 +1355,7 @@ export function exportCombinedToSTL(
   // Merge in raised base ribs
   if ((params.baseStrokes ?? []).length > 0) {
     try {
-      const ribs = generateBaseStrokeGeometry(params, { scale: 1 });
+      const ribs = generateBaseFloorGeometry(params, { scale: 1 });
       if (ribs) {
         const merged = mergeGeometries([bodyGeometry, ribs]);
         if (merged) { bodyGeometry.dispose(); ribs.dispose(); bodyGeometry = merged; }
