@@ -1284,4 +1284,23 @@ function SurfaceBoundsIndicator({ params }: { params: ParametricParams }) {
   );
 }
 
+// Base art strokes — raised ribs on the bottom face.
+function BaseStrokeMesh({ params, materialConfig }: { params: ParametricParams; materialConfig: MaterialConfig }) {
+  const geo = useMemo(
+    () => generateBaseStrokeGeometry(params, { scale: SCALE }),
+    [params],
+  );
+  if (!geo) return null;
+  return (
+    <mesh geometry={geo} castShadow receiveShadow>
+      <meshPhysicalMaterial
+        color="#0066ff"
+        roughness={materialConfig.roughness}
+        metalness={materialConfig.metalness}
+        side={THREE.FrontSide}
+      />
+    </mesh>
+  );
+}
+
 export default ParametricMesh;
