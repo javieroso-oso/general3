@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
 import SkinTextureControls from './SkinTextureControls';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
+import BaseCanvas from '@/components/drawing/BaseCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
 import { getSupportFreeConstraints, applySupportFreeConstraints, checkSupportFreeCompliance } from '@/lib/support-free-constraints';
 import { generateRandomParams, generateExhibitRandomParams } from '@/lib/random-generator';
