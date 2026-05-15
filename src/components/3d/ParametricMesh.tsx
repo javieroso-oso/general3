@@ -12,7 +12,7 @@ import { getBodyRadius } from '@/lib/body-profile-generator';
 import { generateWireframeLampGeometry } from '@/lib/wireframe-lamp-generator';
 import { generateLightPattern, PerforationHole } from '@/lib/light-pattern-generator';
 import { generateSurfaceStrokeGeometries } from '@/lib/surface-stroke-generator';
-import { generateBaseStrokeGeometry } from '@/lib/base-stroke-generator';
+import { generateBaseFloorGeometry } from '@/lib/base-floor-generator';
 import { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 
 interface ParametricMeshProps {
