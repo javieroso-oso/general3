@@ -21,9 +21,23 @@ export interface SlabOptions {
   cellsPerMm?: number;
   // How densely to triangulate the front/back surfaces (cells per mm).
   meshCellsPerMm?: number;
+  // Optional "foot bend" at the bottom of the page (spine attachment side):
+  // for y in [0, footMm] the whole slab is shifted along local Z by a smooth
+  // curve that reaches `footCurveMm` at y=0 and 0 at y=footMm. Sign of
+  // footCurveMm chooses bend direction (front or back).
+  footMm?: number;
+  footCurveMm?: number;
 }
 
 const DEFAULT_MESH = 2; // 2 verts/mm => ~ 0.5mm triangles. Good for 0.4 nozzle.
+
+// Smoothstep-based foot offset: returns the Z shift to add at height y (mm).
+function footOffsetMm(y: number, footMm: number, footCurveMm: number): number {
+  if (footMm <= 0 || footCurveMm === 0 || y >= footMm) return 0;
+  const t = Math.max(0, Math.min(1, y / footMm)); // 0 at bottom, 1 at top of foot
+  const s = 1 - t * t * (3 - 2 * t); // smoothstep, 1 at bottom -> 0 at top
+  return footCurveMm * s;
+}
 
 export function generatePageSlabGeometry(
   page: PageContent,
@@ -36,6 +50,8 @@ export function generatePageSlabGeometry(
   const meshPerMm = opts.meshCellsPerMm ?? DEFAULT_MESH;
   const NX = Math.max(2, Math.round(W_mm * meshPerMm));
   const NY = Math.max(2, Math.round(H_mm * meshPerMm));
+  const footMm = opts.footMm ?? 0;
+  const footCurveMm = opts.footCurveMm ?? 0;
 
   const field: PageHeightField = buildPageHeightField(page, {
     pageWidthMm: W_mm,
@@ -53,11 +69,12 @@ export function generatePageSlabGeometry(
   for (let j = 0; j <= NY; j++) {
     const v = j / NY;
     const y = v * H_mm; // 0..H, spine at y=0
+    const zShift = footOffsetMm(y, footMm, footCurveMm);
     for (let i = 0; i <= NX; i++) {
       const u = i / NX;
       const x = (u - 0.5) * W_mm;
       const r = sampleField(field, u, v) * reliefFront;
-      const z = T * 0.5 + r;
+      const z = T * 0.5 + r + zShift;
       positions.push(x * scale, y * scale, z * scale);
     }
   }
@@ -79,11 +96,12 @@ export function generatePageSlabGeometry(
   for (let j = 0; j <= NY; j++) {
     const v = j / NY;
     const y = v * H_mm;
+    const zShift = footOffsetMm(y, footMm, footCurveMm);
     for (let i = 0; i <= NX; i++) {
       const u = i / NX;
       const x = (u - 0.5) * W_mm;
       const r = sampleField(field, u, v) * reliefBack;
-      const z = -T * 0.5 - r;
+      const z = -T * 0.5 - r + zShift;
       positions.push(x * scale, y * scale, z * scale);
     }
   }
