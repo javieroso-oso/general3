@@ -69,11 +69,12 @@ export function generatePageSlabGeometry(
   for (let j = 0; j <= NY; j++) {
     const v = j / NY;
     const y = v * H_mm; // 0..H, spine at y=0
+    const zShift = footOffsetMm(y, footMm, footCurveMm);
     for (let i = 0; i <= NX; i++) {
       const u = i / NX;
       const x = (u - 0.5) * W_mm;
       const r = sampleField(field, u, v) * reliefFront;
-      const z = T * 0.5 + r;
+      const z = T * 0.5 + r + zShift;
       positions.push(x * scale, y * scale, z * scale);
     }
   }
@@ -95,11 +96,12 @@ export function generatePageSlabGeometry(
   for (let j = 0; j <= NY; j++) {
     const v = j / NY;
     const y = v * H_mm;
+    const zShift = footOffsetMm(y, footMm, footCurveMm);
     for (let i = 0; i <= NX; i++) {
       const u = i / NX;
       const x = (u - 0.5) * W_mm;
       const r = sampleField(field, u, v) * reliefBack;
-      const z = -T * 0.5 - r;
+      const z = -T * 0.5 - r + zShift;
       positions.push(x * scale, y * scale, z * scale);
     }
   }
