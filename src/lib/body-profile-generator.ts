@@ -462,3 +462,30 @@ export function getMaxBodyRadius(
   
   return maxRadius;
 }
+
+/**
+ * Short stable signature of the params that determine the stackable end
+ * silhouette. Two pieces with the same signature will have matching openings
+ * and stack flush. Returned as a 4-char uppercase hex string.
+ */
+export function computeRimSignature(params: ParametricParams): string {
+  const round = (n: number, p = 100) => Math.round((n || 0) * p) / p;
+  const keys: Array<string | number> = [
+    round(params.baseRadius), round(params.topRadius), round(params.height),
+    params.profileCurve,
+    Math.floor(params.lobeCount || 1), round(params.lobeBlend),
+    round(params.lobeSizeVariation), round((params as any).roundnessBottom ?? 0),
+    Math.floor(params.rippleCount || 0), round(params.rippleDepth),
+    Math.floor(params.flutingCount || 0), round(params.flutingDepth),
+    Math.floor(params.facetCount || 0), round(params.facetSharpness),
+    Math.floor(params.horizontalRibCount || 0), round(params.horizontalRibDepth),
+    round(params.horizontalRibWidth),
+  ];
+  const str = keys.join('|');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return (h & 0xffff).toString(16).toUpperCase().padStart(4, '0');
+}
