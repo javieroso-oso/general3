@@ -793,7 +793,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         </p>
         <ParameterSlider
           label="Rim Diameter"
-          value={params.stackRimDiameter}
+          value={params.stackRimDiameter ?? 60}
           min={20}
           max={150}
           step={2}
@@ -802,7 +802,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         />
         <ParameterSlider
           label="Collar Height"
-          value={params.stackRimCollarHeight}
+          value={params.stackRimCollarHeight ?? 3}
           min={1}
           max={8}
           step={0.5}
@@ -811,7 +811,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         />
         {params.stackable && (
           <div className="text-[11px] rounded-md border border-border bg-secondary/40 px-2 py-1.5 text-muted-foreground">
-            Base &amp; Top Radius locked to {(params.stackRimDiameter / 2).toFixed(0)} mm.
+            Base &amp; Top Radius locked to {((params.stackRimDiameter ?? 60) / 2).toFixed(0)} mm.
           </div>
         )}
       </Section>
