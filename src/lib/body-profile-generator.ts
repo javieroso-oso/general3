@@ -85,6 +85,26 @@ export function getBodyRadius(
     objectType = 'vase',
   } = options;
 
+  // Stackable: lock top/bottom to the same opening and disable any feature that
+  // would distort the rim. Vase-mode safe: pieces share a flush circular rim.
+  const isStackable = (params as any).stackable === true;
+  if (isStackable) {
+    const rim = Math.max(1, ((params as any).stackRimDiameter ?? 60) / 2);
+    params = {
+      ...params,
+      baseRadius: rim,
+      topRadius: rim,
+      lipFlare: 0,
+      lipHeight: 0,
+      meltAmount: 0,
+      meltDragAmount: 0,
+      flatBottom: false,
+      basePlateEnabled: false,
+      centeringLipEnabled: false,
+    } as ParametricParams;
+  }
+
+
   const {
     baseRadius,
     topRadius,
