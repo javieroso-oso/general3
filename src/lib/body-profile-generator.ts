@@ -85,6 +85,26 @@ export function getBodyRadius(
     objectType = 'vase',
   } = options;
 
+  // Stackable: lock top/bottom to the same opening and disable any feature that
+  // would distort the rim. Vase-mode safe: pieces share a flush circular rim.
+  const isStackable = (params as any).stackable === true;
+  if (isStackable) {
+    const rim = Math.max(1, ((params as any).stackRimDiameter ?? 60) / 2);
+    params = {
+      ...params,
+      baseRadius: rim,
+      topRadius: rim,
+      lipFlare: 0,
+      lipHeight: 0,
+      meltAmount: 0,
+      meltDragAmount: 0,
+      flatBottom: false,
+      basePlateEnabled: false,
+      centeringLipEnabled: false,
+    } as ParametricParams;
+  }
+
+
   const {
     baseRadius,
     topRadius,
@@ -349,6 +369,23 @@ export function getBodyRadius(
     if (deltaMm !== 0) {
       r = Math.max(wall * 0.5, r + deltaMm * scale);
     }
+  }
+
+  // Stackable: blend toward the locked rim radius within a short collar at
+  // both ends so the openings are perfectly circular and mate flush.
+  if (isStackable) {
+    const rimR = ((params as any).stackRimDiameter / 2) * scale;
+    const collarMm = Math.max(0.5, (params as any).stackRimCollarHeight ?? 3);
+    const collarFrac = Math.min(0.4, collarMm / Math.max(1, params.height));
+    let w = 0;
+    if (t < collarFrac) {
+      const x = t / collarFrac;
+      w = 1 - x * x * (3 - 2 * x); // smoothstep 1→0
+    } else if (t > 1 - collarFrac) {
+      const x = (1 - t) / collarFrac;
+      w = 1 - x * x * (3 - 2 * x);
+    }
+    if (w > 0) r = r * (1 - w) + rimR * w;
   }
 
   return r;

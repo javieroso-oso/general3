@@ -777,6 +777,45 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         </div>
       </Section>
 
+      {/* Stacking — locks rims so pieces sit flush */}
+      <Section title="Stacking" defaultOpen={false}>
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Stackable</Label>
+          <Switch
+            checked={params.stackable}
+            onCheckedChange={(v) => onParamsChange({ ...params, stackable: v })}
+          />
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Locks top &amp; bottom openings to the same diameter so any pieces with the
+          same rim sit flush. Pair with Spiral Vase print mode. Disables lip flare,
+          melt, flat bottom, base plate, and centering lip while on.
+        </p>
+        <ParameterSlider
+          label="Rim Diameter"
+          value={params.stackRimDiameter}
+          min={20}
+          max={150}
+          step={2}
+          unit="mm"
+          onChange={handleChange('stackRimDiameter')}
+        />
+        <ParameterSlider
+          label="Collar Height"
+          value={params.stackRimCollarHeight}
+          min={1}
+          max={8}
+          step={0.5}
+          unit="mm"
+          onChange={handleChange('stackRimCollarHeight')}
+        />
+        {params.stackable && (
+          <div className="text-[11px] rounded-md border border-border bg-secondary/40 px-2 py-1.5 text-muted-foreground">
+            Base &amp; Top Radius locked to {(params.stackRimDiameter / 2).toFixed(0)} mm.
+          </div>
+        )}
+      </Section>
+
       {/* 2. Shape (merged Organic Shape + Deformations) */}
       <Section title="Shape" defaultOpen={true}>
         {/* Core organic controls */}

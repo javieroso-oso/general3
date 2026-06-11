@@ -293,6 +293,12 @@ export interface ParametricParams {
   skinTextureCrispness: number;       // 0..1 — edge sharpness
   skinTextureThreadPitch: number;     // turns over full height (threads mode)
 
+  // Stackable — locks top & bottom openings to the same diameter so any two
+  // shapes with matching rim diameters sit flush on each other (vase-mode safe).
+  stackable: boolean;
+  stackRimDiameter: number;        // mm — shared opening diameter
+  stackRimCollarHeight: number;    // mm — short straight collar at each rim
+
   // Preview mode
   showBaseOnly: boolean;
   previewColor: string;
@@ -584,6 +590,9 @@ const createDefaultParams = (overrides: Partial<ParametricParams> = {}): Paramet
   skinTextureSeed: 1337,
   skinTextureCrispness: 0.7,
   skinTextureThreadPitch: 8,
+    stackable: false,
+    stackRimDiameter: 60,
+    stackRimCollarHeight: 3,
     showBaseOnly: false,
     previewColor: '#e8e8e8',
   };
