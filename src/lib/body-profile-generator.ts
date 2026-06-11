@@ -371,6 +371,23 @@ export function getBodyRadius(
     }
   }
 
+  // Stackable: blend toward the locked rim radius within a short collar at
+  // both ends so the openings are perfectly circular and mate flush.
+  if (isStackable) {
+    const rimR = ((params as any).stackRimDiameter / 2) * scale;
+    const collarMm = Math.max(0.5, (params as any).stackRimCollarHeight ?? 3);
+    const collarFrac = Math.min(0.4, collarMm / Math.max(1, params.height));
+    let w = 0;
+    if (t < collarFrac) {
+      const x = t / collarFrac;
+      w = 1 - x * x * (3 - 2 * x); // smoothstep 1→0
+    } else if (t > 1 - collarFrac) {
+      const x = (1 - t) / collarFrac;
+      w = 1 - x * x * (3 - 2 * x);
+    }
+    if (w > 0) r = r * (1 - w) + rimR * w;
+  }
+
   return r;
 }
 
