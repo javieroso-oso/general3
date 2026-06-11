@@ -381,22 +381,28 @@ export function getBodyRadius(
     }
   }
 
-  // Stackable: blend toward the locked rim radius within a short collar at
-  // both ends so the openings are perfectly circular and mate flush.
+  // Stackable: blend toward the bottom silhouette within a short zone at both
+  // ends so the openings share the same r(theta) — mirror match, no rim added.
   if (isStackable) {
-    const rimR = ((params as any).stackRimDiameter / 2) * scale;
     const collarMm = Math.max(0.5, (params as any).stackRimCollarHeight ?? 3);
     const collarFrac = Math.min(0.4, collarMm / Math.max(1, params.height));
     let w = 0;
     if (t < collarFrac) {
       const x = t / collarFrac;
-      w = 1 - x * x * (3 - 2 * x); // smoothstep 1→0
+      w = 1 - x * x * (3 - 2 * x);
     } else if (t > 1 - collarFrac) {
       const x = (1 - t) / collarFrac;
       w = 1 - x * x * (3 - 2 * x);
     }
-    if (w > 0) r = r * (1 - w) + rimR * w;
+    if (w > 0) {
+      // Sample the bottom silhouette with twist disabled so the top end
+      // (which would otherwise be rotated by snappedTwist) aligns rotationally.
+      const endParams = { ...params, stackable: false, twistAngle: 0, asymmetry: 0 } as ParametricParams;
+      const endR = getBodyRadius(endParams, 0, theta, { ...options, includeTwist: false });
+      r = r * (1 - w) + endR * w;
+    }
   }
+
 
   return r;
 }
