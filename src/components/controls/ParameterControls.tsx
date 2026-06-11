@@ -9,6 +9,7 @@ import ParameterSlider from './ParameterSlider';
 import { Slider } from '@/components/ui/slider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
 import SkinTextureControls from './SkinTextureControls';
+import { computeRimSignature } from '@/lib/body-profile-generator';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import BaseCanvas from '@/components/drawing/BaseCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
