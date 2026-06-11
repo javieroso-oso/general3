@@ -85,15 +85,24 @@ export function getBodyRadius(
     objectType = 'vase',
   } = options;
 
-  // Stackable: lock top/bottom to the same opening and disable any feature that
-  // would distort the rim. Vase-mode safe: pieces share a flush circular rim.
+  // Stackable: mirror the bottom silhouette to the top via a blend zone, no
+  // forced circular rim. Disables features that would distort either opening,
+  // and auto-clamps twist / asymmetry so the two ends still line up.
   const isStackable = (params as any).stackable === true;
   if (isStackable) {
-    const rim = Math.max(1, ((params as any).stackRimDiameter ?? 60) / 2);
+    // Determine rotational symmetry order from rim-shaping features.
+    const gcdN = (a: number, b: number): number => (b === 0 ? a : gcdN(b, a % b));
+    const syms = [params.lobeCount, params.facetCount, params.rippleCount, params.flutingCount]
+      .map((n) => Math.floor(n))
+      .filter((n) => n >= 2);
+    const N = syms.length ? syms.reduce((a, b) => gcdN(a, b)) : 1;
+    const stepDeg = 360 / Math.max(1, N);
+    const snappedTwist = Math.round((params.twistAngle || 0) / stepDeg) * stepDeg;
+
     params = {
       ...params,
-      baseRadius: rim,
-      topRadius: rim,
+      twistAngle: snappedTwist,
+      asymmetry: Math.min(params.asymmetry ?? 0, 0.05),
       lipFlare: 0,
       lipHeight: 0,
       meltAmount: 0,
@@ -103,6 +112,7 @@ export function getBodyRadius(
       centeringLipEnabled: false,
     } as ParametricParams;
   }
+
 
 
   const {
@@ -371,22 +381,28 @@ export function getBodyRadius(
     }
   }
 
-  // Stackable: blend toward the locked rim radius within a short collar at
-  // both ends so the openings are perfectly circular and mate flush.
+  // Stackable: blend toward the bottom silhouette within a short zone at both
+  // ends so the openings share the same r(theta) — mirror match, no rim added.
   if (isStackable) {
-    const rimR = ((params as any).stackRimDiameter / 2) * scale;
     const collarMm = Math.max(0.5, (params as any).stackRimCollarHeight ?? 3);
     const collarFrac = Math.min(0.4, collarMm / Math.max(1, params.height));
     let w = 0;
     if (t < collarFrac) {
       const x = t / collarFrac;
-      w = 1 - x * x * (3 - 2 * x); // smoothstep 1→0
+      w = 1 - x * x * (3 - 2 * x);
     } else if (t > 1 - collarFrac) {
       const x = (1 - t) / collarFrac;
       w = 1 - x * x * (3 - 2 * x);
     }
-    if (w > 0) r = r * (1 - w) + rimR * w;
+    if (w > 0) {
+      // Sample the bottom silhouette with twist disabled so the top end
+      // (which would otherwise be rotated by snappedTwist) aligns rotationally.
+      const endParams = { ...params, stackable: false, twistAngle: 0, asymmetry: 0 } as ParametricParams;
+      const endR = getBodyRadius(endParams, 0, theta, { ...options, includeTwist: false });
+      r = r * (1 - w) + endR * w;
+    }
   }
+
 
   return r;
 }
@@ -445,4 +461,31 @@ export function getMaxBodyRadius(
   }
   
   return maxRadius;
+}
+
+/**
+ * Short stable signature of the params that determine the stackable end
+ * silhouette. Two pieces with the same signature will have matching openings
+ * and stack flush. Returned as a 4-char uppercase hex string.
+ */
+export function computeRimSignature(params: ParametricParams): string {
+  const round = (n: number, p = 100) => Math.round((n || 0) * p) / p;
+  const keys: Array<string | number> = [
+    round(params.baseRadius), round(params.topRadius), round(params.height),
+    params.profileCurve,
+    Math.floor(params.lobeCount || 1), round(params.lobeBlend),
+    round(params.lobeSizeVariation), round((params as any).roundnessBottom ?? 0),
+    Math.floor(params.rippleCount || 0), round(params.rippleDepth),
+    Math.floor(params.flutingCount || 0), round(params.flutingDepth),
+    Math.floor(params.facetCount || 0), round(params.facetSharpness),
+    Math.floor(params.horizontalRibCount || 0), round(params.horizontalRibDepth),
+    round(params.horizontalRibWidth),
+  ];
+  const str = keys.join('|');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return (h & 0xffff).toString(16).toUpperCase().padStart(4, '0');
 }

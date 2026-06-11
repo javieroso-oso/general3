@@ -9,6 +9,7 @@ import ParameterSlider from './ParameterSlider';
 import { Slider } from '@/components/ui/slider';
 import { ParametricParams, ObjectType, defaultParams, printConstraints, StandType, LegStyle, SurfaceStroke } from '@/types/parametric';
 import SkinTextureControls from './SkinTextureControls';
+import { computeRimSignature } from '@/lib/body-profile-generator';
 import SurfaceCanvas, { SurfaceHoverPosition } from '@/components/drawing/SurfaceCanvas';
 import BaseCanvas from '@/components/drawing/BaseCanvas';
 import ImageToSurfaceStrokes from '@/components/drawing/ImageToSurfaceStrokes';
@@ -777,7 +778,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         </div>
       </Section>
 
-      {/* Stacking — locks rims so pieces sit flush */}
+      {/* Stacking — mirrors the bottom silhouette to the top */}
       <Section title="Stacking" defaultOpen={false}>
         <div className="flex items-center justify-between">
           <Label className="text-xs">Stackable</Label>
@@ -787,34 +788,28 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           />
         </div>
         <p className="text-[11px] text-muted-foreground leading-snug">
-          Locks top &amp; bottom openings to the same diameter so any pieces with the
-          same rim sit flush. Pair with Spiral Vase print mode. Disables lip flare,
-          melt, flat bottom, base plate, and centering lip while on.
+          Mirrors the bottom silhouette to the top so any pieces with the same shape
+          settings stack flush — lobes, ribs, fluting, everything. Pair with Spiral
+          Vase print mode. Disables lip flare, melt, flat bottom, base plate, and
+          centering lip. Twist snaps to full turns; asymmetry capped at 5%.
         </p>
         <ParameterSlider
-          label="Rim Diameter"
-          value={params.stackRimDiameter ?? 60}
-          min={20}
-          max={150}
-          step={2}
-          unit="mm"
-          onChange={handleChange('stackRimDiameter')}
-        />
-        <ParameterSlider
-          label="Collar Height"
+          label="Blend Zone Height"
           value={params.stackRimCollarHeight ?? 3}
           min={1}
-          max={8}
+          max={10}
           step={0.5}
           unit="mm"
           onChange={handleChange('stackRimCollarHeight')}
         />
         {params.stackable && (
-          <div className="text-[11px] rounded-md border border-border bg-secondary/40 px-2 py-1.5 text-muted-foreground">
-            Base &amp; Top Radius locked to {((params.stackRimDiameter ?? 60) / 2).toFixed(0)} mm.
+          <div className="text-[11px] rounded-md border border-border bg-secondary/40 px-2 py-1.5 text-muted-foreground font-mono">
+            Stack key: {computeRimSignature(params)} — pieces with the same key stack.
           </div>
         )}
       </Section>
+
+
 
       {/* 2. Shape (merged Organic Shape + Deformations) */}
       <Section title="Shape" defaultOpen={true}>

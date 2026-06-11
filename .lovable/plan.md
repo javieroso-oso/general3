@@ -1,74 +1,56 @@
-# Stackable Shapes — Plan
+# Stackable Shapes v2 — Non-Circular Rims
 
-Add a per-shape **Stackable** toggle so any Shape-mode object can be stacked on any other shape that uses the same rim diameter. Designed for spiral vase mode: pieces remain a single continuous open wall, no horizontal surfaces, no lids, no plugs.
+Replace the forced-circle rim with a **silhouette-matched end profile**. The bottom cross-section of the shape (its full angular silhouette: lobes, ribs, fluting, ripples, facets, faceting, base curve…) is sampled once, then re-applied at the top through a short blend zone, so the two openings have **identical silhouettes** — no circle required, no visible "rim" added.
 
-## How it works (concept)
+Two pieces stack physically when their bottom silhouettes match (same controlling params).
+
+## Concept
 
 ```text
-        ┌──────── stackRimDiameter ────────┐
-        │                                  │
-   ─────┘   piece B (sits on top)          └─────   top opening = rim
-        ╲                                  ╱
-         ╲      organic belly / shape      ╱
-        ─┘                                 └─        bottom opening = rim
-        │                                  │
-   ─────┘   piece A                        └─────
-        ╲                                  ╱
-         ╲                                ╱
+   ┌─ top opening  = silhouette(theta)  ─┐
+   │  ▲ blends to end-profile (last ~5%) │
+   │                                     │
+   │   body free to bulge, twist, etc.   │
+   │                                     │
+   │  ▼ blends to end-profile (first ~5%)│
+   └─ bottom opening = silhouette(theta) ┘
 ```
-
-Both ends of every stackable piece are forced to the **same** circular opening (`stackRimDiameter`). Pieces with matching rim diameters sit flush on top of each other like open tubes. The body in between can still bulge, pinch, twist, etc.
 
 ## Changes
 
-### 1. Params (`src/types/parametric.ts`)
-Add three fields to `ParametricParams` (defaults make it inert):
+### 1. End-profile sampling (`src/lib/body-profile-generator.ts`)
+- Add `getEndProfileRadius(params, theta)` — computes the radius at `t = 0` with twist disabled and any t-multiplied modifier neutralized (asymmetry's vertical lean, pinch-top, lip-flare). It uses the user's actual lobes, ripples, ribs, fluting, facets, base radius, profile curve — i.e. the design's natural bottom silhouette.
+- In `getBodyRadius`, when `stackable` is on:
+  - Drop the circular rim clamp (no more forcing `baseRadius = topRadius = rim/2`).
+  - At the end blend zones (`t < collarFrac` or `t > 1 - collarFrac`) blend the computed radius toward `getEndProfileRadius(params, thetaForBlend)` using smoothstep.
+  - `thetaForBlend` removes twist so the two ends line up rotationally even if the body is twisted in between.
 
-- `stackable: boolean` — default `false`
-- `stackRimDiameter: number` — default `60` (mm)
-- `stackRimWallThickness: number` — default `2.0` (mm), short straight collar height at each rim for clean mating
+### 2. Twist & asymmetry policy (Stackable on)
+Allow them but auto-clamp so stacking still works:
+- **Twist**: snap to nearest multiple of `360° / N`, where `N = max symmetry order of the rim` (gcd of lobeCount, facetCount, rippleCount, flutingCount; defaults to 1 → snap to 360° multiples). Show a hint: "Twist snapped to 360° to keep stack alignment."
+- **Asymmetry**: cap at `0.05` and zero out its vertical-lean term inside the blend zones so the rim stays flat.
+- **Spine offset (lateral)**: forced to 0 inside the blend zones so the top opening sits centered over the bottom.
 
-### 2. Geometry constraint (`src/components/3d/ParametricMesh.tsx` + body generator)
-When `stackable` is on, before sampling the profile:
+### 3. Remove rim-diameter UI (`src/components/controls/ParameterControls.tsx`)
+- Drop "Rim Diameter" slider.
+- Keep "Blend Zone Height" slider (1–10 mm, renamed from "Collar Height") — controls how gradually the body resolves into the matched silhouette at each end.
+- Keep the explanation chip — update text:
+  > "Mirrors the bottom silhouette to the top so any two pieces with the same shape settings stack flush. Disables lip flare, melt, flat bottom, base plate, and centering lip. Twist snaps to full turns; asymmetry capped at 5%."
 
-- Force `baseRadius = topRadius = stackRimDiameter / 2`
-- Add a short straight cylindrical collar (height ~3 mm) at both `t=0` and `t=1` so the rim is perfectly circular and printable, even if `bulge`, `pinch`, `lobeCount`, `roundness*`, `lipFlare`, `meltAmount`, `flatBottom` would normally distort the end caps. Implementation: clamp the profile radius to `stackRimDiameter/2` for `t < collarFrac` and `t > 1 - collarFrac`, and suppress `lipFlare`/`lipHeight`, `meltAmount`/`meltDragAmount`, `flatBottom`, `basePlateEnabled`, and `centeringLipEnabled` while stackable is active.
+### 4. Params (`src/types/parametric.ts`)
+- Keep `stackable: boolean`, `stackRimCollarHeight` (rename in comments to "blend zone height", keep field for save compatibility).
+- **Remove** runtime use of `stackRimDiameter` (keep field for back-compat — ignored when stackable is on).
 
-No top or bottom cap is generated (vase mode prints the wall only). The bottom face stays open.
+### 5. Stack-compatibility hash (validation)
+- Add `computeRimSignature(params)` → short string hash of the params that determine the end profile (baseRadius, profileCurve, lobeCount/blend, rippleCount/depth, fluting, facets, horizontalRibs evaluated at t=0, etc.).
+- Show it in the Stacking section: `Stack key: A7F3` so the user can eyeball-match it across saved pieces; matching keys = pieces stack.
 
-### 3. Controls (`src/components/controls/ParameterControls.tsx`)
-New collapsible **Stacking** section:
-
-- Switch: `Stackable`
-- Slider: `Rim diameter` (20–150 mm), disabled when stackable is off
-- Slider: `Collar height` (1–6 mm)
-- Info chip: "Locks top & bottom to the same opening. Pairs with Spiral Vase print mode. Disables lip flare, melt, flat bottom, base plate, and centering lip."
-
-When the toggle flips on:
-- Force `printMode = 'vase_spiral'` in the print settings (with a note shown).
-- Grey out `baseRadius` / `topRadius` sliders and show "locked by Stacking".
-
-### 4. Preview affordance (`src/components/3d/Scene3D.tsx`)
-Add a tiny stacked-ghost preview: when `stackable` is on, render a translucent copy of the same mesh offset by `+height` in Y so the user can visually confirm the rims meet. Toggleable via a small "Show stack preview" switch in the new Stacking section. No new parameters in storage.
-
-### 5. Drawer / batch
-No changes needed — existing per-item persistence already captures the new params, so a stacked set can be saved and batch-exported together.
-
-### 6. Validation (`analyzePrint` in `src/types/parametric.ts`)
-When `stackable` is on:
-- Warn if `stackRimDiameter < 20` (too narrow for nozzle path quality).
-- Warn if active `printMode !== 'vase_spiral'`.
-- Info: "Stack-compatible — pieces with rim Ø {stackRimDiameter}mm will sit flush."
+### 6. Files touched
+- `src/lib/body-profile-generator.ts` — `getEndProfileRadius` + new blend logic + twist/asymmetry/spine handling under stackable.
+- `src/components/controls/ParameterControls.tsx` — drop rim-diameter slider, rename collar, add stack-key chip.
+- `src/types/parametric.ts` — keep fields, add `computeRimSignature` helper.
 
 ## Out of scope
-- Mechanical interlock (lips, threads, magnets) — explicitly skipped per request.
-- Lighting / cord routing between stacked pieces.
-- Cross-mode stacking with Plotter or Pages.
-
-## Files touched
-- `src/types/parametric.ts` (params + defaults + analyze)
-- `src/components/controls/ParameterControls.tsx` (Stacking section)
-- `src/components/3d/ParametricMesh.tsx` (rim clamp + collar)
-- `src/lib/body-profile-generator.ts` (collar clamp in profile sampling)
-- `src/components/3d/Scene3D.tsx` (optional stacked ghost)
-- `src/lib/stl-export.ts` (respect clamped profile — already driven by same params, just verify)
+- Surface drawings (`surfaceStrokes`) on the end caps — they're treated like any other deformation already; if a user draws across the rim it will show on both ends after mirroring, which is the intended behavior.
+- Mechanical interlock / lips / dovetails.
+- Cross-shape stacking with different lobe counts (the hash will simply not match).
