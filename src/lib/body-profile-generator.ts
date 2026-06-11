@@ -85,15 +85,24 @@ export function getBodyRadius(
     objectType = 'vase',
   } = options;
 
-  // Stackable: lock top/bottom to the same opening and disable any feature that
-  // would distort the rim. Vase-mode safe: pieces share a flush circular rim.
+  // Stackable: mirror the bottom silhouette to the top via a blend zone, no
+  // forced circular rim. Disables features that would distort either opening,
+  // and auto-clamps twist / asymmetry so the two ends still line up.
   const isStackable = (params as any).stackable === true;
   if (isStackable) {
-    const rim = Math.max(1, ((params as any).stackRimDiameter ?? 60) / 2);
+    // Determine rotational symmetry order from rim-shaping features.
+    const gcdN = (a: number, b: number): number => (b === 0 ? a : gcdN(b, a % b));
+    const syms = [params.lobeCount, params.facetCount, params.rippleCount, params.flutingCount]
+      .map((n) => Math.floor(n))
+      .filter((n) => n >= 2);
+    const N = syms.length ? syms.reduce((a, b) => gcdN(a, b)) : 1;
+    const stepDeg = 360 / Math.max(1, N);
+    const snappedTwist = Math.round((params.twistAngle || 0) / stepDeg) * stepDeg;
+
     params = {
       ...params,
-      baseRadius: rim,
-      topRadius: rim,
+      twistAngle: snappedTwist,
+      asymmetry: Math.min(params.asymmetry ?? 0, 0.05),
       lipFlare: 0,
       lipHeight: 0,
       meltAmount: 0,
@@ -103,6 +112,7 @@ export function getBodyRadius(
       centeringLipEnabled: false,
     } as ParametricParams;
   }
+
 
 
   const {
