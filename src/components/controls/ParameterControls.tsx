@@ -814,6 +814,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
             Base &amp; Top Radius locked to {(params.stackRimDiameter / 2).toFixed(0)} mm.
           </div>
         )}
+      </Section>
 
       {/* 2. Shape (merged Organic Shape + Deformations) */}
       <Section title="Shape" defaultOpen={true}>
