@@ -603,6 +603,9 @@ export const defaultLampParams: LampParams = {
   skinTextureSeed: 1337,
   skinTextureCrispness: 0.7,
   skinTextureThreadPitch: 8,
+  stackable: false,
+  stackRimDiameter: 60,
+  stackRimCollarHeight: 3,
   showBaseOnly: false,
   previewColor: '#e8e8e8',
   
