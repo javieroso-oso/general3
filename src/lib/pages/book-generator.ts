@@ -85,13 +85,20 @@ export function generateBookGeometry(
     loop.rotateY(Math.PI / 2);
     loop.translate(x * scale, ridgeH * scale, 0);
     loop.deleteAttribute('uv');
-    loop.deleteAttribute('normal');
     parts.push(loop);
   }
 
   const merged = mergeGeometries(parts, false);
+  if (!merged) {
+    const ref = Object.keys(parts[0].attributes).sort().join(',');
+    parts.forEach((p, i) => {
+      const sig = Object.keys(p.attributes).sort().join(',');
+      if (sig !== ref) console.error(`[book-generator] part ${i} attribute mismatch: ${sig} vs ${ref}`);
+    });
+    parts.forEach(p => p.dispose());
+    return null;
+  }
   parts.forEach(p => p.dispose());
-  if (!merged) return null;
   merged.computeVertexNormals();
   return merged;
 }
