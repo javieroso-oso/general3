@@ -1,56 +1,30 @@
-# Stackable Shapes v2 — Non-Circular Rims
+# Fix: books don't render in Pages mode
 
-Replace the forced-circle rim with a **silhouette-matched end profile**. The bottom cross-section of the shape (its full angular silhouette: lobes, ribs, fluting, ripples, facets, faceting, base curve…) is sampled once, then re-applied at the top through a short blend zone, so the two openings have **identical silhouettes** — no circle required, no visible "rim" added.
+## What's happening
 
-Two pieces stack physically when their bottom silhouettes match (same controlling params).
+Switching to the Pages tab shows the controls panel and the floor grid, but no book — the 3D view is empty. Verified in the browser at both desktop and mobile widths.
 
-## Concept
+The cause is in the book geometry assembly. The book is merged from three kinds of parts, and their vertex attributes don't match:
 
-```text
-   ┌─ top opening  = silhouette(theta)  ─┐
-   │  ▲ blends to end-profile (last ~5%) │
-   │                                     │
-   │   body free to bulge, twist, etc.   │
-   │                                     │
-   │  ▼ blends to end-profile (first ~5%)│
-   └─ bottom opening = silhouette(theta) ┘
-```
+- Spine ridge box: position + normal + index
+- Page slabs: position + normal + index
+- Stitch loops (torus): position + index only (both `normal` and `uv` are deleted)
 
-## Changes
+Three.js `mergeGeometries` requires every input to carry the exact same attribute set. With the loops missing `normal`, the merge returns `null`, the preview component renders nothing, and STL export returns nothing too.
 
-### 1. End-profile sampling (`src/lib/body-profile-generator.ts`)
-- Add `getEndProfileRadius(params, theta)` — computes the radius at `t = 0` with twist disabled and any t-multiplied modifier neutralized (asymmetry's vertical lean, pinch-top, lip-flare). It uses the user's actual lobes, ripples, ribs, fluting, facets, base radius, profile curve — i.e. the design's natural bottom silhouette.
-- In `getBodyRadius`, when `stackable` is on:
-  - Drop the circular rim clamp (no more forcing `baseRadius = topRadius = rim/2`).
-  - At the end blend zones (`t < collarFrac` or `t > 1 - collarFrac`) blend the computed radius toward `getEndProfileRadius(params, thetaForBlend)` using smoothstep.
-  - `thetaForBlend` removes twist so the two ends line up rotationally even if the body is twisted in between.
+## The fix
 
-### 2. Twist & asymmetry policy (Stackable on)
-Allow them but auto-clamp so stacking still works:
-- **Twist**: snap to nearest multiple of `360° / N`, where `N = max symmetry order of the rim` (gcd of lobeCount, facetCount, rippleCount, flutingCount; defaults to 1 → snap to 360° multiples). Show a hint: "Twist snapped to 360° to keep stack alignment."
-- **Asymmetry**: cap at `0.05` and zero out its vertical-lean term inside the blend zones so the rim stays flat.
-- **Spine offset (lateral)**: forced to 0 inside the blend zones so the top opening sits centered over the bottom.
+In the book generator, stop deleting the `normal` attribute from the stitch loops — delete only `uv`, matching the ridge box and slabs. Normals get recomputed after the merge anyway.
 
-### 3. Remove rim-diameter UI (`src/components/controls/ParameterControls.tsx`)
-- Drop "Rim Diameter" slider.
-- Keep "Blend Zone Height" slider (1–10 mm, renamed from "Collar Height") — controls how gradually the body resolves into the matched silhouette at each end.
-- Keep the explanation chip — update text:
-  > "Mirrors the bottom silhouette to the top so any two pieces with the same shape settings stack flush. Disables lip flare, melt, flat bottom, base plate, and centering lip. Twist snaps to full turns; asymmetry capped at 5%."
+Add a guard so a future mismatch is visible instead of silent: if the merge returns null, log which part index caused it rather than quietly rendering an empty scene.
 
-### 4. Params (`src/types/parametric.ts`)
-- Keep `stackable: boolean`, `stackRimCollarHeight` (rename in comments to "blend zone height", keep field for save compatibility).
-- **Remove** runtime use of `stackRimDiameter` (keep field for back-compat — ignored when stackable is on).
+## Verification
 
-### 5. Stack-compatibility hash (validation)
-- Add `computeRimSignature(params)` → short string hash of the params that determine the end profile (baseRadius, profileCurve, lobeCount/blend, rippleCount/depth, fluting, facets, horizontalRibs evaluated at t=0, etc.).
-- Show it in the Stacking section: `Stack key: A7F3` so the user can eyeball-match it across saved pieces; matching keys = pieces stack.
+- Reload Pages mode and confirm the book (spine ridge, page slabs, stitch loops) is visible and framed by the camera.
+- Add a page and change page width/height, confirm the mesh updates.
+- Export STL and confirm a non-empty file is produced.
 
-### 6. Files touched
-- `src/lib/body-profile-generator.ts` — `getEndProfileRadius` + new blend logic + twist/asymmetry/spine handling under stackable.
-- `src/components/controls/ParameterControls.tsx` — drop rim-diameter slider, rename collar, add stack-key chip.
-- `src/types/parametric.ts` — keep fields, add `computeRimSignature` helper.
+## Files
 
-## Out of scope
-- Surface drawings (`surfaceStrokes`) on the end caps — they're treated like any other deformation already; if a user draws across the rim it will show on both ends after mirroring, which is the intended behavior.
-- Mechanical interlock / lips / dovetails.
-- Cross-shape stacking with different lobe counts (the hash will simply not match).
+- `src/lib/pages/book-generator.ts` — attribute fix + merge guard
+- `src/components/pages/BookPreview.tsx` — only if camera framing needs adjusting after the mesh appears
