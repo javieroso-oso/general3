@@ -21,11 +21,22 @@ Key properties:
 - **Raised end walls**: a low rail at each end of the spine (across the page width) ties the first and last page in and stiffens the whole binding, acting like a book's board edges.
 - **Stitch loops removed**: they are unprintable and add nothing structural. If you want the stitched look later it should be relief pressed into the spine surface, not floating rings.
 
+## Covers (worth adding)
+
+Yes — covers make the binding better, not just prettier. They replace the end rails with something structural: two full-size panels, one at each end of the stack, printed in the same pass and rooted into the spine exactly like the pages, but thicker (default ~1.2 mm, a few perimeters). They brace the first and last page, stop the stack from splaying, and give the spine two stiff walls at its ends.
+
+- Front and back cover panels, same width/height as pages, own thickness control.
+- Covers can carry relief content too (title text, drawing, image) using the existing page editor — the front cover is just a page with a different thickness.
+- Optional slight overhang: covers extend 1–2 mm beyond page height/width so they protect the page edges, like a real hardback.
+- With covers on, the spine's end margin grows to seat them, and the end rails become unnecessary (kept as an option for coverless books).
+
 ## Controls added to the Pages panel
 
 - **Spine thickness** (0.8–4 mm) — wall solidity of the binding.
 - **Spine height** (existing, retuned) — how tall the spine block is before pages begin.
-- **End rails** on/off with a height slider.
+- **Covers** on/off, with cover thickness and overhang sliders, plus front/back content editors.
+- **End rails** on/off with a height slider (for coverless books).
+
 
 Slicer note in the panel updates: spine prints solid, pages print as single walls — so the recommended profile becomes 1 wall / 0 infill with the spine's extra thickness carrying the strength.
 
