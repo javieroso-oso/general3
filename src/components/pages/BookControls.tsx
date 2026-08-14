@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { BookParams, createEmptyPage } from '@/types/pages';
+import { BookParams, createEmptyPage, normalizeBookParams } from '@/types/pages';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Plus, Trash2, ChevronUp, ChevronDown, Book } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Trash2, ChevronUp, ChevronDown, Book, BookOpen } from 'lucide-react';
 import PageEditor from './PageEditor';
 import { cn } from '@/lib/utils';
 
@@ -13,9 +14,12 @@ interface BookControlsProps {
   onChange: (b: BookParams) => void;
 }
 
-const BookControls = ({ book, onChange }: BookControlsProps) => {
+const BookControls = ({ book: bookIn, onChange }: BookControlsProps) => {
+  const book = normalizeBookParams(bookIn);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [coverTab, setCoverTab] = useState<'front' | 'back'>('front');
   const update = (patch: Partial<BookParams>) => onChange({ ...book, ...patch });
+
 
   const addPage = () => {
     const next = [...book.pages, createEmptyPage('text')];
