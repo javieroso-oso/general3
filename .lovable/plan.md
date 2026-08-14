@@ -44,7 +44,9 @@ Slicer note in the panel updates: spine prints solid, pages print as single wall
 
 - `src/lib/pages/book-generator.ts`: replace the thin ridge box + torus loop loop with a spine slab sized `totalSpineX × spineHeight × spineDepth`, where `spineDepth` is derived from `book.pageWidth` (full page width plus a small margin) rather than page thickness. Add two end-rail boxes. Add per-page fillet geometry (a short tapered box or lofted quad strip) at each page root.
 - `src/lib/pages/page-slab-generator.ts`: keep `footMm` but drive it as a vertical flare (thickness ramp near y=0) instead of a lateral Z curve; add an optional `footFlareMm` so the page base widens into the spine.
-- `src/types/pages.ts`: add `spineWallThickness`, `endRails`, `endRailHeight` to `BookParams` and defaults; keep existing fields for backward compatibility with saved books.
-- `src/components/pages/BookControls.tsx`: add the new sliders/toggle and update the slicer hint text.
+- `src/types/pages.ts`: add `spineWallThickness`, `covers` (enabled, thickness, overhang, front/back `PageContent`), `endRails`, `endRailHeight` to `BookParams` and defaults; keep existing fields for backward compatibility with saved books.
+- Covers reuse `generatePageSlabGeometry` with a larger `pageThicknessMm` and slightly larger width/height, placed at the two ends of the stack and rooted into the spine the same way.
+- `src/components/pages/BookControls.tsx`: add the new sliders/toggles, front/back cover editors (reusing `PageEditor`), and update the slicer hint text.
+
 - Every merged part keeps matching attributes (position + normal, indexed, no uv) so `mergeGeometries` doesn't return null.
 - `src/lib/pages/book-stl-export.ts` needs no change — the -PI/2 X rotation still puts the spine flat on Z=0.
