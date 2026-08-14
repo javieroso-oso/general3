@@ -66,6 +66,17 @@ export function generateBookGeometry(
   spine.translate(0, (spineH * 0.5) * scale, 0);
   parts.push(spine);
 
+  // ---- Long-edge rails: raised lips running the full length of the spine.
+  // They brace every page along its two vertical edges, like board edges. ----
+  const lipT = Math.max(0.8, book.spineWallThickness);
+  const lipH = Math.min(Math.max(1.5, spineH * 0.6), 6);
+  for (const dir of [-1, 1]) {
+    const lip = box(spineLenX, lipH, lipT, scale);
+    lip.translate(0, (spineH + lipH * 0.5 - 0.2) * scale, dir * (spineDepth / 2 - lipT / 2) * scale);
+    parts.push(lip);
+  }
+
+
   const rootY = (spineH - FOOT_OVERLAP) * scale;
 
   const addSlab = (
