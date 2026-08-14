@@ -21,22 +21,22 @@ export interface SlabOptions {
   cellsPerMm?: number;
   // How densely to triangulate the front/back surfaces (cells per mm).
   meshCellsPerMm?: number;
-  // Optional "foot bend" at the bottom of the page (spine attachment side):
-  // for y in [0, footMm] the whole slab is shifted along local Z by a smooth
-  // curve that reaches `footCurveMm` at y=0 and 0 at y=footMm. Sign of
-  // footCurveMm chooses bend direction (front or back).
+  // Optional "foot flare" at the bottom of the page (spine attachment side):
+  // for y in [0, footMm] the slab thickens outward on BOTH faces, reaching
+  // +footFlareMm per side at y=0 and 0 at y=footMm. This creates a printable
+  // fillet where the page roots into the spine.
   footMm?: number;
-  footCurveMm?: number;
+  footFlareMm?: number;
 }
 
 const DEFAULT_MESH = 2; // 2 verts/mm => ~ 0.5mm triangles. Good for 0.4 nozzle.
 
-// Smoothstep-based foot offset: returns the Z shift to add at height y (mm).
-function footOffsetMm(y: number, footMm: number, footCurveMm: number): number {
-  if (footMm <= 0 || footCurveMm === 0 || y >= footMm) return 0;
-  const t = Math.max(0, Math.min(1, y / footMm)); // 0 at bottom, 1 at top of foot
-  const s = 1 - t * t * (3 - 2 * t); // smoothstep, 1 at bottom -> 0 at top
-  return footCurveMm * s;
+// Smoothstep flare: extra half-thickness (mm) at height y.
+function footFlareAt(y: number, footMm: number, flareMm: number): number {
+  if (footMm <= 0 || flareMm <= 0 || y >= footMm) return 0;
+  const t = Math.max(0, Math.min(1, y / footMm));
+  const s = 1 - t * t * (3 - 2 * t); // 1 at bottom -> 0 at top of foot
+  return flareMm * s;
 }
 
 export function generatePageSlabGeometry(
@@ -51,7 +51,8 @@ export function generatePageSlabGeometry(
   const NX = Math.max(2, Math.round(W_mm * meshPerMm));
   const NY = Math.max(2, Math.round(H_mm * meshPerMm));
   const footMm = opts.footMm ?? 0;
-  const footCurveMm = opts.footCurveMm ?? 0;
+  const footFlareMm = opts.footFlareMm ?? 0;
+
 
   const field: PageHeightField = buildPageHeightField(page, {
     pageWidthMm: W_mm,
@@ -69,12 +70,13 @@ export function generatePageSlabGeometry(
   for (let j = 0; j <= NY; j++) {
     const v = j / NY;
     const y = v * H_mm; // 0..H, spine at y=0
-    const zShift = footOffsetMm(y, footMm, footCurveMm);
+    const flare = footFlareAt(y, footMm, footFlareMm);
     for (let i = 0; i <= NX; i++) {
       const u = i / NX;
       const x = (u - 0.5) * W_mm;
       const r = sampleField(field, u, v) * reliefFront;
-      const z = T * 0.5 + r + zShift;
+      const z = T * 0.5 + r + flare;
+
       positions.push(x * scale, y * scale, z * scale);
     }
   }
@@ -96,12 +98,13 @@ export function generatePageSlabGeometry(
   for (let j = 0; j <= NY; j++) {
     const v = j / NY;
     const y = v * H_mm;
-    const zShift = footOffsetMm(y, footMm, footCurveMm);
+    const flare = footFlareAt(y, footMm, footFlareMm);
     for (let i = 0; i <= NX; i++) {
       const u = i / NX;
       const x = (u - 0.5) * W_mm;
       const r = sampleField(field, u, v) * reliefBack;
-      const z = -T * 0.5 - r + zShift;
+      const z = -T * 0.5 - r - flare;
+
       positions.push(x * scale, y * scale, z * scale);
     }
   }

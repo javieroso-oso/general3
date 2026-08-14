@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { BookParams, createEmptyPage } from '@/types/pages';
+import { BookParams, createEmptyPage, normalizeBookParams } from '@/types/pages';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Plus, Trash2, ChevronUp, ChevronDown, Book } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Trash2, ChevronUp, ChevronDown, Book, BookOpen } from 'lucide-react';
 import PageEditor from './PageEditor';
 import { cn } from '@/lib/utils';
 
@@ -13,9 +14,12 @@ interface BookControlsProps {
   onChange: (b: BookParams) => void;
 }
 
-const BookControls = ({ book, onChange }: BookControlsProps) => {
+const BookControls = ({ book: bookIn, onChange }: BookControlsProps) => {
+  const book = normalizeBookParams(bookIn);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [coverTab, setCoverTab] = useState<'front' | 'back'>('front');
   const update = (patch: Partial<BookParams>) => onChange({ ...book, ...patch });
+
 
   const addPage = () => {
     const next = [...book.pages, createEmptyPage('text')];
@@ -84,10 +88,89 @@ const BookControls = ({ book, onChange }: BookControlsProps) => {
           <Slider value={[book.spineExtra]} min={1.0} max={10} step={0.2}
             onValueChange={([v]) => update({ spineExtra: v })} />
         </div>
+        <div>
+          <div className="flex justify-between mb-1">
+            <Label className="text-xs">Spine thickness</Label>
+            <span className="text-xs text-muted-foreground">{book.spineWallThickness.toFixed(1)} mm</span>
+          </div>
+          <Slider value={[book.spineWallThickness]} min={0.8} max={4} step={0.1}
+            onValueChange={([v]) => update({ spineWallThickness: v })} />
+        </div>
         <p className="text-[10px] leading-snug text-muted-foreground pt-1 border-t border-border/50">
-          Pages print as single perimeters. In your slicer set <span className="font-medium">1 wall, 0% infill, 0 top/bottom layers</span>, spine flat on the bed.
+          The spine is a solid slab printed flat on the bed; pages print as single perimeters rooted into it. In your slicer use <span className="font-medium">1 wall, 0% infill, 0 top/bottom layers</span> and let the spine's thickness carry the strength.
         </p>
       </div>
+
+      {/* Covers */}
+      <div className="space-y-3 p-3 rounded-lg bg-secondary/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <BookOpen className="w-4 h-4" /> Covers
+          </div>
+          <Switch
+            checked={book.covers.enabled}
+            onCheckedChange={(v) => update({ covers: { ...book.covers, enabled: v } })}
+          />
+        </div>
+        {book.covers.enabled ? (
+          <>
+            <div>
+              <div className="flex justify-between mb-1">
+                <Label className="text-xs">Cover thickness</Label>
+                <span className="text-xs text-muted-foreground">{book.covers.thickness.toFixed(1)} mm</span>
+              </div>
+              <Slider value={[book.covers.thickness]} min={0.6} max={3} step={0.1}
+                onValueChange={([v]) => update({ covers: { ...book.covers, thickness: v } })} />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <Label className="text-xs">Overhang</Label>
+                <span className="text-xs text-muted-foreground">{book.covers.overhang.toFixed(1)} mm</span>
+              </div>
+              <Slider value={[book.covers.overhang]} min={0} max={4} step={0.1}
+                onValueChange={([v]) => update({ covers: { ...book.covers, overhang: v } })} />
+            </div>
+            <div className="flex gap-1">
+              {(['front', 'back'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setCoverTab(t)}
+                  className={cn(
+                    'px-2 py-1 text-xs rounded border capitalize transition-colors',
+                    coverTab === t ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-secondary'
+                  )}
+                >
+                  {t} cover
+                </button>
+              ))}
+            </div>
+            <PageEditor
+              page={book.covers[coverTab]}
+              pageWidthMm={book.pageWidth + 2 * book.covers.overhang}
+              pageHeightMm={book.pageHeight + book.covers.overhang}
+              onChange={(p) => update({ covers: { ...book.covers, [coverTab]: p } })}
+            />
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">End rails</Label>
+              <Switch checked={book.endRails} onCheckedChange={(v) => update({ endRails: v })} />
+            </div>
+            {book.endRails && (
+              <div>
+                <div className="flex justify-between mb-1">
+                  <Label className="text-xs">Rail height</Label>
+                  <span className="text-xs text-muted-foreground">{book.endRailHeight.toFixed(1)} mm</span>
+                </div>
+                <Slider value={[book.endRailHeight]} min={2} max={20} step={0.5}
+                  onValueChange={([v]) => update({ endRailHeight: v })} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
 
       {/* Pages list */}
       <div>
