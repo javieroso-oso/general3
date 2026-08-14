@@ -21,11 +21,22 @@ Key properties:
 - **Raised end walls**: a low rail at each end of the spine (across the page width) ties the first and last page in and stiffens the whole binding, acting like a book's board edges.
 - **Stitch loops removed**: they are unprintable and add nothing structural. If you want the stitched look later it should be relief pressed into the spine surface, not floating rings.
 
+## Covers (worth adding)
+
+Yes — covers make the binding better, not just prettier. They replace the end rails with something structural: two full-size panels, one at each end of the stack, printed in the same pass and rooted into the spine exactly like the pages, but thicker (default ~1.2 mm, a few perimeters). They brace the first and last page, stop the stack from splaying, and give the spine two stiff walls at its ends.
+
+- Front and back cover panels, same width/height as pages, own thickness control.
+- Covers can carry relief content too (title text, drawing, image) using the existing page editor — the front cover is just a page with a different thickness.
+- Optional slight overhang: covers extend 1–2 mm beyond page height/width so they protect the page edges, like a real hardback.
+- With covers on, the spine's end margin grows to seat them, and the end rails become unnecessary (kept as an option for coverless books).
+
 ## Controls added to the Pages panel
 
 - **Spine thickness** (0.8–4 mm) — wall solidity of the binding.
 - **Spine height** (existing, retuned) — how tall the spine block is before pages begin.
-- **End rails** on/off with a height slider.
+- **Covers** on/off, with cover thickness and overhang sliders, plus front/back content editors.
+- **End rails** on/off with a height slider (for coverless books).
+
 
 Slicer note in the panel updates: spine prints solid, pages print as single walls — so the recommended profile becomes 1 wall / 0 infill with the spine's extra thickness carrying the strength.
 
@@ -33,7 +44,9 @@ Slicer note in the panel updates: spine prints solid, pages print as single wall
 
 - `src/lib/pages/book-generator.ts`: replace the thin ridge box + torus loop loop with a spine slab sized `totalSpineX × spineHeight × spineDepth`, where `spineDepth` is derived from `book.pageWidth` (full page width plus a small margin) rather than page thickness. Add two end-rail boxes. Add per-page fillet geometry (a short tapered box or lofted quad strip) at each page root.
 - `src/lib/pages/page-slab-generator.ts`: keep `footMm` but drive it as a vertical flare (thickness ramp near y=0) instead of a lateral Z curve; add an optional `footFlareMm` so the page base widens into the spine.
-- `src/types/pages.ts`: add `spineWallThickness`, `endRails`, `endRailHeight` to `BookParams` and defaults; keep existing fields for backward compatibility with saved books.
-- `src/components/pages/BookControls.tsx`: add the new sliders/toggle and update the slicer hint text.
+- `src/types/pages.ts`: add `spineWallThickness`, `covers` (enabled, thickness, overhang, front/back `PageContent`), `endRails`, `endRailHeight` to `BookParams` and defaults; keep existing fields for backward compatibility with saved books.
+- Covers reuse `generatePageSlabGeometry` with a larger `pageThicknessMm` and slightly larger width/height, placed at the two ends of the stack and rooted into the spine the same way.
+- `src/components/pages/BookControls.tsx`: add the new sliders/toggles, front/back cover editors (reusing `PageEditor`), and update the slicer hint text.
+
 - Every merged part keeps matching attributes (position + normal, indexed, no uv) so `mergeGeometries` doesn't return null.
 - `src/lib/pages/book-stl-export.ts` needs no change — the -PI/2 X rotation still puts the spine flat on Z=0.
