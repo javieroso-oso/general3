@@ -550,7 +550,6 @@ const SurfaceArtTabs = ({ params, onParamsChange, onSurfaceHover }: SurfaceArtTa
 };
 
 const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhibitMode = false }: ParameterControlsProps) => {
-  const [advancedMode, setAdvancedMode] = useState(false);
   const handleChange = (key: keyof ParametricParams) => (value: number) => {
     let newParams = { ...params, [key]: value };
     
@@ -677,31 +676,7 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         </Button>
       </div>
 
-      {/* Simple / Advanced toggle — hidden in exhibit mode */}
-      {!exhibitMode && (
-        <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg">
-          <button
-            type="button"
-            onClick={() => setAdvancedMode(false)}
-            className={cn(
-              "flex-1 text-xs font-medium py-1.5 rounded-md transition-colors",
-              !advancedMode ? "bg-card text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Simple
-          </button>
-          <button
-            type="button"
-            onClick={() => setAdvancedMode(true)}
-            className={cn(
-              "flex-1 text-xs font-medium py-1.5 rounded-md transition-colors",
-              advancedMode ? "bg-card text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Advanced
-          </button>
-        </div>
-      )}
+
 
       {/* 1. Dimensions */}
       <Section title="Dimensions" defaultOpen={true}>
@@ -1106,7 +1081,6 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
         </Subsection>
       </Section>
 
-      {(advancedMode || exhibitMode) && <>
       {/* 3. Textures (merged Surface Details + Surface Patterns) */}
       <Section title="Textures" defaultOpen={false}>
         {/* Faceting */}
