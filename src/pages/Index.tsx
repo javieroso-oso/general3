@@ -61,7 +61,9 @@ import {
 } from '@/components/ui/select';
 
 const Index = () => {
-  const [objectType, setObjectType] = useState<ObjectType>('shape');
+  const [objectType, setObjectTypeRaw] = useState<ObjectType>('shape');
+  // Pages (book) tool is hidden for the investor demo — bounce any 'pages' state back to 'shape'
+  const setObjectType = (t: ObjectType) => setObjectTypeRaw(t === 'pages' ? 'shape' : t);
   const [params, setParams] = useState<ParametricParams>(defaultShapeParams);
   const [plotterParams, setPlotterParams] = useState<PlotterParams>(defaultPlotterParams);
   const [bookParams, setBookParams] = useState<BookParams>(defaultBookParams);

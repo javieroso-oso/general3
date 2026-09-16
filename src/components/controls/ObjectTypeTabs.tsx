@@ -10,7 +10,7 @@ interface ObjectTypeTabsProps {
 const tabs: { type: ObjectType; label: string }[] = [
   { type: 'shape', label: 'Shape' },
   { type: 'plotter', label: 'Plotter' },
-  { type: 'pages', label: 'Pages' },
+  // { type: 'pages', label: 'Pages' }, // hidden for investor demo — re-enable to restore book tool
 ];
 
 const ObjectTypeTabs = ({ activeType, onTypeChange }: ObjectTypeTabsProps) => {
