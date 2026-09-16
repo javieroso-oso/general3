@@ -1159,7 +1159,7 @@ const Index = () => {
 
       {/* Dimensions overlay - hidden in exhibit mode */}
       {!isExhibitMode && (
-        <div className="fixed top-20 right-4 z-20 glass-panel px-3 py-2 text-xs font-mono">
+        <div className="fixed top-[116px] right-4 z-20 glass-panel px-3 py-2 text-xs font-mono">
           {objectType === 'plotter' ? (
             <div className="text-muted-foreground">
               {plotterParams.orientation === 'landscape' 
@@ -1189,7 +1189,7 @@ const Index = () => {
             variant="ghost"
             size="icon"
             onClick={() => setShowRightPanel(!showRightPanel)}
-            className="fixed right-4 top-32 z-30 w-8 h-8 rounded-lg bg-card/80 backdrop-blur-sm border border-border/50 hover:bg-card"
+            className="fixed right-4 top-[172px] z-30 w-8 h-8 rounded-lg bg-card/80 backdrop-blur-sm border border-border/50 hover:bg-card"
           >
             <Info className="w-4 h-4" />
           </Button>
@@ -1202,7 +1202,7 @@ const Index = () => {
               opacity: showRightPanel ? 1 : 0 
             }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-4 top-44 w-[280px] z-20 glass-panel p-4 max-h-[60vh] overflow-y-auto"
+            className="fixed right-4 top-[216px] w-[280px] z-20 glass-panel p-4 max-h-[60vh] overflow-y-auto"
           >
             <h2 className="text-xs font-medium text-muted-foreground mb-3">
               Print Analysis
