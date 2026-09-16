@@ -2234,7 +2234,6 @@ const ParameterControls = ({ params, type, onParamsChange, onSurfaceHover, exhib
           params={params}
         />
       </div>}
-      </>}
     </motion.div>
   );
 };
